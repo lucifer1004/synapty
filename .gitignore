@@ -1,0 +1,10 @@
+.claude/settings.local.json
+.omc
+
+# Zig
+zig-out/
+zig-cache/
+.zig-cache/
+
+# OS
+.DS_Store
