@@ -1,43 +1,74 @@
-# Synapty - Multi-Agent A2A Terminal
+# Synapty — The Agent Workbench
 
-## Project Overview
-Synapty (Synapse + PTY) is a terminal multiplexer and A2A (Agent-to-Agent) message router for Multi-Agent Systems (MAS). It uses a Hub-and-Spoke architecture with dual-channel communication multiplexed over SSH.
+## Vision
+Synapty (Synapse + PTY) is a terminal-native orchestration platform for multi-agent systems. It enables AI agents — local or remote, from any provider — to collaborate through a unified PTY substrate. See [[RFC-0001]] for the full five-layer architecture vision.
+
+## V1 Scope (per [[ADR-0001]])
+Native macOS GUI application — a graphical terminal multiplexer with built-in A2A routing, Termius-style host management, and libghostty-powered terminal panes. Seven deliverables:
+1. **Native GUI App** — macOS, libghostty via GhosttyKit xcframework, Metal-rendered terminal panes. Swift UI + Zig core (cmux pattern).
+2. **Host Management Sidebar** — preconfigured remote hosts (label, address, credentials). Reusable Identities. Host Groups with inheritance. One-click deploy.
+3. **Embedded Hub** — A2A message router in-process. No separate Hub binary to manage.
+4. **One-Click Agent Deploy** — click host → SSH + scp daemon + reverse tunnel + open pane.
+5. **CLI (`synapty`)** — agent-side integration: `register`, `send`, `recv`, `agents`.
+6. **Agent Skills** — teach Claude Code / Codex to use the CLI.
+7. **Agent Status Bar** — registered agents, connection state, message activity, notification badges.
+
+**V1 defers:** L2 full orchestration cockpit, L3 terminal introspection (2D DOM export to agents), OSC-to-A2A bridging, WebSocket framing, capability-based discovery, failure tolerance, encryption, cross-platform (Linux/Windows).
 
 ## Technology Stack
-- **Language:** Zig (100% end-to-end, both Hub and Daemon)
-- **VT Engine:** `libghostty-vt` (C API) — not yet integrated in V1 bootstrap
-- **Network:** WebSockets over TCP, multiplexed via SSH Reverse Port Forwarding
-- **Dependencies:** Zero external runtime deps. Zig std library only.
+- **Language:** Zig 0.15.x (core engine, daemon, CLI, protocol) + Swift (macOS GUI layer)
+- **VT Engine:** libghostty via GhosttyKit xcframework — used in V1 for terminal pane rendering. Build: `cd ghostty && zig build -Demit-xcframework=true -Dxcframework-target=universal -Doptimize=ReleaseFast`
+- **Network:** Raw TCP with JSON envelopes (V1). WebSocket upgrade is V2.
+- **GUI:** macOS native (Metal rendering). Swift + Xcode project linked to GhosttyKit xcframework via C bridging header.
+- **Dependencies:** Zero external runtime deps beyond libghostty. Zig std library + Ghostty submodule.
 
 ## Hard Rules
 - NO Python, Node.js, or third-party frameworks (no MCP)
-- Pure raw JSON-RPC routing layer
+- Pure JSON-RPC routing layer
 - V1 is happy-path only — no retry queues, encrypted handshakes, or complex failure tolerance
-- Focus on low-latency routing and memory safety via `ArenaAllocator`
+- Low-latency routing and memory safety via `ArenaAllocator`
 - All JSON parsing uses `std.json` with deferred `Value` for payloads
+- All governance files (gov/**) managed via `govctl` CLI — never edit directly
+- Version control: `jj` (jujutsu), not git. `jj describe` edits the current change's message but does NOT create a new commit — always run `jj new` after to start a fresh change.
 
-## Architecture
-- **Synapty Hub (local):** Central A2A WebSocket router on `127.0.0.1:9000`. Parses PTY streams, intercepts OSC sequences for human-in-the-loop.
-- **Synapty Daemon (remote):** Lightweight binary connecting to Hub via SSH reverse tunnel. Spawns AI agent processes, pipes stdout to SSH PTY (data plane), forwards JSON A2A requests via WebSocket (control plane).
+## Dev Environment
+Managed by `devenv` (Nix-based). Provides: Zig 0.15.x, jj, govctl.
+```sh
+devenv shell           # enter dev environment with all tools pinned
+```
+Prerequisites not managed by devenv: Xcode (install from App Store).
 
 ## Build
 ```sh
-zig build              # build both executables
-zig build hub          # build synapty-hub only
+# Zig core (daemon, CLI, protocol)
+zig build              # build all Zig executables
 zig build daemon       # build synapty-daemon only
 zig build test         # run all tests
-```
 
-## Protocol
-- A2A envelope: `{ type, id, source, target, payload }` over WebSocket
-- OSC notification: `\e]99;id=<agent_id>;status=<status_code>\e\\` on stdout
-- Register message: `{ type: "register", agent_id, capabilities }` on WS connect
+# GhosttyKit xcframework (from Ghostty submodule)
+cd ghostty && zig build -Demit-xcframework=true -Dxcframework-target=universal -Doptimize=ReleaseFast
+
+# macOS GUI app (Xcode)
+xcodebuild -project Synapty.xcodeproj -scheme Synapty -configuration Debug build
+```
 
 ## Project Structure
 ```
-build.zig
+Synapty.xcodeproj      — macOS GUI app (Swift + GhosttyKit)
+ghostty/               — Ghostty submodule (libghostty source)
+ghostty.h              — Ghostty C API header (bridging)
+GhosttyKit.xcframework — pre-built universal framework (cached)
 src/
-  protocol.zig    — shared A2A types and JSON serialization
-  hub.zig         — local Hub router (TCP listener, routing table, message dispatch)
-  daemon.zig      — remote Daemon (WS client, process spawner, stream piping)
+  protocol.zig         — shared A2A types and JSON serialization
+  hub.zig              — Hub router (routing table, message dispatch)
+  daemon.zig           — Daemon (SSH tunnel, process spawner, CLI host)
+  cli.zig              — CLI tool (register, send, recv, agents)
+Sources/               — Swift GUI sources (terminal panes, host sidebar, status bar)
+gov/
+  config.toml          — govctl configuration
+  rfc/RFC-0001/        — vision RFC (normative, finalized)
+  adr/                 — ADR-0001 V1 scope (proposed)
+  work/                — work items
+docs/
+  rfc/RFC-0001.md      — rendered RFC
 ```

@@ -11,88 +11,98 @@ refs = ["RFC-0001"]
 context = """
 [[RFC-0001]] defines a five-layer vision for Synapty as the ultimate agent workbench. We need to define V1 scope: the minimum deliverable that makes Synapty functional for real multi-agent workflows while not blocking extension to V2 and beyond.
 
+This ADR was originally drafted around a CLI-first scope (no GUI rendering, no libghostty) and subsequently revised to a native GUI scope after studying the cmux and ghostty-web reference projects, which demonstrated that Swift + Zig + GhosttyKit integration is proven and that libghostty's headless VT API is well-defined.
+
 ### Problem Statement
 
 A user has Claude Code running locally and Codex running on a remote machine. Today, these agents cannot communicate with each other. The user has no unified view of what each agent is doing and no efficient way to supervise both simultaneously.
 
-V1 must solve this end-to-end scenario: two agents (local + remote), structured communication between them, Synapty-managed connectivity, and a human-friendly GUI for supervision.
+The concrete user flow is:
+1. Open Synapty (a native GUI application)
+2. Open a terminal pane, run Claude Code locally
+3. Click a preconfigured remote host to SSH in and launch Codex
+4. Claude Code and Codex can now talk to each other via A2A messaging
+5. The user sees both sessions live in GPU-rendered terminal panes and can intervene
+
+V1 must solve this end-to-end scenario with a native GUI experience — not a TUI, not a web dashboard, but a real graphical application with full terminal emulation in each pane.
 
 ### Constraints
 
 - [[RFC-0001:C-NON-GOALS]] prohibits Synapty from becoming an LLM runtime, IDE, or agent implementation framework.
-- Pure Zig, zero external runtime dependencies (per project rules).
+- Pure Zig for the core engine and daemon. The GUI app uses Swift + Zig (following the cmux/Ghostty pattern for macOS).
 - V1 is happy-path only — no retry queues, encrypted handshakes, or complex failure tolerance.
-- libghostty-vt integration is a substantial effort. Its inclusion or exclusion in V1 significantly affects the scope of L0, L2, and L3 capabilities.
-- Existing agents (Claude Code, Codex) are unmodified — integration happens via CLI tools and agent skills/plugins, not by patching the agents themselves.
+- libghostty (via GhosttyKit xcframework) is required for terminal pane rendering — Synapty is a graphical terminal multiplexer, and compositing multiple terminal sessions requires a VT state machine per pane. Note: this is the rendering surface API (proven by cmux), not the headless VT engine C API (libghostty-vt) used by ghostty-web.
+- Existing agents (Claude Code, Codex) are unmodified — integration happens via CLI tools and agent skills/plugins.
+- Host management follows the Termius pattern: preconfigure remote hosts (address, credentials) in the GUI, then one-click deploy agents.
 
 ### Options Considered
 
-Three scoping strategies were evaluated: minimal router (L4 only), CLI-first workbench (L1 + L4 + GUI), and full-stack with libghostty-vt (L0–L4)."""
+Four scoping strategies were evaluated: minimal CLI-only router, TUI-based workbench, native GUI workbench with libghostty, and full-stack with all five RFC-0001 layers."""
 decision = """
-We will **build V1 as a CLI-first agent workbench with managed SSH connectivity and a human-friendly GUI**, delivering functional multi-agent orchestration without libghostty-vt integration.
+We will **build V1 as a native macOS GUI application — a graphical terminal multiplexer with built-in A2A routing, Termius-style host management, and libghostty-powered terminal panes**.
 
-V1 delivers five components:
+V1 delivers seven components:
 
-1. **Synapty Hub** — A2A message router listening on TCP. Maintains an in-memory routing table mapping agent IDs to connections. Parses envelope headers for routing, forwards payloads without deserialization. Runs locally by default but the design does not assume locality.
+1. **Native GUI Application** — A macOS application using libghostty via GhosttyKit xcframework for GPU-accelerated (Metal) terminal rendering. Each agent runs in its own terminal pane with full VT emulation — not a text box, but a real terminal surface. The app follows the cmux/Ghostty pattern: Swift UI layer + Zig core engine, linked via C API bridging header.
 
-2. **Synapty CLI (`synapty`)** — The universal agent integration surface. Commands:
-   - `synapty register <agent-id> [--capabilities ...]` — connect to Hub and register
-   - `synapty send <target> <payload>` — send an A2A envelope
-   - `synapty recv [--wait]` — receive incoming messages (poll or block)
-   - `synapty agents` — list registered agents and capabilities
-   - `synapty deploy <host>` — SSH into a remote machine, set up reverse tunnel, start daemon
+2. **Host Management Sidebar** — Termius-inspired preconfigured host management. V1 scope is a flat host list: each entry stores label, address, port, and credentials (username + SSH key). One click on a host card SSHs in, deploys the daemon, and opens a terminal pane — no manual SSH commands needed. Group hierarchy with inheritance and jump chains is deferred to V2.
 
-   Agents interact with Synapty exclusively through this CLI. This means any agent that can execute shell commands — Claude Code via skills, Codex via plugins, or any custom script — can participate without modification.
+3. **Embedded Hub** — The A2A message router runs in-process within the GUI application. No separate Hub process to start or manage. The routing table maps agent IDs to panes/connections. Messages between local panes route in-memory; messages to remote agents route via the daemon's SSH tunnel.
 
-3. **Synapty Daemon** — A lightweight binary deployed on remote machines by `synapty deploy`. It:
-   - Establishes an SSH reverse tunnel back to the Hub
-   - Registers itself as an agent (or proxy for agents on that host)
-   - Exposes the same CLI interface locally on the remote machine so remote agents use identical commands
+4. **One-Click Agent Deploy** — Clicking a preconfigured host triggers: SSH connection using stored credentials → daemon binary deployment (scp) → SSH reverse tunnel establishment → daemon registration with embedded Hub → terminal pane opens showing the remote session. The user then launches their agent (e.g., `codex`) in the pane, and it registers via the CLI.
 
-4. **GUI** — A human-friendly interface for multi-agent supervision. The V1 GUI is scoped to essential information display: agent list with connection status, real-time message log between agents, and basic intervention controls (send a message as the human operator). The full vertical command cockpit with notification rings and OSC-driven attention routing is V2. The GUI technology (TUI, web dashboard, or native) will be decided in a follow-up ADR.
+5. **CLI (`synapty`)** — The agent-side integration surface, available inside every pane. Agents use it to register, send/receive A2A messages, and list other agents. The CLI is the only integration point agents need — any process that can run shell commands can participate.
 
-5. **Agent Skills** — Skill and plugin definitions that teach existing agents how to use the `synapty` CLI. Each skill is a declarative file shipped in the Synapty repository (e.g., a Claude Code SKILL.md, a Codex plugin manifest) that describes the available commands, their semantics, and example workflows. Skills cover the full round-trip: registration, sending messages to other agents, receiving and processing incoming messages, and querying the agent list. The exact skill format per agent platform will be specified in a follow-up ADR.
+6. **Agent Skills** — Skill and plugin definitions that teach existing agents how to use the `synapty` CLI. Each skill is a declarative file shipped in the Synapty repository covering registration, sending, receiving, and agent discovery. The exact skill format per platform will be specified in a follow-up ADR.
+
+7. **Agent Status Bar** — A persistent UI element showing: registered agents with connection status indicators, A2A message count/activity, and notification badges when an agent signals for human attention (via OSC sequences detected by the VT engine).
 
 ### What V1 explicitly defers
 
-- **L0 (libghostty-vt):** No VT state machine integration. Terminal output is raw byte passthrough. SIMD parsing, security sandbox, and grapheme clustering are V2.
-- **L2 (OSC bus):** No in-band OSC signaling. Agent communication is CLI-based, not escape-sequence-based. OSC interception is V2.
-- **L3 (Terminal introspection):** No 2D DOM export. Agents cannot query terminal grid state. This requires L0 and is V2.
-- **WebSocket framing:** V1 uses raw TCP with JSON envelopes. WebSocket upgrade is V2.
+- **L2 (full orchestration cockpit):** V1 has basic status bar and notifications. The full vertical command cockpit with notification rings, priority routing, and global hotkey focus cycling is V2.
+- **L3 (terminal introspection):** No 2D DOM export to agents. libghostty is used internally for rendering, but terminal state is not exposed to agents via the A2A protocol yet. V2.
+- **OSC bus as agent communication:** V1 detects OSC sequences for status display but does not use them as an A2A messaging channel. CLI remains the integration surface. V2 will bridge OSC to A2A.
+- **WebSocket framing:** V1 uses raw TCP with JSON envelopes between daemon and Hub. WebSocket upgrade is V2.
 - **Agent discovery/query:** V1 supports `synapty agents` to list, but no capability-based query routing. V2.
 - **Failure tolerance:** No retry queues, reconnection logic, or session persistence across crashes. V2.
-- **Encryption/authentication:** Hub trusts all connections. V2.
+- **Encryption/authentication:** Hub trusts all local connections; SSH provides remote security. Mutual authentication is V2.
+- **Cross-platform:** V1 is macOS only (Metal rendering via libghostty). Linux/Windows is V2.
+- **Host groups and jump chains:** V1 uses a flat host list. Termius-style group hierarchy with inherited credentials and multi-hop chains is V2.
 
 ### V2 extension path (not blocked by V1 decisions)
 
 - The A2A envelope format is the same whether carried over raw TCP, WebSocket, or SSH tunnel — V2 transport upgrades require no protocol change.
-- The CLI integration model coexists with future OSC-based signaling — adding L0/L2 gives agents a second, lower-friction communication path without removing the CLI.
-- The Hub routing table interface can be swapped from in-memory HashMap to a persistent or distributed implementation without changing the routing logic.
-- The GUI can evolve from a basic agent dashboard to the full vertical command cockpit with notification rings as L0/L2 come online.
-- Daemon-per-session process management (full L1) layers on top of the existing daemon + SSH tunnel infrastructure."""
+- libghostty is already integrated for rendering. Exposing terminal state to agents (L3 introspection) requires the headless VT API (libghostty-vt, as demonstrated by ghostty-web), which is additive — not a replacement of the rendering integration.
+- The CLI integration model coexists with future OSC-based signaling — adding OSC-to-A2A bridging gives agents a second, lower-friction communication path without removing the CLI.
+- The flat host list naturally extends to groups with inheritance. The host data model can add a group_id and jump chain fields without breaking existing host entries.
+- The embedded Hub can be extracted to a standalone process or federated across machines without protocol changes."""
 consequences = """
 ### Positive
 
-- **End-to-end functional from V1.** A user can run Claude Code locally, Codex remotely, and have them exchange messages through Synapty with a single `synapty deploy` command.
+- **End-to-end functional from V1.** A user opens Synapty, clicks a preconfigured host, and their remote agent is deployed and connected. No manual SSH, no separate processes to manage.
+- **Real terminal emulation.** Every agent pane is a full GPU-rendered terminal via libghostty. Users see exactly what agents see — no lossy text capture or log streaming.
 - **Zero agent modification.** Integration via CLI skills means any agent that can run shell commands participates. No forking, patching, or custom SDKs.
-- **GUI from day one.** Human supervision is not an afterthought — operators get visibility into multi-agent workflows immediately.
-- **Clean V2 path.** Every V1 component has a natural upgrade path. Nothing in V1 needs to be torn out to add libghostty-vt, OSC, or WebSocket support.
+- **GUI from day one.** Human supervision is the native experience, not a bolt-on. The host sidebar and status bar provide immediate visibility.
+- **Clean V2 path.** libghostty is already in the stack for rendering. Exposing VT state for agent introspection (L3) and bridging OSC to A2A (L2) are additive features, not new integrations.
+- **Termius-style host management.** Preconfigured hosts eliminate repetitive SSH setup and make remote agent deployment frictionless.
 
 ### Negative
 
-- **No terminal awareness.** Without libghostty-vt, Synapty cannot inspect terminal state, intercept escape sequences, or provide 2D DOM introspection. Agents communicate through explicit CLI calls only — they cannot participate in orchestration simply by printing to stdout. (Mitigation: the CLI path remains valid in V2; agents that adopt it now continue to work.)
-- **CLI overhead per message.** Each send/recv spawns a CLI process and opens a TCP connection. This adds latency compared to a persistent daemon-managed channel or in-band OSC signaling. (Mitigation: acceptable for the human-supervised, moderate-throughput V1 workload. V2's persistent daemon connections and OSC bus address this.)
-- **Daemon is SSH-only for remote.** V1 remote connectivity requires SSH access. Environments without SSH (e.g., browser-based agents, serverless) cannot participate. (Mitigation: SSH covers the primary use case — remote development machines. Alternative transports are V2.)
-- **GUI scope risk.** Committing to a GUI in V1 adds significant surface area. An under-invested GUI may be worse than no GUI. (Mitigation: V1 GUI is explicitly scoped to agent list, message log, and basic intervention — not the full vertical cockpit.)
+- **Significant V1 scope.** Seven components spanning Swift, Zig, and libghostty create integration risk across three toolchain boundaries (Xcode, Zig build, xcframework linking). The aggregate engineering cost is substantially larger than a CLI-first or TUI approach. (Mitigation: leverage cmux as a proven reference for the Swift + GhosttyKit integration pattern; scope host management to flat list; defer L2/L3/groups to V2.)
+- **macOS only in V1.** libghostty's GPU rendering uses Metal, which is macOS-specific. Linux and Windows users cannot run Synapty V1. (Mitigation: libghostty supports Vulkan/OpenGL; cross-platform is a V2 deliverable, not a fundamental architecture limitation.)
+- **Swift + Zig build complexity.** The GUI layer requires Swift (Xcode project) while the core engine is Zig. This is a dual-toolchain build with xcframework linking. (Mitigation: cmux proves this pattern works; the build pipeline is well-understood.)
+- **libghostty is a substantial dependency.** Building GhosttyKit from source requires the Ghostty submodule and produces a large xcframework. (Mitigation: pre-build and cache the xcframework in CI, as cmux does.)
+- **CLI overhead per A2A message.** Each send/recv spawns a CLI process and opens a TCP connection. (Mitigation: acceptable for V1 throughput. V2's OSC bus and persistent connections address this.)
 
 ### Neutral
 
-- The daemon binary pivots from a process-wrapper (bootstrap design) to an SSH tunnel manager + remote CLI host. The bootstrap code for process spawning is not wasted — it moves to V2's daemon-per-session implementation.
-- The `synapty` CLI becomes a third executable alongside `synapty-hub` and `synapty-daemon`.
-- The CLI-based integration path becomes a de facto permanent interface contract. Even after V2 delivers OSC-based signaling, agents that adopted the CLI in V1 will expect it to remain supported. This means the CLI is not a temporary scaffold — it is a long-term supported surface."""
+- The daemon binary remains a lightweight Zig executable deployed to remote hosts. Its role is SSH tunnel management and CLI hosting — it does not render terminals.
+- The bootstrap code (Hub router, protocol types, daemon process spawning) is reusable. The Hub logic moves into the GUI app; the protocol types are shared; the daemon's process spawner evolves into the remote agent launcher.
+- The CLI-based integration path becomes a permanent interface contract. Even after V2 delivers OSC-based signaling, agents that adopted the CLI in V1 will expect it to remain supported. This creates a long-term backward compatibility obligation.
+- V1 is macOS-first by pragmatic choice (Metal rendering, xcframework toolchain), not by architectural constraint. The Zig core and A2A protocol are platform-independent."""
 
 [[content.alternatives]]
-text = "Minimal router (L4 only): Build only the Hub and CLI with no GUI, no SSH management, and no daemon. Agents connect directly to the Hub over raw TCP."
+text = "Minimal CLI-only router: Build only the Hub and CLI with no GUI, no SSH management, and no daemon. Agents connect directly to the Hub over raw TCP."
 status = "rejected"
 pros = [
     "Smallest scope, fastest to ship",
@@ -106,16 +116,30 @@ cons = [
 rejection_reason = "Fails the core scenario: a user supervising Claude Code + Codex needs visibility and managed connectivity, not just a message pipe."
 
 [[content.alternatives]]
-text = "Full-stack with libghostty-vt (L0–L4): Integrate libghostty-vt from V1, enabling OSC interception, terminal introspection, and the full vertical cockpit with notification rings."
+text = "TUI-based workbench: Build the GUI as a terminal UI (like htop/lazygit) using raw ANSI escape sequences. No libghostty, no native window."
 status = "rejected"
 pros = [
-    "Delivers the complete RFC-0001 vision in a single release",
-    "Agents can participate via stdout OSC sequences — zero CLI overhead",
-    "2D DOM introspection available from day one",
+    "Zero dependencies, pure Zig, single binary",
+    "Works over SSH",
+    "Fastest to ship",
 ]
 cons = [
-    "libghostty-vt C binding integration is a major engineering effort with uncertain timeline",
-    "Blocks V1 delivery on the slowest dependency",
-    "Higher risk of V1 shipping late or incomplete",
+    "Cannot embed real terminal panes — agent sessions need separate windows",
+    "Limited visual fidelity",
+    "Identity conflict: terminal workbench inside a terminal",
 ]
-rejection_reason = "libghostty-vt integration is the long pole. Coupling V1 to it risks delivering nothing while attempting everything. The CLI-first approach delivers a functional workbench now and adds VT capabilities in V2 without protocol changes."
+rejection_reason = "A terminal multiplexer that cannot host terminal sessions in its own panes is not a multiplexer. Compositing multiple VT streams requires a VT state machine per pane, which means libghostty. A TUI cannot provide this."
+
+[[content.alternatives]]
+text = "Full-stack with all five RFC-0001 layers: Ship V1 with libghostty rendering, OSC bus, terminal introspection (2D DOM export), full vertical cockpit, and capability-based agent discovery."
+status = "rejected"
+pros = [
+    "Delivers complete RFC-0001 vision in one release",
+    "Agents get spatial perception and OSC communication from day one",
+]
+cons = [
+    "Massive scope — five architectural layers, each substantial",
+    "Terminal introspection API design requires iteration",
+    "High risk of V1 shipping late or incomplete",
+]
+rejection_reason = "Scope compression. V1 must prove core value (agents talking, human seeing both) before investing in advanced introspection. Native GUI with libghostty is the enabling foundation; L2/L3 layer on additively in V2."
