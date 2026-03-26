@@ -4,6 +4,7 @@
   packages = [
     pkgs.zig
     pkgs.jujutsu
+    pkgs.just
     inputs.govctl.packages.${pkgs.system}.default
   ];
 
