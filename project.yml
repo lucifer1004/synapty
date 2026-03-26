@@ -1,0 +1,47 @@
+name: Synapty
+options:
+  bundleIdPrefix: com.synapty
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    SWIFT_OBJC_BRIDGING_HEADER: Synapty-Bridging-Header.h
+    HEADER_SEARCH_PATHS: $(PROJECT_DIR)
+    CLANG_ENABLE_MODULES: NO
+
+targets:
+  Synapty:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.synapty.app
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_OBJC_BRIDGING_HEADER: Synapty-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(PROJECT_DIR)
+        FRAMEWORK_SEARCH_PATHS:
+          - $(PROJECT_DIR)
+        OTHER_LDFLAGS:
+          - "-lc++"
+          - "-framework"
+          - Metal
+          - "-framework"
+          - QuartzCore
+          - "-framework"
+          - IOSurface
+          - "-framework"
+          - UniformTypeIdentifiers
+          - "-framework"
+          - Carbon
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/../Frameworks"
+    dependencies:
+      - framework: GhosttyKit.xcframework
+        embed: false
+        link: true
