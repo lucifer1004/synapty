@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L4-A2A"
+title = "L4 — A2A Control Plane"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The A2A (Agent-to-Agent) Control Plane provides the structured messaging fabric that enables agents to discover and communicate with each other independent of the terminal data plane.
+
+**Hub-and-Spoke topology.** A central Hub process maintains a routing table mapping agent identifiers to their active connections. Agents connect to the Hub — either directly (local agents) or via SSH reverse tunnel (remote agents) — and register their identity and capabilities. The Hub forwards messages between agents based on the target field in each envelope.
+
+**JSON routing envelope.** All control-plane messages use a uniform JSON envelope carrying: message type, unique request ID, source agent, target agent, and an opaque payload. The Hub routes on the envelope header without deserializing the payload, enabling zero-copy forwarding for application-layer messages.
+
+**Agent discovery.** Upon registration, agents advertise their capabilities (e.g., "code-generation", "test-execution", "code-review"). Other agents can query the Hub for agents matching a capability set, enabling dynamic task delegation without hardcoded agent addresses.
+
+**Provider-agnostic.** The control plane is agnostic to what powers each agent. Claude Code, Codex CLI, Gemini, custom scripts, or any process that speaks the A2A envelope protocol can participate as a first-class agent. Synapty orchestrates the communication; the agents bring their own intelligence.
+
+**Location transparency.** The Hub abstracts whether an agent is a local process or a remote daemon connected over SSH. A message from agent A to agent B follows the same envelope format and routing path regardless of whether B is on the same machine or across the network. This makes the deployment topology an operational concern, not an application-level one."""

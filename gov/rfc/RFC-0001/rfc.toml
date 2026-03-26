@@ -1,0 +1,47 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0001"
+title = "Synapty — The Agent Workbench"
+version = "0.1.0"
+status = "normative"
+phase = "spec"
+owners = ["@lucifer1004"]
+created = "2026-03-26"
+updated = "2026-03-26"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Motivation"
+clauses = ["clauses/C-MOTIVATION.toml"]
+
+[[sections]]
+title = "Architecture"
+clauses = [
+    "clauses/C-ARCH-OVERVIEW.toml",
+    "clauses/C-L0-VT-ENGINE.toml",
+    "clauses/C-L1-SESSION.toml",
+    "clauses/C-L2-ORCHESTRATION.toml",
+    "clauses/C-L3-INTROSPECTION.toml",
+    "clauses/C-L4-A2A.toml",
+]
+
+[[sections]]
+title = "Communication Model"
+clauses = ["clauses/C-COMM-MODEL.toml"]
+
+[[sections]]
+title = "Non-Goals"
+clauses = ["clauses/C-NON-GOALS.toml"]
+
+[[sections]]
+title = "Future Directions"
+clauses = ["clauses/C-FUTURE.toml"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-03-26"
+notes = "Initial draft"

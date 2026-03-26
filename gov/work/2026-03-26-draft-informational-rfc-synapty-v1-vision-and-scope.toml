@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-001"
+title = "Draft informational RFC: Synapty V1 vision and scope"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-26"
+refs = ["RFC-0001"]
+
+[content]
+description = "Draft RFC-0001: the foundational vision RFC for Synapty as the ultimate agent workbench built on libghostty. Covers the full long-term vision, not scoped to any single release phase. V1/V2 phase boundaries are separate ADRs."
+
+[[content.journal]]
+date = "2026-03-26"
+scope = "rfc"
+content = "RFC-0001 drafted with 11 informative clauses across 7 sections. Reviewer feedback addressed: clarified informational nature, tightened comm model, added threat model sketch, reframed L3 format as candidate, added scalability/resilience direction. govctl check passes (warnings only)."
+
+[[content.acceptance_criteria]]
+text = "Informational RFC drafted covering vision, architecture, protocol, and V1 scope"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

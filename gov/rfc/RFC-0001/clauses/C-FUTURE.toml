@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-FUTURE"
+title = "Future Directions"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The following directions are anticipated but not yet specified. Each will be addressed by dedicated normative RFCs or ADRs as the project matures.
+
+**Multi-Hub federation.** The current Hub-and-Spoke topology assumes a single Hub. Future work may introduce Hub-to-Hub peering for distributed teams or cloud-scale agent fleets, enabling agents connected to different Hubs to discover and communicate with each other.
+
+**Persistent agent memory.** Agents currently have no shared memory substrate beyond what they maintain individually. A future layer may provide structured shared context — key-value state, conversation history, or task graphs — accessible through the A2A protocol.
+
+**Recording and replay.** The VT engine's in-memory state enables point-in-time snapshots, but full session recording (with indexed replay and search) is a natural extension for debugging, auditing, and training workflows.
+
+**Plugin and extension model.** Third-party extensions for custom notification handlers, alternative frontends, specialized introspection exporters, and domain-specific orchestration strategies.
+
+**Remote and cloud Hub deployment.** While the Hub currently runs locally, the architecture does not restrict it to a single machine. Future work will address authenticated remote Hub access, multi-tenant isolation, and secure agent registration over public networks."""

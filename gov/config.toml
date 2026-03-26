@@ -1,0 +1,36 @@
+[project]
+name = "synapty"
+default_owner = "@lucifer1004"
+
+[paths]
+docs_output = "docs"
+# AI agent directory (contains commands/, skills/, agents/ subdirs)
+# Default: ".claude" (Claude Desktop)
+# For Cursor: ".cursor"
+# For Windsurf: ".windsurf"
+# agent_dir = ".claude"
+
+[schema]
+version = 2
+
+[source_scan]
+enabled = true
+include = ["src/**/*.zig"]
+exclude = []
+
+# [work_item]
+# ID strategy for work items (default: sequential)
+# - sequential: WI-YYYY-MM-DD-NNN (solo projects)
+# - author-hash: WI-YYYY-MM-DD-{hash}-NNN (multi-person teams, uses git email)
+# - random: WI-YYYY-MM-DD-{rand} (simple uniqueness)
+# id_strategy = "author-hash"
+
+# [verification]
+# Enable project-level default verification guards.
+# enabled = true
+# default_guards = ["GUARD-GOVCTL-CHECK", "GUARD-CARGO-TEST"]
+
+# [concurrency]
+# Maximum seconds to wait for exclusive lock before failing (default: 30)
+# Implements [[RFC-0004]] concurrent write safety
+# lock_timeout_secs = 30

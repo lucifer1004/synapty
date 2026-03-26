@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty (Synapse + PTY) is the agent workbench: a terminal-native orchestration platform that enables multiple AI agents — local or remote, from any provider — to collaborate through a unified PTY substrate powered by libghostty-vt.
+
+**Scope:** This RFC establishes the long-term vision and architectural layering of Synapty. It is purely informational and contains no normative specification clauses. Implementation phases, release timelines, and normative requirements are governed by separate ADRs and normative RFCs respectively. The "spec" phase label reflects the governance framework's lifecycle model, not normative content.
+
+**Rationale:** AI agents today operate in isolated terminal sessions with no structured way to communicate, no shared understanding of terminal state, and no mechanism for human operators to supervise many concurrent agents efficiently. Synapty addresses this by treating the terminal not as a dumb character pipe but as a programmable, introspectable execution surface for multi-agent systems."""
