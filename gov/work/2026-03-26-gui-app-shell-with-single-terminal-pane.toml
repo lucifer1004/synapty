@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-006"
+title = "GUI app shell with single terminal pane"
+status = "queue"
+created = "2026-03-26"
+refs = ["ADR-0001"]
+
+[content]
+description = "Create Xcode project with SwiftUI shell, link GhosttyKit xcframework, and render a single working terminal pane (ghostty_surface_t) running a local shell. Follows cmux pattern: Swift UI + Zig core via C bridging header."
+
+[[content.acceptance_criteria]]
+text = "Xcode project builds and launches on macOS"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Single terminal pane renders a local shell with full VT emulation"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ghostty.h bridging header imported"
+status = "pending"
+category = "added"

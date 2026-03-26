@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-007"
+title = "Embedded Hub in GUI app"
+status = "queue"
+created = "2026-03-26"
+refs = ["ADR-0001"]
+
+[content]
+description = "Move Hub routing logic into the GUI app process. The Hub runs in-process — no separate binary. Routing table maps agent IDs to connections. Local pane-to-pane messages route in-memory."
+
+[[content.acceptance_criteria]]
+text = "Hub starts automatically when app launches"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Hub accepts TCP connections from CLI and daemons"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Messages route between registered agents"
+status = "pending"
+category = "added"

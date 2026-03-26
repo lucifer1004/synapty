@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-009"
+title = "Daemon with SSH reverse tunnel management"
+status = "queue"
+created = "2026-03-26"
+refs = ["ADR-0001"]
+
+[content]
+description = "Refine daemon for remote deployment. Daemon is scp'd to remote hosts, establishes SSH reverse tunnel back to the Hub, and hosts the CLI for remote agents. Pure Zig, cross-compiled for Linux targets."
+
+[[content.acceptance_criteria]]
+text = "Daemon binary cross-compiles for Linux (aarch64 + x86_64)"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Daemon establishes SSH reverse tunnel to Hub port"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Remote CLI commands route through tunnel to Hub"
+status = "pending"
+category = "added"

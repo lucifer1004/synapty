@@ -7,6 +7,9 @@ zig-out/
 zig-cache/
 .zig-cache/
 
+# GhosttyKit (built from submodule)
+GhosttyKit.xcframework/
+
 # OS
 .DS_Store
 

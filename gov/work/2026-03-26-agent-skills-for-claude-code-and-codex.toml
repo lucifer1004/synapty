@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-013"
+title = "Agent skills for Claude Code and Codex"
+status = "queue"
+created = "2026-03-26"
+refs = ["ADR-0001"]
+
+[content]
+description = "Write skill/plugin definitions for Claude Code and Codex that teach them to use the synapty CLI. Cover registration, sending, receiving, and agent discovery workflows."
+
+[[content.acceptance_criteria]]
+text = "Claude Code skill file enables A2A communication via synapty CLI"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Codex plugin file enables A2A communication via synapty CLI"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "End-to-end test: Claude Code sends message to Codex and receives reply"
+status = "pending"
+category = "added"

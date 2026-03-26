@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-011"
+title = "One-click agent deploy"
+status = "queue"
+created = "2026-03-26"
+refs = ["ADR-0001"]
+
+[content]
+description = "Wire host click → SSH connect → scp daemon → reverse tunnel → daemon registers with Hub → terminal pane opens showing remote session. Full end-to-end deploy flow from the GUI."
+
+[[content.acceptance_criteria]]
+text = "Clicking a host card opens SSH connection using stored credentials"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Daemon binary is scp'd to remote host"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "SSH reverse tunnel established and daemon registers with Hub"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Terminal pane opens showing the remote shell"
+status = "pending"
+category = "added"
