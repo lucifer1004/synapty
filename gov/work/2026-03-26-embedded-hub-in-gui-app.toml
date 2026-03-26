@@ -3,24 +3,31 @@
 [govctl]
 id = "WI-2026-03-26-007"
 title = "Embedded Hub in GUI app"
-status = "queue"
+status = "done"
 created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-26"
 refs = ["ADR-0001"]
 
 [content]
 description = "Move Hub routing logic into the GUI app process. The Hub runs in-process — no separate binary. Routing table maps agent IDs to connections. Local pane-to-pane messages route in-memory."
 
+[[content.journal]]
+date = "2026-03-26"
+scope = "hub"
+content = "Hub refactored: thread-safe RoutingTable with mutex, startInBackground() for GUI embedding, registeredAgents() for status bar. 3 new tests passing."
+
 [[content.acceptance_criteria]]
 text = "Hub starts automatically when app launches"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "Hub accepts TCP connections from CLI and daemons"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "Messages route between registered agents"
-status = "pending"
+status = "done"
 category = "added"

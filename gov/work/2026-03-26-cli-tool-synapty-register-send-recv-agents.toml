@@ -3,29 +3,36 @@
 [govctl]
 id = "WI-2026-03-26-008"
 title = "CLI tool: synapty register/send/recv/agents"
-status = "queue"
+status = "done"
 created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-26"
 refs = ["ADR-0001"]
 
 [content]
 description = "Build the synapty CLI tool as a separate Zig executable. Commands: register, send, recv, agents. This is the agent-side integration surface — agents invoke it from within their terminal panes."
 
+[[content.journal]]
+date = "2026-03-26"
+scope = "cli"
+content = "CLI tool created: register, send, recv (--wait), agents subcommands. 11 tests covering arg parsing and envelope construction. Wired into build.zig as third executable."
+
 [[content.acceptance_criteria]]
 text = "synapty register <agent-id> connects to Hub and registers"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "synapty send <target> <payload> delivers A2A envelope"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "synapty recv blocks and prints incoming messages"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "synapty agents lists registered agents"
-status = "pending"
+status = "done"
 category = "added"

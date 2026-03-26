@@ -47,6 +47,24 @@ pub fn build(b: *std.Build) void {
     const daemon_step = b.step("daemon", "Build the Synapty Daemon (remote companion)");
     daemon_step.dependOn(&daemon_exe.step);
 
+    // --- synapty CLI executable ---
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+        },
+    });
+    const cli_exe = b.addExecutable(.{
+        .name = "synapty",
+        .root_module = cli_mod,
+    });
+    b.installArtifact(cli_exe);
+
+    const cli_step = b.step("cli", "Build the Synapty CLI tool");
+    cli_step.dependOn(&cli_exe.step);
+
     // --- Tests ---
     const protocol_test_mod = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
@@ -81,8 +99,21 @@ pub fn build(b: *std.Build) void {
         .root_module = daemon_test_mod,
     });
 
+    const cli_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+        },
+    });
+    const cli_tests = b.addTest(.{
+        .root_module = cli_test_mod,
+    });
+
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&b.addRunArtifact(protocol_tests).step);
     test_step.dependOn(&b.addRunArtifact(hub_tests).step);
     test_step.dependOn(&b.addRunArtifact(daemon_tests).step);
+    test_step.dependOn(&b.addRunArtifact(cli_tests).step);
 }
