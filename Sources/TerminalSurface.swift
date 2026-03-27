@@ -5,16 +5,23 @@ import SwiftUI
 /// Ghostty renders into the Metal layer; we just provide the view.
 /// Implements NSTextInputClient for proper macOS text input handling.
 class GhosttyNSView: NSView, NSTextInputClient {
-    private var surface: ghostty_surface_t?
+    private(set) var surface: ghostty_surface_t?
     private weak var ghosttyApp: GhosttyApp?
 
     /// Text accumulated from interpretKeyEvents → insertText for the current keyDown.
     private var pendingText: String?
+    /// Track whether we sent a left mouse press to ghostty (to avoid unbalanced release).
+    private var leftMousePressed = false
     /// Marked text for input method composition (CJK, etc.)
     private var markedTextStorage = NSMutableAttributedString()
     private var markedSelectedRange = NSRange(location: NSNotFound, length: 0)
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        ghosttyApp?.activeSurface = surface
+        return super.becomeFirstResponder()
+    }
 
     /// Optional shell command to run inside this surface instead of the default shell.
     /// Must be set before the surface is added to a window.
@@ -38,9 +45,26 @@ class GhosttyNSView: NSView, NSTextInputClient {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if surface == nil, let app = ghosttyApp?.app, window != nil {
+            layer?.contentsScale = window?.backingScaleFactor ?? 2.0
             createSurface(app: app)
+            ghosttyApp?.activeSurface = surface
+            updateSurfaceSize()
             window?.makeFirstResponder(self)
         }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas {
+            removeTrackingArea(area)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
     }
 
     private func createSurface(app: ghostty_app_t) {
@@ -72,18 +96,69 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
-        guard let surface else { return }
+        updateSurfaceSize()
+    }
 
+    override func layout() {
+        super.layout()
+        updateSurfaceSize()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        if let window {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer?.contentsScale = window.backingScaleFactor
+            CATransaction.commit()
+        }
+        updateSurfaceSize()
+    }
+
+    private func updateSurfaceSize() {
+        guard let surface else { return }
         let scale = window?.backingScaleFactor ?? 2.0
         ghostty_surface_set_content_scale(surface, scale, scale)
-        ghostty_surface_set_size(
-            surface,
-            UInt32(newSize.width * scale),
-            UInt32(newSize.height * scale)
-        )
+
+        let backingSize = convertToBacking(bounds).size
+        let wpx = UInt32(max(backingSize.width, 1))
+        let hpx = UInt32(max(backingSize.height, 1))
+        ghostty_surface_set_size(surface, wpx, hpx)
     }
 
     // MARK: - Keyboard Input
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return false }
+        guard let fr = window?.firstResponder as? NSView,
+              fr === self || fr.isDescendant(of: self) else { return false }
+        guard let surface else { return false }
+
+        // Handle Cmd+C and Cmd+V directly via ghostty binding actions.
+        // Going through keyDown → ghostty_surface_key doesn't reliably trigger
+        // ghostty's keybinding system for key equivalents.
+        if event.modifierFlags.contains(.command),
+           let chars = event.charactersIgnoringModifiers {
+            switch chars {
+            case "c":
+                _ = "copy_to_clipboard".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
+            case "v":
+                _ = "paste_from_clipboard".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
+            default:
+                break
+            }
+        }
+
+        // Route all other key equivalents through keyDown so ghostty processes them.
+        keyDown(with: event)
+        return true
+    }
 
     override func keyDown(with event: NSEvent) {
         guard let surface else { return }
@@ -222,8 +297,123 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     // MARK: - Mouse
 
+    private func modsFromEvent(_ event: NSEvent) -> ghostty_input_mods_e {
+        return translateModifiers(event.modifierFlags)
+    }
+
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        guard let surface else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        if event.clickCount == 1 {
+            ghostty_surface_mouse_pos(surface, point.x, bounds.height - point.y, modsFromEvent(event))
+        }
+        leftMousePressed = true
+        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, modsFromEvent(event))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard let surface, leftMousePressed else { return }
+        leftMousePressed = false
+        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_LEFT, modsFromEvent(event))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let surface else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        ghostty_surface_mouse_pos(surface, point.x, bounds.height - point.y, modsFromEvent(event))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard let surface else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        ghostty_surface_mouse_pos(surface, point.x, bounds.height - point.y, modsFromEvent(event))
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let surface else { return }
+        if !ghostty_surface_mouse_captured(surface) {
+            super.rightMouseDown(with: event)
+            return
+        }
+        window?.makeFirstResponder(self)
+        let point = convert(event.locationInWindow, from: nil)
+        ghostty_surface_mouse_pos(surface, point.x, bounds.height - point.y, modsFromEvent(event))
+        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_RIGHT, modsFromEvent(event))
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        guard let surface else { return }
+        if !ghostty_surface_mouse_captured(surface) {
+            super.rightMouseUp(with: event)
+            return
+        }
+        _ = ghostty_surface_mouse_button(surface, GHOSTTY_MOUSE_RELEASE, GHOSTTY_MOUSE_RIGHT, modsFromEvent(event))
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard let surface else { return }
+        var x = event.scrollingDeltaX
+        var y = event.scrollingDeltaY
+        let precision = event.hasPreciseScrollingDeltas
+        if precision {
+            x *= 2
+            y *= 2
+        }
+
+        // Build scroll mods: bit 0 = precision, bits 1+ = momentum phase.
+        var mods: Int32 = 0
+        if precision {
+            mods |= 0b0000_0001
+        }
+
+        let momentum: Int32
+        switch event.momentumPhase {
+        case .began:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_BEGAN.rawValue)
+        case .stationary:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_STATIONARY.rawValue)
+        case .changed:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_CHANGED.rawValue)
+        case .ended:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_ENDED.rawValue)
+        case .cancelled:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_CANCELLED.rawValue)
+        case .mayBegin:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_MAY_BEGIN.rawValue)
+        default:
+            momentum = Int32(GHOSTTY_MOUSE_MOMENTUM_NONE.rawValue)
+        }
+        mods |= momentum << 1
+
+        ghostty_surface_mouse_scroll(surface, x, y, ghostty_input_scroll_mods_t(mods))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard let surface else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        ghostty_surface_mouse_pos(surface, point.x, bounds.height - point.y, modsFromEvent(event))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard let surface else { return }
+        ghostty_surface_mouse_pos(surface, -1, -1, modsFromEvent(event))
+    }
+
+    // MARK: - Copy / Paste
+
+    @IBAction func copy(_ sender: Any?) {
+        guard let surface else { return }
+        _ = "copy_to_clipboard".withCString { ptr in
+            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+        }
+    }
+
+    @IBAction func paste(_ sender: Any?) {
+        guard let surface else { return }
+        _ = "paste_from_clipboard".withCString { ptr in
+            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+        }
     }
 
     // MARK: - Cleanup

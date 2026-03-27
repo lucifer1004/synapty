@@ -4,10 +4,17 @@ import AppKit
 /// Wraps the single ghostty_app_t instance. One per application.
 /// Ghostty internally manages PTYs, VT parsing, and Metal rendering.
 class GhosttyApp {
+    /// Singleton for clipboard callback access (C callbacks can't capture Swift context).
+    static weak var shared: GhosttyApp?
+
     private(set) var app: ghostty_app_t?
     private(set) var config: ghostty_config_t?
+    /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
+    var activeSurface: ghostty_surface_t?
 
     init() {
+        GhosttyApp.shared = self
+
         // Initialize the Ghostty library — must be called before any other ghostty_ function
         let initResult = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
         guard initResult == GHOSTTY_SUCCESS else {
@@ -39,9 +46,62 @@ class GhosttyApp {
             return false
         }
         runtime.close_surface_cb = { _, _ in }
-        runtime.read_clipboard_cb = nil
-        runtime.confirm_read_clipboard_cb = nil
-        runtime.write_clipboard_cb = nil
+
+        // Clipboard callbacks — required for mouse selection and paste to work.
+        // Without write_clipboard_cb, ghostty dereferences a null function pointer
+        // when a mouse selection completes.
+
+        runtime.write_clipboard_cb = { _, location, content, len, _ in
+            guard let content, len > 0 else { return }
+            let buffer = UnsafeBufferPointer(start: content, count: Int(len))
+            var text: String?
+            for item in buffer {
+                guard let dataPtr = item.data else { continue }
+                let value = String(cString: dataPtr)
+                if let mimePtr = item.mime {
+                    let mime = String(cString: mimePtr)
+                    if mime.hasPrefix("text/plain") {
+                        text = value
+                        break
+                    }
+                }
+                if text == nil { text = value }
+            }
+            guard let text else { return }
+            let pb: NSPasteboard
+            if location == GHOSTTY_CLIPBOARD_SELECTION {
+                pb = NSPasteboard(name: .find)
+            } else {
+                pb = NSPasteboard.general
+            }
+            pb.clearContents()
+            pb.setString(text, forType: .string)
+        }
+
+        // read_clipboard_cb: ghostty requests clipboard content for paste/OSC 52.
+        // Uses GhosttyApp.shared.activeSurface (avoids userdata which may be per-surface).
+        runtime.read_clipboard_cb = { _, location, state in
+            guard let surface = GhosttyApp.shared?.activeSurface else { return false }
+            let pb: NSPasteboard
+            if location == GHOSTTY_CLIPBOARD_SELECTION {
+                pb = NSPasteboard(name: .find)
+            } else {
+                pb = NSPasteboard.general
+            }
+            guard let str = pb.string(forType: .string) else { return false }
+            str.withCString { ptr in
+                ghostty_surface_complete_clipboard_request(surface, ptr, state, false)
+            }
+            return true
+        }
+
+        // confirm_read_clipboard_cb: ghostty has content and wants user confirmation.
+        // Auto-confirm in V1 (no confirmation dialog).
+        runtime.confirm_read_clipboard_cb = { _, content, state, _ in
+            guard let content else { return }
+            guard let surface = GhosttyApp.shared?.activeSurface else { return }
+            ghostty_surface_complete_clipboard_request(surface, content, state, true)
+        }
 
         // Create the Ghostty app
         app = ghostty_app_new(&runtime, config)

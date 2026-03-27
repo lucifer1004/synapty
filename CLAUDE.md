@@ -23,13 +23,13 @@ Native macOS GUI application — a graphical terminal multiplexer with built-in 
 - **Dependencies:** Zero external runtime deps beyond libghostty. Zig std library + Ghostty submodule.
 
 ## Hard Rules
-- NO Python, Node.js, or third-party frameworks (no MCP)
 - Pure JSON-RPC routing layer
 - V1 is happy-path only — no retry queues, encrypted handshakes, or complex failure tolerance
 - Low-latency routing and memory safety via `ArenaAllocator`
 - All JSON parsing uses `std.json` with deferred `Value` for payloads
 - All governance files (gov/**) managed via `govctl` CLI — never edit directly
 - Version control: `jj` (jujutsu), not git. `jj describe` edits the current change's message but does NOT create a new commit — always run `jj new` after to start a fresh change.
+- Tasks can be tough but you should never over-simplify or evade problems. You should find root cause and fix.
 
 ## Dev Environment
 Managed by `devenv` (Nix-based). Provides: Zig 0.15.x, jj, govctl.
@@ -58,17 +58,8 @@ Synapty.xcodeproj      — macOS GUI app (Swift + GhosttyKit)
 ghostty/               — Ghostty submodule (libghostty source)
 ghostty.h              — Ghostty C API header (bridging)
 GhosttyKit.xcframework — pre-built universal framework (cached)
-src/
-  protocol.zig         — shared A2A types and JSON serialization
-  hub.zig              — Hub router (routing table, message dispatch)
-  daemon.zig           — Daemon (SSH tunnel, process spawner, CLI host)
-  cli.zig              — CLI tool (register, send, recv, agents)
-Sources/               — Swift GUI sources (terminal panes, host sidebar, status bar)
-gov/
-  config.toml          — govctl configuration
-  rfc/RFC-0001/        — vision RFC (normative, finalized)
-  adr/                 — ADR-0001 V1 scope (proposed)
-  work/                — work items
-docs/
-  rfc/RFC-0001.md      — rendered RFC
+src/                   — Zig sources
+Sources/               — Swift GUI sources
+gov/                   — govctl SSOT files
+docs/                  — Rendered govctl docs and other references
 ```
