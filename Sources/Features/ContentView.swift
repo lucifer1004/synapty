@@ -6,6 +6,8 @@ struct ContentView: View {
     @StateObject private var agentMonitor = AgentMonitor()
     @StateObject private var paneManager = TerminalPaneManager()
     @StateObject private var tunnelManager = TunnelManager()
+    @StateObject private var hubManager = HubManager()
+    @State private var showHubStatus = false
 
     var body: some View {
         NavigationSplitView {
@@ -43,12 +45,31 @@ struct ContentView: View {
                 AgentStatusBar(agentMonitor: agentMonitor)
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showHubStatus = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(hubManager.status.isRunning ? Color.green : Color.red)
+                            .frame(width: 8, height: 8)
+                        Text("Hub")
+                            .font(.caption)
+                    }
+                }
+                .help("Hub Status")
+            }
+        }
+        .sheet(isPresented: $showHubStatus) {
+            HubStatusView(hubManager: hubManager, isPresented: $showHubStatus)
+        }
         .onAppear {
+            hubManager.ensureRunning()
             agentMonitor.startMonitoring()
             tunnelManager.startHeartbeat()
             TunnelManager.shared = tunnelManager
             TerminalCoordinatorRef.instance = paneManager
-            // Create initial local session after TunnelManager is wired
             if paneManager.sessions.isEmpty {
                 paneManager.addLocalSession()
             }
@@ -56,6 +77,7 @@ struct ContentView: View {
         .onDisappear {
             agentMonitor.stopMonitoring()
             tunnelManager.stopHeartbeat()
+            hubManager.shutdown()
         }
     }
 }
