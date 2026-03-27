@@ -3,6 +3,9 @@ const net = std.net;
 const mem = std.mem;
 const json = std.json;
 const protocol = @import("protocol");
+const ipc = @import("ipc");
+const run = @import("run");
+const mcp = @import("mcp");
 const Allocator = mem.Allocator;
 const log = std.log.scoped(.cli);
 
@@ -23,6 +26,8 @@ pub const Subcommand = union(enum) {
     send: SendArgs,
     recv: RecvArgs,
     agents,
+    run: RunArgs,
+    mcp_serve,
 };
 
 pub const RegisterArgs = struct {
@@ -36,6 +41,11 @@ pub const SendArgs = struct {
 
 pub const RecvArgs = struct {
     wait: bool,
+};
+
+pub const RunArgs = struct {
+    agent_id: []const u8,
+    child_argv: []const []const u8,
 };
 
 // ---------------------------------------------------------------------------
@@ -75,6 +85,39 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
 
     if (mem.eql(u8, sub, "agents")) {
         return .agents;
+    }
+
+    if (mem.eql(u8, sub, "run")) {
+        // Syntax: run --id <agent-id> -- <command> [args...]
+        var agent_id: ?[]const u8 = null;
+        var dash_dash_idx: ?usize = null;
+
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (mem.eql(u8, args[i], "--")) {
+                dash_dash_idx = i;
+                break;
+            } else if (mem.eql(u8, args[i], "--id")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingArgument;
+                agent_id = args[i];
+            }
+        }
+
+        if (agent_id == null) return ParseError.MissingArgument;
+        if (dash_dash_idx == null) return ParseError.MissingArgument;
+
+        const sep = dash_dash_idx.?;
+        if (sep + 1 >= args.len) return ParseError.MissingArgument;
+
+        return .{ .run = .{
+            .agent_id = agent_id.?,
+            .child_argv = args[sep + 1 ..],
+        } };
+    }
+
+    if (mem.eql(u8, sub, "mcp-serve")) {
+        return .mcp_serve;
     }
 
     return ParseError.UnknownSubcommand;
@@ -117,6 +160,26 @@ fn runRegister(allocator: Allocator, args: RegisterArgs) !void {
 fn runSend(allocator: Allocator, args: SendArgs) !void {
     const stdout = std.fs.File.stdout();
 
+    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
+        const sock_path = std.mem.span(sock_env);
+        var client = try ipc.IpcClient.connect(sock_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(allocator, .{
+            .action = .send,
+            .target = args.target,
+            .payload = args.payload,
+        });
+        defer allocator.free(req);
+        try client.send(req);
+        var buf: [4096]u8 = undefined;
+        if (try client.recv(&buf)) |response| {
+            try stdout.writeAll(response);
+            try stdout.writeAll("\n");
+        }
+        return;
+    }
+
+    // Fallback: direct Hub TCP connection.
     // Build a temporary source ID for this one-shot send.
     const source_id = try std.fmt.allocPrint(allocator, "{s}{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
     defer allocator.free(source_id);
@@ -145,6 +208,24 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
 fn runRecv(allocator: Allocator, args: RecvArgs) !void {
     const stdout = std.fs.File.stdout();
 
+    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
+        const sock_path = std.mem.span(sock_env);
+        var client = try ipc.IpcClient.connect(sock_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(allocator, .{
+            .action = .recv,
+        });
+        defer allocator.free(req);
+        try client.send(req);
+        var buf: [4096]u8 = undefined;
+        if (try client.recv(&buf)) |response| {
+            try stdout.writeAll(response);
+            try stdout.writeAll("\n");
+        }
+        return;
+    }
+
+    // Fallback: direct Hub TCP connection.
     // Build a temporary source ID for this one-shot recv.
     const source_id = try std.fmt.allocPrint(allocator, "{s}recv-{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
     defer allocator.free(source_id);
@@ -186,6 +267,24 @@ fn runRecv(allocator: Allocator, args: RecvArgs) !void {
 fn runAgents(allocator: Allocator) !void {
     const stdout = std.fs.File.stdout();
 
+    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
+        const sock_path = std.mem.span(sock_env);
+        var client = try ipc.IpcClient.connect(sock_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(allocator, .{
+            .action = .agents,
+        });
+        defer allocator.free(req);
+        try client.send(req);
+        var buf: [4096]u8 = undefined;
+        if (try client.recv(&buf)) |response| {
+            try stdout.writeAll(response);
+            try stdout.writeAll("\n");
+        }
+        return;
+    }
+
+    // Fallback: direct Hub TCP connection.
     const source_id = try std.fmt.allocPrint(allocator, "{s}agents-{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
     defer allocator.free(source_id);
 
@@ -241,7 +340,7 @@ pub fn main() !void {
     const sub = parseArgs(arg_list.items) catch |err| {
         switch (err) {
             ParseError.MissingSubcommand => {
-                try stderr.writeAll("usage: synapty <register|send|recv|agents> [args]\n");
+                try stderr.writeAll("usage: synapty <register|send|recv|agents|run|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
                 try stderr.writeAll("error: unknown subcommand\n");
@@ -258,6 +357,14 @@ pub fn main() !void {
         .send => |a| try runSend(allocator, a),
         .recv => |a| try runRecv(allocator, a),
         .agents => try runAgents(allocator),
+        .run => |a| {
+            var server = try run.RunServer.init(allocator, a.agent_id, hub_addr, hub_port);
+            defer server.deinit();
+            try server.run(a.child_argv);
+        },
+        .mcp_serve => {
+            try mcp.runMcp(allocator);
+        },
     }
 }
 
@@ -330,4 +437,32 @@ test "send envelope has correct source/target/payload fields" {
     try std.testing.expectEqualStrings("cli-src", envelope.source);
     try std.testing.expectEqualStrings("agent-b", envelope.target);
     try std.testing.expectEqualStrings("hello", envelope.payload.string);
+}
+
+test "parseArgs: run subcommand with --id and -- child" {
+    const result = try parseArgs(&.{ "run", "--id", "my-agent", "--", "bash", "-l" });
+    try std.testing.expectEqualStrings("my-agent", result.run.agent_id);
+    try std.testing.expectEqual(@as(usize, 2), result.run.child_argv.len);
+    try std.testing.expectEqualStrings("bash", result.run.child_argv[0]);
+    try std.testing.expectEqualStrings("-l", result.run.child_argv[1]);
+}
+
+test "parseArgs: mcp-serve subcommand" {
+    const result = try parseArgs(&.{"mcp-serve"});
+    try std.testing.expectEqual(Subcommand.mcp_serve, result);
+}
+
+test "parseArgs: run without --id returns error" {
+    const result = parseArgs(&.{ "run", "--", "bash" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: run with --id but without -- returns error" {
+    const result = parseArgs(&.{ "run", "--id", "foo" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: run with --id and -- but no child command returns error" {
+    const result = parseArgs(&.{ "run", "--id", "foo", "--" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
 }

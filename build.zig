@@ -138,6 +138,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
             .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "run", .module = run_mod },
+            .{ .name = "mcp", .module = mcp_mod },
         },
     });
     const cli_tests = b.addTest(.{
