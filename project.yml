@@ -44,6 +44,17 @@ targets:
           - Carbon
         LD_RUNPATH_SEARCH_PATHS:
           - "@executable_path/../Frameworks"
+    postBuildScripts:
+      - script: |
+          for target in linux-aarch64 linux-x86_64 linux-riscv64 macos-aarch64 macos-x86_64; do
+            SRC="${SRCROOT}/zig-out/${target}/synapty"
+            DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/deploy/${target}"
+            if [ -f "$SRC" ]; then
+              mkdir -p "$DEST"
+              cp "$SRC" "$DEST/synapty"
+            fi
+          done
+        name: Bundle deploy binaries
     dependencies:
       - framework: GhosttyKit.xcframework
         embed: false

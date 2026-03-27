@@ -43,8 +43,8 @@ echo "Remote platform: ${REMOTE_PLATFORM} -> ${DEPLOY_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN=""
 for candidate in \
-    "${SCRIPT_DIR}/../Resources/deploy/${DEPLOY_DIR}/synapty" \
     "${SCRIPT_DIR}/../deploy/${DEPLOY_DIR}/synapty" \
+    "${SCRIPT_DIR}/../../Resources/deploy/${DEPLOY_DIR}/synapty" \
     "zig-out/${DEPLOY_DIR}/synapty"; do
     if [ -f "$candidate" ]; then
         LOCAL_BIN="$candidate"
@@ -63,10 +63,20 @@ echo "Local binary: ${LOCAL_BIN}"
 # Deploy and connect
 # ---------------------------------------------------------------------------
 echo "Deploying synapty (${DEPLOY_DIR}) to ${HOST}..."
-ssh $SSH_FLAGS "$DEST" "mkdir -p ~/.synapty/bin"
-scp $SCP_FLAGS "$LOCAL_BIN" "$DEST":~/.synapty/bin/synapty
-ssh $SSH_FLAGS "$DEST" "chmod +x ~/.synapty/bin/synapty"
+ssh $SSH_FLAGS "$DEST" "mkdir -p .synapty/bin"
+
+# Only upload if the binary changed (compare md5 checksums).
+LOCAL_MD5=$(md5 -q "$LOCAL_BIN" 2>/dev/null || md5sum "$LOCAL_BIN" | awk '{print $1}')
+REMOTE_MD5=$(ssh $SSH_FLAGS "$DEST" "md5sum .synapty/bin/synapty 2>/dev/null | awk '{print \$1}'" || echo "")
+
+if [ "$LOCAL_MD5" = "$REMOTE_MD5" ]; then
+    echo "Binary unchanged, skipping upload."
+else
+    echo "Uploading binary..."
+    scp $SCP_FLAGS "$LOCAL_BIN" "$DEST":.synapty/bin/synapty
+    ssh $SSH_FLAGS "$DEST" "chmod +x .synapty/bin/synapty"
+fi
 
 echo "Connecting with reverse tunnel..."
-exec ssh -R 9000:localhost:9000 $SSH_FLAGS "$DEST" \
-    "~/.synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:9000 -- bash -l"
+exec ssh -t -R 9000:localhost:9000 $SSH_FLAGS "$DEST" \
+    ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:9000 -- bash -l"

@@ -10,6 +10,7 @@ completed = "2026-03-27"
 
 [content]
 description = "Move deploy logic from embedded Swift string to scripts/deploy.sh. Fixes ghostty command launch failure caused by multi-line shell script passed as single -c argument. Script handles platform detection, binary lookup (bundled/dev), scp, and SSH tunnel."
+notes = ["setsockopt TCP_NODELAY: Invalid argument on remote is from OpenSSH sshd setting TCP_NODELAY on the reverse tunnel socket. Known SSH behavior with musl libc. Harmless — connection works. Not our code."]
 
 [[content.journal]]
 date = "2026-03-27"
