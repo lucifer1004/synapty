@@ -28,18 +28,13 @@ struct ContentView: View {
                         PaneTabBar(paneManager: paneManager, session: session)
                     }
 
-                    // Render the active pane's split tree.
-                    if let pane = paneManager.activePane {
-                        SplitContentView(
-                            node: pane.splitRoot,
-                            ghosttyApp: ghosttyApp,
-                            focusedLeafID: pane.focusedLeafID
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        Color.black
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+                    // Render ALL panes' leaves in a single ZStack so surfaces
+                    // survive tab switches. Only the active pane's leaves are visible.
+                    AllPanesSplitView(
+                        paneManager: paneManager,
+                        ghosttyApp: ghosttyApp
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Text("Initializing terminal...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
