@@ -96,6 +96,7 @@ fn handleListAgents(routing_table: *RoutingTable, arena: Allocator, stream: net.
 
     const raw = try protocol.serializeEnvelope(arena, resp);
     _ = try stream.write(raw);
+    _ = try stream.write("\n");
 }
 
 /// Handle a single client connection: read JSON envelopes and route them.
@@ -104,15 +105,19 @@ fn handleClient(routing_table: *RoutingTable, arena: Allocator, stream: net.Stre
 
     var buf: [recv_buf_size]u8 = undefined;
 
-    // First message must be a "register" envelope.
+    // First read may contain the register envelope plus additional messages.
     const initial_len = stream.read(&buf) catch |err| {
         log.err("read error on initial message: {any}", .{err});
         return;
     };
     if (initial_len == 0) return;
 
-    const initial_raw = buf[0..initial_len];
-    const parsed_init = protocol.parseEnvelope(arena, initial_raw) catch |err| {
+    // Split initial read by newlines — first line must be the register envelope.
+    var initial_iter = mem.splitScalar(u8, buf[0..initial_len], '\n');
+    const first_line = mem.trimRight(u8, initial_iter.next() orelse return, "\r ");
+    if (first_line.len == 0) return;
+
+    const parsed_init = protocol.parseEnvelope(arena, first_line) catch |err| {
         log.err("failed to parse initial envelope: {any}", .{err});
         return;
     };
@@ -130,7 +135,25 @@ fn handleClient(routing_table: *RoutingTable, arena: Allocator, stream: net.Stre
     };
     defer routing_table.unregister(agent_id);
 
-    // Main receive loop: parse envelope, route to target.
+    // Process any remaining messages from the initial read.
+    while (initial_iter.next()) |line| {
+        const trimmed = mem.trimRight(u8, line, "\r ");
+        if (trimmed.len == 0) continue;
+        const parsed = protocol.parseEnvelope(arena, trimmed) catch |err| {
+            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
+            continue;
+        };
+        const envelope = parsed.value;
+        if (mem.eql(u8, envelope.@"type", protocol.MessageType.list_agents.toString())) {
+            handleListAgents(routing_table, arena, stream, envelope) catch |err| {
+                log.err("list_agents handler failed for {s}: {any}", .{ agent_id, err });
+            };
+            continue;
+        }
+        routeMessage(routing_table, envelope, trimmed);
+    }
+
+    // Main receive loop: newline-delimited JSON envelopes.
     while (true) {
         const n = stream.read(&buf) catch |err| {
             log.err("read error from {s}: {any}", .{ agent_id, err });
@@ -138,22 +161,27 @@ fn handleClient(routing_table: *RoutingTable, arena: Allocator, stream: net.Stre
         };
         if (n == 0) break; // connection closed
 
-        const raw = buf[0..n];
+        // Split by newlines — one read may contain multiple messages.
+        var iter = mem.splitScalar(u8, buf[0..n], '\n');
+        while (iter.next()) |line| {
+            const raw = mem.trimRight(u8, line, "\r ");
+            if (raw.len == 0) continue;
 
-        const parsed = protocol.parseEnvelope(arena, raw) catch |err| {
-            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
-            continue;
-        };
-        const envelope = parsed.value;
-
-        if (mem.eql(u8, envelope.@"type", protocol.MessageType.list_agents.toString())) {
-            handleListAgents(routing_table, arena, stream, envelope) catch |err| {
-                log.err("list_agents handler failed for {s}: {any}", .{ agent_id, err });
+            const parsed = protocol.parseEnvelope(arena, raw) catch |err| {
+                log.err("bad envelope from {s}: {any}", .{ agent_id, err });
+                continue;
             };
-            continue;
-        }
+            const envelope = parsed.value;
 
-        routeMessage(routing_table, envelope, raw);
+            if (mem.eql(u8, envelope.@"type", protocol.MessageType.list_agents.toString())) {
+                handleListAgents(routing_table, arena, stream, envelope) catch |err| {
+                    log.err("list_agents handler failed for {s}: {any}", .{ agent_id, err });
+                };
+                continue;
+            }
+
+            routeMessage(routing_table, envelope, raw);
+        }
     }
 }
 
@@ -189,11 +217,9 @@ const default_listen_port: u16 = 9000;
 pub const HubServer = struct {
     listener: net.Server,
     routing_table: RoutingTable,
-    arena: std.heap.ArenaAllocator,
 
     pub fn init(allocator: Allocator) !HubServer {
-        var arena = std.heap.ArenaAllocator.init(allocator);
-        const arena_alloc = arena.allocator();
+        _ = allocator;
 
         const address = net.Address.parseIp4(default_listen_addr, default_listen_port) catch unreachable;
         const listener = try address.listen(.{
@@ -204,15 +230,13 @@ pub const HubServer = struct {
 
         return .{
             .listener = listener,
-            .routing_table = RoutingTable.init(arena_alloc),
-            .arena = arena,
+            .routing_table = RoutingTable.init(std.heap.page_allocator),
         };
     }
 
     pub fn deinit(self: *HubServer) void {
         self.routing_table.deinit();
         self.listener.deinit();
-        self.arena.deinit();
     }
 
     /// Accept connections in a loop, spawning a thread per client.
@@ -220,11 +244,9 @@ pub const HubServer = struct {
         while (true) {
             const conn = try self.listener.accept();
             log.info("accepted connection from {any}", .{conn.address});
-
-            const arena_alloc = self.arena.allocator();
             _ = std.Thread.spawn(.{}, handleClient, .{
                 &self.routing_table,
-                arena_alloc,
+                std.heap.page_allocator,
                 conn.stream,
             }) catch |err| {
                 log.err("failed to spawn handler thread: {any}", .{err});

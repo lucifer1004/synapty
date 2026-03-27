@@ -139,6 +139,7 @@ fn connectAndRegister(allocator: Allocator, agent_id: []const u8) !net.Stream {
     defer allocator.free(payload);
 
     _ = try stream.write(payload);
+    _ = try stream.write("\n");
     return stream;
 }
 
@@ -293,16 +294,16 @@ fn runAgents(allocator: Allocator) !void {
 
     // Send a list_agents request envelope.
     const envelope = protocol.Envelope{
-        .@"type" = "a2a_request",
+        .@"type" = "list_agents",
         .id = "agents-0",
         .source = source_id,
         .target = "hub",
-        .payload = json.Value{ .string = "list_agents" },
     };
     const raw = try protocol.serializeEnvelope(allocator, envelope);
     defer allocator.free(raw);
 
     _ = try stream.write(raw);
+    _ = try stream.write("\n");
 
     // Read the response (best-effort, no timeout in V1).
     var buf: [64 * 1024]u8 = undefined;

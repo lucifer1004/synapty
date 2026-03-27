@@ -83,7 +83,11 @@ pub const RunServer = struct {
         hub_addr: []const u8,
         hub_port: u16,
     ) !RunServer {
-        const pid = std.c.getpid();
+        const builtin = @import("builtin");
+        const pid: i32 = switch (builtin.os.tag) {
+            .linux => std.os.linux.getpid(),
+            else => std.c.getpid(),
+        };
         const socket_path = try std.fmt.allocPrint(allocator, "/tmp/synapty-{d}.sock", .{pid});
         errdefer allocator.free(socket_path);
 
