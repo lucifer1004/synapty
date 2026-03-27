@@ -3,8 +3,9 @@
 [govctl]
 id = "WI-2026-03-26-010"
 title = "Host management sidebar"
-status = "queue"
+status = "active"
 created = "2026-03-26"
+started = "2026-03-27"
 refs = ["ADR-0001"]
 
 [content]
