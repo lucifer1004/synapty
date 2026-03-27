@@ -2,7 +2,33 @@ import Foundation
 
 /// Manages a three-level hierarchy: Sessions (sidebar) → Panes (tabs) → Splits (tree).
 /// Each session is connected to a host. Each pane has a split tree of terminal surfaces.
-@MainActor final class TerminalPaneManager: ObservableObject {
+@MainActor final class TerminalPaneManager: ObservableObject, TerminalCoordinator {
+
+    // MARK: - TerminalCoordinator
+
+    func requestSplit(direction: SplitNode.SplitDirection) {
+        splitFocusedLeaf(direction: direction)
+    }
+
+    func requestCloseSplit() {
+        closeFocusedLeaf()
+    }
+
+    func requestFocusNextSplit() {
+        focusNextLeaf()
+    }
+
+    func requestFocusPreviousSplit() {
+        focusPreviousLeaf()
+    }
+
+    func leafDidFocus(_ leafID: UUID) {
+        focusLeaf(leafID)
+    }
+
+    func leafDidClose(_ leafID: UUID) {
+        closeLeaf(leafID)
+    }
 
     struct Pane: Identifiable {
         let id: UUID

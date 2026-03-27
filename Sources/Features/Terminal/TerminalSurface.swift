@@ -27,13 +27,9 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 ghostty_surface_set_display_id(surface, displayID)
             }
         }
-        // Notify paneManager of focus change for split navigation
+        // Notify coordinator of focus change for split navigation
         if let leafID {
-            NotificationCenter.default.post(
-                name: .synaptyLeafFocused,
-                object: nil,
-                userInfo: ["leafID": leafID]
-            )
+            DispatchQueue.main.async { TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
         }
         return super.becomeFirstResponder()
     }
@@ -207,44 +203,25 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 }
                 return true
             case "d":
-                // Cmd+D: split side-by-side, Cmd+Shift+D: split stacked
-                // Cmd+D may be intercepted by macOS on some systems.
                 let direction: SplitNode.SplitDirection = hasShift ? .vertical : .horizontal
-                NotificationCenter.default.post(
-                    name: .synaptyRequestSplit,
-                    object: nil,
-                    userInfo: ["direction": direction]
-                )
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: direction) }
                 return true
             case "\\":
-                // Cmd+\: split side-by-side (reliable alternative)
-                NotificationCenter.default.post(
-                    name: .synaptyRequestSplit,
-                    object: nil,
-                    userInfo: ["direction": SplitNode.SplitDirection.horizontal]
-                )
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .horizontal) }
                 return true
             case "-":
-                // Cmd+- with shift (Cmd+_): split stacked
                 if hasShift {
-                    NotificationCenter.default.post(
-                        name: .synaptyRequestSplit,
-                        object: nil,
-                        userInfo: ["direction": SplitNode.SplitDirection.vertical]
-                    )
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical) }
                     return true
                 }
             case "w":
-                // Cmd+W: close split (or pane if no splits)
-                NotificationCenter.default.post(name: .synaptyRequestCloseSplit, object: nil)
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestCloseSplit() }
                 return true
             case "]":
-                // Cmd+]: focus next split
-                NotificationCenter.default.post(name: .synaptyRequestFocusNextSplit, object: nil)
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusNextSplit() }
                 return true
             case "[":
-                // Cmd+[: focus previous split
-                NotificationCenter.default.post(name: .synaptyRequestFocusPreviousSplit, object: nil)
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusPreviousSplit() }
                 return true
             default:
                 break
@@ -399,6 +376,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        // Update split focus on every click (becomeFirstResponder only fires on change)
+        if let leafID {
+            DispatchQueue.main.async { TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
+        }
         guard let surface else { return }
         let point = convert(event.locationInWindow, from: nil)
         if event.clickCount == 1 {

@@ -47,34 +47,12 @@ struct ContentView: View {
             agentMonitor.startMonitoring()
             tunnelManager.startHeartbeat()
             TunnelManager.shared = tunnelManager
+            // Wire the typed coordinator: GhosttyNSView → paneManager
+            TerminalCoordinatorRef.instance = paneManager
         }
         .onDisappear {
             agentMonitor.stopMonitoring()
             tunnelManager.stopHeartbeat()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestSplit)) { notif in
-            if let direction = notif.userInfo?["direction"] as? SplitNode.SplitDirection {
-                paneManager.splitFocusedLeaf(direction: direction)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestCloseSplit)) { _ in
-            paneManager.closeFocusedLeaf()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestFocusNextSplit)) { _ in
-            paneManager.focusNextLeaf()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestFocusPreviousSplit)) { _ in
-            paneManager.focusPreviousLeaf()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyLeafFocused)) { notif in
-            if let leafID = notif.userInfo?["leafID"] as? UUID {
-                paneManager.focusLeaf(leafID)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyLeafClosed)) { notif in
-            if let leafID = notif.userInfo?["leafID"] as? UUID {
-                paneManager.closeLeaf(leafID)
-            }
         }
     }
 }

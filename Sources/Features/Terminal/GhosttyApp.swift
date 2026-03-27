@@ -53,11 +53,7 @@ import AppKit
             guard let userdata else { return }
             let leafID = userdata.assumingMemoryBound(to: UUID.self).pointee
             DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: .synaptyLeafClosed,
-                    object: nil,
-                    userInfo: ["leafID": leafID]
-                )
+                TerminalCoordinatorRef.instance?.leafDidClose(leafID)
             }
         }
 

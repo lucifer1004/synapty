@@ -28,17 +28,6 @@ struct AllPanesSplitView: View {
                                 y: isActive ? frame.minY : 0)
                         .opacity(isActive ? 1 : 0)
                         .allowsHitTesting(isActive)
-                        .overlay(
-                            Group {
-                                if isActive, let activePane, activePane.splitRoot.leaves.count > 1 {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .stroke(
-                                            activePane.focusedLeafID == leaf.id ? Color.accentColor : Color.clear,
-                                            lineWidth: 2
-                                        )
-                                }
-                            }
-                        )
                 }
 
                 // Draw dividers for the active pane's split tree
@@ -52,6 +41,17 @@ struct AllPanesSplitView: View {
                             .fill(Color(NSColor.separatorColor))
                             .frame(width: divider.width, height: divider.height)
                             .offset(x: divider.minX, y: divider.minY)
+                    }
+
+                    // Focus indicator: drawn at the focused leaf's computed frame
+                    if activePane.splitRoot.leaves.count > 1,
+                       let focusedID = activePane.focusedLeafID,
+                       let focusFrame = activeFrames[focusedID] {
+                        RoundedRectangle(cornerRadius: 2)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                            .frame(width: focusFrame.width, height: focusFrame.height)
+                            .offset(x: focusFrame.minX, y: focusFrame.minY)
+                            .allowsHitTesting(false)
                     }
                 }
             }
