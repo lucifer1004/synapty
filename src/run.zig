@@ -83,7 +83,7 @@ pub const RunServer = struct {
         hub_addr: []const u8,
         hub_port: u16,
     ) !RunServer {
-        const pid = posix.getpid();
+        const pid = std.c.getpid();
         const socket_path = try std.fmt.allocPrint(allocator, "/tmp/synapty-{d}.sock", .{pid});
         errdefer allocator.free(socket_path);
 
@@ -232,9 +232,9 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
         .recv => {
             const msgs = try srv.message_queue.drain(alloc);
             // Serialize messages as a JSON array of strings.
-            var array = std.ArrayList(json.Value).empty;
+            var array = json.Array.init(alloc);
             for (msgs) |msg| {
-                try array.append(alloc, json.Value{ .string = msg });
+                try array.append(json.Value{ .string = msg });
             }
             const arr_val = json.Value{ .array = array };
             const data_raw = try json.Stringify.valueAlloc(alloc, arr_val, .{});

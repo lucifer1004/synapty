@@ -4,6 +4,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // ---------------------------------------------------------------------------
+    // Shared modules (defined first so all executables can reference them)
+    // ---------------------------------------------------------------------------
+
     // Shared protocol module
     const protocol_mod = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
@@ -11,7 +15,39 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // --- synapty-hub executable ---
+    // Shared IPC transport module (no imports — transport only)
+    const ipc_mod = b.createModule(.{
+        .root_source_file = b.path("src/ipc.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Shared run module (depends on protocol + ipc)
+    const run_mod = b.createModule(.{
+        .root_source_file = b.path("src/run.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+
+    // MCP stdio server module
+    const mcp_mod = b.createModule(.{
+        .root_source_file = b.path("src/mcp.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+
+    // ---------------------------------------------------------------------------
+    // synapty-hub executable
+    // ---------------------------------------------------------------------------
+
     const hub_mod = b.createModule(.{
         .root_source_file = b.path("src/hub.zig"),
         .target = target,
@@ -29,13 +65,18 @@ pub fn build(b: *std.Build) void {
     const hub_step = b.step("hub", "Build the Synapty Hub (local router)");
     hub_step.dependOn(&hub_exe.step);
 
-    // --- synapty-daemon executable ---
+    // ---------------------------------------------------------------------------
+    // synapty-daemon executable
+    // ---------------------------------------------------------------------------
+
     const daemon_mod = b.createModule(.{
         .root_source_file = b.path("src/daemon.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "run", .module = run_mod },
         },
     });
     const daemon_exe = b.addExecutable(.{
@@ -47,36 +88,10 @@ pub fn build(b: *std.Build) void {
     const daemon_step = b.step("daemon", "Build the Synapty Daemon (remote companion)");
     daemon_step.dependOn(&daemon_exe.step);
 
-    // Shared IPC transport module (no imports — transport only)
-    const ipc_mod = b.createModule(.{
-        .root_source_file = b.path("src/ipc.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    // ---------------------------------------------------------------------------
+    // synapty CLI executable
+    // ---------------------------------------------------------------------------
 
-    // MCP stdio server module
-    const mcp_mod = b.createModule(.{
-        .root_source_file = b.path("src/mcp.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-        },
-    });
-
-    // Shared run module (depends on protocol + ipc)
-    const run_mod = b.createModule(.{
-        .root_source_file = b.path("src/run.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-        },
-    });
-
-    // --- synapty CLI executable ---
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
         .target = target,
@@ -97,7 +112,164 @@ pub fn build(b: *std.Build) void {
     const cli_step = b.step("cli", "Build the Synapty CLI tool");
     cli_step.dependOn(&cli_exe.step);
 
-    // --- Tests ---
+    // ---------------------------------------------------------------------------
+    // Cross-compilation: daemon + CLI for Linux aarch64 (musl)
+    // ---------------------------------------------------------------------------
+
+    const linux_aarch64_target = b.resolveTargetQuery(.{
+        .cpu_arch = .aarch64,
+        .os_tag = .linux,
+        .abi = .musl,
+    });
+
+    const daemon_linux_aarch64_protocol_mod = b.createModule(.{
+        .root_source_file = b.path("src/protocol.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+    });
+    const daemon_linux_aarch64_ipc_mod = b.createModule(.{
+        .root_source_file = b.path("src/ipc.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+    });
+    const daemon_linux_aarch64_run_mod = b.createModule(.{
+        .root_source_file = b.path("src/run.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+        },
+    });
+    const daemon_linux_aarch64_mod = b.createModule(.{
+        .root_source_file = b.path("src/daemon.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+            .{ .name = "run", .module = daemon_linux_aarch64_run_mod },
+        },
+    });
+    const daemon_linux_aarch64_exe = b.addExecutable(.{
+        .name = "synapty-daemon",
+        .root_module = daemon_linux_aarch64_mod,
+    });
+
+    const linux_aarch64_mcp_mod = b.createModule(.{
+        .root_source_file = b.path("src/mcp.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+        },
+    });
+    const cli_linux_aarch64_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = linux_aarch64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+            .{ .name = "run", .module = daemon_linux_aarch64_run_mod },
+            .{ .name = "mcp", .module = linux_aarch64_mcp_mod },
+        },
+    });
+    const cli_linux_aarch64_exe = b.addExecutable(.{
+        .name = "synapty",
+        .root_module = cli_linux_aarch64_mod,
+    });
+
+    const linux_daemon_step = b.step("daemon-linux-aarch64", "Cross-compile daemon for Linux aarch64");
+    linux_daemon_step.dependOn(&b.addInstallArtifact(daemon_linux_aarch64_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "linux-aarch64" } },
+    }).step);
+    linux_daemon_step.dependOn(&b.addInstallArtifact(cli_linux_aarch64_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "linux-aarch64" } },
+    }).step);
+
+    // ---------------------------------------------------------------------------
+    // Cross-compilation: daemon + CLI for Linux x86_64 (musl)
+    // ---------------------------------------------------------------------------
+
+    const linux_x86_64_target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86_64,
+        .os_tag = .linux,
+        .abi = .musl,
+    });
+
+    const daemon_linux_x86_64_protocol_mod = b.createModule(.{
+        .root_source_file = b.path("src/protocol.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+    });
+    const daemon_linux_x86_64_ipc_mod = b.createModule(.{
+        .root_source_file = b.path("src/ipc.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+    });
+    const daemon_linux_x86_64_run_mod = b.createModule(.{
+        .root_source_file = b.path("src/run.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+        },
+    });
+    const daemon_linux_x86_64_mod = b.createModule(.{
+        .root_source_file = b.path("src/daemon.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+            .{ .name = "run", .module = daemon_linux_x86_64_run_mod },
+        },
+    });
+    const daemon_linux_x86_64_exe = b.addExecutable(.{
+        .name = "synapty-daemon",
+        .root_module = daemon_linux_x86_64_mod,
+    });
+
+    const linux_x86_64_mcp_mod = b.createModule(.{
+        .root_source_file = b.path("src/mcp.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+        },
+    });
+    const cli_linux_x86_64_mod = b.createModule(.{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = linux_x86_64_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+            .{ .name = "run", .module = daemon_linux_x86_64_run_mod },
+            .{ .name = "mcp", .module = linux_x86_64_mcp_mod },
+        },
+    });
+    const cli_linux_x86_64_exe = b.addExecutable(.{
+        .name = "synapty",
+        .root_module = cli_linux_x86_64_mod,
+    });
+
+    const linux_daemon_x86_step = b.step("daemon-linux-x86_64", "Cross-compile daemon for Linux x86_64");
+    linux_daemon_x86_step.dependOn(&b.addInstallArtifact(daemon_linux_x86_64_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "linux-x86_64" } },
+    }).step);
+    linux_daemon_x86_step.dependOn(&b.addInstallArtifact(cli_linux_x86_64_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "linux-x86_64" } },
+    }).step);
+
+    // ---------------------------------------------------------------------------
+    // Tests
+    // ---------------------------------------------------------------------------
+
     const protocol_test_mod = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
         .target = target,
@@ -125,6 +297,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "run", .module = run_mod },
         },
     });
     const daemon_tests = b.addTest(.{

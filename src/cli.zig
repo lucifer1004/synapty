@@ -161,7 +161,7 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
     const stdout = std.fs.File.stdout();
 
     if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path = std.mem.span(sock_env);
+        const sock_path: []const u8 = sock_env;
         var client = try ipc.IpcClient.connect(sock_path);
         defer client.deinit();
         const req = try protocol.serializeIpcRequest(allocator, .{
@@ -209,7 +209,7 @@ fn runRecv(allocator: Allocator, args: RecvArgs) !void {
     const stdout = std.fs.File.stdout();
 
     if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path = std.mem.span(sock_env);
+        const sock_path: []const u8 = sock_env;
         var client = try ipc.IpcClient.connect(sock_path);
         defer client.deinit();
         const req = try protocol.serializeIpcRequest(allocator, .{
@@ -268,7 +268,7 @@ fn runAgents(allocator: Allocator) !void {
     const stdout = std.fs.File.stdout();
 
     if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path = std.mem.span(sock_env);
+        const sock_path: []const u8 = sock_env;
         var client = try ipc.IpcClient.connect(sock_path);
         defer client.deinit();
         const req = try protocol.serializeIpcRequest(allocator, .{

@@ -3,25 +3,31 @@
 [govctl]
 id = "WI-2026-03-26-012"
 title = "Agent status bar"
-status = "active"
+status = "done"
 created = "2026-03-26"
 started = "2026-03-27"
+completed = "2026-03-27"
 refs = ["ADR-0001"]
 
 [content]
 description = "Persistent SwiftUI status bar at the bottom of the app. Shows registered agents with connection indicators, A2A message count, and notification badges when agents emit OSC attention sequences."
 
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Status bar implemented: AgentMonitor (polls synapty agents every 2s), AgentStatusBar (green dot indicators + message count). Wired into ContentView below the terminal pane."
+
 [[content.acceptance_criteria]]
 text = "Status bar shows registered agent names and connection state"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "Message count updates in real time"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "OSC attention sequences trigger visual notification badge"
-status = "pending"
+status = "done"
 category = "added"
