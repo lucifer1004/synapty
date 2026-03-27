@@ -5,16 +5,18 @@ struct ContentView: View {
     @StateObject private var hostStore = HostStore()
     @StateObject private var agentMonitor = AgentMonitor()
     @StateObject private var paneManager = TerminalPaneManager()
-    @StateObject private var deployManager = DeployManager()
+    @StateObject private var tunnelManager = TunnelManager()
 
     var body: some View {
         NavigationSplitView {
             HostSidebar(
                 hostStore: hostStore,
                 paneManager: paneManager,
+                tunnelManager: tunnelManager,
                 onHostConnect: { host in
-                    let cmd = deployManager.fullDeployCommand(for: host)
-                    paneManager.addRemoteSession(label: host.label, command: cmd)
+                    tunnelManager.ensureTunnel(for: host) { [weak paneManager] cmd in
+                        paneManager?.addRemoteSession(label: host.label, command: cmd)
+                    }
                 },
                 onNewLocalPane: {
                     paneManager.addLocalSession()
@@ -53,9 +55,11 @@ struct ContentView: View {
         }
         .onAppear {
             agentMonitor.startMonitoring()
+            tunnelManager.startHeartbeat()
         }
         .onDisappear {
             agentMonitor.stopMonitoring()
+            tunnelManager.stopHeartbeat()
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestSplit)) { notif in
             if let direction = notif.userInfo?["direction"] as? SplitNode.SplitDirection {

@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-007"
+title = "Restructure deploy: SSH ControlMaster tunnel + separate setup/connect scripts"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Replace DeployManager with TunnelManager. Auto-setup on first connect via setup-host.sh (background Process). SSH ControlMaster with ServerAliveInterval/ControlPersist for heartbeat. 10s health check timer with auto-reconnect. Tunnel status in UI (host config sheet + picker). connect.sh for per-session instant connect with fallback."
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Implemented TunnelManager replacing DeployManager. Auto-setup via background Process, 10s heartbeat with ssh -O check, auto-reconnect, ControlMaster with ServerAliveInterval/ControlPersist. Tunnel status in HostConfigSheet (reconnect/disconnect buttons) and HostPickerPopover (status dots). Global tunnelPort config. Scripts updated with tunnel-port param. Build and govctl check pass."
+
+[[content.acceptance_criteria]]
+text = "scripts/setup-host.sh — detect platform, upload binary, start ControlMaster tunnel"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "scripts/connect.sh — reuse ControlMaster, run synapty with unique agent ID"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Setup button in HostConfigSheet triggers setup-host.sh"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "DeployManager uses connect.sh for new sessions"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager with state machine, heartbeat timer, auto-reconnect"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tunnel status indicators in HostConfigSheet and HostPickerPopover"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Auto-setup on first connect, instant reuse on subsequent"
+status = "done"
+category = "added"

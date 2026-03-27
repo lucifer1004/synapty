@@ -5,6 +5,7 @@ import SwiftUI
 struct HostSidebar: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var paneManager: TerminalPaneManager
+    @ObservedObject var tunnelManager: TunnelManager
     @State private var showHostConfig = false
     @State private var showHostPicker = false
 
@@ -37,6 +38,7 @@ struct HostSidebar: View {
                 .popover(isPresented: $showHostPicker, arrowEdge: .bottom) {
                     HostPickerPopover(
                         hostStore: hostStore,
+                        tunnelManager: tunnelManager,
                         onSelectLocal: {
                             showHostPicker = false
                             onNewLocalPane?()
@@ -85,7 +87,7 @@ struct HostSidebar: View {
             }
         }
         .sheet(isPresented: $showHostConfig) {
-            HostConfigSheet(hostStore: hostStore, isPresented: $showHostConfig)
+            HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
         }
     }
 }
@@ -117,6 +119,7 @@ struct SessionRow: View {
 /// Popover showing available hosts to connect to.
 struct HostPickerPopover: View {
     @ObservedObject var hostStore: HostStore
+    @ObservedObject var tunnelManager: TunnelManager
     var onSelectLocal: () -> Void
     var onSelectHost: (HostEntry) -> Void
 
@@ -157,8 +160,9 @@ struct HostPickerPopover: View {
                                 onSelectHost(host)
                             } label: {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "server.rack")
-                                        .frame(width: 16)
+                                    Circle()
+                                        .fill(Color(tunnelManager.status(for: host).color))
+                                        .frame(width: 8, height: 8)
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(host.label)
                                             .font(.body)

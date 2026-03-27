@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Dedicated host configuration sheet — full CRUD for host entries.
+/// Dedicated host configuration sheet — full CRUD for host entries with tunnel status.
 struct HostConfigSheet: View {
     @ObservedObject var hostStore: HostStore
+    @ObservedObject var tunnelManager: TunnelManager
     @Binding var isPresented: Bool
 
     @State private var showAddHost = false
@@ -46,8 +47,11 @@ struct HostConfigSheet: View {
                     ForEach(hostStore.hosts) { host in
                         HostConfigRow(
                             host: host,
+                            tunnelStatus: tunnelManager.status(for: host),
                             onEdit: { hostToEdit = host },
-                            onDelete: { hostToDelete = host }
+                            onDelete: { hostToDelete = host },
+                            onReconnect: { tunnelManager.reconnectTunnel(for: host) },
+                            onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
                         )
                     }
                 }
@@ -67,7 +71,7 @@ struct HostConfigSheet: View {
             }
             .padding()
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 550, height: 400)
         .sheet(isPresented: $showAddHost) {
             AddHostSheet(hostStore: hostStore, isPresented: $showAddHost)
         }
@@ -88,6 +92,7 @@ struct HostConfigSheet: View {
             Button("Cancel", role: .cancel) { hostToDelete = nil }
             Button("Delete", role: .destructive) {
                 if let host = hostToDelete {
+                    tunnelManager.disconnectTunnel(for: host)
                     hostStore.removeHost(host)
                     hostToDelete = nil
                 }
@@ -102,30 +107,60 @@ struct HostConfigSheet: View {
 
 struct HostConfigRow: View {
     let host: HostEntry
+    let tunnelStatus: TunnelManager.TunnelStatus
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onReconnect: () -> Void
+    let onDisconnect: () -> Void
 
     var body: some View {
         HStack {
+            // Status dot
+            Circle()
+                .fill(Color(tunnelStatus.color))
+                .frame(width: 8, height: 8)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(host.label)
                     .font(.body)
-                Text("\(host.username)@\(host.address):\(host.port)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text("\(host.username)@\(host.address):\(host.port)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("- \(tunnelStatus.label)")
+                        .font(.caption)
+                        .foregroundColor(Color(tunnelStatus.color))
+                }
             }
+
             Spacer()
-            Button {
-                onEdit()
-            } label: {
+
+            // Tunnel actions
+            if tunnelStatus == .connected {
+                Button {
+                    onDisconnect()
+                } label: {
+                    Image(systemName: "bolt.slash")
+                }
+                .buttonStyle(.borderless)
+                .help("Disconnect tunnel")
+            } else if tunnelStatus == .disconnected || tunnelStatus != .connecting {
+                Button {
+                    onReconnect()
+                } label: {
+                    Image(systemName: "bolt")
+                }
+                .buttonStyle(.borderless)
+                .help("Reconnect tunnel")
+            }
+
+            Button { onEdit() } label: {
                 Image(systemName: "pencil")
             }
             .buttonStyle(.borderless)
             .help("Edit")
 
-            Button {
-                onDelete()
-            } label: {
+            Button { onDelete() } label: {
                 Image(systemName: "trash")
                     .foregroundColor(.red)
             }
