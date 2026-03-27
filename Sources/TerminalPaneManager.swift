@@ -154,28 +154,13 @@ class TerminalPaneManager: ObservableObject {
         } else {
             command = nil
         }
-        let newRoot = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
+        let (newRoot, newLeafID) = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
             focusedID,
             direction: direction,
             newLeafCommand: command
         )
         sessions[sIdx].panes[pIdx].splitRoot = newRoot
-
-        // Focus the new leaf (second child of the new split)
-        if case .split(let data) = newRoot {
-            // The new leaf is somewhere in the tree — find the leaf that wasn't there before
-            let oldLeaves = Set(sessions[sIdx].panes[pIdx].splitRoot.leafIDs)
-            // Actually, find it from the new root
-            let newLeaves = newRoot.leafIDs
-            let newLeafID = newLeaves.first { !sessions[sIdx].panes[pIdx].splitRoot.leafIDs.contains($0) }
-            // The splitLeaf method adds the new leaf as second child. Find it by traversal.
-            _ = data // suppress unused warning
-        }
-        // Simpler: the new root has one more leaf than before. Find it.
-        sessions[sIdx].panes[pIdx].splitRoot = newRoot
-        let allLeafIDs = newRoot.leafIDs
-        // The new leaf is the last one added (second child is appended at end in leafIDs)
-        if let newLeafID = allLeafIDs.last, newLeafID != focusedID {
+        if let newLeafID {
             sessions[sIdx].panes[pIdx].focusedLeafID = newLeafID
         }
     }

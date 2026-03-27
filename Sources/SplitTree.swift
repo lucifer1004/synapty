@@ -72,25 +72,30 @@ indirect enum SplitNode: Identifiable {
         }
     }
 
-    /// Split the leaf with the given ID into two, returning the updated tree.
+    /// Split the leaf with the given ID into two, returning (updated tree, new leaf ID).
     /// The original leaf becomes the first child; the new leaf is the second child.
-    func splitLeaf(_ leafID: UUID, direction: SplitDirection, newLeafCommand: String?) -> SplitNode {
+    func splitLeaf(_ leafID: UUID, direction: SplitDirection, newLeafCommand: String?) -> (SplitNode, UUID?) {
         switch self {
         case .leaf(let data):
             if data.id == leafID {
-                let newLeaf = SplitNode.leaf(LeafData(command: newLeafCommand))
-                return .split(SplitData(
+                let newLeaf = LeafData(command: newLeafCommand)
+                let node = SplitNode.split(SplitData(
                     direction: direction,
                     first: self,
-                    second: newLeaf
+                    second: .leaf(newLeaf)
                 ))
+                return (node, newLeaf.id)
             }
-            return self
+            return (self, nil)
 
         case .split(var data):
-            data.first = data.first.splitLeaf(leafID, direction: direction, newLeafCommand: newLeafCommand)
-            data.second = data.second.splitLeaf(leafID, direction: direction, newLeafCommand: newLeafCommand)
-            return .split(data)
+            let (newFirst, id1) = data.first.splitLeaf(leafID, direction: direction, newLeafCommand: newLeafCommand)
+            data.first = newFirst
+            if let id1 { return (.split(data), id1) }
+
+            let (newSecond, id2) = data.second.splitLeaf(leafID, direction: direction, newLeafCommand: newLeafCommand)
+            data.second = newSecond
+            return (.split(data), id2)
         }
     }
 

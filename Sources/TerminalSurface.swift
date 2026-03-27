@@ -516,6 +516,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     func destroySurface() {
         if let surface {
+            // Clear activeSurface if it points to this surface (prevents stale clipboard callbacks)
+            if let app = ghosttyApp, app.activeSurface == surface {
+                app.activeSurface = nil
+            }
             ghostty_surface_free(surface)
             self.surface = nil
         }

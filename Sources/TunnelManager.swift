@@ -50,6 +50,14 @@ class TunnelManager: ObservableObject {
     /// Pending connection callbacks (queued while setup is running).
     private var pendingCallbacks: [UUID: [(String) -> Void]] = [:]
 
+    // MARK: - Shell escaping
+
+    /// Single-quote a string for safe shell interpolation.
+    /// Handles embedded single quotes by ending the quote, adding an escaped quote, and reopening.
+    private func shellEscape(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     // MARK: - Script paths
 
     private func scriptPath(_ name: String) -> String {
@@ -123,9 +131,11 @@ class TunnelManager: ObservableObject {
     func connectCommand(for host: HostEntry) -> String {
         let script = scriptPath("connect")
         let agentID = "\(host.label)-\(UUID().uuidString.prefix(4).lowercased())"
-        var parts = ["bash", script, agentID, host.address, "\(host.port)", host.username, "\(tunnelPort)"]
+        var parts = ["bash", shellEscape(script), shellEscape(agentID),
+                     shellEscape(host.address), "\(host.port)",
+                     shellEscape(host.username), "\(tunnelPort)"]
         if let key = host.sshKeyPath, !key.isEmpty {
-            parts.append(key)
+            parts.append(shellEscape(key))
         }
         return parts.joined(separator: " ")
     }
@@ -136,6 +146,8 @@ class TunnelManager: ObservableObject {
         let script = scriptPath("setup-host")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        // Process.arguments are passed as argv (no shell interpolation), so no escaping needed here.
+        // The script itself uses $1, $2 etc. which are safe in bash.
         var args = [script, host.address, "\(host.port)", host.username, "\(tunnelPort)"]
         if let key = host.sshKeyPath, !key.isEmpty {
             args.append(key)

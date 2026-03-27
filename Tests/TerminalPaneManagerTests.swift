@@ -5,146 +5,173 @@ final class TerminalPaneManagerTests: XCTestCase {
 
     // MARK: - Initialization
 
-    func testInitCreatesOneLocalPane() {
+    func testInitCreatesOneLocalSession() {
         let manager = TerminalPaneManager()
-        XCTAssertEqual(manager.panes.count, 1)
-        XCTAssertEqual(manager.panes.first?.label, "Local")
-        XCTAssertNil(manager.panes.first?.command)
-        XCTAssertNotNil(manager.activePaneID)
-        XCTAssertEqual(manager.activePaneID, manager.panes.first?.id)
+        XCTAssertEqual(manager.sessions.count, 1)
+        XCTAssertTrue(manager.sessions.first!.isLocal)
+        XCTAssertEqual(manager.sessions.first!.label, "Local")
+        XCTAssertNotNil(manager.activeSessionID)
     }
 
-    // MARK: - Adding Panes
-
-    func testAddLocalPaneIncreasesCount() {
+    func testInitSessionHasOnePane() {
         let manager = TerminalPaneManager()
-        let initialCount = manager.panes.count
-        manager.addLocalPane()
-        XCTAssertEqual(manager.panes.count, initialCount + 1)
+        let session = manager.sessions.first!
+        XCTAssertEqual(session.panes.count, 1)
+        XCTAssertEqual(session.panes.first!.label, "Shell")
+        XCTAssertNotNil(session.activePaneID)
     }
 
-    func testAddLocalPaneSetsActive() {
+    // MARK: - Session Management
+
+    func testAddLocalSessionIncreasesCount() {
         let manager = TerminalPaneManager()
-        let firstID = manager.activePaneID
-        manager.addLocalPane()
-        XCTAssertNotEqual(manager.activePaneID, firstID)
-        XCTAssertEqual(manager.activePaneID, manager.panes.last?.id)
+        manager.addLocalSession()
+        XCTAssertEqual(manager.sessions.count, 2)
     }
 
-    func testAddRemotePaneSetsCommandAndLabel() {
+    func testAddLocalSessionSetsActive() {
         let manager = TerminalPaneManager()
-        manager.addRemotePane(label: "GPU Box", command: "ssh user@gpu -- bash")
-        let remote = manager.panes.last!
-        XCTAssertEqual(remote.label, "GPU Box")
-        XCTAssertEqual(remote.command, "ssh user@gpu -- bash")
-        XCTAssertEqual(manager.activePaneID, remote.id)
+        let firstID = manager.activeSessionID
+        manager.addLocalSession()
+        XCTAssertNotEqual(manager.activeSessionID, firstID)
+        XCTAssertEqual(manager.activeSessionID, manager.sessions.last?.id)
     }
 
-    // MARK: - Stable Identity
-
-    func testPaneIDsAreStableAfterAddingMore() {
+    func testAddRemoteSession() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
         let manager = TerminalPaneManager()
-        let firstID = manager.panes.first!.id
-        manager.addLocalPane()
-        manager.addRemotePane(label: "Remote", command: "ssh x")
-        // The first pane's ID must not have changed
-        XCTAssertEqual(manager.panes.first!.id, firstID)
+        manager.addRemoteSession(label: "GPU Box", hostEntry: host, command: "bash connect.sh agent-1 10.0.1.5 22 user 9000")
+        let session = manager.sessions.last!
+        XCTAssertEqual(session.label, "GPU Box")
+        XCTAssertFalse(session.isLocal)
+        XCTAssertNotNil(session.hostEntry)
+        XCTAssertEqual(manager.activeSessionID, session.id)
     }
 
-    func testPaneIDsAreUniqueAcrossAllPanes() {
+    func testRemoveSession() {
         let manager = TerminalPaneManager()
-        manager.addLocalPane()
-        manager.addLocalPane()
-        manager.addRemotePane(label: "R1", command: "cmd1")
-        manager.addRemotePane(label: "R2", command: "cmd2")
-        let ids = manager.panes.map { $0.id }
-        XCTAssertEqual(Set(ids).count, ids.count, "All pane IDs should be unique")
+        manager.addLocalSession()
+        let count = manager.sessions.count
+        let session = manager.sessions.last!
+        manager.removeSession(session)
+        XCTAssertEqual(manager.sessions.count, count - 1)
     }
 
-    // MARK: - Removing Panes
-
-    func testRemovePaneDecreasesCount() {
+    func testRemoveActiveSessionSwitchesToAnother() {
         let manager = TerminalPaneManager()
-        manager.addLocalPane()
-        let count = manager.panes.count
-        let pane = manager.panes.last!
+        manager.addLocalSession()
+        let second = manager.sessions.last!
+        manager.removeSession(second)
+        XCTAssertNotNil(manager.activeSessionID)
+        XCTAssertNotEqual(manager.activeSessionID, second.id)
+    }
+
+    func testRemoveAllSessionsSetsActiveNil() {
+        let manager = TerminalPaneManager()
+        let session = manager.sessions.first!
+        manager.removeSession(session)
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertNil(manager.activeSessionID)
+    }
+
+    // MARK: - Pane Management
+
+    func testAddPaneToActiveSession() {
+        let manager = TerminalPaneManager()
+        let initialCount = manager.sessions.first!.panes.count
+        manager.addPaneToActiveSession()
+        XCTAssertEqual(manager.sessions.first!.panes.count, initialCount + 1)
+    }
+
+    func testRemovePaneClosesSessionIfLast() {
+        let manager = TerminalPaneManager()
+        let pane = manager.sessions.first!.panes.first!
         manager.removePane(pane)
-        XCTAssertEqual(manager.panes.count, count - 1)
+        // Removing the only pane removes the session
+        XCTAssertTrue(manager.sessions.isEmpty)
     }
 
-    func testRemoveActivePaneSwitchesToAnother() {
+    // MARK: - Split Tree
+
+    func testSplitFocusedLeaf() {
         let manager = TerminalPaneManager()
-        manager.addLocalPane() // now 2 panes
-        let second = manager.panes.last!
-        XCTAssertEqual(manager.activePaneID, second.id)
-        manager.removePane(second)
-        XCTAssertNotNil(manager.activePaneID)
-        XCTAssertNotEqual(manager.activePaneID, second.id)
+        let leafID = manager.activePane!.focusedLeafID!
+        manager.splitFocusedLeaf(direction: .horizontal)
+        // After split, focused leaf should be the NEW leaf (not the original)
+        let newFocusedID = manager.activePane!.focusedLeafID!
+        XCTAssertNotEqual(newFocusedID, leafID)
+        // Should now have 2 leaves
+        XCTAssertEqual(manager.activePane!.splitRoot.leaves.count, 2)
     }
 
-    func testRemoveInactivePaneKeepsActiveUnchanged() {
+    func testSplitNonRightmostLeafFocusesCorrectly() {
         let manager = TerminalPaneManager()
-        let first = manager.panes.first!
-        manager.addLocalPane()
-        let activeID = manager.activePaneID
-        manager.removePane(first)
-        XCTAssertEqual(manager.activePaneID, activeID)
+        // Create initial split: [A | B]
+        manager.splitFocusedLeaf(direction: .horizontal)
+        let leaves = manager.activePane!.splitRoot.leaves
+        XCTAssertEqual(leaves.count, 2)
+        let leafA = leaves[0].id
+        let leafB = leaves[1].id
+
+        // Focus leaf A (left side)
+        manager.focusLeaf(leafA)
+        XCTAssertEqual(manager.activePane!.focusedLeafID, leafA)
+
+        // Split leaf A: [A1 | A2] | B
+        manager.splitFocusedLeaf(direction: .horizontal)
+        let newFocused = manager.activePane!.focusedLeafID!
+        // New focused should NOT be B
+        XCTAssertNotEqual(newFocused, leafB)
+        // New focused should NOT be the original A
+        XCTAssertNotEqual(newFocused, leafA)
+        // Should now have 3 leaves
+        XCTAssertEqual(manager.activePane!.splitRoot.leaves.count, 3)
     }
 
-    func testRemoveAllPanesSetsActiveNil() {
+    func testCloseFocusedLeaf() {
         let manager = TerminalPaneManager()
-        let pane = manager.panes.first!
-        manager.removePane(pane)
-        XCTAssertTrue(manager.panes.isEmpty)
-        XCTAssertNil(manager.activePaneID)
+        manager.splitFocusedLeaf(direction: .horizontal)
+        XCTAssertEqual(manager.activePane!.splitRoot.leaves.count, 2)
+        manager.closeFocusedLeaf()
+        XCTAssertEqual(manager.activePane!.splitRoot.leaves.count, 1)
     }
 
-    func testRemoveDoesNotAffectOtherPaneIDs() {
+    func testFocusNextLeafCycles() {
         let manager = TerminalPaneManager()
-        manager.addLocalPane()
-        manager.addLocalPane()
-        let ids = manager.panes.map { $0.id }
-        manager.removePane(manager.panes[1]) // remove middle
-        let remainingIDs = manager.panes.map { $0.id }
-        // First and last IDs should still be present
-        XCTAssertTrue(remainingIDs.contains(ids[0]))
-        XCTAssertTrue(remainingIDs.contains(ids[2]))
+        manager.splitFocusedLeaf(direction: .horizontal)
+        let leaves = manager.activePane!.splitRoot.leaves
+        let firstID = leaves[0].id
+        let secondID = leaves[1].id
+        // Currently focused on second (new leaf)
+        XCTAssertEqual(manager.activePane!.focusedLeafID, secondID)
+        manager.focusNextLeaf()
+        XCTAssertEqual(manager.activePane!.focusedLeafID, firstID)
+        manager.focusNextLeaf()
+        XCTAssertEqual(manager.activePane!.focusedLeafID, secondID)
     }
 
-    // MARK: - Activation
+    // MARK: - All Leaves
 
-    func testActivateSetsActivePaneID() {
+    func testAllLeavesSpansAllSessions() {
         let manager = TerminalPaneManager()
-        manager.addLocalPane()
-        let first = manager.panes.first!
-        manager.activate(first)
-        XCTAssertEqual(manager.activePaneID, first.id)
+        manager.addLocalSession()
+        // Two sessions, each with 1 leaf = 2 total
+        XCTAssertEqual(manager.allLeaves.count, 2)
     }
 
-    func testActivePaneReturnsCorrectPane() {
+    func testAllLeavesIncludesSplits() {
         let manager = TerminalPaneManager()
-        manager.addRemotePane(label: "R", command: "cmd")
-        let remote = manager.panes.last!
-        manager.activate(remote)
-        XCTAssertEqual(manager.activePane?.id, remote.id)
-        XCTAssertEqual(manager.activePane?.label, "R")
+        manager.splitFocusedLeaf(direction: .horizontal)
+        // One session, one pane, 2 leaves from split
+        XCTAssertEqual(manager.allLeaves.count, 2)
     }
 
-    func testActivePaneFallsBackToFirstWhenIDNil() {
-        let manager = TerminalPaneManager()
-        manager.addLocalPane()
-        manager.activePaneID = nil
-        XCTAssertEqual(manager.activePane?.id, manager.panes.first?.id)
-    }
+    // MARK: - Session IDs Stable
 
-    // MARK: - Ordering
-
-    func testPanesOrderIsInsertionOrder() {
+    func testSessionIDsStableAcrossOperations() {
         let manager = TerminalPaneManager()
-        manager.addRemotePane(label: "A", command: "a")
-        manager.addRemotePane(label: "B", command: "b")
-        manager.addRemotePane(label: "C", command: "c")
-        let labels = manager.panes.map { $0.label }
-        XCTAssertEqual(labels, ["Local", "A", "B", "C"])
+        let firstID = manager.sessions.first!.id
+        manager.addLocalSession()
+        XCTAssertEqual(manager.sessions.first!.id, firstID)
     }
 }
