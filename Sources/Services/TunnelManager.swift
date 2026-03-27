@@ -140,6 +140,21 @@ import AppKit
         return parts.joined(separator: " ")
     }
 
+    /// Command for local sessions: synapty run with agent ID, connecting to local Hub.
+    func localCommand() -> String {
+        let agentID = "local-\(UUID().uuidString.prefix(4).lowercased())"
+        // Find synapty binary: bundled in .app or dev build
+        let synaptyBin: String
+        if let bundled = Bundle.main.executableURL?.deletingLastPathComponent()
+            .appendingPathComponent("synapty").path,
+           FileManager.default.fileExists(atPath: bundled) {
+            synaptyBin = bundled
+        } else {
+            synaptyBin = "zig-out/bin/synapty" // dev fallback
+        }
+        return "\(shellEscape(synaptyBin)) run --id \(shellEscape(agentID)) --hub 127.0.0.1:\(tunnelPort) -- $SHELL -l"
+    }
+
     // MARK: - Setup (background process)
 
     private func runSetup(for host: HostEntry) {

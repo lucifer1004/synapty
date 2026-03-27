@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-011"
+title = "PATH injection, local agent sessions, default shell"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Three fixes: (1) run.zig adds ~/.synapty/bin to PATH in child env so synapty mcp-serve is findable. (2) Local panes use synapty run for agent identity (SYNAPTY_AGENT_ID + SYNAPTY_SOCK). (3) Use $SHELL instead of hardcoded bash -l in connect.sh and local commands."
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "core"
+content = "PATH injection in run.zig, local sessions via synapty run, $SHELL in connect.sh. All panes now get SYNAPTY_AGENT_ID/SYNAPTY_SOCK. Zig tests and Swift build pass."
+
+[[content.acceptance_criteria]]
+text = "run.zig prepends ~/.synapty/bin to PATH in child env"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Local panes run through synapty run with agent ID"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connect.sh and local commands use $SHELL instead of bash -l"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

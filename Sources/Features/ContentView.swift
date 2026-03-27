@@ -47,8 +47,11 @@ struct ContentView: View {
             agentMonitor.startMonitoring()
             tunnelManager.startHeartbeat()
             TunnelManager.shared = tunnelManager
-            // Wire the typed coordinator: GhosttyNSView → paneManager
             TerminalCoordinatorRef.instance = paneManager
+            // Create initial local session after TunnelManager is wired
+            if paneManager.sessions.isEmpty {
+                paneManager.addLocalSession()
+            }
         }
         .onDisappear {
             agentMonitor.stopMonitoring()

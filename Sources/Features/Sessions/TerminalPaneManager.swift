@@ -103,13 +103,15 @@ import Foundation
     }
 
     init() {
-        addLocalSession()
+        // Initial local session is created in ContentView.onAppear
+        // after TunnelManager.shared is set.
     }
 
     // MARK: - Session management
 
     func addLocalSession() {
-        let session = Session(label: "Local")
+        let command = TunnelManager.shared?.localCommand()
+        let session = Session(label: "Local", initialCommand: command)
         sessions.append(session)
         activeSessionID = session.id
     }
@@ -136,12 +138,12 @@ import Foundation
     func addPaneToActiveSession() {
         guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
         let session = sessions[sIdx]
-        // For remote sessions, generate a new connect command with unique agent ID.
+        // Generate a new command with unique agent ID for every pane.
         let command: String?
         if let hostEntry = session.hostEntry {
             command = TunnelManager.shared?.connectCommand(for: hostEntry)
         } else {
-            command = nil // local
+            command = TunnelManager.shared?.localCommand()
         }
         let pane = Pane(label: "Shell \(session.panes.count + 1)", command: command)
         sessions[sIdx].panes.append(pane)
@@ -173,12 +175,12 @@ import Foundation
               let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
               let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
 
-        // For remote sessions, generate a new connect command with unique agent ID.
+        // Generate a new command with unique agent ID for every split.
         let command: String?
         if let hostEntry = sessions[sIdx].hostEntry {
             command = TunnelManager.shared?.connectCommand(for: hostEntry)
         } else {
-            command = nil
+            command = TunnelManager.shared?.localCommand()
         }
         let (newRoot, newLeafID) = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
             focusedID,

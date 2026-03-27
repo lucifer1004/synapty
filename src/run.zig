@@ -144,6 +144,19 @@ pub const RunServer = struct {
         defer env_map.deinit();
         try env_map.put("SYNAPTY_AGENT_ID", self.agent_id);
         try env_map.put("SYNAPTY_SOCK", self.socket_path);
+
+        // Prepend ~/.synapty/bin to PATH so child processes can find `synapty mcp-serve`.
+        if (std.posix.getenv("HOME")) |home| {
+            const synapty_bin = try std.fmt.allocPrint(self.allocator, "{s}/.synapty/bin", .{home});
+            defer self.allocator.free(synapty_bin);
+            if (env_map.get("PATH")) |existing_path| {
+                const new_path = try std.fmt.allocPrint(self.allocator, "{s}:{s}", .{ synapty_bin, existing_path });
+                defer self.allocator.free(new_path);
+                try env_map.put("PATH", new_path);
+            } else {
+                try env_map.put("PATH", synapty_bin);
+            }
+        }
         child.env_map = &env_map;
 
         try child.spawn();

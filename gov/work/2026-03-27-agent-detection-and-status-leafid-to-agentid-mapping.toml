@@ -1,0 +1,10 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-010"
+title = "Agent detection and status: leafID-to-agentID mapping"
+status = "queue"
+created = "2026-03-27"
+
+[content]
+description = "Add agentID field to LeafData. TunnelManager stores the mapping when generating connect commands. AgentMonitor cross-references leaf agentIDs against Hub registrations. Show agent status (green dot) on pane tabs and session rows. V1: synapty-managed agents only."
