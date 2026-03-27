@@ -54,12 +54,14 @@ targets:
               cp "$SRC" "$DEST/synapty"
             fi
           done
-          # Bundle synapty-hub binary
-          HUB_SRC="${SRCROOT}/zig-out/bin/synapty-hub"
-          HUB_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources"
-          if [ -f "$HUB_SRC" ]; then
-            cp "$HUB_SRC" "$HUB_DEST/synapty-hub"
-          fi
+          # Bundle synapty-hub and synapty CLI binaries
+          for bin in synapty-hub synapty; do
+            BIN_SRC="${SRCROOT}/zig-out/bin/${bin}"
+            BIN_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources"
+            if [ -f "$BIN_SRC" ]; then
+              cp "$BIN_SRC" "$BIN_DEST/${bin}"
+            fi
+          done
         name: Bundle deploy and hub binaries
     dependencies:
       - framework: GhosttyKit.xcframework

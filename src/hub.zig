@@ -243,7 +243,7 @@ pub const HubServer = struct {
     pub fn run(self: *HubServer) !void {
         while (true) {
             const conn = try self.listener.accept();
-            log.info("accepted connection from {any}", .{conn.address});
+            log.info("accepted connection from {f}", .{conn.address});
             _ = std.Thread.spawn(.{}, handleClient, .{
                 &self.routing_table,
                 std.heap.page_allocator,
@@ -287,7 +287,7 @@ pub const HubServer = struct {
 fn runBackground(server: *HubServer) void {
     server.run() catch |err| switch (err) {
         error.ConnectionAborted => {}, // normal shutdown via deinit()
-        else => log.err("Hub background thread exited with error: {any}", .{err}),
+        else => log.err("Hub background thread exited with error: {}", .{err}),
     };
 }
 

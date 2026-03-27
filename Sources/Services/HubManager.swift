@@ -129,18 +129,8 @@ import AppKit
         do {
             try proc.run()
             process = proc
-            // Give it a moment to bind the port
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self else { return }
-                if self.isPortInUse() {
-                    self.status = .running(owned: true)
-                    self.appendLog("Hub started on port \(self.port)")
-                    self.startHealthCheck()
-                } else {
-                    self.status = .failed("Hub did not bind port \(self.port)")
-                    self.appendLog("Error: Hub did not bind port")
-                }
-            }
+            // Health check timer will detect when port binds and update status
+            startHealthCheck()
         } catch {
             status = .failed(error.localizedDescription)
             appendLog("Error: \(error.localizedDescription)")
@@ -168,6 +158,32 @@ import AppKit
     // MARK: - Health check
 
     private func startHealthCheck() {
+        healthTimer?.invalidate()
+        // Use 1s interval during startup for fast detection, 10s once running
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let portUp = self.isPortInUse()
+
+            if portUp {
+                if case .starting = self.status {
+                    self.status = .running(owned: true)
+                    self.appendLog("Hub started on port \(self.port)")
+                    // Slow down to steady-state interval
+                    self.startSteadyHealthCheck()
+                }
+            } else {
+                if case .running(owned: true) = self.status {
+                    self.appendLog("Hub health check failed, restarting...")
+                    self.restartHub()
+                } else if case .running(owned: false) = self.status {
+                    self.status = .stopped
+                    self.appendLog("External Hub no longer available")
+                }
+            }
+        }
+    }
+
+    private func startSteadyHealthCheck() {
         healthTimer?.invalidate()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             guard let self else { return }
