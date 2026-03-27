@@ -45,3 +45,15 @@ targets:
       - framework: GhosttyKit.xcframework
         embed: false
         link: true
+
+  SynaptyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.synapty.tests
+    dependencies:
+      - target: Synapty

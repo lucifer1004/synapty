@@ -27,16 +27,17 @@ struct ContentView: View {
                         PaneTabBar(paneManager: paneManager)
                     }
 
-                    // Active terminal pane
-                    if let active = paneManager.activePane {
-                        TerminalView(ghosttyApp: ghosttyApp, command: active.command)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            // Re-create the surface when the active pane changes
-                            .id(active.id)
-                    } else {
-                        Color.black
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // All terminal panes kept alive in a ZStack; only the active one is visible.
+                    // This preserves ghostty_surface_t state across tab switches.
+                    ZStack {
+                        ForEach(paneManager.panes) { pane in
+                            TerminalView(ghosttyApp: ghosttyApp, command: pane.command)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .opacity(paneManager.activePaneID == pane.id ? 1 : 0)
+                                .allowsHitTesting(paneManager.activePaneID == pane.id)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Text("Initializing terminal...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
