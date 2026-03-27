@@ -54,6 +54,28 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // MCP stdio server module
+    const mcp_mod = b.createModule(.{
+        .root_source_file = b.path("src/mcp.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+
+    // Shared run module (depends on protocol + ipc)
+    const run_mod = b.createModule(.{
+        .root_source_file = b.path("src/run.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+
     // --- synapty CLI executable ---
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
@@ -62,6 +84,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
             .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "run", .module = run_mod },
+            .{ .name = "mcp", .module = mcp_mod },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -129,10 +153,38 @@ pub fn build(b: *std.Build) void {
         .root_module = ipc_test_mod,
     });
 
+    const run_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/run.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+    const run_tests = b.addTest(.{
+        .root_module = run_test_mod,
+    });
+
+    const mcp_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/mcp.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
+        },
+    });
+    const mcp_tests = b.addTest(.{
+        .root_module = mcp_test_mod,
+    });
+
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&b.addRunArtifact(protocol_tests).step);
     test_step.dependOn(&b.addRunArtifact(hub_tests).step);
     test_step.dependOn(&b.addRunArtifact(daemon_tests).step);
     test_step.dependOn(&b.addRunArtifact(cli_tests).step);
     test_step.dependOn(&b.addRunArtifact(ipc_tests).step);
+    test_step.dependOn(&b.addRunArtifact(run_tests).step);
+    test_step.dependOn(&b.addRunArtifact(mcp_tests).step);
 }
