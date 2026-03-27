@@ -47,6 +47,13 @@ pub fn build(b: *std.Build) void {
     const daemon_step = b.step("daemon", "Build the Synapty Daemon (remote companion)");
     daemon_step.dependOn(&daemon_exe.step);
 
+    // Shared IPC transport module (no imports — transport only)
+    const ipc_mod = b.createModule(.{
+        .root_source_file = b.path("src/ipc.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // --- synapty CLI executable ---
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
@@ -54,6 +61,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -105,10 +113,20 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "ipc", .module = ipc_mod },
         },
     });
     const cli_tests = b.addTest(.{
         .root_module = cli_test_mod,
+    });
+
+    const ipc_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/ipc.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    const ipc_tests = b.addTest(.{
+        .root_module = ipc_test_mod,
     });
 
     const test_step = b.step("test", "Run all unit tests");
@@ -116,4 +134,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(hub_tests).step);
     test_step.dependOn(&b.addRunArtifact(daemon_tests).step);
     test_step.dependOn(&b.addRunArtifact(cli_tests).step);
+    test_step.dependOn(&b.addRunArtifact(ipc_tests).step);
 }

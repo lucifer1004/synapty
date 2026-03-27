@@ -73,6 +73,31 @@ const RoutingTable = struct {
 /// Per-connection receive buffer size (64 KiB).
 const recv_buf_size = 64 * 1024;
 
+/// Respond to a list_agents request with an a2a_response envelope containing
+/// all currently registered agent IDs in the payload.
+fn handleListAgents(routing_table: *RoutingTable, arena: Allocator, stream: net.Stream, req: protocol.Envelope) !void {
+    const agent_ids = try routing_table.agentIds(arena);
+
+    var arr = json.Array.init(arena);
+    for (agent_ids) |id| {
+        try arr.append(.{ .string = id });
+    }
+
+    var obj = json.ObjectMap.init(arena);
+    try obj.put("agents", .{ .array = arr });
+
+    const resp = protocol.Envelope{
+        .@"type" = "a2a_response",
+        .id = req.id,
+        .source = "hub",
+        .target = req.source,
+        .payload = .{ .object = obj },
+    };
+
+    const raw = try protocol.serializeEnvelope(arena, resp);
+    _ = try stream.write(raw);
+}
+
 /// Handle a single client connection: read JSON envelopes and route them.
 fn handleClient(routing_table: *RoutingTable, arena: Allocator, stream: net.Stream) void {
     defer stream.close();
@@ -120,6 +145,13 @@ fn handleClient(routing_table: *RoutingTable, arena: Allocator, stream: net.Stre
             continue;
         };
         const envelope = parsed.value;
+
+        if (mem.eql(u8, envelope.@"type", protocol.MessageType.list_agents.toString())) {
+            handleListAgents(routing_table, arena, stream, envelope) catch |err| {
+                log.err("list_agents handler failed for {s}: {any}", .{ agent_id, err });
+            };
+            continue;
+        }
 
         routeMessage(routing_table, envelope, raw);
     }
@@ -279,6 +311,47 @@ test "HubServer.registeredAgents returns empty list initially" {
     defer std.testing.allocator.free(agents);
 
     try std.testing.expectEqual(@as(usize, 0), agents.len);
+}
+
+test "list_agents response envelope fields" {
+    // Build the response envelope the same way handleClient will build it.
+    const agent_list = [_][]const u8{ "agent-a", "agent-b" };
+    const agents_slice: []const []const u8 = &agent_list;
+
+    // Build a json.Value array for the payload.
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var arr = std.json.Array.init(alloc);
+    for (agents_slice) |id| {
+        try arr.append(.{ .string = id });
+    }
+
+    var obj = std.json.ObjectMap.init(alloc);
+    try obj.put("agents", .{ .array = arr });
+
+    const resp_envelope = protocol.Envelope{
+        .@"type" = "a2a_response",
+        .id = "req-1",
+        .source = "hub",
+        .target = "agent-a",
+        .payload = .{ .object = obj },
+    };
+
+    const serialized = try protocol.serializeEnvelope(alloc, resp_envelope);
+
+    var parsed = try protocol.parseEnvelope(alloc, serialized);
+    defer parsed.deinit();
+
+    try std.testing.expectEqualStrings("a2a_response", parsed.value.@"type");
+    try std.testing.expectEqualStrings("hub", parsed.value.source);
+    try std.testing.expectEqualStrings("agent-a", parsed.value.target);
+
+    // Verify payload has "agents" array with correct entries.
+    const payload_obj = parsed.value.payload.object;
+    const agents_val = payload_obj.get("agents") orelse return error.MissingAgentsKey;
+    try std.testing.expectEqual(@as(usize, 2), agents_val.array.items.len);
 }
 
 test "startInBackground returns valid server handle" {
