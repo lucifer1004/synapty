@@ -1,48 +1,66 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+/// All shared modules for a given target/optimize combination.
+const ModuleSet = struct {
+    protocol: *std.Build.Module,
+    ipc: *std.Build.Module,
+    run: *std.Build.Module,
+    mcp: *std.Build.Module,
+};
 
-    // ---------------------------------------------------------------------------
-    // Shared modules (defined first so all executables can reference them)
-    // ---------------------------------------------------------------------------
-
-    // Shared protocol module
-    const protocol_mod = b.createModule(.{
+/// Create the full set of shared modules for a given target and optimize level.
+fn createModuleSet(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) ModuleSet {
+    const protocol = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    // Shared IPC transport module (no imports — transport only)
-    const ipc_mod = b.createModule(.{
+    const ipc = b.createModule(.{
         .root_source_file = b.path("src/ipc.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    // Shared run module (depends on protocol + ipc)
-    const run_mod = b.createModule(.{
+    const run = b.createModule(.{
         .root_source_file = b.path("src/run.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "protocol", .module = protocol },
+            .{ .name = "ipc", .module = ipc },
         },
     });
-
-    // MCP stdio server module
-    const mcp_mod = b.createModule(.{
+    const mcp = b.createModule(.{
         .root_source_file = b.path("src/mcp.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
+            .{ .name = "protocol", .module = protocol },
+            .{ .name = "ipc", .module = ipc },
         },
     });
+    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp };
+}
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // Deploy builds default to ReleaseSmall; override with -Ddeploy-optimize=ReleaseFast etc.
+    const deploy_optimize = b.option(
+        std.builtin.OptimizeMode,
+        "deploy-optimize",
+        "Optimization level for cross-compiled deploy targets (default: ReleaseSmall)",
+    ) orelse .ReleaseSmall;
+
+    // ---------------------------------------------------------------------------
+    // Native modules (use standard target/optimize from CLI flags)
+    // ---------------------------------------------------------------------------
+
+    const mods = createModuleSet(b, target, optimize);
 
     // ---------------------------------------------------------------------------
     // synapty-hub executable
@@ -53,7 +71,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "protocol", .module = mods.protocol },
         },
     });
     const hub_exe = b.addExecutable(.{
@@ -74,9 +92,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-            .{ .name = "run", .module = run_mod },
+            .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "run", .module = mods.run },
         },
     });
     const daemon_exe = b.addExecutable(.{
@@ -97,10 +115,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-            .{ .name = "run", .module = run_mod },
-            .{ .name = "mcp", .module = mcp_mod },
+            .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "run", .module = mods.run },
+            .{ .name = "mcp", .module = mods.mcp },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -113,218 +131,111 @@ pub fn build(b: *std.Build) void {
     cli_step.dependOn(&cli_exe.step);
 
     // ---------------------------------------------------------------------------
-    // Cross-compilation: CLI for Linux aarch64 (musl) — deploy target
+    // Cross-compilation deploy targets (use deploy_optimize)
     // ---------------------------------------------------------------------------
 
-    const linux_aarch64_target = b.resolveTargetQuery(.{
-        .cpu_arch = .aarch64,
-        .os_tag = .linux,
-        .abi = .musl,
-    });
-
-    const deploy_linux_aarch64_protocol_mod = b.createModule(.{
-        .root_source_file = b.path("src/protocol.zig"),
-        .target = linux_aarch64_target,
-        .optimize = .ReleaseSmall,
-    });
-    const deploy_linux_aarch64_ipc_mod = b.createModule(.{
-        .root_source_file = b.path("src/ipc.zig"),
-        .target = linux_aarch64_target,
-        .optimize = .ReleaseSmall,
-    });
-    const deploy_linux_aarch64_run_mod = b.createModule(.{
-        .root_source_file = b.path("src/run.zig"),
-        .target = linux_aarch64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
-        },
-    });
-    const deploy_linux_aarch64_mcp_mod = b.createModule(.{
-        .root_source_file = b.path("src/mcp.zig"),
-        .target = linux_aarch64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
-        },
-    });
-    const cli_linux_aarch64_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli.zig"),
-        .target = linux_aarch64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
-            .{ .name = "run", .module = deploy_linux_aarch64_run_mod },
-            .{ .name = "mcp", .module = deploy_linux_aarch64_mcp_mod },
-        },
-    });
-    const cli_linux_aarch64_exe = b.addExecutable(.{
-        .name = "synapty",
-        .root_module = cli_linux_aarch64_mod,
-    });
-
-    const linux_deploy_step = b.step("deploy-linux-aarch64", "Cross-compile CLI for Linux aarch64");
-    linux_deploy_step.dependOn(&b.addInstallArtifact(cli_linux_aarch64_exe, .{
-        .dest_dir = .{ .override = .{ .custom = "linux-aarch64" } },
-    }).step);
-
-    // ---------------------------------------------------------------------------
-    // Cross-compilation: CLI for Linux x86_64 (musl) — deploy target
-    // ---------------------------------------------------------------------------
-
-    const linux_x86_64_target = b.resolveTargetQuery(.{
-        .cpu_arch = .x86_64,
-        .os_tag = .linux,
-        .abi = .musl,
-    });
-
-    const deploy_linux_x86_64_protocol_mod = b.createModule(.{
-        .root_source_file = b.path("src/protocol.zig"),
-        .target = linux_x86_64_target,
-        .optimize = .ReleaseSmall,
-    });
-    const deploy_linux_x86_64_ipc_mod = b.createModule(.{
-        .root_source_file = b.path("src/ipc.zig"),
-        .target = linux_x86_64_target,
-        .optimize = .ReleaseSmall,
-    });
-    const deploy_linux_x86_64_run_mod = b.createModule(.{
-        .root_source_file = b.path("src/run.zig"),
-        .target = linux_x86_64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
-        },
-    });
-    const deploy_linux_x86_64_mcp_mod = b.createModule(.{
-        .root_source_file = b.path("src/mcp.zig"),
-        .target = linux_x86_64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
-        },
-    });
-    const cli_linux_x86_64_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli.zig"),
-        .target = linux_x86_64_target,
-        .optimize = .ReleaseSmall,
-        .imports = &.{
-            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
-            .{ .name = "run", .module = deploy_linux_x86_64_run_mod },
-            .{ .name = "mcp", .module = deploy_linux_x86_64_mcp_mod },
-        },
-    });
-    const cli_linux_x86_64_exe = b.addExecutable(.{
-        .name = "synapty",
-        .root_module = cli_linux_x86_64_mod,
-    });
-
-    const linux_deploy_x86_step = b.step("deploy-linux-x86_64", "Cross-compile CLI for Linux x86_64");
-    linux_deploy_x86_step.dependOn(&b.addInstallArtifact(cli_linux_x86_64_exe, .{
-        .dest_dir = .{ .override = .{ .custom = "linux-x86_64" } },
-    }).step);
+    inline for (.{
+        .{ .arch = .aarch64, .os = .linux, .abi = .musl, .name = "linux-aarch64" },
+        .{ .arch = .x86_64, .os = .linux, .abi = .musl, .name = "linux-x86_64" },
+        .{ .arch = .riscv64, .os = .linux, .abi = .musl, .name = "linux-riscv64" },
+        .{ .arch = .aarch64, .os = .macos, .abi = .none, .name = "macos-aarch64" },
+        .{ .arch = .x86_64, .os = .macos, .abi = .none, .name = "macos-x86_64" },
+    }) |deploy| {
+        const deploy_target = b.resolveTargetQuery(.{
+            .cpu_arch = deploy.arch,
+            .os_tag = deploy.os,
+            .abi = deploy.abi,
+        });
+        const deploy_mods = createModuleSet(b, deploy_target, deploy_optimize);
+        const deploy_cli_mod = b.createModule(.{
+            .root_source_file = b.path("src/cli.zig"),
+            .target = deploy_target,
+            .optimize = deploy_optimize,
+            .imports = &.{
+                .{ .name = "protocol", .module = deploy_mods.protocol },
+                .{ .name = "ipc", .module = deploy_mods.ipc },
+                .{ .name = "run", .module = deploy_mods.run },
+                .{ .name = "mcp", .module = deploy_mods.mcp },
+            },
+        });
+        const deploy_exe = b.addExecutable(.{
+            .name = "synapty",
+            .root_module = deploy_cli_mod,
+        });
+        const deploy_step = b.step(
+            "deploy-" ++ deploy.name,
+            "Cross-compile CLI for " ++ deploy.name,
+        );
+        deploy_step.dependOn(&b.addInstallArtifact(deploy_exe, .{
+            .dest_dir = .{ .override = .{ .custom = deploy.name } },
+        }).step);
+    }
 
     // ---------------------------------------------------------------------------
     // Tests
     // ---------------------------------------------------------------------------
 
-    const protocol_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/protocol.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    const protocol_tests = b.addTest(.{
-        .root_module = protocol_test_mod,
-    });
+    const test_step = b.step("test", "Run all unit tests");
 
+    // Standalone module tests (protocol, ipc)
+    inline for (.{ "protocol", "ipc" }) |name| {
+        const test_mod = b.createModule(.{
+            .root_source_file = b.path("src/" ++ name ++ ".zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        const tests = b.addTest(.{ .root_module = test_mod });
+        test_step.dependOn(&b.addRunArtifact(tests).step);
+    }
+
+    // Tests with imports matching their executable modules
     const hub_test_mod = b.createModule(.{
         .root_source_file = b.path("src/hub.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
+            .{ .name = "protocol", .module = mods.protocol },
         },
     });
-    const hub_tests = b.addTest(.{
-        .root_module = hub_test_mod,
-    });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = hub_test_mod })).step);
 
     const daemon_test_mod = b.createModule(.{
         .root_source_file = b.path("src/daemon.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-            .{ .name = "run", .module = run_mod },
+            .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "run", .module = mods.run },
         },
     });
-    const daemon_tests = b.addTest(.{
-        .root_module = daemon_test_mod,
-    });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = daemon_test_mod })).step);
 
+    // run and mcp tests share the same import set (protocol + ipc)
+    inline for (.{ "run", "mcp" }) |name| {
+        const test_mod = b.createModule(.{
+            .root_source_file = b.path("src/" ++ name ++ ".zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "protocol", .module = mods.protocol },
+                .{ .name = "ipc", .module = mods.ipc },
+            },
+        });
+        test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = test_mod })).step);
+    }
+
+    // cli tests need all four imports
     const cli_test_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-            .{ .name = "run", .module = run_mod },
-            .{ .name = "mcp", .module = mcp_mod },
+            .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "run", .module = mods.run },
+            .{ .name = "mcp", .module = mods.mcp },
         },
     });
-    const cli_tests = b.addTest(.{
-        .root_module = cli_test_mod,
-    });
-
-    const ipc_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/ipc.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    const ipc_tests = b.addTest(.{
-        .root_module = ipc_test_mod,
-    });
-
-    const run_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/run.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-        },
-    });
-    const run_tests = b.addTest(.{
-        .root_module = run_test_mod,
-    });
-
-    const mcp_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/mcp.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = protocol_mod },
-            .{ .name = "ipc", .module = ipc_mod },
-        },
-    });
-    const mcp_tests = b.addTest(.{
-        .root_module = mcp_test_mod,
-    });
-
-    const test_step = b.step("test", "Run all unit tests");
-    test_step.dependOn(&b.addRunArtifact(protocol_tests).step);
-    test_step.dependOn(&b.addRunArtifact(hub_tests).step);
-    test_step.dependOn(&b.addRunArtifact(daemon_tests).step);
-    test_step.dependOn(&b.addRunArtifact(cli_tests).step);
-    test_step.dependOn(&b.addRunArtifact(ipc_tests).step);
-    test_step.dependOn(&b.addRunArtifact(run_tests).step);
-    test_step.dependOn(&b.addRunArtifact(mcp_tests).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = cli_test_mod })).step);
 }

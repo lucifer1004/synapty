@@ -14,10 +14,26 @@ class DeployManager: ObservableObject {
         case failed(String)
     }
 
+    /// Supported deploy platforms and their corresponding build output directories.
+    /// Maps (uname -s, uname -m) -> build output directory name.
+    static let platformMap: [(os: String, arch: String, dir: String)] = [
+        ("Linux",  "aarch64",  "linux-aarch64"),
+        ("Linux",  "x86_64",   "linux-x86_64"),
+        ("Linux",  "riscv64",  "linux-riscv64"),
+        ("Darwin", "arm64",    "macos-aarch64"),
+        ("Darwin", "x86_64",   "macos-x86_64"),
+    ]
+
+    /// Resolve a (uname -s, uname -m) pair to a deploy directory name.
+    static func resolveDeployDir(os: String, arch: String) -> String? {
+        return platformMap.first(where: { $0.os == os && $0.arch == arch })?.dir
+    }
+
     /// Constructs a shell script that:
-    /// 1. Creates the remote bin directory
-    /// 2. scp's the local synapty binary
-    /// 3. SSH's in with a reverse tunnel and runs synapty on the remote
+    /// 1. Detects the remote platform via `uname -sm`
+    /// 2. Selects the matching local binary from zig-out/<platform>/synapty
+    /// 3. scp's it to the remote host
+    /// 4. SSH's in with a reverse tunnel and runs synapty
     func fullDeployCommand(for host: HostEntry) -> String {
         let dest = "\(host.username)@\(host.address)"
         let portFlagSSH = "-p \(host.port)"
@@ -39,10 +55,27 @@ class DeployManager: ObservableObject {
 
         let remoteCmd = "~/.synapty/bin/synapty run --id \(host.label) --hub 127.0.0.1:9000 -- bash -l"
 
+        // Build the platform detection case statement from platformMap
+        let cases = DeployManager.platformMap.map { entry in
+            "    \"\(entry.os) \(entry.arch)\") DEPLOY_DIR=\"\(entry.dir)\" ;;"
+        }.joined(separator: "\n")
+
         return """
-        echo "Deploying synapty to \(host.address)..." && \
+        echo "Detecting remote platform..." && \
+        REMOTE_PLATFORM=$(ssh \(sshFlags) \(dest) "uname -sm") && \
+        case "$REMOTE_PLATFORM" in
+        \(cases)
+            *) echo "Error: Unsupported remote platform: $REMOTE_PLATFORM" && \
+               echo "Supported: \(DeployManager.platformMap.map { "\($0.os)/\($0.arch)" }.joined(separator: ", "))" && \
+               exit 1 ;;
+        esac && \
+        LOCAL_BIN="zig-out/${DEPLOY_DIR}/synapty" && \
+        if [ ! -f "$LOCAL_BIN" ]; then
+            echo "Binary not found at $LOCAL_BIN — run: zig build deploy-${DEPLOY_DIR}" && exit 1
+        fi && \
+        echo "Deploying synapty ($DEPLOY_DIR) to \(host.address)..." && \
         ssh \(sshFlags) \(dest) "mkdir -p ~/.synapty/bin" && \
-        scp \(scpFlags) $(which synapty 2>/dev/null || echo zig-out/bin/synapty) \(dest):~/.synapty/bin/synapty && \
+        scp \(scpFlags) "$LOCAL_BIN" \(dest):~/.synapty/bin/synapty && \
         echo "Connecting..." && \
         ssh -R 9000:localhost:9000 \(sshFlags) \(dest) "\(remoteCmd)"
         """
