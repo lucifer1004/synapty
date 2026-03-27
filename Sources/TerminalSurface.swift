@@ -20,7 +20,22 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override func becomeFirstResponder() -> Bool {
         ghosttyApp?.activeSurface = surface
+        if let surface {
+            ghostty_surface_set_focus(surface, true)
+            // Reassert display ID on focus to ensure CVDisplayLink is running.
+            if let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
+               displayID != 0 {
+                ghostty_surface_set_display_id(surface, displayID)
+            }
+        }
         return super.becomeFirstResponder()
+    }
+
+    override func resignFirstResponder() -> Bool {
+        if let surface {
+            ghostty_surface_set_focus(surface, false)
+        }
+        return super.resignFirstResponder()
     }
 
     /// Optional shell command to run inside this surface instead of the default shell.
@@ -48,7 +63,20 @@ class GhosttyNSView: NSView, NSTextInputClient {
             layer?.contentsScale = window?.backingScaleFactor ?? 2.0
             createSurface(app: app)
             ghosttyApp?.activeSurface = surface
+
+            // Set display ID so ghostty can use CVDisplayLink for vsync-driven
+            // rendering. Without this, ghostty renders immediately on every wakeup
+            // which causes visible re-render churn (e.g., during paste).
+            if let surface,
+               let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
+               displayID != 0 {
+                ghostty_surface_set_display_id(surface, displayID)
+            }
+
             updateSurfaceSize()
+            if let surface {
+                ghostty_surface_set_focus(surface, true)
+            }
             window?.makeFirstResponder(self)
         }
     }
@@ -113,6 +141,12 @@ class GhosttyNSView: NSView, NSTextInputClient {
             CATransaction.commit()
         }
         updateSurfaceSize()
+        // Update display ID when backing properties change (e.g., moved to another screen).
+        if let surface,
+           let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
+           displayID != 0 {
+            ghostty_surface_set_display_id(surface, displayID)
+        }
     }
 
     private func updateSurfaceSize() {
@@ -441,5 +475,18 @@ struct TerminalView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {
+    }
+}
+
+// MARK: - NSScreen Display ID
+
+private extension NSScreen {
+    /// The CGDirectDisplayID for this screen, used by ghostty for CVDisplayLink vsync.
+    var displayID: UInt32? {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        if let v = deviceDescription[key] as? UInt32 { return v }
+        if let v = deviceDescription[key] as? Int { return UInt32(v) }
+        if let v = deviceDescription[key] as? NSNumber { return v.uint32Value }
+        return nil
     }
 }

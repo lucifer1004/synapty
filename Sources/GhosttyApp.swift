@@ -11,6 +11,10 @@ class GhosttyApp {
     private(set) var config: ghostty_config_t?
     /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
     var activeSurface: ghostty_surface_t?
+    /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
+    /// result in a single tick() call, so all pending PTY output is processed at
+    /// once and rendered in one frame.
+    private var tickScheduled = false
 
     init() {
         GhosttyApp.shared = self
@@ -35,10 +39,8 @@ class GhosttyApp {
         var runtime = ghostty_runtime_config_s()
         runtime.userdata = Unmanaged.passUnretained(self).toOpaque()
         runtime.wakeup_cb = { userdata in
-            guard let userdata else { return }
-            let app = Unmanaged<GhosttyApp>.fromOpaque(userdata).takeUnretainedValue()
             DispatchQueue.main.async {
-                app.tick()
+                GhosttyApp.shared?.requestTick()
             }
         }
         runtime.action_cb = { app, target, action in
@@ -107,6 +109,19 @@ class GhosttyApp {
         app = ghostty_app_new(&runtime, config)
         if app == nil {
             print("Failed to create Ghostty app")
+        }
+    }
+
+    /// Schedule a tick if one isn't already pending. Multiple wakeups between
+    /// main queue drains collapse into a single tick, so all PTY output is
+    /// processed at once and rendered in one display link frame.
+    func requestTick() {
+        guard !tickScheduled else { return }
+        tickScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tickScheduled = false
+            self.tick()
         }
     }
 
