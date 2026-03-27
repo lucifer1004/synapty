@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-002"
+title = "Fix synapty mcp-serve exits immediately"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+
+[content]
+description = "synapty mcp-serve exits immediately because McpServer.init requires SYNAPTY_SOCK env var at startup. MCP clients launch it as subprocess; socket should only be required when tools/call needs IPC."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "mcp"
+content = "Made socket_path optional in McpServer.init; tools/call returns JSON-RPC -32603 when SYNAPTY_SOCK missing. All tests pass, govctl check passes."
+
+[[content.acceptance_criteria]]
+text = "mcp-serve starts without SYNAPTY_SOCK and responds to initialize/tools/list"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "tools/call returns clear JSON-RPC error when SYNAPTY_SOCK is missing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

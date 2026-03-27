@@ -145,18 +145,22 @@ pub const RunServer = struct {
         try env_map.put("SYNAPTY_AGENT_ID", self.agent_id);
         try env_map.put("SYNAPTY_SOCK", self.socket_path);
 
-        // Prepend ~/.synapty/bin to PATH so child processes can find `synapty mcp-serve`.
-        if (std.posix.getenv("HOME")) |home| {
-            const synapty_bin = try std.fmt.allocPrint(self.allocator, "{s}/.synapty/bin", .{home});
-            defer self.allocator.free(synapty_bin);
-            if (env_map.get("PATH")) |existing_path| {
-                const new_path = try std.fmt.allocPrint(self.allocator, "{s}:{s}", .{ synapty_bin, existing_path });
-                defer self.allocator.free(new_path);
-                try env_map.put("PATH", new_path);
-            } else {
-                try env_map.put("PATH", synapty_bin);
+        // Prepend the directory of the current executable to PATH so child
+        // processes (e.g. MCP servers) can find `synapty`.
+        // Works for all deployments: dev (zig-out/bin/), bundled (.app/Resources/),
+        // and remote (~/.synapty/bin/).
+        var self_exe_buf: [std.fs.max_path_bytes]u8 = undefined;
+        if (std.fs.selfExePath(&self_exe_buf)) |self_exe| {
+            if (std.fs.path.dirnamePosix(self_exe)) |exe_dir| {
+                if (env_map.get("PATH")) |existing_path| {
+                    const new_path = try std.fmt.allocPrint(self.allocator, "{s}:{s}", .{ exe_dir, existing_path });
+                    defer self.allocator.free(new_path);
+                    try env_map.put("PATH", new_path);
+                } else {
+                    try env_map.put("PATH", exe_dir);
+                }
             }
-        }
+        } else |_| {}
         child.env_map = &env_map;
 
         try child.spawn();

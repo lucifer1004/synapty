@@ -1,6 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const json = std.json;
+const builtin = @import("builtin");
 const Allocator = mem.Allocator;
 const ipc = @import("ipc");
 const protocol = @import("protocol");
@@ -13,11 +14,18 @@ const log = std.log.scoped(.mcp);
 
 pub const McpServer = struct {
     allocator: Allocator,
-    socket_path: []const u8,
+    socket_path: ?[]const u8,
 
-    /// Initialize the MCP server by reading SYNAPTY_SOCK from the environment.
-    pub fn init(allocator: Allocator) !McpServer {
-        const sock = std.posix.getenv("SYNAPTY_SOCK") orelse return error.MissingSynaptySocket;
+    /// Initialize the MCP server. Discovery order:
+    /// 1. SYNAPTY_SOCK env var (set by `synapty run`)
+    /// 2. Process-tree walk: check /tmp/synapty-<ancestor-pid>.sock
+    pub fn init(allocator: Allocator) McpServer {
+        const sock = std.posix.getenv("SYNAPTY_SOCK") orelse discoverSocket(allocator);
+        if (sock) |s| {
+            log.info("using IPC socket: {s}", .{s});
+        } else {
+            log.warn("no IPC socket found — tools/call will be unavailable", .{});
+        }
         return .{
             .allocator = allocator,
             .socket_path = sock,
@@ -75,7 +83,7 @@ pub const McpServer = struct {
 /// Parse one JSON-RPC 2.0 line and return the response JSON string (allocated),
 /// or null if no response should be sent (notifications).
 /// Caller owns the returned slice.
-pub fn handleRequest(allocator: Allocator, socket_path: []const u8, line: []const u8) !?[]const u8 {
+pub fn handleRequest(allocator: Allocator, socket_path: ?[]const u8, line: []const u8) !?[]const u8 {
     const parsed = try json.parseFromSlice(json.Value, allocator, line, .{ .allocate = .alloc_always });
     defer parsed.deinit();
 
@@ -126,7 +134,8 @@ fn handleToolsList(allocator: Allocator, id: json.Value) ![]const u8 {
     , .{id_str});
 }
 
-fn handleToolsCall(allocator: Allocator, socket_path: []const u8, id: json.Value, params: ?json.Value) ![]const u8 {
+fn handleToolsCall(allocator: Allocator, socket_path: ?[]const u8, id: json.Value, params: ?json.Value) ![]const u8 {
+    const sock = socket_path orelse return buildErrorResponse(allocator, id, -32603, "SYNAPTY_SOCK not set — run inside a synapty session");
     const id_str = try jsonValueToString(allocator, id);
     defer allocator.free(id_str);
 
@@ -162,7 +171,7 @@ fn handleToolsCall(allocator: Allocator, socket_path: []const u8, id: json.Value
     const ipc_req_json = try protocol.serializeIpcRequest(allocator, ipc_req);
     defer allocator.free(ipc_req_json);
 
-    var client = try ipc.IpcClient.connect(socket_path);
+    var client = try ipc.IpcClient.connect(sock);
     defer client.deinit();
 
     try client.send(ipc_req_json);
@@ -219,11 +228,95 @@ fn jsonEscapeString(allocator: Allocator, s: []const u8) ![]const u8 {
 }
 
 // ---------------------------------------------------------------------------
+// Socket discovery via process-tree walking
+// ---------------------------------------------------------------------------
+
+/// Walk up the process tree from the current PID, checking at each ancestor
+/// whether /tmp/synapty-<pid>.sock exists. Returns an allocated path if found.
+fn discoverSocket(allocator: Allocator) ?[]const u8 {
+    var pid: i32 = switch (builtin.os.tag) {
+        .linux => @intCast(std.os.linux.getpid()),
+        else => std.c.getpid(),
+    };
+
+    var depth: usize = 0;
+    while (pid > 1 and depth < 16) : (depth += 1) {
+        var path_buf: [64]u8 = undefined;
+        const path = std.fmt.bufPrint(&path_buf, "/tmp/synapty-{d}.sock", .{pid}) catch return null;
+
+        // Try connecting to verify the socket is live (not just a stale file).
+        var client = ipc.IpcClient.connect(path) catch {
+            pid = getParentPid(pid) orelse return null;
+            continue;
+        };
+        client.deinit();
+
+        log.info("discovered daemon socket at PID {d}: {s}", .{ pid, path });
+        return allocator.dupe(u8, path) catch null;
+    }
+    return null;
+}
+
+/// Get the parent PID of an arbitrary process. Platform-specific.
+fn getParentPid(pid: i32) ?i32 {
+    return switch (builtin.os.tag) {
+        .macos => getParentPidDarwin(pid),
+        .linux => getParentPidLinux(pid),
+        else => null,
+    };
+}
+
+// -- macOS: use proc_pidinfo(PROC_PIDTBSDINFO) from libproc ----------------
+
+const darwin = if (builtin.os.tag == .macos) @cImport({
+    @cInclude("libproc.h");
+    @cInclude("sys/proc_info.h");
+}) else struct {};
+
+fn getParentPidDarwin(pid: i32) ?i32 {
+    var info: darwin.struct_proc_bsdinfo = undefined;
+    const size: c_int = @intCast(@sizeOf(darwin.struct_proc_bsdinfo));
+    const ret = darwin.proc_pidinfo(pid, darwin.PROC_PIDTBSDINFO, 0, &info, size);
+    if (ret < size) return null;
+
+    const ppid: i32 = @intCast(info.pbi_ppid);
+    if (ppid <= 0) return null;
+    return ppid;
+}
+
+// -- Linux: read /proc/<pid>/stat ------------------------------------------
+
+fn getParentPidLinux(pid: i32) ?i32 {
+    // /proc/<pid>/stat format: pid (comm) state ppid ...
+    var path_buf: [32]u8 = undefined;
+    const path = std.fmt.bufPrint(&path_buf, "/proc/{d}/stat", .{pid}) catch return null;
+
+    var file = std.fs.cwd().openFile(path, .{}) catch return null;
+    defer file.close();
+
+    var stat_buf: [512]u8 = undefined;
+    const n = file.read(&stat_buf) catch return null;
+    if (n == 0) return null;
+
+    const data = stat_buf[0..n];
+    // Find last ')' to skip comm field (may contain spaces/parens).
+    const close_paren = mem.lastIndexOfScalar(u8, data, ')') orelse return null;
+    if (close_paren + 4 >= n) return null;
+
+    // After ") " comes: state ppid ...
+    const rest = data[close_paren + 2 ..];
+    var iter = mem.splitScalar(u8, rest, ' ');
+    _ = iter.next(); // state character
+    const ppid_str = iter.next() orelse return null;
+    return std.fmt.parseInt(i32, ppid_str, 10) catch null;
+}
+
+// ---------------------------------------------------------------------------
 // Entry point (used when compiled as part of cli)
 // ---------------------------------------------------------------------------
 
 pub fn runMcp(allocator: Allocator) !void {
-    var server = try McpServer.init(allocator);
+    var server = McpServer.init(allocator);
     try server.run();
 }
 
@@ -283,6 +376,21 @@ test "handleRequest: unknown method returns JSON-RPC error -32601" {
     const r = resp.?;
     try std.testing.expect(mem.indexOf(u8, r, "-32601") != null);
     try std.testing.expect(mem.indexOf(u8, r, "\"error\"") != null);
+}
+
+test "handleRequest: tools/call without SYNAPTY_SOCK returns error" {
+    const allocator = std.testing.allocator;
+    const line =
+        \\{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":"agent-b","payload":"hello"}}}
+    ;
+    const resp = try handleRequest(allocator, null, line);
+    defer if (resp) |r| allocator.free(r);
+
+    try std.testing.expect(resp != null);
+    const r = resp.?;
+    try std.testing.expect(mem.indexOf(u8, r, "\"error\"") != null);
+    try std.testing.expect(mem.indexOf(u8, r, "-32603") != null);
+    try std.testing.expect(mem.indexOf(u8, r, "SYNAPTY_SOCK") != null);
 }
 
 test "handleRequest: tools/call synapty_send builds correct IPC request" {
@@ -393,4 +501,19 @@ test "handleRequest: tools/call synapty_agents builds correct IPC request" {
     try std.testing.expect(resp != null);
     const r = resp.?;
     try std.testing.expect(mem.indexOf(u8, r, "\"content\"") != null);
+}
+
+test "getParentPid returns valid parent for current process" {
+    const my_pid = std.c.getpid();
+    const ppid = getParentPid(my_pid);
+    // Current process must have a parent.
+    try std.testing.expect(ppid != null);
+    try std.testing.expect(ppid.? > 0);
+    // Verify it matches libc getppid().
+    try std.testing.expectEqual(std.c.getppid(), ppid.?);
+}
+
+test "discoverSocket returns null when no daemon is running" {
+    const result = discoverSocket(std.testing.allocator);
+    try std.testing.expect(result == null);
 }

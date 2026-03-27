@@ -1,4 +1,5 @@
 # Add to ~/.codex/config.toml or .codex/config.toml
-[mcp.servers.synapty]
+[mcp_servers.synapty]
+type = "stdio"
 command = "synapty"
 args = ["mcp-serve"]
