@@ -15,7 +15,7 @@ struct ContentView: View {
                 tunnelManager: tunnelManager,
                 onHostConnect: { host in
                     tunnelManager.ensureTunnel(for: host) { [weak paneManager] cmd in
-                        paneManager?.addRemoteSession(label: host.label, command: cmd)
+                        paneManager?.addRemoteSession(label: host.label, hostEntry: host, command: cmd)
                     }
                 },
                 onNewLocalPane: {
@@ -56,6 +56,7 @@ struct ContentView: View {
         .onAppear {
             agentMonitor.startMonitoring()
             tunnelManager.startHeartbeat()
+            TunnelManager.shared = tunnelManager
         }
         .onDisappear {
             agentMonitor.stopMonitoring()

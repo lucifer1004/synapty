@@ -27,8 +27,8 @@ class TerminalPaneManager: ObservableObject {
     struct Session: Identifiable {
         let id: UUID
         let label: String
-        /// The deploy command template for this host, nil for local.
-        let hostCommand: String?
+        /// The host entry for remote sessions, nil for local.
+        let hostEntry: HostEntry?
         var panes: [Pane]
         var activePaneID: UUID?
 
@@ -37,13 +37,13 @@ class TerminalPaneManager: ObservableObject {
             return panes.first { $0.id == id }
         }
 
-        var isLocal: Bool { hostCommand == nil }
+        var isLocal: Bool { hostEntry == nil }
 
-        init(label: String, hostCommand: String? = nil) {
+        init(label: String, hostEntry: HostEntry? = nil, initialCommand: String? = nil) {
             self.id = UUID()
             self.label = label
-            self.hostCommand = hostCommand
-            let pane = Pane(label: "Shell", command: hostCommand)
+            self.hostEntry = hostEntry
+            let pane = Pane(label: "Shell", command: initialCommand)
             self.panes = [pane]
             self.activePaneID = pane.id
         }
@@ -88,8 +88,8 @@ class TerminalPaneManager: ObservableObject {
         activeSessionID = session.id
     }
 
-    func addRemoteSession(label: String, command: String) {
-        let session = Session(label: label, hostCommand: command)
+    func addRemoteSession(label: String, hostEntry: HostEntry, command: String) {
+        let session = Session(label: label, hostEntry: hostEntry, initialCommand: command)
         sessions.append(session)
         activeSessionID = session.id
     }
@@ -110,7 +110,14 @@ class TerminalPaneManager: ObservableObject {
     func addPaneToActiveSession() {
         guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
         let session = sessions[sIdx]
-        let pane = Pane(label: "Shell \(session.panes.count + 1)", command: session.hostCommand)
+        // For remote sessions, generate a new connect command with unique agent ID.
+        let command: String?
+        if let hostEntry = session.hostEntry {
+            command = TunnelManager.shared?.connectCommand(for: hostEntry)
+        } else {
+            command = nil // local
+        }
+        let pane = Pane(label: "Shell \(session.panes.count + 1)", command: command)
         sessions[sIdx].panes.append(pane)
         sessions[sIdx].activePaneID = pane.id
     }
@@ -140,7 +147,13 @@ class TerminalPaneManager: ObservableObject {
               let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
               let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
 
-        let command = sessions[sIdx].panes[pIdx].hostCommand
+        // For remote sessions, generate a new connect command with unique agent ID.
+        let command: String?
+        if let hostEntry = sessions[sIdx].hostEntry {
+            command = TunnelManager.shared?.connectCommand(for: hostEntry)
+        } else {
+            command = nil
+        }
         let newRoot = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
             focusedID,
             direction: direction,

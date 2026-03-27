@@ -5,6 +5,9 @@ import AppKit
 /// Provides auto-setup on first connect, heartbeat monitoring, and auto-reconnect.
 class TunnelManager: ObservableObject {
 
+    /// Singleton for access from TerminalPaneManager (addPaneToActiveSession).
+    static weak var shared: TunnelManager?
+
     enum TunnelStatus: Equatable {
         case disconnected
         case connecting
