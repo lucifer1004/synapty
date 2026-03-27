@@ -1,6 +1,6 @@
 import Foundation
 
-class AgentMonitor: ObservableObject {
+@MainActor final class AgentMonitor: ObservableObject {
     @Published var agents: [String] = []
     @Published var messageCount: Int = 0
 

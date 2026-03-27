@@ -3,7 +3,7 @@ import AppKit
 
 /// Wraps the single ghostty_app_t instance. One per application.
 /// Ghostty internally manages PTYs, VT parsing, and Metal rendering.
-class GhosttyApp {
+@MainActor final class GhosttyApp {
     /// Singleton for clipboard callback access (C callbacks can't capture Swift context).
     static weak var shared: GhosttyApp?
 

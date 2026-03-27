@@ -5,21 +5,21 @@ default: build
 
 # Build all Zig executables (hub, daemon, cli)
 build:
-    zig build
+    devenv shell -- zig build
 
 # Build individual targets
 hub:
-    zig build hub
+    devenv shell -- zig build hub
 
 daemon:
-    zig build daemon
+    devenv shell -- zig build daemon
 
 cli:
-    zig build cli
+    devenv shell -- zig build cli
 
 # Run all Zig tests
 test:
-    zig build test
+    devenv shell -- zig build test
 
 # Build GhosttyKit xcframework from submodule
 ghosttykit:
@@ -50,13 +50,13 @@ all: build ghosttykit app
 
 # Governance
 gov-check:
-    govctl check
+    devenv shell -- govctl check
 
 gov-render:
-    govctl render
+    devenv shell -- govctl render
 
 gov-status:
-    govctl status
+    devenv shell -- govctl status
 
 # Enter dev environment
 dev:
@@ -64,7 +64,7 @@ dev:
 
 # Cross-compile all deploy targets
 deploy-all:
-    zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 deploy-macos-aarch64 deploy-macos-x86_64
+    devenv shell -- zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 deploy-macos-aarch64 deploy-macos-x86_64
 
 # Package a universal macOS installer DMG with the GUI app and all deploy targets.
 # xcodebuild runs natively (not through devenv) to avoid Nix linker conflicts.

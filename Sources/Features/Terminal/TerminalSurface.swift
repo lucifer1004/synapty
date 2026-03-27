@@ -551,27 +551,3 @@ struct TerminalView: NSViewRepresentable {
         nsView.leafID = leafID
     }
 }
-
-// MARK: - Split Notifications
-
-extension Notification.Name {
-    static let synaptyRequestSplit = Notification.Name("synaptyRequestSplit")
-    static let synaptyRequestCloseSplit = Notification.Name("synaptyRequestCloseSplit")
-    static let synaptyRequestFocusNextSplit = Notification.Name("synaptyRequestFocusNextSplit")
-    static let synaptyRequestFocusPreviousSplit = Notification.Name("synaptyRequestFocusPreviousSplit")
-    static let synaptyLeafFocused = Notification.Name("synaptyLeafFocused")
-    static let synaptyLeafClosed = Notification.Name("synaptyLeafClosed")
-}
-
-// MARK: - NSScreen Display ID
-
-private extension NSScreen {
-    /// The CGDirectDisplayID for this screen, used by ghostty for CVDisplayLink vsync.
-    var displayID: UInt32? {
-        let key = NSDeviceDescriptionKey("NSScreenNumber")
-        if let v = deviceDescription[key] as? UInt32 { return v }
-        if let v = deviceDescription[key] as? Int { return UInt32(v) }
-        if let v = deviceDescription[key] as? NSNumber { return v.uint32Value }
-        return nil
-    }
-}

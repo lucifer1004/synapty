@@ -2,7 +2,7 @@ import Foundation
 
 /// Manages a three-level hierarchy: Sessions (sidebar) → Panes (tabs) → Splits (tree).
 /// Each session is connected to a host. Each pane has a split tree of terminal surfaces.
-class TerminalPaneManager: ObservableObject {
+@MainActor final class TerminalPaneManager: ObservableObject {
 
     struct Pane: Identifiable {
         let id: UUID

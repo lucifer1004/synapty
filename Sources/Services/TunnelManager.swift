@@ -3,7 +3,7 @@ import AppKit
 
 /// Manages SSH ControlMaster tunnels to remote hosts.
 /// Provides auto-setup on first connect, heartbeat monitoring, and auto-reconnect.
-class TunnelManager: ObservableObject {
+@MainActor final class TunnelManager: ObservableObject {
 
     /// Singleton for access from TerminalPaneManager (addPaneToActiveSession).
     static weak var shared: TunnelManager?

@@ -9,7 +9,7 @@ struct HostEntry: Identifiable, Codable {
     var sshKeyPath: String?
 }
 
-class HostStore: ObservableObject {
+@MainActor final class HostStore: ObservableObject {
     @Published var hosts: [HostEntry] = []
 
     private static var storageURL: URL {
