@@ -113,7 +113,7 @@ pub fn build(b: *std.Build) void {
     cli_step.dependOn(&cli_exe.step);
 
     // ---------------------------------------------------------------------------
-    // Cross-compilation: daemon + CLI for Linux aarch64 (musl)
+    // Cross-compilation: CLI for Linux aarch64 (musl) — deploy target
     // ---------------------------------------------------------------------------
 
     const linux_aarch64_target = b.resolveTargetQuery(.{
@@ -122,58 +122,43 @@ pub fn build(b: *std.Build) void {
         .abi = .musl,
     });
 
-    const daemon_linux_aarch64_protocol_mod = b.createModule(.{
+    const deploy_linux_aarch64_protocol_mod = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
         .target = linux_aarch64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
     });
-    const daemon_linux_aarch64_ipc_mod = b.createModule(.{
+    const deploy_linux_aarch64_ipc_mod = b.createModule(.{
         .root_source_file = b.path("src/ipc.zig"),
         .target = linux_aarch64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
     });
-    const daemon_linux_aarch64_run_mod = b.createModule(.{
+    const deploy_linux_aarch64_run_mod = b.createModule(.{
         .root_source_file = b.path("src/run.zig"),
         .target = linux_aarch64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
         },
     });
-    const daemon_linux_aarch64_mod = b.createModule(.{
-        .root_source_file = b.path("src/daemon.zig"),
-        .target = linux_aarch64_target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
-            .{ .name = "run", .module = daemon_linux_aarch64_run_mod },
-        },
-    });
-    const daemon_linux_aarch64_exe = b.addExecutable(.{
-        .name = "synapty-daemon",
-        .root_module = daemon_linux_aarch64_mod,
-    });
-
-    const linux_aarch64_mcp_mod = b.createModule(.{
+    const deploy_linux_aarch64_mcp_mod = b.createModule(.{
         .root_source_file = b.path("src/mcp.zig"),
         .target = linux_aarch64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
+            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
         },
     });
     const cli_linux_aarch64_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
         .target = linux_aarch64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_aarch64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_aarch64_ipc_mod },
-            .{ .name = "run", .module = daemon_linux_aarch64_run_mod },
-            .{ .name = "mcp", .module = linux_aarch64_mcp_mod },
+            .{ .name = "protocol", .module = deploy_linux_aarch64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_aarch64_ipc_mod },
+            .{ .name = "run", .module = deploy_linux_aarch64_run_mod },
+            .{ .name = "mcp", .module = deploy_linux_aarch64_mcp_mod },
         },
     });
     const cli_linux_aarch64_exe = b.addExecutable(.{
@@ -181,16 +166,13 @@ pub fn build(b: *std.Build) void {
         .root_module = cli_linux_aarch64_mod,
     });
 
-    const linux_daemon_step = b.step("daemon-linux-aarch64", "Cross-compile daemon for Linux aarch64");
-    linux_daemon_step.dependOn(&b.addInstallArtifact(daemon_linux_aarch64_exe, .{
-        .dest_dir = .{ .override = .{ .custom = "linux-aarch64" } },
-    }).step);
-    linux_daemon_step.dependOn(&b.addInstallArtifact(cli_linux_aarch64_exe, .{
+    const linux_deploy_step = b.step("deploy-linux-aarch64", "Cross-compile CLI for Linux aarch64");
+    linux_deploy_step.dependOn(&b.addInstallArtifact(cli_linux_aarch64_exe, .{
         .dest_dir = .{ .override = .{ .custom = "linux-aarch64" } },
     }).step);
 
     // ---------------------------------------------------------------------------
-    // Cross-compilation: daemon + CLI for Linux x86_64 (musl)
+    // Cross-compilation: CLI for Linux x86_64 (musl) — deploy target
     // ---------------------------------------------------------------------------
 
     const linux_x86_64_target = b.resolveTargetQuery(.{
@@ -199,58 +181,43 @@ pub fn build(b: *std.Build) void {
         .abi = .musl,
     });
 
-    const daemon_linux_x86_64_protocol_mod = b.createModule(.{
+    const deploy_linux_x86_64_protocol_mod = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
         .target = linux_x86_64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
     });
-    const daemon_linux_x86_64_ipc_mod = b.createModule(.{
+    const deploy_linux_x86_64_ipc_mod = b.createModule(.{
         .root_source_file = b.path("src/ipc.zig"),
         .target = linux_x86_64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
     });
-    const daemon_linux_x86_64_run_mod = b.createModule(.{
+    const deploy_linux_x86_64_run_mod = b.createModule(.{
         .root_source_file = b.path("src/run.zig"),
         .target = linux_x86_64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
         },
     });
-    const daemon_linux_x86_64_mod = b.createModule(.{
-        .root_source_file = b.path("src/daemon.zig"),
-        .target = linux_x86_64_target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
-            .{ .name = "run", .module = daemon_linux_x86_64_run_mod },
-        },
-    });
-    const daemon_linux_x86_64_exe = b.addExecutable(.{
-        .name = "synapty-daemon",
-        .root_module = daemon_linux_x86_64_mod,
-    });
-
-    const linux_x86_64_mcp_mod = b.createModule(.{
+    const deploy_linux_x86_64_mcp_mod = b.createModule(.{
         .root_source_file = b.path("src/mcp.zig"),
         .target = linux_x86_64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
+            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
         },
     });
     const cli_linux_x86_64_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
         .target = linux_x86_64_target,
-        .optimize = optimize,
+        .optimize = .ReleaseSmall,
         .imports = &.{
-            .{ .name = "protocol", .module = daemon_linux_x86_64_protocol_mod },
-            .{ .name = "ipc", .module = daemon_linux_x86_64_ipc_mod },
-            .{ .name = "run", .module = daemon_linux_x86_64_run_mod },
-            .{ .name = "mcp", .module = linux_x86_64_mcp_mod },
+            .{ .name = "protocol", .module = deploy_linux_x86_64_protocol_mod },
+            .{ .name = "ipc", .module = deploy_linux_x86_64_ipc_mod },
+            .{ .name = "run", .module = deploy_linux_x86_64_run_mod },
+            .{ .name = "mcp", .module = deploy_linux_x86_64_mcp_mod },
         },
     });
     const cli_linux_x86_64_exe = b.addExecutable(.{
@@ -258,11 +225,8 @@ pub fn build(b: *std.Build) void {
         .root_module = cli_linux_x86_64_mod,
     });
 
-    const linux_daemon_x86_step = b.step("daemon-linux-x86_64", "Cross-compile daemon for Linux x86_64");
-    linux_daemon_x86_step.dependOn(&b.addInstallArtifact(daemon_linux_x86_64_exe, .{
-        .dest_dir = .{ .override = .{ .custom = "linux-x86_64" } },
-    }).step);
-    linux_daemon_x86_step.dependOn(&b.addInstallArtifact(cli_linux_x86_64_exe, .{
+    const linux_deploy_x86_step = b.step("deploy-linux-x86_64", "Cross-compile CLI for Linux x86_64");
+    linux_deploy_x86_step.dependOn(&b.addInstallArtifact(cli_linux_x86_64_exe, .{
         .dest_dir = .{ .override = .{ .custom = "linux-x86_64" } },
     }).step);
 
