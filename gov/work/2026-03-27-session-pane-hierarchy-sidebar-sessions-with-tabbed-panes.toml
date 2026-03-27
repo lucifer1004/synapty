@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-005"
+title = "Session-pane hierarchy: sidebar sessions with tabbed panes"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Introduce three-level hierarchy: sidebar sessions (each connected to a host), with tabbed panes per session in the main area. Sidebar entries are sessions (multiple per host allowed). Each session has 1+ pane tabs. Plus tab creates another pane in the same session. Refactor TerminalPaneManager to group panes under sessions."
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Refactored TerminalPaneManager to Session->Pane hierarchy. Sidebar shows sessions, main area has PaneTabBar with plus button. ZStack renders all panes across all sessions. Build and govctl check pass."
+
+[[content.acceptance_criteria]]
+text = "TerminalPaneManager models Session containing Panes"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Tab bar in main area for panes within active session"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Plus tab creates new pane in current session"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Sidebar switches between sessions, tabs switch between panes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

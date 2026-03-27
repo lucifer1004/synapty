@@ -14,23 +14,29 @@ struct ContentView: View {
                 paneManager: paneManager,
                 onHostConnect: { host in
                     let cmd = deployManager.fullDeployCommand(for: host)
-                    paneManager.addRemotePane(label: host.label, command: cmd)
+                    paneManager.addRemoteSession(label: host.label, command: cmd)
                 },
                 onNewLocalPane: {
-                    paneManager.addLocalPane()
+                    paneManager.addLocalSession()
                 }
             )
         } detail: {
             VStack(spacing: 0) {
                 if let ghosttyApp = appDelegate.ghosttyApp {
-                    // All terminal panes kept alive in a ZStack; only the active one is visible.
-                    // This preserves ghostty_surface_t state across session switches.
+                    // Pane tab bar for the active session
+                    if let session = paneManager.activeSession, session.panes.count > 0 {
+                        PaneTabBar(paneManager: paneManager, session: session)
+                    }
+
+                    // All terminal panes across ALL sessions kept alive in a ZStack.
+                    // Only the visible pane (active pane in active session) is shown.
+                    // This preserves ghostty_surface_t state across switches.
                     ZStack {
-                        ForEach(paneManager.panes) { pane in
+                        ForEach(paneManager.allPanes) { pane in
                             TerminalView(ghosttyApp: ghosttyApp, command: pane.command)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .opacity(paneManager.activePaneID == pane.id ? 1 : 0)
-                                .allowsHitTesting(paneManager.activePaneID == pane.id)
+                                .opacity(paneManager.visiblePaneID == pane.id ? 1 : 0)
+                                .allowsHitTesting(paneManager.visiblePaneID == pane.id)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,5 +55,75 @@ struct ContentView: View {
         .onDisappear {
             agentMonitor.stopMonitoring()
         }
+    }
+}
+
+// MARK: - Pane Tab Bar
+
+struct PaneTabBar: View {
+    @ObservedObject var paneManager: TerminalPaneManager
+    let session: TerminalPaneManager.Session
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(session.panes) { pane in
+                        PaneTab(
+                            pane: pane,
+                            isActive: session.activePaneID == pane.id,
+                            onSelect: { paneManager.activatePane(pane) },
+                            onClose: { paneManager.removePane(pane) }
+                        )
+                    }
+                }
+            }
+
+            // Plus button to add a new pane in the current session
+            Button {
+                paneManager.addPaneToActiveSession()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10))
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.plain)
+            .help("New pane in this session")
+        }
+        .frame(height: 30)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+}
+
+struct PaneTab: View {
+    let pane: TerminalPaneManager.Pane
+    let isActive: Bool
+    let onSelect: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(pane.label)
+                .font(.system(size: 12))
+                .lineLimit(1)
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(isActive ? Color(NSColor.selectedContentBackgroundColor).opacity(0.2) : Color.clear)
+        .overlay(
+            Rectangle()
+                .frame(height: 2)
+                .foregroundColor(isActive ? .accentColor : .clear),
+            alignment: .bottom
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onSelect() }
     }
 }

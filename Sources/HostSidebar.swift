@@ -54,7 +54,7 @@ struct HostSidebar: View {
             Divider()
 
             // Session list
-            if paneManager.panes.isEmpty {
+            if paneManager.sessions.isEmpty {
                 VStack(spacing: 8) {
                     Text("No active sessions")
                         .foregroundColor(.secondary)
@@ -66,17 +66,17 @@ struct HostSidebar: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(selection: Binding(
-                    get: { paneManager.activePaneID },
+                    get: { paneManager.activeSessionID },
                     set: { id in
-                        if let id { paneManager.activePaneID = id }
+                        if let id { paneManager.activeSessionID = id }
                     }
                 )) {
-                    ForEach(paneManager.panes) { pane in
-                        SessionRow(pane: pane)
-                            .tag(pane.id)
+                    ForEach(paneManager.sessions) { session in
+                        SessionRow(session: session)
+                            .tag(session.id)
                             .contextMenu {
                                 Button("Close Session") {
-                                    paneManager.removePane(pane)
+                                    paneManager.removeSession(session)
                                 }
                             }
                     }
@@ -90,18 +90,25 @@ struct HostSidebar: View {
     }
 }
 
-/// Row in the session list showing the pane label.
+/// Row in the session list showing the session label and pane count.
 struct SessionRow: View {
-    let pane: TerminalPaneManager.Pane
+    let session: TerminalPaneManager.Session
 
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(pane.command == nil ? .green : .blue)
+                .fill(session.isLocal ? .green : .blue)
                 .frame(width: 8, height: 8)
-            Text(pane.label)
-                .font(.body)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(session.label)
+                    .font(.body)
+                    .lineLimit(1)
+                if session.panes.count > 1 {
+                    Text("\(session.panes.count) panes")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
         .padding(.vertical, 2)
     }
