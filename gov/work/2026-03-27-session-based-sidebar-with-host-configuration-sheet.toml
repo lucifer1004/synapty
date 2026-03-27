@@ -1,0 +1,43 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-004"
+title = "Session-based sidebar with host configuration sheet"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+refs = ["ADR-0001"]
+
+[content]
+description = "Redesign sidebar from host-list to session-list. Sidebar shows active sessions (connected terminals). Gear button opens host config sheet (add/edit/delete). Plus button shows host picker to open new session. Local is an implicit host always available in picker. Multiple sessions per host allowed."
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Implemented session-based sidebar with gear (host config sheet) and plus (host picker popover) buttons. AddHostSheet supports both add and edit. HostConfigSheet with full CRUD and delete confirmation. ContentView simplified — removed PaneTabBar, sidebar handles session switching. Build and govctl check pass."
+
+[[content.acceptance_criteria]]
+text = "Sidebar shows active sessions, not host list"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Gear button opens host config sheet with add/edit/delete"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Plus button shows host picker popover to create new session"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HostStore.updateHost for editing existing hosts"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

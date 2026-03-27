@@ -42,6 +42,13 @@ class HostStore: ObservableObject {
         save()
     }
 
+    func updateHost(_ host: HostEntry) {
+        if let index = hosts.firstIndex(where: { $0.id == host.id }) {
+            hosts[index] = host
+            save()
+        }
+    }
+
     func removeHost(_ host: HostEntry) {
         hosts.removeAll { $0.id == host.id }
         save()
