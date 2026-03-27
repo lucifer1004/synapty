@@ -4,6 +4,10 @@ struct HostSidebar: View {
     @ObservedObject var hostStore: HostStore
     @State private var showAddHost = false
     @State private var hostToDelete: HostEntry?
+    /// Called when the user taps a remote host row to initiate a connection.
+    var onHostConnect: ((HostEntry) -> Void)?
+    /// Called when the user taps "New Terminal" to open a local shell pane.
+    var onNewLocalPane: (() -> Void)?
 
     var body: some View {
         List {
@@ -12,13 +16,18 @@ struct HostSidebar: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        // V1: opening a new local terminal pane is a future action
+                        onNewLocalPane?()
                     }
             }
 
             Section("Remote Hosts") {
                 ForEach(hostStore.hosts) { host in
                     HostRow(host: host)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onHostConnect?(host)
+                        }
                 }
                 .onDelete { indexSet in
                     for index in indexSet {

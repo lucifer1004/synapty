@@ -3,29 +3,36 @@
 [govctl]
 id = "WI-2026-03-26-011"
 title = "One-click agent deploy"
-status = "queue"
+status = "done"
 created = "2026-03-26"
+started = "2026-03-27"
+completed = "2026-03-27"
 refs = ["ADR-0001"]
 
 [content]
 description = "Wire host click → SSH connect → scp daemon → reverse tunnel → daemon registers with Hub → terminal pane opens showing remote session. Full end-to-end deploy flow from the GUI."
 
+[[content.journal]]
+date = "2026-03-27"
+scope = "deploy"
+content = "One-click deploy implemented. DeployManager builds SSH+scp+reverse-tunnel script. TerminalPaneManager manages multiple panes with tab bar. HostSidebar wired with onHostConnect callback. TerminalSurface updated to accept custom command. All Swift type-checks clean."
+
 [[content.acceptance_criteria]]
 text = "Clicking a host card opens SSH connection using stored credentials"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "Daemon binary is scp'd to remote host"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "SSH reverse tunnel established and daemon registers with Hub"
-status = "pending"
+status = "done"
 category = "added"
 
 [[content.acceptance_criteria]]
 text = "Terminal pane opens showing the remote shell"
-status = "pending"
+status = "done"
 category = "added"

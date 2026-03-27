@@ -16,8 +16,13 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override var acceptsFirstResponder: Bool { true }
 
-    init(ghosttyApp: GhosttyApp) {
+    /// Optional shell command to run inside this surface instead of the default shell.
+    /// Must be set before the surface is added to a window.
+    var command: String?
+
+    init(ghosttyApp: GhosttyApp, command: String? = nil) {
         self.ghosttyApp = ghosttyApp
+        self.command = command
         super.init(frame: .zero)
         wantsLayer = true
     }
@@ -49,7 +54,17 @@ class GhosttyNSView: NSView, NSTextInputClient {
         config.scale_factor = Double(window?.backingScaleFactor ?? 2.0)
         config.context = GHOSTTY_SURFACE_CONTEXT_WINDOW
 
-        surface = ghostty_surface_new(app, &config)
+        // If a command was provided, run it instead of the default shell.
+        // We use withCString so the pointer is valid for the duration of this call.
+        if let cmd = command, !cmd.isEmpty {
+            cmd.withCString { cStr in
+                config.command = cStr
+                surface = ghostty_surface_new(app, &config)
+            }
+        } else {
+            surface = ghostty_surface_new(app, &config)
+        }
+
         if surface == nil {
             print("Failed to create Ghostty surface")
         }
@@ -228,9 +243,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
 /// SwiftUI wrapper for GhosttyNSView.
 struct TerminalView: NSViewRepresentable {
     let ghosttyApp: GhosttyApp
+    /// Optional command to run inside the terminal instead of the default shell.
+    var command: String?
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        return GhosttyNSView(ghosttyApp: ghosttyApp)
+        return GhosttyNSView(ghosttyApp: ghosttyApp, command: command)
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {
