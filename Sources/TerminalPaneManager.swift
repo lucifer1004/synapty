@@ -1,19 +1,26 @@
 import Foundation
 
-/// Manages a three-level hierarchy: Sessions (sidebar) → Panes (tabs).
-/// Each session is connected to a host and contains 1+ terminal panes.
+/// Manages a three-level hierarchy: Sessions (sidebar) → Panes (tabs) → Splits (tree).
+/// Each session is connected to a host. Each pane has a split tree of terminal surfaces.
 class TerminalPaneManager: ObservableObject {
 
     struct Pane: Identifiable {
         let id: UUID
         let label: String
-        /// nil = default shell; non-nil = command string passed to the surface
-        let command: String?
+        /// The host command template, nil for local.
+        let hostCommand: String?
+        /// The split tree root. Starts as a single leaf.
+        var splitRoot: SplitNode
+        /// Which leaf surface is focused within this pane.
+        var focusedLeafID: UUID?
 
         init(label: String, command: String? = nil) {
             self.id = UUID()
             self.label = label
-            self.command = command
+            self.hostCommand = command
+            let leaf = SplitNode.LeafData(command: command)
+            self.splitRoot = .leaf(leaf)
+            self.focusedLeafID = leaf.id
         }
     }
 
@@ -30,14 +37,12 @@ class TerminalPaneManager: ObservableObject {
             return panes.first { $0.id == id }
         }
 
-        /// All panes across all sessions (for ZStack rendering).
         var isLocal: Bool { hostCommand == nil }
 
         init(label: String, hostCommand: String? = nil) {
             self.id = UUID()
             self.label = label
             self.hostCommand = hostCommand
-            // Start with one pane
             let pane = Pane(label: "Shell", command: hostCommand)
             self.panes = [pane]
             self.activePaneID = pane.id
@@ -52,14 +57,23 @@ class TerminalPaneManager: ObservableObject {
         return sessions.first { $0.id == id }
     }
 
-    /// All panes across all sessions — used for the ZStack that keeps surfaces alive.
-    var allPanes: [Pane] {
-        sessions.flatMap { $0.panes }
+    /// The active pane in the active session.
+    var activePane: Pane? {
+        activeSession?.activePane
     }
 
-    /// The currently visible pane (active pane in active session).
-    var visiblePaneID: UUID? {
-        activeSession?.activePaneID
+    /// All leaf IDs across all sessions — used for the ZStack.
+    var allLeaves: [SplitNode.LeafData] {
+        sessions.flatMap { session in
+            session.panes.flatMap { pane in
+                pane.splitRoot.leaves
+            }
+        }
+    }
+
+    /// The currently visible/focused leaf ID.
+    var visibleLeafID: UUID? {
+        activePane?.focusedLeafID
     }
 
     init() {
@@ -91,42 +105,172 @@ class TerminalPaneManager: ObservableObject {
         activeSessionID = session.id
     }
 
-    // MARK: - Pane management (within active session)
+    // MARK: - Pane management
 
     func addPaneToActiveSession() {
-        guard let idx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
-        let session = sessions[idx]
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
+        let session = sessions[sIdx]
         let pane = Pane(label: "Shell \(session.panes.count + 1)", command: session.hostCommand)
-        sessions[idx].panes.append(pane)
-        sessions[idx].activePaneID = pane.id
+        sessions[sIdx].panes.append(pane)
+        sessions[sIdx].activePaneID = pane.id
     }
 
     func removePane(_ pane: Pane) {
-        guard let idx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
-        sessions[idx].panes.removeAll { $0.id == pane.id }
-        if sessions[idx].activePaneID == pane.id {
-            sessions[idx].activePaneID = sessions[idx].panes.last?.id
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
+        sessions[sIdx].panes.removeAll { $0.id == pane.id }
+        if sessions[sIdx].activePaneID == pane.id {
+            sessions[sIdx].activePaneID = sessions[sIdx].panes.last?.id
         }
-        // Remove session if no panes left
-        if sessions[idx].panes.isEmpty {
-            let session = sessions[idx]
+        if sessions[sIdx].panes.isEmpty {
+            let session = sessions[sIdx]
             removeSession(session)
         }
     }
 
     func activatePane(_ pane: Pane) {
-        guard let idx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
-        sessions[idx].activePaneID = pane.id
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }) else { return }
+        sessions[sIdx].activePaneID = pane.id
+    }
+
+    // MARK: - Split management
+
+    /// Split the focused leaf in the active pane.
+    func splitFocusedLeaf(direction: SplitNode.SplitDirection) {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
+              let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
+
+        let command = sessions[sIdx].panes[pIdx].hostCommand
+        let newRoot = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
+            focusedID,
+            direction: direction,
+            newLeafCommand: command
+        )
+        sessions[sIdx].panes[pIdx].splitRoot = newRoot
+
+        // Focus the new leaf (second child of the new split)
+        if case .split(let data) = newRoot {
+            // The new leaf is somewhere in the tree — find the leaf that wasn't there before
+            let oldLeaves = Set(sessions[sIdx].panes[pIdx].splitRoot.leafIDs)
+            // Actually, find it from the new root
+            let newLeaves = newRoot.leafIDs
+            let newLeafID = newLeaves.first { !sessions[sIdx].panes[pIdx].splitRoot.leafIDs.contains($0) }
+            // The splitLeaf method adds the new leaf as second child. Find it by traversal.
+            _ = data // suppress unused warning
+        }
+        // Simpler: the new root has one more leaf than before. Find it.
+        sessions[sIdx].panes[pIdx].splitRoot = newRoot
+        let allLeafIDs = newRoot.leafIDs
+        // The new leaf is the last one added (second child is appended at end in leafIDs)
+        if let newLeafID = allLeafIDs.last, newLeafID != focusedID {
+            sessions[sIdx].panes[pIdx].focusedLeafID = newLeafID
+        }
+    }
+
+    /// Close the focused leaf in the active pane. If it's the last leaf, close the pane.
+    func closeFocusedLeaf() {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
+              let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
+
+        let root = sessions[sIdx].panes[pIdx].splitRoot
+
+        // If it's the only leaf, close the pane
+        if case .leaf = root {
+            let pane = sessions[sIdx].panes[pIdx]
+            removePane(pane)
+            return
+        }
+
+        // Remove the leaf and collapse the parent split
+        if let newRoot = root.removeLeaf(focusedID) {
+            sessions[sIdx].panes[pIdx].splitRoot = newRoot
+            // Focus the first remaining leaf
+            sessions[sIdx].panes[pIdx].focusedLeafID = newRoot.leaves.first?.id
+        }
+    }
+
+    /// Close a specific leaf by ID (called when its process exits).
+    func closeLeaf(_ leafID: UUID) {
+        for sIdx in sessions.indices {
+            for pIdx in sessions[sIdx].panes.indices {
+                let root = sessions[sIdx].panes[pIdx].splitRoot
+                if root.findLeaf(leafID) != nil {
+                    // If it's the only leaf, close the pane
+                    if case .leaf = root {
+                        let pane = sessions[sIdx].panes[pIdx]
+                        sessions[sIdx].panes.removeAll { $0.id == pane.id }
+                        if sessions[sIdx].activePaneID == pane.id {
+                            sessions[sIdx].activePaneID = sessions[sIdx].panes.last?.id
+                        }
+                        if sessions[sIdx].panes.isEmpty {
+                            let session = sessions[sIdx]
+                            sessions.removeAll { $0.id == session.id }
+                            if activeSessionID == session.id {
+                                activeSessionID = sessions.last?.id
+                            }
+                        }
+                        return
+                    }
+                    // Remove the leaf and collapse
+                    if let newRoot = root.removeLeaf(leafID) {
+                        sessions[sIdx].panes[pIdx].splitRoot = newRoot
+                        if sessions[sIdx].panes[pIdx].focusedLeafID == leafID {
+                            sessions[sIdx].panes[pIdx].focusedLeafID = newRoot.leaves.first?.id
+                        }
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    /// Navigate focus to the next/previous split leaf.
+    func focusNextLeaf() {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
+              let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
+
+        let root = sessions[sIdx].panes[pIdx].splitRoot
+        if let nextID = root.nextLeaf(after: focusedID) {
+            sessions[sIdx].panes[pIdx].focusedLeafID = nextID
+        }
+    }
+
+    func focusPreviousLeaf() {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }),
+              let focusedID = sessions[sIdx].panes[pIdx].focusedLeafID else { return }
+
+        let root = sessions[sIdx].panes[pIdx].splitRoot
+        if let prevID = root.previousLeaf(before: focusedID) {
+            sessions[sIdx].panes[pIdx].focusedLeafID = prevID
+        }
+    }
+
+    /// Set focus to a specific leaf (called from surface becomeFirstResponder).
+    func focusLeaf(_ leafID: UUID) {
+        for sIdx in sessions.indices {
+            for pIdx in sessions[sIdx].panes.indices {
+                if sessions[sIdx].panes[pIdx].splitRoot.findLeaf(leafID) != nil {
+                    sessions[sIdx].panes[pIdx].focusedLeafID = leafID
+                    sessions[sIdx].activePaneID = sessions[sIdx].panes[pIdx].id
+                    activeSessionID = sessions[sIdx].id
+                    return
+                }
+            }
+        }
     }
 
     // MARK: - Legacy compatibility
 
-    /// Flat list of all panes — used by old code paths.
-    var panes: [Pane] { allPanes }
+    var panes: [Pane] {
+        sessions.flatMap { $0.panes }
+    }
+
     var activePaneID: UUID? {
-        get { visiblePaneID }
+        get { activeSession?.activePaneID }
         set {
-            // Find which session contains this pane and activate both
             guard let newID = newValue else { return }
             for i in sessions.indices {
                 if sessions[i].panes.contains(where: { $0.id == newID }) {

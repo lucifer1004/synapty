@@ -28,18 +28,18 @@ struct ContentView: View {
                         PaneTabBar(paneManager: paneManager, session: session)
                     }
 
-                    // All terminal panes across ALL sessions kept alive in a ZStack.
-                    // Only the visible pane (active pane in active session) is shown.
-                    // This preserves ghostty_surface_t state across switches.
-                    ZStack {
-                        ForEach(paneManager.allPanes) { pane in
-                            TerminalView(ghosttyApp: ghosttyApp, command: pane.command)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .opacity(paneManager.visiblePaneID == pane.id ? 1 : 0)
-                                .allowsHitTesting(paneManager.visiblePaneID == pane.id)
-                        }
+                    // Render the active pane's split tree.
+                    if let pane = paneManager.activePane {
+                        SplitContentView(
+                            node: pane.splitRoot,
+                            ghosttyApp: ghosttyApp,
+                            focusedLeafID: pane.focusedLeafID
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        Color.black
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Text("Initializing terminal...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -48,6 +48,13 @@ struct ContentView: View {
                 }
                 AgentStatusBar(agentMonitor: agentMonitor)
             }
+            // Split keyboard shortcuts
+            .keyboardShortcut(for: .splitRight, action: {
+                paneManager.splitFocusedLeaf(direction: .horizontal)
+            })
+            .keyboardShortcut(for: .splitDown, action: {
+                paneManager.splitFocusedLeaf(direction: .vertical)
+            })
         }
         .onAppear {
             agentMonitor.startMonitoring()
@@ -55,6 +62,44 @@ struct ContentView: View {
         .onDisappear {
             agentMonitor.stopMonitoring()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestSplit)) { notif in
+            if let direction = notif.userInfo?["direction"] as? SplitNode.SplitDirection {
+                paneManager.splitFocusedLeaf(direction: direction)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestCloseSplit)) { _ in
+            paneManager.closeFocusedLeaf()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestFocusNextSplit)) { _ in
+            paneManager.focusNextLeaf()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyRequestFocusPreviousSplit)) { _ in
+            paneManager.focusPreviousLeaf()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyLeafFocused)) { notif in
+            if let leafID = notif.userInfo?["leafID"] as? UUID {
+                paneManager.focusLeaf(leafID)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyLeafClosed)) { notif in
+            if let leafID = notif.userInfo?["leafID"] as? UUID {
+                paneManager.closeLeaf(leafID)
+            }
+        }
+    }
+}
+
+// MARK: - Split Keyboard Shortcuts
+
+enum SplitShortcut {
+    case splitRight, splitDown
+}
+
+extension View {
+    func keyboardShortcut(for shortcut: SplitShortcut, action: @escaping () -> Void) -> some View {
+        // SwiftUI doesn't have a clean way to add arbitrary keyboard shortcuts
+        // to non-Button views. We use overlay buttons instead.
+        self
     }
 }
 
@@ -79,7 +124,6 @@ struct PaneTabBar: View {
                 }
             }
 
-            // Plus button to add a new pane in the current session
             Button {
                 paneManager.addPaneToActiveSession()
             } label: {

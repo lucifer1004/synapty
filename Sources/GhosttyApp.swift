@@ -11,6 +11,7 @@ class GhosttyApp {
     private(set) var config: ghostty_config_t?
     /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
     var activeSurface: ghostty_surface_t?
+
     /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
     /// result in a single tick() call, so all pending PTY output is processed at
     /// once and rendered in one frame.
@@ -47,7 +48,18 @@ class GhosttyApp {
             // Minimal action handler — just handle close surface for now
             return false
         }
-        runtime.close_surface_cb = { _, _ in }
+        runtime.close_surface_cb = { userdata, _ in
+            // userdata is per-surface: a pointer to UUID (the leaf ID).
+            guard let userdata else { return }
+            let leafID = userdata.assumingMemoryBound(to: UUID.self).pointee
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .synaptyLeafClosed,
+                    object: nil,
+                    userInfo: ["leafID": leafID]
+                )
+            }
+        }
 
         // Clipboard callbacks — required for mouse selection and paste to work.
         // Without write_clipboard_cb, ghostty dereferences a null function pointer

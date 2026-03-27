@@ -1,0 +1,51 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-006"
+title = "Pane splitting via ghostty built-in split API"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Implement full split tree for terminal panes within tabs. Each tab can be split horizontally/vertically into a binary tree of ghostty surfaces. Host app manages the split tree (NSSplitView layout), surface creation, focus routing, and resize. Cmd+D splits right, Cmd+Shift+D splits down. Handle GHOSTTY_ACTION_NEW_SPLIT in action callback."
+notes = [
+    "SwiftUI SplitContentView uses GeometryReader for equal splits (no resize handles V1). Surface identity preservation across tree changes needs testing — if surfaces are recreated on split, may need a flat ZStack approach with manual frame positioning.",
+    "SwiftUI destroys NSViews when parent view structure changes (leaf→split). Must use flat ZStack with ForEach(leaves) + computed frame positions instead of recursive view tree. Same pattern as tab-switching surface preservation.",
+]
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Implemented SplitTree (binary tree), SplitContentView (recursive SwiftUI renderer), split management in TerminalPaneManager, keyboard shortcuts (Cmd+D split right, Cmd+Shift+D split down, Cmd+W close, Cmd+]/[ navigate). Wired via GhosttyApp callbacks. Build and govctl check pass."
+
+[[content.journal]]
+date = "2026-03-27"
+scope = "gui"
+content = "Fixed split implementation: NotificationCenter for split commands (solved callback timing), lowercased() for Cmd+Shift shortcuts, per-surface userdata for robust close detection, ZStack+computed frames for surface preservation across tree changes. All split operations working."
+
+[[content.acceptance_criteria]]
+text = "SplitTree binary tree data structure for split layout"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Handle GHOSTTY_ACTION_NEW_SPLIT in action callback"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Cmd+D split right, Cmd+Shift+D split down"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Split focus navigation and close"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

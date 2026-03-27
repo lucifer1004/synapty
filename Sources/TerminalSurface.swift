@@ -22,11 +22,18 @@ class GhosttyNSView: NSView, NSTextInputClient {
         ghosttyApp?.activeSurface = surface
         if let surface {
             ghostty_surface_set_focus(surface, true)
-            // Reassert display ID on focus to ensure CVDisplayLink is running.
             if let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
                displayID != 0 {
                 ghostty_surface_set_display_id(surface, displayID)
             }
+        }
+        // Notify paneManager of focus change for split navigation
+        if let leafID {
+            NotificationCenter.default.post(
+                name: .synaptyLeafFocused,
+                object: nil,
+                userInfo: ["leafID": leafID]
+            )
         }
         return super.becomeFirstResponder()
     }
@@ -41,10 +48,13 @@ class GhosttyNSView: NSView, NSTextInputClient {
     /// Optional shell command to run inside this surface instead of the default shell.
     /// Must be set before the surface is added to a window.
     var command: String?
+    /// The leaf ID in the split tree, used to update paneManager focus on click.
+    var leafID: UUID?
 
-    init(ghosttyApp: GhosttyApp, command: String? = nil) {
+    init(ghosttyApp: GhosttyApp, command: String? = nil, leafID: UUID? = nil) {
         self.ghosttyApp = ghosttyApp
         self.command = command
+        self.leafID = leafID
         super.init(frame: .zero)
         wantsLayer = true
     }
@@ -95,6 +105,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
         addTrackingArea(area)
     }
 
+    /// Heap-allocated container for leaf ID, passed as ghostty surface userdata.
+    /// Lets close_surface_cb identify which leaf's process exited.
+    private var surfaceUserdata: UnsafeMutablePointer<UUID>?
+
     private func createSurface(app: ghostty_app_t) {
         var config = ghostty_surface_config_new()
         config.platform_tag = GHOSTTY_PLATFORM_MACOS
@@ -106,8 +120,15 @@ class GhosttyNSView: NSView, NSTextInputClient {
         config.scale_factor = Double(window?.backingScaleFactor ?? 2.0)
         config.context = GHOSTTY_SURFACE_CONTEXT_WINDOW
 
+        // Set per-surface userdata so close_surface_cb can identify this leaf.
+        if let leafID {
+            let ptr = UnsafeMutablePointer<UUID>.allocate(capacity: 1)
+            ptr.initialize(to: leafID)
+            surfaceUserdata = ptr
+            config.userdata = UnsafeMutableRawPointer(ptr)
+        }
+
         // If a command was provided, run it instead of the default shell.
-        // We use withCString so the pointer is valid for the duration of this call.
         if let cmd = command, !cmd.isEmpty {
             cmd.withCString { cStr in
                 config.command = cStr
@@ -172,7 +193,8 @@ class GhosttyNSView: NSView, NSTextInputClient {
         // Going through keyDown → ghostty_surface_key doesn't reliably trigger
         // ghostty's keybinding system for key equivalents.
         if event.modifierFlags.contains(.command),
-           let chars = event.charactersIgnoringModifiers {
+           let chars = event.charactersIgnoringModifiers?.lowercased() {
+            let hasShift = event.modifierFlags.contains(.shift)
             switch chars {
             case "c":
                 _ = "copy_to_clipboard".withCString { ptr in
@@ -183,6 +205,46 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 _ = "paste_from_clipboard".withCString { ptr in
                     ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                 }
+                return true
+            case "d":
+                // Cmd+D: split side-by-side, Cmd+Shift+D: split stacked
+                // Cmd+D may be intercepted by macOS on some systems.
+                let direction: SplitNode.SplitDirection = hasShift ? .vertical : .horizontal
+                NotificationCenter.default.post(
+                    name: .synaptyRequestSplit,
+                    object: nil,
+                    userInfo: ["direction": direction]
+                )
+                return true
+            case "\\":
+                // Cmd+\: split side-by-side (reliable alternative)
+                NotificationCenter.default.post(
+                    name: .synaptyRequestSplit,
+                    object: nil,
+                    userInfo: ["direction": SplitNode.SplitDirection.horizontal]
+                )
+                return true
+            case "-":
+                // Cmd+- with shift (Cmd+_): split stacked
+                if hasShift {
+                    NotificationCenter.default.post(
+                        name: .synaptyRequestSplit,
+                        object: nil,
+                        userInfo: ["direction": SplitNode.SplitDirection.vertical]
+                    )
+                    return true
+                }
+            case "w":
+                // Cmd+W: close split (or pane if no splits)
+                NotificationCenter.default.post(name: .synaptyRequestCloseSplit, object: nil)
+                return true
+            case "]":
+                // Cmd+]: focus next split
+                NotificationCenter.default.post(name: .synaptyRequestFocusNextSplit, object: nil)
+                return true
+            case "[":
+                // Cmd+[: focus previous split
+                NotificationCenter.default.post(name: .synaptyRequestFocusPreviousSplit, object: nil)
                 return true
             default:
                 break
@@ -457,6 +519,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
             ghostty_surface_free(surface)
             self.surface = nil
         }
+        if let ptr = surfaceUserdata {
+            ptr.deinitialize(count: 1)
+            ptr.deallocate()
+            surfaceUserdata = nil
+        }
     }
 
     deinit {
@@ -469,13 +536,27 @@ struct TerminalView: NSViewRepresentable {
     let ghosttyApp: GhosttyApp
     /// Optional command to run inside the terminal instead of the default shell.
     var command: String?
+    /// The leaf ID in the split tree for focus tracking.
+    var leafID: UUID?
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        return GhosttyNSView(ghosttyApp: ghosttyApp, command: command)
+        return GhosttyNSView(ghosttyApp: ghosttyApp, command: command, leafID: leafID)
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {
+        nsView.leafID = leafID
     }
+}
+
+// MARK: - Split Notifications
+
+extension Notification.Name {
+    static let synaptyRequestSplit = Notification.Name("synaptyRequestSplit")
+    static let synaptyRequestCloseSplit = Notification.Name("synaptyRequestCloseSplit")
+    static let synaptyRequestFocusNextSplit = Notification.Name("synaptyRequestFocusNextSplit")
+    static let synaptyRequestFocusPreviousSplit = Notification.Name("synaptyRequestFocusPreviousSplit")
+    static let synaptyLeafFocused = Notification.Name("synaptyLeafFocused")
+    static let synaptyLeafClosed = Notification.Name("synaptyLeafClosed")
 }
 
 // MARK: - NSScreen Display ID
