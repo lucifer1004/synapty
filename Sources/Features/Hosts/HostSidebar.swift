@@ -71,7 +71,7 @@ struct HostSidebar: View {
                             .font(.caption)
                     } else {
                         ForEach(paneManager.sessions) { session in
-                            SessionRow(session: session)
+                            SessionRow(session: session, paneManager: paneManager)
                                 .tag(session.id)
                                 .contextMenu {
                                     Button("Close Session") {
@@ -121,24 +121,70 @@ struct HostSidebar: View {
 
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
+    @ObservedObject var paneManager: TerminalPaneManager
+    @State private var isEditing = false
+    @State private var editText = ""
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(session.isLocal ? .green : .blue)
-                .frame(width: 8, height: 8)
+            // Status dot
+            switch session.state {
+            case .connecting:
+                Circle()
+                    .fill(.yellow)
+                    .frame(width: 8, height: 8)
+                    .modifier(PulseAnimation())
+            case .connected:
+                Circle()
+                    .fill(session.isLocal ? .green : .blue)
+                    .frame(width: 8, height: 8)
+            case .failed:
+                Circle()
+                    .fill(.red)
+                    .frame(width: 8, height: 8)
+            }
+
             VStack(alignment: .leading, spacing: 1) {
-                Text(session.label)
+                if isEditing {
+                    TextField("Name", text: $editText, onCommit: {
+                        if !editText.isEmpty {
+                            paneManager.renameSession(session.id, to: editText)
+                        }
+                        isEditing = false
+                    })
+                    .textFieldStyle(.plain)
                     .font(.body)
-                    .lineLimit(1)
+                } else {
+                    HStack(spacing: 4) {
+                        Text(session.label)
+                            .font(.body)
+                            .lineLimit(1)
+                        if case .connecting = session.state {
+                            Text("...")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .onTapGesture(count: 2) {
+                        editText = session.label
+                        isEditing = true
+                    }
+                }
                 if session.panes.count > 1 {
                     Text("\(session.panes.count) panes")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
+                if case .failed(let msg) = session.state {
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.vertical, 2)
+        .opacity(session.state == .connecting ? 0.6 : 1.0)
     }
 }
 

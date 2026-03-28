@@ -17,8 +17,10 @@ struct ContentView: View {
                 tunnelManager: tunnelManager,
                 agentMonitor: agentMonitor,
                 onHostConnect: { host in
+                    // Create placeholder immediately, update when tunnel is ready.
+                    let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
                     tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
-                        paneManager?.addRemoteSession(label: host.label, hostEntry: host, command: result.command, agentID: result.agentID)
+                        paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
                     }
                 },
                 onNewLocalPane: {

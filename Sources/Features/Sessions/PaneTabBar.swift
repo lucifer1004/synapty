@@ -13,7 +13,8 @@ struct PaneTabBar: View {
                             pane: pane,
                             isActive: session.activePaneID == pane.id,
                             onSelect: { paneManager.activatePane(pane) },
-                            onClose: { paneManager.removePane(pane) }
+                            onClose: { paneManager.removePane(pane) },
+                            onRename: { newName in paneManager.renamePane(pane.id, to: newName) }
                         )
                     }
                 }
@@ -39,12 +40,30 @@ struct PaneTab: View {
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onRename: (String) -> Void
+
+    @State private var isEditing = false
+    @State private var editText = ""
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(pane.label)
+            if isEditing {
+                TextField("Name", text: $editText, onCommit: {
+                    if !editText.isEmpty { onRename(editText) }
+                    isEditing = false
+                })
+                .textFieldStyle(.plain)
                 .font(.system(size: 12))
-                .lineLimit(1)
+                .frame(minWidth: 60)
+            } else {
+                Text(pane.label)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .onTapGesture(count: 2) {
+                        editText = pane.label
+                        isEditing = true
+                    }
+            }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")

@@ -32,7 +32,7 @@ import Foundation
 
     struct Pane: Identifiable {
         let id: UUID
-        let label: String
+        var label: String
         /// The host command template, nil for local.
         let hostCommand: String?
         /// The split tree root. Starts as a single leaf.
@@ -50,14 +50,22 @@ import Foundation
         }
     }
 
+    /// Session connection state.
+    enum SessionState: Equatable {
+        case connecting
+        case connected
+        case failed(String)
+    }
+
     struct Session: Identifiable {
         let id: UUID
-        let label: String
+        var label: String
         /// The host entry for remote sessions, nil for local.
         let hostEntry: HostEntry?
         /// The synapty agent ID for this session (e.g., "local-37cb").
-        /// Used to map Hub-registered agents back to their terminal pane.
         let agentID: String?
+        /// Connection state — connecting shows placeholder in sidebar.
+        var state: SessionState
         var panes: [Pane]
         var activePaneID: UUID?
 
@@ -68,11 +76,12 @@ import Foundation
 
         var isLocal: Bool { hostEntry == nil }
 
-        init(label: String, hostEntry: HostEntry? = nil, agentID: String? = nil, initialCommand: String? = nil) {
+        init(label: String, hostEntry: HostEntry? = nil, agentID: String? = nil, state: SessionState = .connected, initialCommand: String? = nil) {
             self.id = UUID()
             self.label = label
             self.hostEntry = hostEntry
             self.agentID = agentID
+            self.state = state
             let pane = Pane(label: "Shell", command: initialCommand)
             self.panes = [pane]
             self.activePaneID = pane.id
@@ -81,18 +90,18 @@ import Foundation
 
     @Published var sessions: [Session] = []
     @Published var activeSessionID: UUID?
+    /// Tracks session count per label prefix for auto-incrementing names.
+    private var labelCounter: [String: Int] = [:]
 
     var activeSession: Session? {
         guard let id = activeSessionID else { return sessions.first }
         return sessions.first { $0.id == id }
     }
 
-    /// The active pane in the active session.
     var activePane: Pane? {
         activeSession?.activePane
     }
 
-    /// All leaf IDs across all sessions — used for the ZStack.
     var allLeaves: [SplitNode.LeafData] {
         sessions.flatMap { session in
             session.panes.flatMap { pane in
@@ -101,29 +110,80 @@ import Foundation
         }
     }
 
-    /// The currently visible/focused leaf ID.
     var visibleLeafID: UUID? {
         activePane?.focusedLeafID
     }
 
-    init() {
-        // Initial local session is created in ContentView.onAppear
-        // after TunnelManager.shared is set.
+    init() {}
+
+    // MARK: - Label generation
+
+    /// Generate an auto-incrementing label: "Local", "Local 2", "Local 3", etc.
+    private func nextLabel(for prefix: String) -> String {
+        let count = (labelCounter[prefix] ?? 0) + 1
+        labelCounter[prefix] = count
+        return count == 1 ? prefix : "\(prefix) \(count)"
     }
 
     // MARK: - Session management
 
     func addLocalSession() {
         let result = TunnelManager.shared?.localCommand()
-        let session = Session(label: "Local", agentID: result?.agentID, initialCommand: result?.command)
+        let label = nextLabel(for: "Local")
+        let session = Session(label: label, agentID: result?.agentID, initialCommand: result?.command)
         sessions.append(session)
         activeSessionID = session.id
     }
 
-    func addRemoteSession(label: String, hostEntry: HostEntry, command: String, agentID: String? = nil) {
-        let session = Session(label: label, hostEntry: hostEntry, agentID: agentID, initialCommand: command)
+    /// Create a remote session immediately in .connecting state, then update when ready.
+    func addRemoteSessionPlaceholder(label: String, hostEntry: HostEntry) -> UUID {
+        let sessionLabel = nextLabel(for: label)
+        let session = Session(label: sessionLabel, hostEntry: hostEntry, state: .connecting)
         sessions.append(session)
         activeSessionID = session.id
+        return session.id
+    }
+
+    /// Update a connecting session to connected with the actual command and agent ID.
+    func connectSession(id: UUID, command: String, agentID: String?) {
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[idx].state = .connected
+        sessions[idx] = Session(
+            label: sessions[idx].label,
+            hostEntry: sessions[idx].hostEntry,
+            agentID: agentID,
+            state: .connected,
+            initialCommand: command
+        )
+        // Preserve the same ID by replacing inline — the UUID changes but that's OK
+        // since we re-assign activeSessionID.
+        activeSessionID = sessions[idx].id
+    }
+
+    /// Mark a connecting session as failed.
+    func failSession(id: UUID, error: String) {
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[idx].state = .failed(error)
+    }
+
+    func addRemoteSession(label: String, hostEntry: HostEntry, command: String, agentID: String? = nil) {
+        let sessionLabel = nextLabel(for: label)
+        let session = Session(label: sessionLabel, hostEntry: hostEntry, agentID: agentID, initialCommand: command)
+        sessions.append(session)
+        activeSessionID = session.id
+    }
+
+    // MARK: - Rename
+
+    func renameSession(_ sessionID: UUID, to newLabel: String) {
+        guard let idx = sessions.firstIndex(where: { $0.id == sessionID }) else { return }
+        sessions[idx].label = newLabel
+    }
+
+    func renamePane(_ paneID: UUID, to newLabel: String) {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == paneID }) else { return }
+        sessions[sIdx].panes[pIdx].label = newLabel
     }
 
     func removeSession(_ session: Session) {

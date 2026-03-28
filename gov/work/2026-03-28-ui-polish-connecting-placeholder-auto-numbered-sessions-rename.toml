@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-013"
+title = "UI polish: connecting placeholder, auto-numbered sessions, rename"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+
+[content]
+description = "Three UI improvements: (1) Show connecting placeholder in sidebar during remote deploy, (2) Auto-increment session labels (Local 2, dev-server 3), (3) Double-click to rename sessions and tabs."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "gui"
+content = "All three UI improvements implemented: (1) Session.state enum with connecting/connected/failed, addRemoteSessionPlaceholder creates placeholder immediately with pulsing yellow dot, connectSession updates on success; (2) labelCounter dict auto-increments session names (Local, Local 2, ...); (3) Double-click-to-rename on SessionRow and PaneTab with inline TextField. Xcode build succeeds."
+
+[[content.acceptance_criteria]]
+text = "Session.state with connecting/connected/failed, placeholder row during setup"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Auto-incrementing session labels per prefix"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Double-click to rename sessions in sidebar and tabs in PaneTabBar"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"
