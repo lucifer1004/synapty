@@ -7,7 +7,7 @@ struct ContentView: View {
     @StateObject private var paneManager = TerminalPaneManager()
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
-    @State private var showHubPopover = false
+    @State private var showHubSheet = false
 
     var body: some View {
         NavigationSplitView {
@@ -49,7 +49,7 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
-                    showHubPopover.toggle()
+                    showHubSheet = true
                 } label: {
                     HStack(spacing: 4) {
                         Circle()
@@ -60,10 +60,10 @@ struct ContentView: View {
                     }
                 }
                 .help("Hub Status")
-                .popover(isPresented: $showHubPopover, arrowEdge: .bottom) {
-                    HubStatusPopover(hubManager: hubManager, agentMonitor: agentMonitor)
-                }
             }
+        }
+        .sheet(isPresented: $showHubSheet) {
+            HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, isPresented: $showHubSheet)
         }
         .onAppear {
             hubManager.ensureRunning()
