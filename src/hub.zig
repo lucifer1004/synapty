@@ -924,6 +924,9 @@ const default_listen_port: u16 = 9000;
 pub const HubServer = struct {
     listener: net.Server,
     state: HubState,
+    /// Tracks spawned client handler threads for clean shutdown.
+    client_threads: std.ArrayList(std.Thread),
+    client_threads_mutex: std.Thread.Mutex,
 
     pub fn init(allocator: Allocator) !HubServer {
         _ = allocator;
@@ -944,12 +947,21 @@ pub const HubServer = struct {
         return .{
             .listener = listener,
             .state = HubState.init(std.heap.page_allocator),
+            .client_threads = std.ArrayList(std.Thread).empty,
+            .client_threads_mutex = .{},
         };
     }
 
     pub fn deinit(self: *HubServer) void {
-        self.state.deinit();
+        // Close listener first to stop accepting new connections.
         self.listener.deinit();
+        // Join all client handler threads (they exit when their stream closes).
+        self.client_threads_mutex.lock();
+        for (self.client_threads.items) |t| t.join();
+        self.client_threads.deinit(std.heap.page_allocator);
+        self.client_threads_mutex.unlock();
+        // Now safe to free shared state.
+        self.state.deinit();
     }
 
     /// Accept connections in a loop, spawning a thread per client.
@@ -957,14 +969,18 @@ pub const HubServer = struct {
         while (true) {
             const conn = try self.listener.accept();
             log.info("accepted connection from {f}", .{conn.address});
-            _ = std.Thread.spawn(.{}, handleClient, .{
+            const thread = std.Thread.spawn(.{}, handleClient, .{
                 &self.state,
                 std.heap.page_allocator,
                 conn.stream,
             }) catch |err| {
                 log.err("failed to spawn handler thread: {any}", .{err});
                 conn.stream.close();
+                continue;
             };
+            self.client_threads_mutex.lock();
+            self.client_threads.append(std.heap.page_allocator, thread) catch {};
+            self.client_threads_mutex.unlock();
         }
     }
 

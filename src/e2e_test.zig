@@ -36,9 +36,8 @@ fn hubRunWrapper(server: *hub.HubServer) void {
 }
 
 fn stopHub(h: TestHub) void {
-    // Give client handler threads time to finish cleanup after their streams close.
-    std.Thread.sleep(50 * std.time.ns_per_ms);
-    // Close listener to unblock accept() — thread exits with ConnectionAborted.
+    // deinit closes listener (unblocks accept), joins all client handler threads,
+    // then frees state — no sleep needed.
     h.server.deinit();
     h.thread.join();
     std.heap.page_allocator.destroy(h.server);
@@ -290,13 +289,18 @@ test "e2e: channel create + send fan-out to members" {
 
         try stream_a.writeAll(raw);
         try stream_a.writeAll("\n");
-        // Read invite response.
+        // Verify invite response has ok=true.
         var buf: [8192]u8 = undefined;
-        _ = readLine(stream_a, &buf, 2000);
-        // Invitee receives channel_event (invited).
+        const invite_resp = readLine(stream_a, &buf, 2000);
+        try std.testing.expect(invite_resp != null);
+        try std.testing.expect(try envelopeOk(alloc, invite_resp.?));
+        // Verify invitee receives channel_event with "invited".
         var inv_buf: [8192]u8 = undefined;
         const inv_stream = if (mem.eql(u8, invitee, "ch-bob")) stream_b else stream_c;
-        _ = readLine(inv_stream, &inv_buf, 2000);
+        const inv_event = readLine(inv_stream, &inv_buf, 2000);
+        try std.testing.expect(inv_event != null);
+        try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"event\":\"invited\"") != null);
+        try std.testing.expect(mem.indexOf(u8, inv_event.?, "test-chan") != null);
     }
 
     // Alice sends a channel message.
@@ -331,5 +335,62 @@ test "e2e: channel create + send fan-out to members" {
         const alice_resp = readLine(stream_a, &alice_buf, 2000);
         try std.testing.expect(alice_resp != null);
         try std.testing.expect(try envelopeOk(alloc, alice_resp.?));
+    }
+}
+
+test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const h = try startHub();
+    defer stopHub(h);
+
+    // Connect "bob" as a raw TCP agent to the Hub.
+    const bob_stream = try connectAndRegister(alloc, h.port, "bob");
+    defer bob_stream.close();
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+
+    // Start a RunServer for "alice" connected to the same Hub.
+    var server = try run.RunServer.init(alloc, "alice", "127.0.0.1", h.port);
+    defer server.deinit();
+    const threads = try server.startThreads();
+    defer server.stopThreads(threads);
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+
+    // Use IPC client to send a DM from alice to bob through the daemon.
+    {
+        var client = try ipc.IpcClient.connect(server.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{
+            .action = .send,
+            .target = "bob",
+            .text = "hello from daemon",
+        });
+        try client.send(req);
+        // Read IPC response — should indicate success.
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+    }
+
+    // Bob should have received the DM via the Hub.
+    var bob_buf: [8192]u8 = undefined;
+    const bob_msg = readLine(bob_stream, &bob_buf, 2000);
+    try std.testing.expect(bob_msg != null);
+    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello from daemon") != null);
+    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"source\":\"alice\"") != null);
+
+    // Use IPC client to list agents — should see both alice and bob.
+    {
+        var client = try ipc.IpcClient.connect(server.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{ .action = .agents });
+        try client.send(req);
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 }
