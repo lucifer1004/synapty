@@ -3,9 +3,7 @@ import SwiftUI
 struct PaneTabBar: View {
     @ObservedObject var paneManager: TerminalPaneManager
     let session: TerminalPaneManager.Session
-    @State private var showRenameAlert = false
-    @State private var renamePaneID: UUID?
-    @State private var renameText = ""
+    @State private var editingPaneID: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -15,14 +13,14 @@ struct PaneTabBar: View {
                         PaneTab(
                             pane: pane,
                             isActive: session.activePaneID == pane.id,
+                            editingPaneID: $editingPaneID,
                             onSelect: { paneManager.activatePane(pane) },
-                            onClose: { paneManager.removePane(pane) }
+                            onClose: { paneManager.removePane(pane) },
+                            onRename: { newName in paneManager.renamePane(pane.id, to: newName) }
                         )
                         .contextMenu {
-                            Button("Rename...") {
-                                renamePaneID = pane.id
-                                renameText = pane.label
-                                showRenameAlert = true
+                            Button("Rename") {
+                                editingPaneID = pane.id
                             }
                             Divider()
                             Button("Close Tab") {
@@ -45,29 +43,46 @@ struct PaneTabBar: View {
         }
         .frame(height: 30)
         .background(Color(NSColor.windowBackgroundColor))
-        .alert("Rename Tab", isPresented: $showRenameAlert) {
-            TextField("Tab name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Rename") {
-                if let id = renamePaneID, !renameText.isEmpty {
-                    paneManager.renamePane(id, to: renameText)
-                }
-            }
-        }
     }
 }
 
 struct PaneTab: View {
     let pane: TerminalPaneManager.Pane
     let isActive: Bool
+    @Binding var editingPaneID: UUID?
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onRename: (String) -> Void
+
+    @State private var editText = ""
+    @FocusState private var isTextFieldFocused: Bool
+
+    private var isEditing: Bool { editingPaneID == pane.id }
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(pane.label)
-                .font(.system(size: 12))
-                .lineLimit(1)
+            if isEditing {
+                TextField("Name", text: $editText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .frame(minWidth: 50)
+                    .focused($isTextFieldFocused)
+                    .onAppear {
+                        editText = pane.label
+                        DispatchQueue.main.async {
+                            isTextFieldFocused = true
+                        }
+                    }
+                    .onSubmit {
+                        if !editText.isEmpty { onRename(editText) }
+                        editingPaneID = nil
+                    }
+                    .onExitCommand { editingPaneID = nil }
+            } else {
+                Text(pane.label)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+            }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
