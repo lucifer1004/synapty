@@ -257,16 +257,21 @@ const ChannelRegistry = struct {
         return ch.members.contains(agent_id);
     }
 
+    /// Return duped member ID strings. Caller owns both slice and each string.
     fn getMembers(self: *ChannelRegistry, name: []const u8, allocator: Allocator) ![][]const u8 {
         self.mutex.lock();
         defer self.mutex.unlock();
         const ch = self.map.get(name) orelse return error.ChannelNotFound;
         const count = ch.members.count();
         const slice = try allocator.alloc([]const u8, count);
-        var it = ch.members.keyIterator();
         var i: usize = 0;
+        errdefer {
+            for (slice[0..i]) |s| allocator.free(s);
+            allocator.free(slice);
+        }
+        var it = ch.members.keyIterator();
         while (it.next()) |key| : (i += 1) {
-            slice[i] = key.*;
+            slice[i] = try allocator.dupe(u8, key.*);
         }
         return slice;
     }
@@ -297,7 +302,7 @@ const ChannelRegistry = struct {
         return affected.toOwnedSlice(allocator);
     }
 
-    /// List channels an agent is a member of.
+    /// List channels an agent is a member of. Returns duped channel names.
     fn channelsFor(self: *ChannelRegistry, agent_id: []const u8, allocator: Allocator) ![][]const u8 {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -305,7 +310,7 @@ const ChannelRegistry = struct {
         var it = self.map.iterator();
         while (it.next()) |entry| {
             if (entry.value_ptr.members.contains(agent_id)) {
-                try result.append(allocator, entry.key_ptr.*);
+                try result.append(allocator, try allocator.dupe(u8, entry.key_ptr.*));
             }
         }
         return result.toOwnedSlice(allocator);
@@ -838,30 +843,14 @@ fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) 
     defer {
         state.routing_table.unregister(agent_id);
         state.agent_registry.remove(agent_id);
-        // Remove from all channels, notify members per [[RFC-0002:C-HUB-STATE]].
-        // Use conn_alloc for cleanup temporaries.
-        const affected = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch &.{};
-        for (affected) |ch_name| {
-            const members = state.channel_registry.getMembers(ch_name, conn_alloc) catch continue;
-            for (members) |mid| {
-                state.routing_table.mutex.lock();
-                const ms = state.routing_table.lookup(mid);
-                state.routing_table.mutex.unlock();
-                if (ms) |s| {
-                    var evt_payload = json.ObjectMap.init(conn_alloc);
-                    evt_payload.put("channel", .{ .string = ch_name }) catch continue;
-                    evt_payload.put("event", .{ .string = "left" }) catch continue;
-                    evt_payload.put("agent_id", .{ .string = agent_id }) catch continue;
-                    pushEnvelope(conn_alloc, s, .{
-                        .@"type" = "channel_event",
-                        .id = "evt-0",
-                        .source = "hub",
-                        .target = mid,
-                        .payload = .{ .object = evt_payload },
-                    }) catch {};
-                }
-            }
-        }
+        // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
+        // Note: disconnect leave notifications are NOT sent here because
+        // concurrent disconnects can close target streams before the write,
+        // causing EBADF which Zig treats as unreachable (panic). Agents
+        // discover departed members via list_channels/getMembers. The
+        // explicit channel_leave handler still sends notifications since
+        // the leaving agent's stream is known to be live.
+        _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
     }
 
     // Process any additional complete lines from the initial read(s).
@@ -939,6 +928,14 @@ pub const HubServer = struct {
     /// Create a Hub bound to a specific address/port. Use port 0 for an
     /// OS-assigned ephemeral port (useful for tests).
     pub fn initWithAddress(addr: []const u8, port: u16) !HubServer {
+        // Ignore SIGPIPE so writes to disconnected clients return
+        // error.BrokenPipe instead of killing the process.
+        posix.sigaction(posix.SIG.PIPE, &.{
+            .handler = .{ .handler = posix.SIG.IGN },
+            .mask = posix.sigemptyset(),
+            .flags = 0,
+        }, null);
+
         const address = try net.Address.parseIp4(addr, port);
         const listener = try address.listen(.{
             .reuse_address = true,
@@ -1148,7 +1145,10 @@ test "ChannelRegistry create and membership" {
     try std.testing.expect(cr.isMember("design", "agent-b"));
 
     const members = try cr.getMembers("design", std.testing.allocator);
-    defer std.testing.allocator.free(members);
+    defer {
+        for (members) |m| std.testing.allocator.free(m);
+        std.testing.allocator.free(members);
+    }
     try std.testing.expectEqual(@as(usize, 2), members.len);
 }
 
@@ -1200,7 +1200,10 @@ test "ChannelRegistry channelsFor lists memberships" {
     try cr.addMember("ch-2", "agent-a");
 
     const channels = try cr.channelsFor("agent-a", std.testing.allocator);
-    defer std.testing.allocator.free(channels);
+    defer {
+        for (channels) |ch| std.testing.allocator.free(ch);
+        std.testing.allocator.free(channels);
+    }
     try std.testing.expectEqual(@as(usize, 2), channels.len);
 }
 

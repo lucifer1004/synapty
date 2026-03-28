@@ -466,23 +466,28 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
     {
         const deadline = std.time.milliTimestamp() + 2000;
         var found = false;
+        // Per-retry arena — reset each iteration so parse allocations don't accumulate.
+        var retry_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer retry_arena.deinit();
         while (std.time.milliTimestamp() < deadline) {
+            _ = retry_arena.reset(.retain_capacity);
+            const retry_alloc = retry_arena.allocator();
             // Scoped block ensures IPC client is closed each iteration.
             {
                 var client = try ipc.IpcClient.connect(server.socket_path);
                 defer client.deinit();
-                const req = try protocol.serializeIpcRequest(alloc, .{ .action = .recv });
+                const req = try protocol.serializeIpcRequest(retry_alloc, .{ .action = .recv });
                 try client.send(req);
                 var resp_buf: [16384]u8 = undefined;
                 const resp_line = try client.recv(&resp_buf);
                 if (resp_line) |resp_str| {
                     // Parse the IPC data field (a JSON array of raw message strings).
-                    const data = parseIpcData(alloc, resp_str) catch continue;
+                    const data = parseIpcData(retry_alloc, resp_str) catch continue;
                     if (data != .array) continue;
                     for (data.array.items) |msg_val| {
                         if (msg_val != .string) continue;
                         // Parse each queued message as an envelope.
-                        const env = json.parseFromSlice(json.Value, alloc, msg_val.string, .{ .allocate = .alloc_always }) catch continue;
+                        const env = json.parseFromSlice(json.Value, retry_alloc, msg_val.string, .{ .allocate = .alloc_always }) catch continue;
                         if (env.value != .object) continue;
                         const source = env.value.object.get("source") orelse continue;
                         const payload = env.value.object.get("payload") orelse continue;
