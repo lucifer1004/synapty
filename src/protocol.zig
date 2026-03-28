@@ -7,27 +7,45 @@ const Allocator = mem.Allocator;
 // A2A JSON Routing Envelope
 // ---------------------------------------------------------------------------
 
-/// Top-level message types flowing over the WebSocket control plane.
+/// Top-level message types per [[RFC-0002:C-MESSAGE-TYPES]].
 pub const MessageType = enum {
+    // Session lifecycle
     register,
-    a2a_request,
-    a2a_response,
+    agent_update,
+    // Direct messages
+    dm,
+    // Group chat
+    channel_create,
+    channel_invite,
+    channel_leave,
+    channel_msg,
+    channel_event,
+    // Queries
     list_agents,
+    list_channels,
+    // Responses
+    response,
 
     pub fn toString(self: MessageType) []const u8 {
         return switch (self) {
             .register => "register",
-            .a2a_request => "a2a_request",
-            .a2a_response => "a2a_response",
+            .agent_update => "agent_update",
+            .dm => "dm",
+            .channel_create => "channel_create",
+            .channel_invite => "channel_invite",
+            .channel_leave => "channel_leave",
+            .channel_msg => "channel_msg",
+            .channel_event => "channel_event",
             .list_agents => "list_agents",
+            .list_channels => "list_channels",
+            .response => "response",
         };
     }
 
     pub fn fromString(s: []const u8) ?MessageType {
-        if (mem.eql(u8, s, "register")) return .register;
-        if (mem.eql(u8, s, "a2a_request")) return .a2a_request;
-        if (mem.eql(u8, s, "a2a_response")) return .a2a_response;
-        if (mem.eql(u8, s, "list_agents")) return .list_agents;
+        inline for (@typeInfo(MessageType).@"enum".fields) |f| {
+            if (mem.eql(u8, s, f.name)) return @enumFromInt(f.value);
+        }
         return null;
     }
 };
@@ -74,17 +92,19 @@ pub fn parseEnvelope(allocator: Allocator, raw: []const u8) !json.Parsed(Envelop
 // IPC types (unix socket communication between CLI and daemon)
 // ---------------------------------------------------------------------------
 
+/// IPC actions per [[RFC-0002:C-CLI-MCP]].
 pub const IpcAction = enum {
     send,
     recv,
     agents,
+    register,
+    channel_create,
+    channel_invite,
+    channel_leave,
+    channel_list,
 
     pub fn jsonStringify(self: IpcAction, jw: anytype) !void {
-        try jw.write(switch (self) {
-            .send => "send",
-            .recv => "recv",
-            .agents => "agents",
-        });
+        try jw.write(@tagName(self));
     }
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: json.ParseOptions) !IpcAction {
@@ -99,17 +119,27 @@ pub const IpcAction = enum {
             .allocated_string => |sl| sl,
             else => return error.UnexpectedToken,
         };
-        if (mem.eql(u8, str, "send")) return .send;
-        if (mem.eql(u8, str, "recv")) return .recv;
-        if (mem.eql(u8, str, "agents")) return .agents;
+        inline for (@typeInfo(IpcAction).@"enum".fields) |f| {
+            if (mem.eql(u8, str, f.name)) return @enumFromInt(f.value);
+        }
         return error.InvalidEnumTag;
     }
 };
 
+/// IPC request per [[RFC-0002:C-CLI-MCP]] — fields are action-specific.
 pub const IpcRequest = struct {
     action: IpcAction,
+    // send
     target: ?[]const u8 = null,
-    payload: ?[]const u8 = null,
+    text: ?[]const u8 = null,
+    // register (agent_update)
+    tool: ?[]const u8 = null,
+    project: ?[]const u8 = null,
+    session: ?[]const u8 = null,
+    // channel_create / channel_invite / channel_leave / channel_list
+    channel: ?[]const u8 = null,
+    agent_id: ?[]const u8 = null,
+    description: ?[]const u8 = null,
 };
 
 pub const IpcResponse = struct {
@@ -206,10 +236,19 @@ pub fn parseOsc99(data: []const u8) ?struct { agent_id: []const u8, status: []co
 // ---------------------------------------------------------------------------
 
 test "MessageType round-trip" {
-    const t = MessageType.a2a_request;
+    const t = MessageType.dm;
     const s = t.toString();
     const back = MessageType.fromString(s);
-    try std.testing.expectEqual(MessageType.a2a_request, back.?);
+    try std.testing.expectEqual(MessageType.dm, back.?);
+}
+
+test "MessageType all variants round-trip" {
+    inline for (@typeInfo(MessageType).@"enum".fields) |f| {
+        const mt: MessageType = @enumFromInt(f.value);
+        const s = mt.toString();
+        const back = MessageType.fromString(s);
+        try std.testing.expectEqual(mt, back.?);
+    }
 }
 
 test "parseOsc99 valid" {
@@ -230,19 +269,11 @@ test "makeRegisterEnvelope fields" {
     try std.testing.expectEqualStrings("my-agent", env.source);
 }
 
-test "MessageType list_agents round-trip" {
-    const t = MessageType.list_agents;
-    const s = t.toString();
-    try std.testing.expectEqualStrings("list_agents", s);
-    const back = MessageType.fromString(s);
-    try std.testing.expectEqual(MessageType.list_agents, back.?);
-}
-
 test "IpcRequest send round-trip" {
     const req = IpcRequest{
         .action = .send,
         .target = "agent-b",
-        .payload = "hello",
+        .text = "hello",
     };
     const serialized = try serializeIpcRequest(std.testing.allocator, req);
     defer std.testing.allocator.free(serialized);
@@ -252,7 +283,43 @@ test "IpcRequest send round-trip" {
 
     try std.testing.expectEqual(IpcAction.send, parsed.value.action);
     try std.testing.expectEqualStrings("agent-b", parsed.value.target.?);
-    try std.testing.expectEqualStrings("hello", parsed.value.payload.?);
+    try std.testing.expectEqualStrings("hello", parsed.value.text.?);
+}
+
+test "IpcRequest register round-trip" {
+    const req = IpcRequest{
+        .action = .register,
+        .tool = "codex",
+        .project = "/path/to/project",
+        .session = "auth refactor",
+    };
+    const serialized = try serializeIpcRequest(std.testing.allocator, req);
+    defer std.testing.allocator.free(serialized);
+
+    var parsed = try parseIpcRequest(std.testing.allocator, serialized);
+    defer parsed.deinit();
+
+    try std.testing.expectEqual(IpcAction.register, parsed.value.action);
+    try std.testing.expectEqualStrings("codex", parsed.value.tool.?);
+    try std.testing.expectEqualStrings("/path/to/project", parsed.value.project.?);
+    try std.testing.expectEqualStrings("auth refactor", parsed.value.session.?);
+}
+
+test "IpcRequest channel_create round-trip" {
+    const req = IpcRequest{
+        .action = .channel_create,
+        .channel = "design-review",
+        .description = "Auth module redesign",
+    };
+    const serialized = try serializeIpcRequest(std.testing.allocator, req);
+    defer std.testing.allocator.free(serialized);
+
+    var parsed = try parseIpcRequest(std.testing.allocator, serialized);
+    defer parsed.deinit();
+
+    try std.testing.expectEqual(IpcAction.channel_create, parsed.value.action);
+    try std.testing.expectEqualStrings("design-review", parsed.value.channel.?);
+    try std.testing.expectEqualStrings("Auth module redesign", parsed.value.description.?);
 }
 
 test "IpcRequest recv round-trip" {
@@ -265,7 +332,7 @@ test "IpcRequest recv round-trip" {
 
     try std.testing.expectEqual(IpcAction.recv, parsed.value.action);
     try std.testing.expect(parsed.value.target == null);
-    try std.testing.expect(parsed.value.payload == null);
+    try std.testing.expect(parsed.value.text == null);
 }
 
 test "IpcRequest agents round-trip" {

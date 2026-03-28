@@ -1,0 +1,52 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-004"
+title = "Implement RFC-0002: A2A Messaging Protocol"
+status = "active"
+created = "2026-03-28"
+started = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+description = "Implement the IM-style messaging protocol per RFC-0002: agent registration with metadata, DM, group chat channels, Hub as stateless router + logger, CLI/MCP tools."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "protocol,hub,run,mcp"
+content = "Implemented core RFC-0002 protocol: new message types (dm, channel_*, agent_update, response) in protocol.zig; Hub rewritten with AgentRegistry, ChannelRegistry, MessageLog, and full message dispatch; daemon IPC handlers for all new actions; MCP tools for register, channel_create/invite/leave/list. All tests pass, govctl check passes."
+
+[[content.acceptance_criteria]]
+text = "protocol.zig — new message types (dm, channel_*, agent_update, response)"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hub.zig — agent registry, channel registry, global message log, DM/channel routing"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "run.zig — new IPC actions (register, channel_*, recv with structured messages)"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "cli.zig — register, channel subcommands, structured agents/recv output"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "mcp.zig — new MCP tools (synapty_register, synapty_channel_*)"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "pending"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "pending"
+category = "chore"

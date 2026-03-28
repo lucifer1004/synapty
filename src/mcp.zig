@@ -129,8 +129,18 @@ fn handleToolsList(allocator: Allocator, id: json.Value) ![]const u8 {
     const id_str = try jsonValueToString(allocator, id);
     defer allocator.free(id_str);
 
+    // MCP tools per [[RFC-0002:C-CLI-MCP]].
     return std.fmt.allocPrint(allocator,
-        \\{{"jsonrpc":"2.0","id":{s},"result":{{"tools":[{{"name":"synapty_send","description":"Send a message to another agent registered with Synapty Hub","inputSchema":{{"type":"object","properties":{{"target":{{"type":"string","description":"Target agent ID"}},"payload":{{"type":"string","description":"JSON message payload"}}}},"required":["target","payload"]}}}},{{"name":"synapty_recv","description":"Receive pending messages from other agents","inputSchema":{{"type":"object","properties":{{}}}}}},{{"name":"synapty_agents","description":"List all agents currently registered with Synapty Hub","inputSchema":{{"type":"object","properties":{{}}}}}}]}}}}
+        \\{{"jsonrpc":"2.0","id":{s},"result":{{"tools":[
+        \\{{"name":"synapty_send","description":"Send a DM or channel message","inputSchema":{{"type":"object","properties":{{"target":{{"type":"string","description":"Agent ID for DM, or channel:<name> for group"}},"text":{{"type":"string","description":"Message text"}}}},"required":["target","text"]}}}},
+        \\{{"name":"synapty_recv","description":"Receive pending messages","inputSchema":{{"type":"object","properties":{{}}}}}},
+        \\{{"name":"synapty_agents","description":"List registered agents with metadata","inputSchema":{{"type":"object","properties":{{}}}}}},
+        \\{{"name":"synapty_register","description":"Register agent identity with metadata","inputSchema":{{"type":"object","properties":{{"tool":{{"type":"string","description":"Agent platform: claude, codex, gemini, human"}},"project":{{"type":"string","description":"Project path"}},"session":{{"type":"string","description":"Session summary"}}}},"required":["tool"]}}}},
+        \\{{"name":"synapty_channel_create","description":"Create a group chat channel","inputSchema":{{"type":"object","properties":{{"name":{{"type":"string","description":"Channel name"}},"description":{{"type":"string","description":"Channel description"}}}},"required":["name"]}}}},
+        \\{{"name":"synapty_channel_invite","description":"Invite an agent to a channel","inputSchema":{{"type":"object","properties":{{"channel":{{"type":"string","description":"Channel name"}},"agent_id":{{"type":"string","description":"Agent to invite"}}}},"required":["channel","agent_id"]}}}},
+        \\{{"name":"synapty_channel_leave","description":"Leave a channel","inputSchema":{{"type":"object","properties":{{"channel":{{"type":"string","description":"Channel name"}}}},"required":["channel"]}}}},
+        \\{{"name":"synapty_channel_list","description":"List channels you are a member of","inputSchema":{{"type":"object","properties":{{}}}}}}
+        \\]}}}}
     , .{id_str});
 }
 
@@ -152,16 +162,38 @@ fn handleToolsCall(allocator: Allocator, socket_path: ?[]const u8, id: json.Valu
         if (mem.eql(u8, tool_name, "synapty_send")) {
             const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const target_val = args_obj.get("target") orelse return buildErrorResponse(allocator, id, -32602, "Missing target");
-            const payload_val = args_obj.get("payload") orelse return buildErrorResponse(allocator, id, -32602, "Missing payload");
+            const text_val = args_obj.get("text") orelse return buildErrorResponse(allocator, id, -32602, "Missing text");
             break :blk .{
                 .action = .send,
                 .target = target_val.string,
-                .payload = payload_val.string,
+                .text = text_val.string,
             };
         } else if (mem.eql(u8, tool_name, "synapty_recv")) {
             break :blk .{ .action = .recv };
         } else if (mem.eql(u8, tool_name, "synapty_agents")) {
             break :blk .{ .action = .agents };
+        } else if (mem.eql(u8, tool_name, "synapty_register")) {
+            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const tool_val = args_obj.get("tool") orelse return buildErrorResponse(allocator, id, -32602, "Missing tool");
+            const proj = if (args_obj.get("project")) |v| v.string else null;
+            const sess = if (args_obj.get("session")) |v| v.string else null;
+            break :blk .{ .action = .register, .tool = tool_val.string, .project = proj, .session = sess };
+        } else if (mem.eql(u8, tool_name, "synapty_channel_create")) {
+            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const name_v = args_obj.get("name") orelse return buildErrorResponse(allocator, id, -32602, "Missing name");
+            const desc = if (args_obj.get("description")) |v| v.string else null;
+            break :blk .{ .action = .channel_create, .channel = name_v.string, .description = desc };
+        } else if (mem.eql(u8, tool_name, "synapty_channel_invite")) {
+            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
+            const aid = args_obj.get("agent_id") orelse return buildErrorResponse(allocator, id, -32602, "Missing agent_id");
+            break :blk .{ .action = .channel_invite, .channel = ch.string, .agent_id = aid.string };
+        } else if (mem.eql(u8, tool_name, "synapty_channel_leave")) {
+            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
+            break :blk .{ .action = .channel_leave, .channel = ch.string };
+        } else if (mem.eql(u8, tool_name, "synapty_channel_list")) {
+            break :blk .{ .action = .channel_list };
         } else {
             return buildErrorResponse(allocator, id, -32602, "Unknown tool");
         }
@@ -381,7 +413,7 @@ test "handleRequest: unknown method returns JSON-RPC error -32601" {
 test "handleRequest: tools/call without SYNAPTY_SOCK returns error" {
     const allocator = std.testing.allocator;
     const line =
-        \\{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":"agent-b","payload":"hello"}}}
+        \\{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":"agent-b","text":"hello"}}}
     ;
     const resp = try handleRequest(allocator, null, line);
     defer if (resp) |r| allocator.free(r);
@@ -416,14 +448,14 @@ test "handleRequest: tools/call synapty_send builds correct IPC request" {
             defer parsed.deinit();
             try std.testing.expectEqual(protocol.IpcAction.send, parsed.value.action);
             try std.testing.expectEqualStrings("agent-b", parsed.value.target.?);
-            try std.testing.expectEqualStrings("hello", parsed.value.payload.?);
+            try std.testing.expectEqualStrings("hello", parsed.value.text.?);
             // Respond with success
             try ipc.IpcServer.writeLine(conn, "{\"success\":true,\"data\":\"delivered\"}");
         }
     }.serve, .{ &server, allocator });
 
     const line =
-        \\{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":"agent-b","payload":"hello"}}}
+        \\{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":"agent-b","text":"hello"}}}
     ;
     const resp = try handleRequest(allocator, sock_path, line);
     defer if (resp) |r| allocator.free(r);

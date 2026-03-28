@@ -168,7 +168,7 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
         const req = try protocol.serializeIpcRequest(allocator, .{
             .action = .send,
             .target = args.target,
-            .payload = args.payload,
+            .text = args.payload,
         });
         defer allocator.free(req);
         try client.send(req);
@@ -188,13 +188,15 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
     const stream = try connectAndRegister(allocator, source_id);
     defer stream.close();
 
-    // Build the A2A request envelope.
+    // Build the DM envelope per [[RFC-0002:C-DM]].
+    var payload_obj = json.ObjectMap.init(allocator);
+    try payload_obj.put("text", .{ .string = args.payload });
     const envelope = protocol.Envelope{
-        .@"type" = "a2a_request",
+        .@"type" = "dm",
         .id = "send-0",
         .source = source_id,
         .target = args.target,
-        .payload = json.Value{ .string = args.payload },
+        .payload = .{ .object = payload_obj },
     };
     const raw = try protocol.serializeEnvelope(allocator, envelope);
     defer allocator.free(raw);
@@ -428,13 +430,13 @@ test "register envelope has correct fields for agent-id" {
 
 test "send envelope has correct source/target/payload fields" {
     const envelope = protocol.Envelope{
-        .@"type" = "a2a_request",
+        .@"type" = "dm",
         .id = "send-0",
         .source = "cli-src",
         .target = "agent-b",
         .payload = json.Value{ .string = "hello" },
     };
-    try std.testing.expectEqualStrings("a2a_request", envelope.@"type");
+    try std.testing.expectEqualStrings("dm", envelope.@"type");
     try std.testing.expectEqualStrings("cli-src", envelope.source);
     try std.testing.expectEqualStrings("agent-b", envelope.target);
     try std.testing.expectEqualStrings("hello", envelope.payload.string);

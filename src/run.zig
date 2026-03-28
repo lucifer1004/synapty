@@ -236,13 +236,16 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 try ipc.IpcServer.writeLine(client_stream, resp_raw);
                 return;
             };
-            const payload_str = req.payload orelse "";
+            const text_str = req.text orelse "";
+            // Build DM envelope per [[RFC-0002:C-DM]].
+            var payload_obj = json.ObjectMap.init(alloc);
+            try payload_obj.put("text", .{ .string = text_str });
             const envelope = protocol.Envelope{
-                .@"type" = "a2a_request",
+                .@"type" = "dm",
                 .id = "run-send-0",
                 .source = srv.agent_id,
                 .target = target,
-                .payload = json.Value{ .string = payload_str },
+                .payload = .{ .object = payload_obj },
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
             _ = try srv.hub_stream.write(raw);
@@ -274,7 +277,60 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
             _ = try srv.hub_stream.write(raw);
+            _ = try srv.hub_stream.write("\n");
             // Best-effort read response.
+            var resp_buf: [64 * 1024]u8 = undefined;
+            const n = srv.hub_stream.read(&resp_buf) catch 0;
+            const data: ?[]const u8 = if (n > 0) resp_buf[0..n] else null;
+            const resp = protocol.IpcResponse{ .success = true, .data = data };
+            const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
+            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+        },
+        .register => {
+            // Forward agent_update to Hub per [[RFC-0002:C-AGENT-IDENTITY]].
+            var payload_obj = json.ObjectMap.init(alloc);
+            if (req.tool) |t| try payload_obj.put("tool", .{ .string = t });
+            if (req.project) |p| try payload_obj.put("project", .{ .string = p });
+            if (req.session) |s| try payload_obj.put("session", .{ .string = s });
+            const envelope = protocol.Envelope{
+                .@"type" = "agent_update",
+                .id = "run-register-0",
+                .source = srv.agent_id,
+                .target = "hub",
+                .payload = .{ .object = payload_obj },
+            };
+            const raw = try protocol.serializeEnvelope(alloc, envelope);
+            _ = try srv.hub_stream.write(raw);
+            _ = try srv.hub_stream.write("\n");
+            const resp = protocol.IpcResponse{ .success = true };
+            const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
+            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+        },
+        .channel_create, .channel_invite, .channel_leave, .channel_list => {
+            // Forward channel commands to Hub per [[RFC-0002:C-GROUP-CHAT]].
+            const msg_type: []const u8 = switch (req.action) {
+                .channel_create => "channel_create",
+                .channel_invite => "channel_invite",
+                .channel_leave => "channel_leave",
+                .channel_list => "list_channels",
+                else => unreachable,
+            };
+            var payload_obj = json.ObjectMap.init(alloc);
+            if (req.channel) |ch| try payload_obj.put("channel", .{ .string = ch });
+            if (req.agent_id) |aid| try payload_obj.put("agent_id", .{ .string = aid });
+            if (req.description) |d| try payload_obj.put("description", .{ .string = d });
+            if (req.channel) |name| try payload_obj.put("name", .{ .string = name });
+            const envelope = protocol.Envelope{
+                .@"type" = msg_type,
+                .id = "run-channel-0",
+                .source = srv.agent_id,
+                .target = "hub",
+                .payload = .{ .object = payload_obj },
+            };
+            const raw = try protocol.serializeEnvelope(alloc, envelope);
+            _ = try srv.hub_stream.write(raw);
+            _ = try srv.hub_stream.write("\n");
+            // Read Hub response.
             var resp_buf: [64 * 1024]u8 = undefined;
             const n = srv.hub_stream.read(&resp_buf) catch 0;
             const data: ?[]const u8 = if (n > 0) resp_buf[0..n] else null;
