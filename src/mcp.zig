@@ -87,15 +87,27 @@ pub fn handleRequest(allocator: Allocator, socket_path: ?[]const u8, line: []con
     const parsed = try json.parseFromSlice(json.Value, allocator, line, .{ .allocate = .alloc_always });
     defer parsed.deinit();
 
-    const obj = parsed.value.object;
+    const obj = if (parsed.value == .object) parsed.value.object else {
+        // Non-object JSON — return JSON-RPC invalid request with null id.
+        return @as(?[]const u8, try std.fmt.allocPrint(allocator,
+            \\{{"jsonrpc":"2.0","id":null,"error":{{"code":-32600,"message":"Invalid Request"}}}}
+        , .{}));
+    };
 
-    const method_val = obj.get("method") orelse return error.MissingMethod;
-    const method = method_val.string;
+    // Extract id early so we can return error responses for malformed requests.
+    const id_val = obj.get("id");
+
+    const method_val = obj.get("method") orelse {
+        if (id_val) |id| return @as(?[]const u8, try buildErrorResponse(allocator, id, -32600, "Missing method"));
+        return null;
+    };
+    const method = if (method_val == .string) method_val.string else {
+        if (id_val) |id| return @as(?[]const u8, try buildErrorResponse(allocator, id, -32600, "Invalid method type"));
+        return null;
+    };
 
     // Notifications have no "id" — do not respond.
-    const id_val = obj.get("id");
     if (id_val == null) {
-        // It's a notification; silently ignore.
         return null;
     }
 
@@ -150,48 +162,50 @@ fn handleToolsCall(allocator: Allocator, socket_path: ?[]const u8, id: json.Valu
     defer allocator.free(id_str);
 
     const p = params orelse return buildErrorResponse(allocator, id, -32602, "Missing params");
-    const p_obj = p.object;
+    const p_obj = if (p == .object) p.object else return buildErrorResponse(allocator, id, -32602, "Invalid params type");
 
     const name_val = p_obj.get("name") orelse return buildErrorResponse(allocator, id, -32602, "Missing params.name");
-    const tool_name = name_val.string;
+    const tool_name = if (name_val == .string) name_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid params.name type");
 
     const args_val = p_obj.get("arguments");
 
     // Build IPC request based on tool name.
     const ipc_req: protocol.IpcRequest = blk: {
         if (mem.eql(u8, tool_name, "synapty_send")) {
-            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const target_val = args_obj.get("target") orelse return buildErrorResponse(allocator, id, -32602, "Missing target");
             const text_val = args_obj.get("text") orelse return buildErrorResponse(allocator, id, -32602, "Missing text");
             break :blk .{
                 .action = .send,
-                .target = target_val.string,
-                .text = text_val.string,
+                .target = if (target_val == .string) target_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid target type"),
+                .text = if (text_val == .string) text_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid text type"),
             };
         } else if (mem.eql(u8, tool_name, "synapty_recv")) {
             break :blk .{ .action = .recv };
         } else if (mem.eql(u8, tool_name, "synapty_agents")) {
             break :blk .{ .action = .agents };
         } else if (mem.eql(u8, tool_name, "synapty_register")) {
-            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const tool_val = args_obj.get("tool") orelse return buildErrorResponse(allocator, id, -32602, "Missing tool");
-            const proj = if (args_obj.get("project")) |v| v.string else null;
-            const sess = if (args_obj.get("session")) |v| v.string else null;
-            break :blk .{ .action = .register, .tool = tool_val.string, .project = proj, .session = sess };
+            const tool_str = if (tool_val == .string) tool_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid tool type");
+            const proj = if (args_obj.get("project")) |v| (if (v == .string) v.string else null) else null;
+            const sess = if (args_obj.get("session")) |v| (if (v == .string) v.string else null) else null;
+            break :blk .{ .action = .register, .tool = tool_str, .project = proj, .session = sess };
         } else if (mem.eql(u8, tool_name, "synapty_channel_create")) {
-            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const name_v = args_obj.get("name") orelse return buildErrorResponse(allocator, id, -32602, "Missing name");
-            const desc = if (args_obj.get("description")) |v| v.string else null;
-            break :blk .{ .action = .channel_create, .channel = name_v.string, .description = desc };
+            const name_str = if (name_v == .string) name_v.string else return buildErrorResponse(allocator, id, -32602, "Invalid name type");
+            const desc = if (args_obj.get("description")) |v| (if (v == .string) v.string else null) else null;
+            break :blk .{ .action = .channel_create, .channel = name_str, .description = desc };
         } else if (mem.eql(u8, tool_name, "synapty_channel_invite")) {
-            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
             const aid = args_obj.get("agent_id") orelse return buildErrorResponse(allocator, id, -32602, "Missing agent_id");
-            break :blk .{ .action = .channel_invite, .channel = ch.string, .agent_id = aid.string };
+            break :blk .{ .action = .channel_invite, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type"), .agent_id = if (aid == .string) aid.string else return buildErrorResponse(allocator, id, -32602, "Invalid agent_id type") };
         } else if (mem.eql(u8, tool_name, "synapty_channel_leave")) {
-            const args_obj = if (args_val) |av| av.object else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
             const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
-            break :blk .{ .action = .channel_leave, .channel = ch.string };
+            break :blk .{ .action = .channel_leave, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type") };
         } else if (mem.eql(u8, tool_name, "synapty_channel_list")) {
             break :blk .{ .action = .channel_list };
         } else {
@@ -548,4 +562,65 @@ test "getParentPid returns valid parent for current process" {
 test "discoverSocket returns null when no daemon is running" {
     const result = discoverSocket(std.testing.allocator);
     try std.testing.expect(result == null);
+}
+
+// -- Finding 6: malformed input validation tests ----------------------------
+
+test "handleRequest: non-object top-level JSON returns JSON-RPC error with null id" {
+    const allocator = std.testing.allocator;
+    // A JSON array is not a valid JSON-RPC request object.
+    const resp = try handleRequest(allocator, "/tmp/unused.sock", "[1,2,3]");
+    defer if (resp) |r| allocator.free(r);
+    try std.testing.expect(resp != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"error\"") != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "-32600") != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"id\":null") != null);
+}
+
+test "handleRequest: non-string method returns JSON-RPC error response" {
+    const allocator = std.testing.allocator;
+    const line =
+        \\{"jsonrpc":"2.0","id":99,"method":42}
+    ;
+    const resp = try handleRequest(allocator, "/tmp/unused.sock", line);
+    defer if (resp) |r| allocator.free(r);
+    try std.testing.expect(resp != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"error\"") != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "-32600") != null);
+}
+
+test "handleRequest: tools/call with non-object params returns error response" {
+    const allocator = std.testing.allocator;
+    const line =
+        \\{"jsonrpc":"2.0","id":10,"method":"tools/call","params":"not-an-object"}
+    ;
+    const resp = try handleRequest(allocator, "/tmp/unused.sock", line);
+    defer if (resp) |r| allocator.free(r);
+    try std.testing.expect(resp != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"error\"") != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "-32602") != null);
+}
+
+test "handleRequest: tools/call with non-string tool name returns error response" {
+    const allocator = std.testing.allocator;
+    const line =
+        \\{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":123}}
+    ;
+    const resp = try handleRequest(allocator, "/tmp/unused.sock", line);
+    defer if (resp) |r| allocator.free(r);
+    try std.testing.expect(resp != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"error\"") != null);
+    try std.testing.expect(mem.indexOf(u8, resp.?, "-32602") != null);
+}
+
+test "handleRequest: synapty_send with non-string target returns error response" {
+    const allocator = std.testing.allocator;
+    const line =
+        \\{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"synapty_send","arguments":{"target":999,"text":"hi"}}}
+    ;
+    const resp = try handleRequest(allocator, null, line);
+    defer if (resp) |r| allocator.free(r);
+    try std.testing.expect(resp != null);
+    // Should get SYNAPTY_SOCK error (null socket) or argument type error.
+    try std.testing.expect(mem.indexOf(u8, resp.?, "\"error\"") != null);
 }

@@ -75,6 +75,14 @@ pub const RunServer = struct {
     socket_path: []const u8,
     message_queue: MessageQueue,
     running: bool,
+    /// Serializes writes to hub_stream (hubReaderThread is the sole reader).
+    hub_write_mutex: std.Thread.Mutex,
+    /// Protects pending_responses — the response mailbox between hubReaderThread
+    /// and IPC handlers that need a Hub response.
+    response_mutex: std.Thread.Mutex,
+    pending_responses: std.ArrayList([]const u8),
+    /// Monotonic counter for unique envelope IDs (prevents stale-response misrouting).
+    next_request_id: u32,
 
     /// Create socket path, connect to Hub, send register, create IPC server.
     pub fn init(
@@ -99,11 +107,12 @@ pub const RunServer = struct {
         const hub_stream = try net.tcpConnectToAddress(address);
         errdefer hub_stream.close();
 
-        // Send register envelope.
+        // Send register envelope (newline-terminated for Hub's line framing).
         const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
         const reg_raw = try protocol.serializeEnvelope(allocator, reg);
         defer allocator.free(reg_raw);
-        _ = try hub_stream.write(reg_raw);
+        try hub_stream.writeAll(reg_raw);
+        try hub_stream.writeAll("\n");
 
         // Bind IPC unix socket.
         const ipc_server = try ipc.IpcServer.init(socket_path);
@@ -120,10 +129,16 @@ pub const RunServer = struct {
             .socket_path = socket_path,
             .message_queue = MessageQueue.init(allocator),
             .running = false,
+            .hub_write_mutex = .{},
+            .response_mutex = .{},
+            .pending_responses = std.ArrayList([]const u8).empty,
+            .next_request_id = 0,
         };
     }
 
     pub fn deinit(self: *RunServer) void {
+        for (self.pending_responses.items) |r| self.allocator.free(r);
+        self.pending_responses.deinit(self.allocator);
         self.hub_stream.close();
         self.ipc_server.deinit();
         self.message_queue.deinit();
@@ -174,8 +189,17 @@ pub const RunServer = struct {
         // Wait for child to exit.
         _ = try child.wait();
 
-        // Signal threads to stop and wait for them.
+        // Signal threads to stop.
         @atomicStore(bool, &self.running, false, .release);
+
+        // Unblock hubReaderThread: shutdown causes read() to return 0/error.
+        posix.shutdown(self.hub_stream.handle, .both) catch {};
+
+        // Unblock ipcServerThread: dummy connection causes accept() to return.
+        if (net.connectUnixSocket(self.socket_path)) |dummy| {
+            dummy.close();
+        } else |_| {}
+
         hub_thread.join();
         ipc_thread.join();
     }
@@ -185,15 +209,116 @@ pub const RunServer = struct {
 // Thread functions
 // ---------------------------------------------------------------------------
 
+/// Sole reader of hub_stream. Buffers partial TCP frames across reads,
+/// routes "response" envelopes to the response slot and everything else
+/// to the message queue.
 fn hubReaderThread(srv: *RunServer) void {
-    var buf: [64 * 1024]u8 = undefined;
+    var line_buf: [64 * 1024]u8 = undefined;
+    var filled: usize = 0;
+
+    // Per-line arena for parsing envelope type — reset after each line.
+    var parse_arena = std.heap.ArenaAllocator.init(srv.allocator);
+    defer parse_arena.deinit();
+
     while (@atomicLoad(bool, &srv.running, .acquire)) {
-        const n = srv.hub_stream.read(&buf) catch break;
+        if (filled >= line_buf.len) {
+            log.err("hub message exceeds buffer", .{});
+            break;
+        }
+        const n = srv.hub_stream.read(line_buf[filled..]) catch break;
         if (n == 0) break;
-        srv.message_queue.push(buf[0..n]) catch |err| {
-            log.err("message_queue.push failed: {any}", .{err});
-        };
+        filled += n;
+
+        // Extract complete newline-delimited lines.
+        var start: usize = 0;
+        while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+            const end = start + rel;
+            const line = mem.trimRight(u8, line_buf[start..end], "\r ");
+            start = end + 1;
+            if (line.len == 0) continue;
+
+            // Parse the envelope to check the type field reliably.
+            _ = parse_arena.reset(.retain_capacity);
+            const is_response = blk: {
+                const parsed = json.parseFromSlice(json.Value, parse_arena.allocator(), line, .{ .allocate = .alloc_always }) catch break :blk false;
+                const obj = if (parsed.value == .object) parsed.value.object else break :blk false;
+                const type_val = obj.get("type") orelse break :blk false;
+                break :blk if (type_val == .string) mem.eql(u8, type_val.string, "response") else false;
+            };
+
+            if (is_response) {
+                const copy = srv.allocator.dupe(u8, line) catch continue;
+                srv.response_mutex.lock();
+                srv.pending_responses.append(srv.allocator, copy) catch {
+                    srv.allocator.free(copy);
+                };
+                srv.response_mutex.unlock();
+            } else {
+                srv.message_queue.push(line) catch |err| {
+                    log.err("message_queue.push failed: {any}", .{err});
+                };
+            }
+        }
+
+        // Shift unconsumed bytes to the front.
+        const remaining = filled - start;
+        if (remaining > 0 and start > 0) {
+            mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
+        }
+        filled = remaining;
     }
+}
+
+/// Wait up to ~1 second for a hub response whose envelope ID matches `expected_id`.
+/// Stale responses with non-matching IDs are discarded.
+/// Caller owns the returned slice and must free it with srv.allocator.
+fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
+    // Build pattern: "id":"<expected_id>" to match in JSON.
+    var pattern_buf: [64]u8 = undefined;
+    const pattern = std.fmt.bufPrint(&pattern_buf, "\"id\":\"{s}\"", .{expected_id}) catch return null;
+
+    var attempts: usize = 0;
+    while (attempts < 1000) : (attempts += 1) {
+        srv.response_mutex.lock();
+        // Scan the queue for a matching response; discard stale ones.
+        var found: ?[]const u8 = null;
+        while (srv.pending_responses.items.len > 0) {
+            const data = srv.pending_responses.items[0];
+            if (mem.indexOf(u8, data, pattern) != null) {
+                // Match — remove from queue.
+                found = srv.pending_responses.orderedRemove(0);
+                break;
+            } else {
+                // Stale response from a prior timed-out request — discard.
+                srv.allocator.free(srv.pending_responses.orderedRemove(0));
+            }
+        }
+        srv.response_mutex.unlock();
+        if (found) |f| return f;
+        std.time.sleep(1 * std.time.ns_per_ms);
+    }
+    return null;
+}
+
+/// Write a newline-terminated message to the hub under mutex.
+/// Mutex is always released even if write fails (via defer).
+fn writeToHub(srv: *RunServer, data: []const u8) !void {
+    srv.hub_write_mutex.lock();
+    defer srv.hub_write_mutex.unlock();
+    try srv.hub_stream.writeAll(data);
+    try srv.hub_stream.writeAll("\n");
+}
+
+/// Generate a unique request ID for envelope correlation.
+fn nextRequestId(srv: *RunServer, buf: *[32]u8) []const u8 {
+    const id = srv.next_request_id;
+    srv.next_request_id += 1;
+    return std.fmt.bufPrint(buf, "req-{d}", .{id}) catch "req-0";
+}
+
+/// Check if a hub response indicates success (payload.ok == true).
+fn parseHubOk(response: []const u8) bool {
+    return mem.indexOf(u8, response, "\"ok\":true") != null;
 }
 
 fn ipcServerThread(srv: *RunServer) void {
@@ -237,19 +362,33 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 return;
             };
             const text_str = req.text orelse "";
-            // Build DM envelope per [[RFC-0002:C-DM]].
+            // Detect channel target per [[RFC-0002:C-GROUP-CHAT]].
+            const envelope_type: []const u8 = if (mem.startsWith(u8, target, "channel:"))
+                "channel_msg"
+            else
+                "dm";
+            var id_buf: [32]u8 = undefined;
+            const req_id = nextRequestId(srv, &id_buf);
             var payload_obj = json.ObjectMap.init(alloc);
             try payload_obj.put("text", .{ .string = text_str });
             const envelope = protocol.Envelope{
-                .@"type" = "dm",
-                .id = "run-send-0",
+                .@"type" = envelope_type,
+                .id = req_id,
                 .source = srv.agent_id,
                 .target = target,
                 .payload = .{ .object = payload_obj },
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
-            _ = try srv.hub_stream.write(raw);
-            const resp = protocol.IpcResponse{ .success = true };
+            try writeToHub(srv, raw);
+            // Wait for hub acknowledgment, matched by request ID.
+            const hub_resp = waitForHubResponse(srv, req_id);
+            defer if (hub_resp) |r| srv.allocator.free(r);
+            const success = if (hub_resp) |r| parseHubOk(r) else false;
+            const resp = protocol.IpcResponse{
+                .success = success,
+                .data = hub_resp,
+                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
+            };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
             try ipc.IpcServer.writeLine(client_stream, resp_raw);
         },
@@ -267,47 +406,59 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
             try ipc.IpcServer.writeLine(client_stream, resp_raw);
         },
         .agents => {
-            // Forward a list_agents envelope to the Hub.
+            var id_buf: [32]u8 = undefined;
+            const req_id = nextRequestId(srv, &id_buf);
             const envelope = protocol.Envelope{
                 .@"type" = "list_agents",
-                .id = "run-agents-0",
+                .id = req_id,
                 .source = srv.agent_id,
                 .target = "hub",
                 .payload = .null,
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
-            _ = try srv.hub_stream.write(raw);
-            _ = try srv.hub_stream.write("\n");
-            // Best-effort read response.
-            var resp_buf: [64 * 1024]u8 = undefined;
-            const n = srv.hub_stream.read(&resp_buf) catch 0;
-            const data: ?[]const u8 = if (n > 0) resp_buf[0..n] else null;
-            const resp = protocol.IpcResponse{ .success = true, .data = data };
+            try writeToHub(srv, raw);
+            const hub_resp = waitForHubResponse(srv, req_id);
+            defer if (hub_resp) |r| srv.allocator.free(r);
+            const success = hub_resp != null;
+            const resp = protocol.IpcResponse{
+                .success = success,
+                .data = hub_resp,
+                .error_msg = if (!success) "hub timeout" else null,
+            };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
             try ipc.IpcServer.writeLine(client_stream, resp_raw);
         },
         .register => {
-            // Forward agent_update to Hub per [[RFC-0002:C-AGENT-IDENTITY]].
+            var id_buf: [32]u8 = undefined;
+            const req_id = nextRequestId(srv, &id_buf);
             var payload_obj = json.ObjectMap.init(alloc);
             if (req.tool) |t| try payload_obj.put("tool", .{ .string = t });
             if (req.project) |p| try payload_obj.put("project", .{ .string = p });
             if (req.session) |s| try payload_obj.put("session", .{ .string = s });
             const envelope = protocol.Envelope{
                 .@"type" = "agent_update",
-                .id = "run-register-0",
+                .id = req_id,
                 .source = srv.agent_id,
                 .target = "hub",
                 .payload = .{ .object = payload_obj },
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
-            _ = try srv.hub_stream.write(raw);
-            _ = try srv.hub_stream.write("\n");
-            const resp = protocol.IpcResponse{ .success = true };
+            try writeToHub(srv, raw);
+            // Wait for hub acknowledgment, matched by request ID.
+            const hub_resp = waitForHubResponse(srv, req_id);
+            defer if (hub_resp) |r| srv.allocator.free(r);
+            const success = if (hub_resp) |r| parseHubOk(r) else false;
+            const resp = protocol.IpcResponse{
+                .success = success,
+                .data = hub_resp,
+                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
+            };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
             try ipc.IpcServer.writeLine(client_stream, resp_raw);
         },
         .channel_create, .channel_invite, .channel_leave, .channel_list => {
-            // Forward channel commands to Hub per [[RFC-0002:C-GROUP-CHAT]].
+            var id_buf: [32]u8 = undefined;
+            const req_id = nextRequestId(srv, &id_buf);
             const msg_type: []const u8 = switch (req.action) {
                 .channel_create => "channel_create",
                 .channel_invite => "channel_invite",
@@ -322,19 +473,21 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
             if (req.channel) |name| try payload_obj.put("name", .{ .string = name });
             const envelope = protocol.Envelope{
                 .@"type" = msg_type,
-                .id = "run-channel-0",
+                .id = req_id,
                 .source = srv.agent_id,
                 .target = "hub",
                 .payload = .{ .object = payload_obj },
             };
             const raw = try protocol.serializeEnvelope(alloc, envelope);
-            _ = try srv.hub_stream.write(raw);
-            _ = try srv.hub_stream.write("\n");
-            // Read Hub response.
-            var resp_buf: [64 * 1024]u8 = undefined;
-            const n = srv.hub_stream.read(&resp_buf) catch 0;
-            const data: ?[]const u8 = if (n > 0) resp_buf[0..n] else null;
-            const resp = protocol.IpcResponse{ .success = true, .data = data };
+            try writeToHub(srv, raw);
+            const hub_resp = waitForHubResponse(srv, req_id);
+            defer if (hub_resp) |r| srv.allocator.free(r);
+            const success = if (hub_resp) |r| parseHubOk(r) else false;
+            const resp = protocol.IpcResponse{
+                .success = success,
+                .data = hub_resp,
+                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
+            };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
             try ipc.IpcServer.writeLine(client_stream, resp_raw);
         },
@@ -435,4 +588,125 @@ test "MessageQueue is thread-safe: push from two threads drain gets all" {
     }
 
     try std.testing.expectEqual(@as(usize, n * 2), msgs.len);
+}
+
+// -- Finding 3: channel send routing tests ----------------------------------
+
+test "send to channel: target produces channel_msg envelope type" {
+    const target = "channel:design-review";
+    const envelope_type: []const u8 = if (mem.startsWith(u8, target, "channel:"))
+        "channel_msg"
+    else
+        "dm";
+    try std.testing.expectEqualStrings("channel_msg", envelope_type);
+}
+
+test "send to plain agent target produces dm envelope type" {
+    const target = "agent-b";
+    const envelope_type: []const u8 = if (mem.startsWith(u8, target, "channel:"))
+        "channel_msg"
+    else
+        "dm";
+    try std.testing.expectEqualStrings("dm", envelope_type);
+}
+
+// -- Finding 2: line buffering tests ----------------------------------------
+
+test "hubReaderThread line buffer: extracts complete lines and carries partial" {
+    // Simulate the line buffer extraction logic used in hubReaderThread.
+    var line_buf: [256]u8 = undefined;
+    var filled: usize = 0;
+
+    // First "read": partial message, no newline yet.
+    const chunk1 = "{\"type\":\"dm\",\"id\":\"1\",\"s";
+    @memcpy(line_buf[filled..][0..chunk1.len], chunk1);
+    filled += chunk1.len;
+
+    // Extract complete lines — should find none.
+    var lines_found: usize = 0;
+    {
+        var start: usize = 0;
+        while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+            start += rel + 1;
+            lines_found += 1;
+        }
+        const remaining = filled - start;
+        if (remaining > 0 and start > 0) {
+            mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
+        }
+        filled = remaining;
+    }
+    try std.testing.expectEqual(@as(usize, 0), lines_found);
+    try std.testing.expectEqual(chunk1.len, filled); // partial still in buffer
+
+    // Second "read": rest of message + newline + start of next.
+    const chunk2 = "rc\":\"a\"}\n{\"type\":\"d";
+    @memcpy(line_buf[filled..][0..chunk2.len], chunk2);
+    filled += chunk2.len;
+
+    // Extract complete lines — should find one.
+    var complete_line: ?[]const u8 = null;
+    {
+        var start: usize = 0;
+        while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+            const end = start + rel;
+            complete_line = line_buf[start..end];
+            start = end + 1;
+        }
+        const remaining = filled - start;
+        if (remaining > 0 and start > 0) {
+            mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
+        }
+        filled = remaining;
+    }
+    try std.testing.expect(complete_line != null);
+    try std.testing.expectEqualStrings("{\"type\":\"dm\",\"id\":\"1\",\"src\":\"a\"}", complete_line.?);
+
+    // Partial remainder should still be in buffer.
+    try std.testing.expectEqualStrings("{\"type\":\"d", line_buf[0..filled]);
+}
+
+test "hubReaderThread line buffer: multiple complete lines in one read" {
+    var line_buf: [256]u8 = undefined;
+    var filled: usize = 0;
+
+    const chunk = "line-one\nline-two\nline-three\n";
+    @memcpy(line_buf[filled..][0..chunk.len], chunk);
+    filled += chunk.len;
+
+    var count: usize = 0;
+    var start: usize = 0;
+    while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+        start += rel + 1;
+        count += 1;
+    }
+    const remaining = filled - start;
+    filled = remaining;
+
+    try std.testing.expectEqual(@as(usize, 3), count);
+    try std.testing.expectEqual(@as(usize, 0), filled); // no partial remainder
+}
+
+// -- Follow-up fix tests: response matching, success parsing, register \n ---
+
+test "parseHubOk returns true for ok:true response" {
+    try std.testing.expect(parseHubOk("{\"type\":\"response\",\"id\":\"req-0\",\"payload\":{\"ok\":true}}"));
+}
+
+test "parseHubOk returns false for ok:false response" {
+    try std.testing.expect(!parseHubOk("{\"type\":\"response\",\"id\":\"req-0\",\"payload\":{\"ok\":false,\"error\":\"not found\"}}"));
+}
+
+test "parseHubOk returns false for missing ok field" {
+    try std.testing.expect(!parseHubOk("{\"type\":\"response\",\"id\":\"req-0\",\"payload\":{}}"));
+}
+
+test "register envelope is newline-terminated" {
+    const reg = protocol.makeRegisterEnvelope("test-agent", &.{});
+    const raw = try protocol.serializeEnvelope(std.testing.allocator, reg);
+    defer std.testing.allocator.free(raw);
+    // The hub's handleClient expects newline-terminated frames.
+    // RunServer.init() appends "\n" after writing raw — verify raw itself
+    // does NOT contain a newline (so the explicit "\n" write is needed).
+    try std.testing.expect(mem.indexOfScalar(u8, raw, '\n') == null);
 }

@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-005"
+title = "Fix 6 code review findings: shutdown hang, TCP framing, channel send, socket race, memory leak, input validation"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+description = "Fix 6 code review findings across src/run.zig, src/hub.zig, src/mcp.zig, src/protocol.zig. Findings: (1) shutdown hang — blocking I/O not interrupted before thread join, (2) broken TCP framing — no line-buffering across read() boundaries, (3) silent channel send failure — send path always emits dm, (4) hub socket data race — concurrent readers on same stream, (5) unbounded memory growth — page_allocator + alloc_always never freed, (6) crash on malformed input — unchecked json.Value union access. All are bug fixes against existing RFC-0002 specified behavior."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "protocol"
+content = "All 6 findings fixed across src/mcp.zig, src/hub.zig, src/run.zig. Tests pass, govctl check passes."
+
+[[content.acceptance_criteria]]
+text = "RunServer.run() shutdown closes streams before joining threads"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Hub handleClient uses line buffer carrying partial frames across reads"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Daemon hubReaderThread uses line buffer carrying partial frames across reads"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Daemon send handler emits channel_msg for channel:<name> targets"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Daemon send handler waits for Hub response before replying success"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Daemon hub socket access serialized — no concurrent readers"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Hub uses ArenaAllocator per connection, frees parsed envelopes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "MCP handleRequest validates json.Value tags before union access"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Hub handlers validate json.Value tags before union access"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

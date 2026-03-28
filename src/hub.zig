@@ -79,35 +79,75 @@ const AgentInfo = struct {
 const AgentRegistry = struct {
     map: std.StringHashMap(AgentInfo),
     mutex: std.Thread.Mutex,
+    allocator: Allocator,
 
     fn init(allocator: Allocator) AgentRegistry {
         return .{
             .map = std.StringHashMap(AgentInfo).init(allocator),
             .mutex = .{},
+            .allocator = allocator,
         };
     }
 
     fn deinit(self: *AgentRegistry) void {
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+            self.freeInfo(entry.value_ptr.*);
+        }
         self.map.deinit();
     }
 
+    /// Dupe key and info strings into owned storage, replacing any previous entry.
     fn update(self: *AgentRegistry, agent_id: []const u8, info: AgentInfo) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        try self.map.put(agent_id, info);
+        const owned_key = try self.allocator.dupe(u8, agent_id);
+        errdefer self.allocator.free(owned_key);
+        const owned = AgentInfo{
+            .tool = if (info.tool) |t| try self.allocator.dupe(u8, t) else null,
+            .project = if (info.project) |p| try self.allocator.dupe(u8, p) else null,
+            .session = if (info.session) |s| try self.allocator.dupe(u8, s) else null,
+        };
+        // fetchPut overwrites both key and value; returns old pair if existed.
+        const prev = self.map.fetchPut(owned_key, owned) catch |err| {
+            self.allocator.free(owned_key);
+            self.freeInfo(owned);
+            return err;
+        };
+        if (prev) |old| {
+            self.allocator.free(old.key); // free replaced key
+            self.freeInfo(old.value);
+        }
         log.info("agent metadata updated: {s} tool={s}", .{ agent_id, info.tool orelse "-" });
     }
 
     fn remove(self: *AgentRegistry, agent_id: []const u8) void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        _ = self.map.remove(agent_id);
+        if (self.map.fetchRemove(agent_id)) |kv| {
+            self.allocator.free(kv.key);
+            self.freeInfo(kv.value);
+        }
     }
 
-    fn get(self: *AgentRegistry, agent_id: []const u8) ?AgentInfo {
+    /// Return a snapshot of agent info with duped strings (caller-owned).
+    /// Safe to use after the mutex is released — no borrowed pointers.
+    fn get(self: *AgentRegistry, agent_id: []const u8, alloc: Allocator) ?AgentInfo {
         self.mutex.lock();
         defer self.mutex.unlock();
-        return self.map.get(agent_id);
+        const info = self.map.get(agent_id) orelse return null;
+        return AgentInfo{
+            .tool = if (info.tool) |t| alloc.dupe(u8, t) catch null else null,
+            .project = if (info.project) |p| alloc.dupe(u8, p) catch null else null,
+            .session = if (info.session) |s| alloc.dupe(u8, s) catch null else null,
+        };
+    }
+
+    fn freeInfo(self: *AgentRegistry, info: AgentInfo) void {
+        if (info.tool) |t| self.allocator.free(t);
+        if (info.project) |p| self.allocator.free(p);
+        if (info.session) |s| self.allocator.free(s);
     }
 };
 
@@ -137,9 +177,9 @@ const ChannelRegistry = struct {
     }
 
     fn deinit(self: *ChannelRegistry) void {
-        var it = self.map.valueIterator();
-        while (it.next()) |ch| {
-            ch.members.deinit();
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            self.freeChannelStrings(entry.key_ptr.*, entry.value_ptr.*);
         }
         self.map.deinit();
     }
@@ -148,13 +188,22 @@ const ChannelRegistry = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.map.contains(name)) return error.ChannelExists;
+        // Dupe all strings — channel data outlives the creating connection.
+        const owned_name = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(owned_name);
+        const owned_desc = try self.allocator.dupe(u8, description);
+        errdefer self.allocator.free(owned_desc);
+        const owned_creator = try self.allocator.dupe(u8, creator);
+        errdefer self.allocator.free(owned_creator);
+        const member_key = try self.allocator.dupe(u8, creator);
+        errdefer self.allocator.free(member_key);
         var members = std.StringHashMap(void).init(self.allocator);
-        try members.put(creator, {});
-        try self.map.put(name, .{
-            .name = name,
-            .description = description,
+        try members.put(member_key, {});
+        try self.map.put(owned_name, .{
+            .name = owned_name,
+            .description = owned_desc,
             .members = members,
-            .created_by = creator,
+            .created_by = owned_creator,
             .created_at = std.time.timestamp(),
         });
         log.info("channel created: {s} by {s}", .{ name, creator });
@@ -164,20 +213,38 @@ const ChannelRegistry = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const ch = self.map.getPtr(name) orelse return error.ChannelNotFound;
-        try ch.members.put(agent_id, {});
+        const owned_id = try self.allocator.dupe(u8, agent_id);
+        errdefer self.allocator.free(owned_id);
+        try ch.members.put(owned_id, {});
     }
 
     fn removeMember(self: *ChannelRegistry, name: []const u8, agent_id: []const u8) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
         const ch = self.map.getPtr(name) orelse return error.ChannelNotFound;
-        _ = ch.members.remove(agent_id);
+        if (ch.members.fetchRemove(agent_id)) |kv| {
+            self.allocator.free(kv.key);
+        }
         // Garbage-collect empty channels.
         if (ch.members.count() == 0) {
-            var removed = self.map.fetchRemove(name);
-            if (removed) |*kv| kv.value.members.deinit();
+            if (self.map.fetchRemove(name)) |kv| {
+                self.freeChannelStrings(kv.key, kv.value);
+            }
             log.info("channel garbage-collected: {s}", .{name});
         }
+    }
+
+    /// Free all owned strings of a channel entry.
+    fn freeChannelStrings(self: *ChannelRegistry, key: []const u8, ch: Channel) void {
+        // Free remaining member keys.
+        var copy = ch;
+        var member_it = copy.members.keyIterator();
+        while (member_it.next()) |k| self.allocator.free(k.*);
+        copy.members.deinit();
+        // key == ch.name (same pointer from create), free once.
+        self.allocator.free(key);
+        self.allocator.free(ch.description);
+        self.allocator.free(ch.created_by);
     }
 
     fn isMember(self: *ChannelRegistry, name: []const u8, agent_id: []const u8) bool {
@@ -208,17 +275,19 @@ const ChannelRegistry = struct {
         var affected = std.ArrayList([]const u8).empty;
         var it = self.map.iterator();
         while (it.next()) |entry| {
-            if (entry.value_ptr.members.contains(agent_id)) {
-                _ = entry.value_ptr.members.remove(agent_id);
-                try affected.append(allocator, entry.key_ptr.*);
+            if (entry.value_ptr.members.fetchRemove(agent_id)) |kv| {
+                self.allocator.free(kv.key); // free owned member key
+                // Dupe into caller's allocator so the name survives GC below.
+                try affected.append(allocator, try allocator.dupe(u8, entry.key_ptr.*));
             }
         }
         // Garbage-collect empty channels (deferred to avoid mutation during iteration).
         for (affected.items) |ch_name| {
             if (self.map.getPtr(ch_name)) |ch| {
                 if (ch.members.count() == 0) {
-                    var removed = self.map.fetchRemove(ch_name);
-                    if (removed) |*kv| kv.value.members.deinit();
+                    if (self.map.fetchRemove(ch_name)) |kv| {
+                        self.freeChannelStrings(kv.key, kv.value);
+                    }
                 }
             }
         }
@@ -266,16 +335,35 @@ const MessageLog = struct {
     }
 
     fn deinit(self: *MessageLog, allocator: Allocator) void {
+        for (self.entries.items) |entry| {
+            freeLogEntry(allocator, entry);
+        }
         self.entries.deinit(allocator);
     }
 
+    fn freeLogEntry(allocator: Allocator, entry: LogEntry) void {
+        allocator.free(entry.from);
+        allocator.free(entry.to);
+        if (entry.channel) |ch| allocator.free(ch);
+        allocator.free(entry.text);
+    }
+
+    /// Append a log entry, duping all strings so the entry outlives the caller's arena.
     fn append(self: *MessageLog, allocator: Allocator, entry: LogEntry) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        try self.entries.append(allocator, entry);
+        const owned = LogEntry{
+            .from = try allocator.dupe(u8, entry.from),
+            .to = try allocator.dupe(u8, entry.to),
+            .channel = if (entry.channel) |ch| try allocator.dupe(u8, ch) else null,
+            .text = try allocator.dupe(u8, entry.text),
+            .ts = entry.ts,
+        };
+        try self.entries.append(allocator, owned);
         // FIFO eviction.
         if (self.entries.items.len > self.max_entries) {
-            _ = self.entries.orderedRemove(0);
+            const evicted = self.entries.orderedRemove(0);
+            freeLogEntry(allocator, evicted);
         }
     }
 };
@@ -331,15 +419,15 @@ fn sendResponse(arena: Allocator, stream: net.Stream, req_id: []const u8, target
         .payload = .{ .object = payload_obj },
     };
     const raw = try protocol.serializeEnvelope(arena, resp);
-    _ = try stream.write(raw);
-    _ = try stream.write("\n");
+    try stream.writeAll(raw);
+    try stream.writeAll("\n");
 }
 
 /// Send an envelope to a stream (for push delivery).
 fn pushEnvelope(arena: Allocator, stream: net.Stream, envelope: protocol.Envelope) !void {
     const raw = try protocol.serializeEnvelope(arena, envelope);
-    _ = try stream.write(raw);
-    _ = try stream.write("\n");
+    try stream.writeAll(raw);
+    try stream.writeAll("\n");
 }
 
 // -- Handler: list_agents per [[RFC-0002:C-CLI-MCP]] -----------------------
@@ -351,7 +439,7 @@ fn handleListAgents(state: *HubState, arena: Allocator, stream: net.Stream, req:
     for (agent_ids) |id| {
         var agent_obj = json.ObjectMap.init(arena);
         try agent_obj.put("id", .{ .string = id });
-        const info = state.agent_registry.get(id);
+        const info = state.agent_registry.get(id, arena);
         try agent_obj.put("tool", .{ .string = if (info) |i| i.tool orelse "-" else "-" });
         try agent_obj.put("project", .{ .string = if (info) |i| i.project orelse "-" else "-" });
         try agent_obj.put("session", .{ .string = if (info) |i| i.session orelse "-" else "-" });
@@ -370,8 +458,8 @@ fn handleListAgents(state: *HubState, arena: Allocator, stream: net.Stream, req:
         .payload = .{ .object = data_obj },
     };
     const raw = try protocol.serializeEnvelope(arena, resp);
-    _ = try stream.write(raw);
-    _ = try stream.write("\n");
+    try stream.writeAll(raw);
+    try stream.writeAll("\n");
 }
 
 // -- Handler: agent_update per [[RFC-0002:C-AGENT-IDENTITY]] ---------------
@@ -382,9 +470,9 @@ fn handleAgentUpdate(state: *HubState, stream: net.Stream, arena: Allocator, env
         return;
     };
     const info = AgentInfo{
-        .tool = if (payload.get("tool")) |v| v.string else null,
-        .project = if (payload.get("project")) |v| v.string else null,
-        .session = if (payload.get("session")) |v| v.string else null,
+        .tool = if (payload.get("tool")) |v| (if (v == .string) v.string else null) else null,
+        .project = if (payload.get("project")) |v| (if (v == .string) v.string else null) else null,
+        .session = if (payload.get("session")) |v| (if (v == .string) v.string else null) else null,
     };
     try state.agent_registry.update(envelope.source, info);
     try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
@@ -442,11 +530,14 @@ fn handleChannelCreate(state: *HubState, stream: net.Stream, arena: Allocator, e
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
-    const name = if (payload.get("name")) |v| v.string else {
+    const name = if (payload.get("name")) |v| (if (v == .string) v.string else {
+        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel name type");
+        return;
+    }) else {
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel name");
         return;
     };
-    const desc = if (payload.get("description")) |v| v.string else "";
+    const desc = if (payload.get("description")) |v| (if (v == .string) v.string else "") else "";
 
     state.channel_registry.create(name, desc, envelope.source) catch |err| switch (err) {
         error.ChannelExists => {
@@ -465,11 +556,17 @@ fn handleChannelInvite(state: *HubState, stream: net.Stream, arena: Allocator, e
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
-    const ch_name = if (payload.get("channel")) |v| v.string else {
+    const ch_name = if (payload.get("channel")) |v| (if (v == .string) v.string else {
+        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel type");
+        return;
+    }) else {
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel");
         return;
     };
-    const agent_id = if (payload.get("agent_id")) |v| v.string else {
+    const agent_id = if (payload.get("agent_id")) |v| (if (v == .string) v.string else {
+        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid agent_id type");
+        return;
+    }) else {
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing agent_id");
         return;
     };
@@ -516,7 +613,10 @@ fn handleChannelLeave(state: *HubState, stream: net.Stream, arena: Allocator, en
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
-    const ch_name = if (payload.get("channel")) |v| v.string else {
+    const ch_name = if (payload.get("channel")) |v| (if (v == .string) v.string else {
+        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel type");
+        return;
+    }) else {
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel");
         return;
     };
@@ -625,8 +725,8 @@ fn handleListChannels(state: *HubState, stream: net.Stream, arena: Allocator, en
         .payload = .{ .object = data_obj },
     };
     const raw = try protocol.serializeEnvelope(arena, resp);
-    _ = try stream.write(raw);
-    _ = try stream.write("\n");
+    try stream.writeAll(raw);
+    try stream.writeAll("\n");
 }
 
 // -- Message dispatcher ----------------------------------------------------
@@ -672,34 +772,65 @@ fn dispatchEnvelope(state: *HubState, arena: Allocator, stream: net.Stream, agen
 }
 
 /// Handle a single client connection: read JSON envelopes and dispatch them.
-fn handleClient(state: *HubState, arena: Allocator, stream: net.Stream) void {
+/// Uses a per-connection ArenaAllocator so parsed data is freed on disconnect,
+/// and a line buffer so partial TCP frames are carried across reads.
+fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) void {
+    _ = backing_alloc;
     defer stream.close();
 
-    var buf: [recv_buf_size]u8 = undefined;
+    // Per-connection arena for data that lives the whole connection (agent_id).
+    var conn_arena = std.heap.ArenaAllocator.init(state.allocator);
+    defer conn_arena.deinit();
+    const conn_alloc = conn_arena.allocator();
 
-    // First read must contain the register envelope.
-    const initial_len = stream.read(&buf) catch |err| {
-        log.err("read error on initial message: {any}", .{err});
-        return;
+    // Per-message arena — reset after each envelope dispatch so memory is bounded.
+    var msg_arena = std.heap.ArenaAllocator.init(state.allocator);
+    defer msg_arena.deinit();
+
+    // Line buffer for TCP framing — carries partial lines across reads.
+    var line_buf: [recv_buf_size]u8 = undefined;
+    var filled: usize = 0;
+
+    // Read until we have at least one complete line (the register envelope).
+    const agent_id = blk: {
+        while (true) {
+            if (filled >= line_buf.len) {
+                log.err("initial message exceeds buffer", .{});
+                return;
+            }
+            const n = stream.read(line_buf[filled..]) catch |err| {
+                log.err("read error on initial message: {any}", .{err});
+                return;
+            };
+            if (n == 0) return;
+            filled += n;
+
+            // Check for a complete first line.
+            if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
+                const first_line = mem.trimRight(u8, line_buf[0..nl], "\r ");
+                if (first_line.len == 0) return;
+
+                // Parse with conn_arena so agent_id survives the connection.
+                const parsed_init = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
+                    log.err("failed to parse initial envelope: {any}", .{err});
+                    return;
+                };
+                if (!mem.eql(u8, parsed_init.value.@"type", "register")) {
+                    log.err("expected register, got: {s}", .{parsed_init.value.@"type"});
+                    return;
+                }
+                // Shift consumed bytes out of line_buf.
+                const consumed = nl + 1;
+                const remaining = filled - consumed;
+                if (remaining > 0) {
+                    mem.copyForwards(u8, line_buf[0..remaining], line_buf[consumed..filled]);
+                }
+                filled = remaining;
+                break :blk parsed_init.value.source;
+            }
+        }
     };
-    if (initial_len == 0) return;
 
-    var initial_iter = mem.splitScalar(u8, buf[0..initial_len], '\n');
-    const first_line = mem.trimRight(u8, initial_iter.next() orelse return, "\r ");
-    if (first_line.len == 0) return;
-
-    const parsed_init = protocol.parseEnvelope(arena, first_line) catch |err| {
-        log.err("failed to parse initial envelope: {any}", .{err});
-        return;
-    };
-    const init_envelope = parsed_init.value;
-
-    if (!mem.eql(u8, init_envelope.@"type", "register")) {
-        log.err("expected register, got: {s}", .{init_envelope.@"type"});
-        return;
-    }
-
-    const agent_id = init_envelope.source;
     state.routing_table.register(agent_id, stream) catch |err| {
         log.err("failed to register {s}: {any}", .{ agent_id, err });
         return;
@@ -708,19 +839,20 @@ fn handleClient(state: *HubState, arena: Allocator, stream: net.Stream) void {
         state.routing_table.unregister(agent_id);
         state.agent_registry.remove(agent_id);
         // Remove from all channels, notify members per [[RFC-0002:C-HUB-STATE]].
-        const affected = state.channel_registry.removeFromAll(agent_id, arena) catch &.{};
+        // Use conn_alloc for cleanup temporaries.
+        const affected = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch &.{};
         for (affected) |ch_name| {
-            const members = state.channel_registry.getMembers(ch_name, arena) catch continue;
+            const members = state.channel_registry.getMembers(ch_name, conn_alloc) catch continue;
             for (members) |mid| {
                 state.routing_table.mutex.lock();
                 const ms = state.routing_table.lookup(mid);
                 state.routing_table.mutex.unlock();
                 if (ms) |s| {
-                    var evt_payload = json.ObjectMap.init(arena);
+                    var evt_payload = json.ObjectMap.init(conn_alloc);
                     evt_payload.put("channel", .{ .string = ch_name }) catch continue;
                     evt_payload.put("event", .{ .string = "left" }) catch continue;
                     evt_payload.put("agent_id", .{ .string = agent_id }) catch continue;
-                    pushEnvelope(arena, s, .{
+                    pushEnvelope(conn_alloc, s, .{
                         .@"type" = "channel_event",
                         .id = "evt-0",
                         .source = "hub",
@@ -732,36 +864,52 @@ fn handleClient(state: *HubState, arena: Allocator, stream: net.Stream) void {
         }
     }
 
-    // Process remaining messages from initial read.
-    while (initial_iter.next()) |line| {
-        const trimmed = mem.trimRight(u8, line, "\r ");
-        if (trimmed.len == 0) continue;
-        const parsed = protocol.parseEnvelope(arena, trimmed) catch |err| {
-            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
-            continue;
-        };
-        dispatchEnvelope(state, arena, stream, agent_id, parsed.value);
-    }
+    // Process any additional complete lines from the initial read(s).
+    processLines(state, &msg_arena, stream, agent_id, &line_buf, &filled);
 
-    // Main receive loop.
+    // Main receive loop with line buffering.
     while (true) {
-        const n = stream.read(&buf) catch |err| {
+        if (filled >= line_buf.len) {
+            log.err("message from {s} exceeds buffer", .{agent_id});
+            break;
+        }
+        const n = stream.read(line_buf[filled..]) catch |err| {
             log.err("read error from {s}: {any}", .{ agent_id, err });
             break;
         };
         if (n == 0) break;
+        filled += n;
 
-        var iter = mem.splitScalar(u8, buf[0..n], '\n');
-        while (iter.next()) |line| {
-            const raw = mem.trimRight(u8, line, "\r ");
-            if (raw.len == 0) continue;
-            const parsed = protocol.parseEnvelope(arena, raw) catch |err| {
-                log.err("bad envelope from {s}: {any}", .{ agent_id, err });
-                continue;
-            };
-            dispatchEnvelope(state, arena, stream, agent_id, parsed.value);
-        }
+        processLines(state, &msg_arena, stream, agent_id, &line_buf, &filled);
     }
+}
+
+/// Extract and dispatch all complete newline-delimited lines from the buffer.
+/// Resets msg_arena after each envelope so per-message memory is bounded.
+fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, stream: net.Stream, agent_id: []const u8, line_buf: *[recv_buf_size]u8, filled: *usize) void {
+    var start: usize = 0;
+    while (mem.indexOfScalar(u8, line_buf[start..filled.*], '\n')) |rel| {
+        const end = start + rel;
+        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
+        start = end + 1;
+        if (raw.len == 0) continue;
+
+        // Reset per-message arena so each envelope parse is bounded.
+        _ = msg_arena.reset(.retain_capacity);
+        const alloc = msg_arena.allocator();
+
+        const parsed = protocol.parseEnvelope(alloc, raw) catch |err| {
+            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
+            continue;
+        };
+        dispatchEnvelope(state, alloc, stream, agent_id, parsed.value);
+    }
+    // Shift unconsumed bytes to the front.
+    const remaining = filled.* - start;
+    if (remaining > 0 and start > 0) {
+        mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled.*]);
+    }
+    filled.* = remaining;
 }
 
 // ---------------------------------------------------------------------------
@@ -933,7 +1081,12 @@ test "AgentRegistry update and get" {
     defer reg.deinit();
 
     try reg.update("agent-a", .{ .tool = "codex", .project = "/path", .session = "auth refactor" });
-    const info = reg.get("agent-a").?;
+    const info = reg.get("agent-a", std.testing.allocator).?;
+    defer {
+        if (info.tool) |t| std.testing.allocator.free(t);
+        if (info.project) |p| std.testing.allocator.free(p);
+        if (info.session) |s| std.testing.allocator.free(s);
+    }
     try std.testing.expectEqualStrings("codex", info.tool.?);
     try std.testing.expectEqualStrings("/path", info.project.?);
     try std.testing.expectEqualStrings("auth refactor", info.session.?);
@@ -945,7 +1098,7 @@ test "AgentRegistry remove clears entry" {
 
     try reg.update("agent-a", .{ .tool = "claude" });
     reg.remove("agent-a");
-    try std.testing.expect(reg.get("agent-a") == null);
+    try std.testing.expect(reg.get("agent-a", std.testing.allocator) == null);
 }
 
 test "ChannelRegistry create and membership" {
@@ -992,7 +1145,10 @@ test "ChannelRegistry removeFromAll removes agent from all channels" {
     try cr.addMember("ch-1", "agent-b");
 
     const affected = try cr.removeFromAll("agent-a", std.testing.allocator);
-    defer std.testing.allocator.free(affected);
+    defer {
+        for (affected) |name| std.testing.allocator.free(name);
+        std.testing.allocator.free(affected);
+    }
     try std.testing.expectEqual(@as(usize, 2), affected.len);
 
     // agent-a should be gone from ch-1, ch-2 should be garbage-collected.
@@ -1065,4 +1221,69 @@ test "startInBackground returns valid server handle" {
     // and the background thread to exit.
     server.deinit();
     allocator.destroy(server);
+}
+
+// -- Finding 2: line buffering tests ----------------------------------------
+
+test "processLines extracts complete lines and preserves partial remainder" {
+    // We cannot call processLines directly (needs HubState/stream), but we
+    // verify the same buffer logic used in handleClient.
+    const recv_buf_sz = recv_buf_size;
+    var line_buf: [recv_buf_sz]u8 = undefined;
+    var filled: usize = 0;
+
+    // Simulate two reads that split a message across the boundary.
+    const chunk1 = "{\"type\":\"register\"}\n{\"type\":\"dm\",\"par";
+    @memcpy(line_buf[0..chunk1.len], chunk1);
+    filled = chunk1.len;
+
+    // Extract lines from chunk1.
+    var lines = std.ArrayList([]const u8).empty;
+    defer lines.deinit(std.testing.allocator);
+    var start: usize = 0;
+    while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+        const end = start + rel;
+        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
+        start = end + 1;
+        if (raw.len > 0) {
+            try lines.append(std.testing.allocator, try std.testing.allocator.dupe(u8, raw));
+        }
+    }
+    const remaining = filled - start;
+    if (remaining > 0 and start > 0) {
+        mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
+    }
+    filled = remaining;
+
+    // Should have extracted the register line, with partial dm remaining.
+    try std.testing.expectEqual(@as(usize, 1), lines.items.len);
+    try std.testing.expectEqualStrings("{\"type\":\"register\"}", lines.items[0]);
+    try std.testing.expect(filled > 0); // partial dm still in buffer
+
+    // Second chunk completes the dm.
+    const chunk2 = "t\":\"hello\"}\n";
+    @memcpy(line_buf[filled..][0..chunk2.len], chunk2);
+    filled += chunk2.len;
+
+    start = 0;
+    while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
+        const end = start + rel;
+        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
+        start = end + 1;
+        if (raw.len > 0) {
+            try lines.append(std.testing.allocator, try std.testing.allocator.dupe(u8, raw));
+        }
+    }
+    const remaining2 = filled - start;
+    if (remaining2 > 0 and start > 0) {
+        mem.copyForwards(u8, line_buf[0..remaining2], line_buf[start..filled]);
+    }
+    filled = remaining2;
+
+    // Should now have the complete dm line, no remainder.
+    try std.testing.expectEqual(@as(usize, 2), lines.items.len);
+    try std.testing.expectEqualStrings("{\"type\":\"dm\",\"part\":\"hello\"}", lines.items[1]);
+    try std.testing.expectEqual(@as(usize, 0), filled);
+
+    for (lines.items) |l| std.testing.allocator.free(l);
 }
