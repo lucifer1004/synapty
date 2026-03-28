@@ -11,9 +11,12 @@ const Allocator = mem.Allocator;
 pub const Connection = struct {
     stream: net.Stream,
     allocator: Allocator,
-    /// Pointers into HubState for removeConnection on final release.
-    all_connections: *std.ArrayList(*Connection),
-    all_connections_mutex: *std.Thread.Mutex,
+    /// Opaque context pointer passed to release_fn on final release.
+    release_ctx: *anyopaque,
+    /// Called on final release (ref_count hits 0) to remove from tracking,
+    /// close the stream, and free the Connection. Decouples Connection from
+    /// HubState internals — no raw pointer to the connection list.
+    release_fn: *const fn (*anyopaque, *Connection) void,
     outbound: std.ArrayListUnmanaged([]const u8),
     mutex: std.Thread.Mutex,
     cond: std.Thread.Condition,
@@ -25,15 +28,15 @@ pub const Connection = struct {
 
     pub fn init(
         allocator: Allocator,
-        all_connections: *std.ArrayList(*Connection),
-        all_connections_mutex: *std.Thread.Mutex,
         stream: net.Stream,
+        release_ctx: *anyopaque,
+        release_fn: *const fn (*anyopaque, *Connection) void,
     ) Connection {
         return .{
             .stream = stream,
             .allocator = allocator,
-            .all_connections = all_connections,
-            .all_connections_mutex = all_connections_mutex,
+            .release_ctx = release_ctx,
+            .release_fn = release_fn,
             .outbound = .empty,
             .mutex = .{},
             .cond = .{},
@@ -62,27 +65,12 @@ pub const Connection = struct {
         _ = self.ref_count.fetchAdd(1, .monotonic);
     }
 
-    /// Decrement reference count. When it hits 0, remove from tracking and free.
+    /// Decrement reference count. When it hits 0, invoke release_fn which
+    /// removes from tracking, closes the stream, and frees the Connection.
     pub fn release(self: *Connection) void {
         if (self.ref_count.fetchSub(1, .acq_rel) == 1) {
-            self.removeFromTracking();
+            self.release_fn(self.release_ctx, self);
         }
-    }
-
-    /// Remove this connection from tracking, close its stream, and free it.
-    fn removeFromTracking(self: *Connection) void {
-        self.all_connections_mutex.lock();
-        // Find and swap-remove.
-        for (self.all_connections.items, 0..) |c, idx| {
-            if (c == self) {
-                _ = self.all_connections.swapRemove(idx);
-                break;
-            }
-        }
-        self.all_connections_mutex.unlock();
-        self.closeStream();
-        self.deinit();
-        self.allocator.destroy(self);
     }
 
     /// Enqueue a pre-serialized bytes slice for the writer thread.

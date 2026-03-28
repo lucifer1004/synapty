@@ -7,12 +7,12 @@ const ipc = @import("ipc");
 const Allocator = mem.Allocator;
 const transport = @import("transport.zig");
 
-// Import arg types from parent cli module.
-const cli = @import("../cli.zig");
-const RegisterArgs = cli.RegisterArgs;
-const SendArgs = cli.SendArgs;
-const RecvArgs = cli.RecvArgs;
-const IpcArgs = cli.IpcArgs;
+// Import arg types from the shared types module (no circular import).
+const types = @import("types.zig");
+const RegisterArgs = types.RegisterArgs;
+const SendArgs = types.SendArgs;
+const RecvArgs = types.RecvArgs;
+const IpcArgs = types.IpcArgs;
 
 // ---------------------------------------------------------------------------
 // Subcommand handlers

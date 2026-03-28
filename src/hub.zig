@@ -38,6 +38,28 @@ const default_listen_port: u16 = 9000;
 const recv_buf_size = handlers.recv_buf_size;
 
 // ---------------------------------------------------------------------------
+// Connection release callback
+// ---------------------------------------------------------------------------
+
+/// Called when a Connection's ref_count hits 0. Removes it from
+/// HubState.all_connections, closes the stream, and frees the allocation.
+/// The ctx pointer is a *HubState cast to *anyopaque.
+fn hubReleaseConnection(ctx: *anyopaque, conn: *Connection) void {
+    const state: *HubState = @ptrCast(@alignCast(ctx));
+    state.all_connections_mutex.lock();
+    for (state.all_connections.items, 0..) |c, idx| {
+        if (c == conn) {
+            _ = state.all_connections.swapRemove(idx);
+            break;
+        }
+    }
+    state.all_connections_mutex.unlock();
+    conn.closeStream();
+    conn.deinit();
+    conn.allocator.destroy(conn);
+}
+
+// ---------------------------------------------------------------------------
 // Reader thread
 // ---------------------------------------------------------------------------
 
@@ -250,9 +272,9 @@ pub const HubServer = struct {
             };
             conn.* = Connection.init(
                 self.state.allocator,
-                &self.state.all_connections,
-                &self.state.all_connections_mutex,
                 accepted.stream,
+                @ptrCast(&self.state),
+                &hubReleaseConnection,
             );
             {
                 self.state.all_connections_mutex.lock();
