@@ -48,7 +48,7 @@ import AppKit
     private var heartbeatTimer: Timer?
 
     /// Pending connection callbacks (queued while setup is running).
-    private var pendingCallbacks: [UUID: [(String) -> Void]] = [:]
+    private var pendingCallbacks: [UUID: [((command: String, agentID: String)) -> Void]] = [:]
 
     // MARK: - Shell escaping
 
@@ -104,7 +104,7 @@ import AppKit
 
     /// Ensures a tunnel is active for the host. If already connected, calls completion
     /// immediately with the connect command. Otherwise runs setup first.
-    func ensureTunnel(for host: HostEntry, completion: @escaping (String) -> Void) {
+    func ensureTunnel(for host: HostEntry, completion: @escaping ((command: String, agentID: String)) -> Void) {
         trackedHosts[host.id] = host
 
         if checkTunnel(for: host) {
@@ -128,7 +128,8 @@ import AppKit
 
     // MARK: - Connect command
 
-    func connectCommand(for host: HostEntry) -> String {
+    /// Returns (command, agentID) so callers can store the agent ID on the session.
+    func connectCommand(for host: HostEntry) -> (command: String, agentID: String) {
         let script = scriptPath("connect")
         let agentID = "\(host.label)-\(UUID().uuidString.prefix(4).lowercased())"
         var parts = ["bash", shellEscape(script), shellEscape(agentID),
@@ -137,23 +138,21 @@ import AppKit
         if let key = host.sshKeyPath, !key.isEmpty {
             parts.append(shellEscape(key))
         }
-        return parts.joined(separator: " ")
+        return (parts.joined(separator: " "), agentID)
     }
 
-    /// Command for local sessions: synapty run with agent ID, connecting to local Hub.
-    func localCommand() -> String {
+    /// Returns (command, agentID) for local sessions.
+    func localCommand() -> (command: String, agentID: String) {
         let agentID = "local-\(UUID().uuidString.prefix(4).lowercased())"
-        // Find synapty binary: bundled in .app Resources or dev build
         let synaptyBin: String
         if let bundled = Bundle.main.path(forResource: "synapty", ofType: nil) {
             synaptyBin = bundled
         } else {
-            // Dev fallback: absolute path to zig-out/bin/synapty
             let cwd = FileManager.default.currentDirectoryPath
             synaptyBin = "\(cwd)/zig-out/bin/synapty"
         }
-        // Use login shell: read SHELL env var at runtime in the spawned shell
-        return "\(shellEscape(synaptyBin)) run --id \(shellEscape(agentID)) --hub 127.0.0.1:\(tunnelPort) -- ${SHELL:-/bin/zsh} -l"
+        let cmd = "\(shellEscape(synaptyBin)) run --id \(shellEscape(agentID)) --hub 127.0.0.1:\(tunnelPort) -- ${SHELL:-/bin/zsh} -l"
+        return (cmd, agentID)
     }
 
     // MARK: - Setup (background process)

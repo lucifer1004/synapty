@@ -13,6 +13,8 @@ struct HostSidebar: View {
     var onHostConnect: ((HostEntry) -> Void)?
     /// Called when the user picks "Local" from the picker.
     var onNewLocalPane: (() -> Void)?
+    /// Called when the user clicks an agent row to focus its pane.
+    var onAgentTap: ((AgentInfo) -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -93,7 +95,11 @@ struct HostSidebar: View {
                             .font(.caption)
                     } else {
                         ForEach(agentMonitor.agents) { agent in
-                            AgentRow(agent: agent)
+                            AgentRow(
+                                agent: agent,
+                                needsAttention: agentMonitor.needsAttention.contains(agent.id)
+                            )
+                            .onTapGesture { onAgentTap?(agent) }
                         }
                     }
                 } header: {
@@ -140,12 +146,13 @@ struct SessionRow: View {
 
 struct AgentRow: View {
     let agent: AgentInfo
+    let needsAttention: Bool
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: agent.tool.sfSymbol)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(agent.tool.accentColor)
+                .foregroundStyle(needsAttention ? .orange : agent.tool.accentColor)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(agent.tool.displayName)
@@ -162,6 +169,13 @@ struct AgentRow: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+            }
+            Spacer()
+            if needsAttention {
+                Circle()
+                    .fill(.orange)
+                    .frame(width: 6, height: 6)
+                    .modifier(PulseAnimation())
             }
         }
         .padding(.vertical, 2)

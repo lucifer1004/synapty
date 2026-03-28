@@ -4,10 +4,10 @@ import SwiftUI
 
 struct AgentStatusBar: View {
     @ObservedObject var agentMonitor: AgentMonitor
+    var onAgentTap: ((AgentInfo) -> Void)?
 
     var body: some View {
         HStack(spacing: 1) {
-            // Agent chips (horizontal scroll)
             if agentMonitor.agents.isEmpty {
                 Text("No agents")
                     .font(.system(size: 10))
@@ -17,7 +17,11 @@ struct AgentStatusBar: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(agentMonitor.agents) { agent in
-                            AgentChip(agent: agent)
+                            AgentChip(
+                                agent: agent,
+                                needsAttention: agentMonitor.needsAttention.contains(agent.id)
+                            )
+                            .onTapGesture { onAgentTap?(agent) }
                         }
                     }
                     .padding(.horizontal, 8)
@@ -25,17 +29,6 @@ struct AgentStatusBar: View {
             }
 
             Spacer()
-
-            if agentMonitor.messageCount > 0 {
-                HStack(spacing: 3) {
-                    Image(systemName: "message.fill")
-                        .font(.system(size: 9))
-                    Text("\(agentMonitor.messageCount)")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .foregroundColor(.secondary)
-                .padding(.trailing, 8)
-            }
         }
         .frame(height: 28)
         .background(.bar)
@@ -47,6 +40,7 @@ struct AgentStatusBar: View {
 
 struct AgentChip: View {
     let agent: AgentInfo
+    let needsAttention: Bool
     @State private var isHovered = false
 
     var body: some View {
@@ -66,6 +60,13 @@ struct AgentChip: View {
                         .lineLimit(1)
                 }
             }
+
+            if needsAttention {
+                Circle()
+                    .fill(.orange)
+                    .frame(width: 6, height: 6)
+                    .modifier(PulseAnimation())
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -74,11 +75,27 @@ struct AgentChip: View {
                 .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
                 .overlay(
                     RoundedRectangle(cornerRadius: 5)
-                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        .strokeBorder(
+                            needsAttention ? Color.orange.opacity(0.6) : Color.primary.opacity(0.12),
+                            lineWidth: needsAttention ? 1.5 : 0.5
+                        )
                 )
         )
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)
         .help("\(agent.tool.displayName) — \(agent.id)\n\(agent.project)")
+    }
+}
+
+// MARK: - Pulse Animation
+
+struct PulseAnimation: ViewModifier {
+    @State private var isPulsing = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isPulsing ? 0.4 : 1.0)
+            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isPulsing)
+            .onAppear { isPulsing = true }
     }
 }

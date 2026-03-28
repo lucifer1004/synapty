@@ -17,12 +17,19 @@ struct ContentView: View {
                 tunnelManager: tunnelManager,
                 agentMonitor: agentMonitor,
                 onHostConnect: { host in
-                    tunnelManager.ensureTunnel(for: host) { [weak paneManager] cmd in
-                        paneManager?.addRemoteSession(label: host.label, hostEntry: host, command: cmd)
+                    tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
+                        paneManager?.addRemoteSession(label: host.label, hostEntry: host, command: result.command, agentID: result.agentID)
                     }
                 },
                 onNewLocalPane: {
                     paneManager.addLocalSession()
+                },
+                onAgentTap: { [weak paneManager, weak agentMonitor] agent in
+                    // Focus the session that owns this agent ID.
+                    if let session = paneManager?.sessions.first(where: { $0.agentID == agent.id }) {
+                        paneManager?.activeSessionID = session.id
+                    }
+                    agentMonitor?.clearAttention(agent.id)
                 }
             )
         } detail: {
@@ -43,7 +50,12 @@ struct ContentView: View {
                         .background(.black)
                         .foregroundColor(.white)
                 }
-                AgentStatusBar(agentMonitor: agentMonitor)
+                AgentStatusBar(agentMonitor: agentMonitor, onAgentTap: { [weak paneManager, weak agentMonitor] agent in
+                    if let session = paneManager?.sessions.first(where: { $0.agentID == agent.id }) {
+                        paneManager?.activeSessionID = session.id
+                    }
+                    agentMonitor?.clearAttention(agent.id)
+                })
             }
         }
         .toolbar {

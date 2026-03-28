@@ -55,6 +55,9 @@ import Foundation
         let label: String
         /// The host entry for remote sessions, nil for local.
         let hostEntry: HostEntry?
+        /// The synapty agent ID for this session (e.g., "local-37cb").
+        /// Used to map Hub-registered agents back to their terminal pane.
+        let agentID: String?
         var panes: [Pane]
         var activePaneID: UUID?
 
@@ -65,10 +68,11 @@ import Foundation
 
         var isLocal: Bool { hostEntry == nil }
 
-        init(label: String, hostEntry: HostEntry? = nil, initialCommand: String? = nil) {
+        init(label: String, hostEntry: HostEntry? = nil, agentID: String? = nil, initialCommand: String? = nil) {
             self.id = UUID()
             self.label = label
             self.hostEntry = hostEntry
+            self.agentID = agentID
             let pane = Pane(label: "Shell", command: initialCommand)
             self.panes = [pane]
             self.activePaneID = pane.id
@@ -110,14 +114,14 @@ import Foundation
     // MARK: - Session management
 
     func addLocalSession() {
-        let command = TunnelManager.shared?.localCommand()
-        let session = Session(label: "Local", initialCommand: command)
+        let result = TunnelManager.shared?.localCommand()
+        let session = Session(label: "Local", agentID: result?.agentID, initialCommand: result?.command)
         sessions.append(session)
         activeSessionID = session.id
     }
 
-    func addRemoteSession(label: String, hostEntry: HostEntry, command: String) {
-        let session = Session(label: label, hostEntry: hostEntry, initialCommand: command)
+    func addRemoteSession(label: String, hostEntry: HostEntry, command: String, agentID: String? = nil) {
+        let session = Session(label: label, hostEntry: hostEntry, agentID: agentID, initialCommand: command)
         sessions.append(session)
         activeSessionID = session.id
     }
@@ -141,9 +145,9 @@ import Foundation
         // Generate a new command with unique agent ID for every pane.
         let command: String?
         if let hostEntry = session.hostEntry {
-            command = TunnelManager.shared?.connectCommand(for: hostEntry)
+            command = TunnelManager.shared?.connectCommand(for: hostEntry).command
         } else {
-            command = TunnelManager.shared?.localCommand()
+            command = TunnelManager.shared?.localCommand().command
         }
         let pane = Pane(label: "Shell \(session.panes.count + 1)", command: command)
         sessions[sIdx].panes.append(pane)
@@ -178,9 +182,9 @@ import Foundation
         // Generate a new command with unique agent ID for every split.
         let command: String?
         if let hostEntry = sessions[sIdx].hostEntry {
-            command = TunnelManager.shared?.connectCommand(for: hostEntry)
+            command = TunnelManager.shared?.connectCommand(for: hostEntry).command
         } else {
-            command = TunnelManager.shared?.localCommand()
+            command = TunnelManager.shared?.localCommand().command
         }
         let (newRoot, newLeafID) = sessions[sIdx].panes[pIdx].splitRoot.splitLeaf(
             focusedID,

@@ -3,8 +3,46 @@
 [govctl]
 id = "WI-2026-03-27-010"
 title = "Agent detection and status: leafID-to-agentID mapping"
-status = "queue"
+status = "done"
 created = "2026-03-27"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["RFC-0002"]
 
 [content]
-description = "Add agentID field to LeafData. TunnelManager stores the mapping when generating connect commands. AgentMonitor cross-references leaf agentIDs against Hub registrations. Show agent status (green dot) on pane tabs and session rows. V1: synapty-managed agents only."
+description = "Refine agent display: stable ordering, filter trivial daemons, click-to-focus pane, bell-based attention highlighting."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "gui"
+content = "Implemented all 4 refinements: (1) Session stores agentID from TunnelManager tuples; (2) AgentMonitor filters hasMetadata + stable merge-sort; (3) Click agent chip/row focuses matching session via onAgentTap callbacks; (4) needsAttention set with amber pulsing indicators on chip/row. Xcode build succeeds."
+
+[[content.acceptance_criteria]]
+text = "Session stores agentID, TunnelManager returns (command, agentID) tuples"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AgentMonitor filters hasMetadata, stable merge-sort ordering"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Click agent chip/row focuses the matching session pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Bell triggers amber attention indicator on agent chip/row"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

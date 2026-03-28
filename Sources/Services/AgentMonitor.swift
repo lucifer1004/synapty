@@ -70,8 +70,12 @@ struct ChatMessage: Identifiable, Equatable {
     @Published var agents: [AgentInfo] = []
     @Published var messages: [ChatMessage] = []
     @Published var messageCount: Int = 0
+    /// Agent IDs that need human attention (e.g., bell rang).
+    @Published var needsAttention: Set<String> = []
 
     private var timer: Timer?
+    /// Stable agent map keyed by ID — prevents ordering jumps on re-poll.
+    private var knownAgents: [String: AgentInfo] = [:]
 
     func startMonitoring() {
         refresh()
@@ -83,6 +87,36 @@ struct ChatMessage: Identifiable, Equatable {
     func stopMonitoring() {
         timer?.invalidate()
         timer = nil
+    }
+
+    // MARK: - Stable merge + filter
+
+    /// Merge incoming agents into stable ordered list.
+    /// Only agents with metadata (tool != unknown) are shown.
+    private func mergeAgents(_ incoming: [AgentInfo]) {
+        var newMap: [String: AgentInfo] = [:]
+        for agent in incoming where agent.hasMetadata {
+            newMap[agent.id] = agent
+        }
+        // Sort alphabetically by ID for stable ordering.
+        let sorted = Array(newMap.values).sorted { $0.id < $1.id }
+        // Only publish if changed — avoids unnecessary SwiftUI re-renders.
+        if sorted != agents {
+            knownAgents = newMap
+            agents = sorted
+        }
+        // Prune attention for agents that disappeared.
+        needsAttention = needsAttention.filter { newMap[$0] != nil }
+    }
+
+    // MARK: - Attention
+
+    func markNeedsAttention(_ agentID: String) {
+        needsAttention.insert(agentID)
+    }
+
+    func clearAttention(_ agentID: String) {
+        needsAttention.remove(agentID)
     }
 
     // MARK: - Binary path resolution (matches HubManager pattern)
@@ -118,7 +152,7 @@ struct ChatMessage: Identifiable, Equatable {
             let output = String(data: data, encoding: .utf8) ?? ""
             let parsed = parseAgentsOutput(output)
             DispatchQueue.main.async {
-                self.agents = parsed
+                self.mergeAgents(parsed)
             }
         } catch {
             // Binary not available yet — stay silent
