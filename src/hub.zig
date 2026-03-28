@@ -517,6 +517,7 @@ fn handleDm(state: *HubState, stream: net.Stream, arena: Allocator, envelope: pr
             try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "delivery failed");
             return;
         };
+        try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
     } else {
         try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "agent not connected");
         return;
@@ -699,6 +700,7 @@ fn handleChannelMsg(state: *HubState, stream: net.Stream, arena: Allocator, enve
             };
         }
     }
+    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: list_channels per [[RFC-0002:C-CLI-MCP]] ---------------------
@@ -925,13 +927,19 @@ pub const HubServer = struct {
 
     pub fn init(allocator: Allocator) !HubServer {
         _ = allocator;
+        return initWithAddress(default_listen_addr, default_listen_port);
+    }
 
-        const address = net.Address.parseIp4(default_listen_addr, default_listen_port) catch unreachable;
+    /// Create a Hub bound to a specific address/port. Use port 0 for an
+    /// OS-assigned ephemeral port (useful for tests).
+    pub fn initWithAddress(addr: []const u8, port: u16) !HubServer {
+        const address = try net.Address.parseIp4(addr, port);
         const listener = try address.listen(.{
             .reuse_address = true,
         });
 
-        log.info("Synapty Hub listening on {s}:{d}", .{ default_listen_addr, default_listen_port });
+        const bound_port = listener.listen_address.getPort();
+        log.info("Synapty Hub listening on {s}:{d}", .{ addr, bound_port });
 
         return .{
             .listener = listener,

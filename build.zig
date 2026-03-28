@@ -225,6 +225,28 @@ pub fn build(b: *std.Build) void {
         test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = test_mod })).step);
     }
 
+    // e2e integration tests (hub + run + protocol + ipc)
+    const hub_module = b.createModule(.{
+        .root_source_file = b.path("src/hub.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = mods.protocol },
+        },
+    });
+    const e2e_test_mod = b.createModule(.{
+        .root_source_file = b.path("src/e2e_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "run", .module = mods.run },
+            .{ .name = "hub", .module = hub_module },
+        },
+    });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = e2e_test_mod })).step);
+
     // cli tests need all four imports
     const cli_test_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),

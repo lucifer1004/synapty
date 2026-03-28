@@ -203,6 +203,26 @@ pub const RunServer = struct {
         hub_thread.join();
         ipc_thread.join();
     }
+
+    /// Start hub reader and IPC server threads without spawning a child process.
+    /// Caller must call stopThreads() to shut down.
+    pub fn startThreads(self: *RunServer) !struct { hub: std.Thread, ipc: std.Thread } {
+        self.running = true;
+        const hub_thread = try std.Thread.spawn(.{}, hubReaderThread, .{self});
+        const ipc_thread = try std.Thread.spawn(.{}, ipcServerThread, .{self});
+        return .{ .hub = hub_thread, .ipc = ipc_thread };
+    }
+
+    /// Signal threads to stop and join them.
+    pub fn stopThreads(self: *RunServer, threads: struct { hub: std.Thread, ipc: std.Thread }) void {
+        @atomicStore(bool, &self.running, false, .release);
+        posix.shutdown(self.hub_stream.handle, .both) catch {};
+        if (net.connectUnixSocket(self.socket_path)) |dummy| {
+            dummy.close();
+        } else |_| {}
+        threads.hub.join();
+        threads.ipc.join();
+    }
 };
 
 // ---------------------------------------------------------------------------
