@@ -25,9 +25,9 @@ SOCKET="$HOME/.synapty/sockets/${USER}@${HOST}:${PORT}"
 if ssh -S "$SOCKET" -O check "$DEST" 2>/dev/null; then
     echo "Using existing tunnel (ControlMaster)..."
     exec ssh -t -S "$SOCKET" $SSH_FLAGS "$DEST" \
-        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \${SHELL:-bash} -l"
+        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 else
     echo "No ControlMaster found. Connecting with new tunnel..."
     exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" $SSH_FLAGS "$DEST" \
-        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \${SHELL:-bash} -l"
+        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 fi

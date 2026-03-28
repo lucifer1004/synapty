@@ -94,4 +94,4 @@ fi
 
 echo "Connecting with reverse tunnel (port ${TUNNEL_PORT})..."
 exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" $SSH_FLAGS "$DEST" \
-    ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- bash -l"
+    ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
