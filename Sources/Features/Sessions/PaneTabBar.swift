@@ -43,6 +43,13 @@ struct PaneTabBar: View {
         }
         .frame(height: 30)
         .background(Color(NSColor.windowBackgroundColor))
+        .focusable()
+        .onKeyPress(.return) {
+            guard editingPaneID == nil,
+                  let activePaneID = session.activePaneID else { return .ignored }
+            editingPaneID = activePaneID
+            return .handled
+        }
     }
 }
 

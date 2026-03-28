@@ -116,16 +116,12 @@ struct HostSidebar: View {
                 }
             }
             .listStyle(.sidebar)
-            .background {
-                // Hidden button captures Return key via keyboardShortcut —
-                // works even when the List consumes .onKeyPress(.return).
-                Button("") {
-                    guard let id = paneManager.activeSessionID,
-                          editingSessionID == nil else { return }
-                    editingSessionID = id
-                }
-                .keyboardShortcut(.return, modifiers: [])
-                .hidden()
+            .focusable()
+            .onKeyPress(.return) {
+                guard editingSessionID == nil,
+                      let id = paneManager.activeSessionID else { return .ignored }
+                editingSessionID = id
+                return .handled
             }
         }
         .sheet(isPresented: $showHostConfig) {
