@@ -401,3 +401,183 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
         try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
     }
 }
+
+test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const h = try startHub();
+    defer stopHub(h);
+
+    // Start RunServer for "alice".
+    var server = try run.RunServer.init(alloc, "alice", "127.0.0.1", h.port);
+    defer server.deinit();
+    const threads = try server.startThreads();
+    defer server.stopThreads(threads);
+    try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
+
+    // Connect "bob" as raw TCP and send a DM to alice.
+    const bob_stream = try connectAndRegister(alloc, h.port, "bob");
+    defer bob_stream.close();
+    try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
+
+    var payload_obj = json.ObjectMap.init(alloc);
+    try payload_obj.put("text", .{ .string = "msg for alice" });
+    const raw = try protocol.serializeEnvelope(alloc, .{
+        .@"type" = "dm",
+        .id = "dm-to-alice",
+        .source = "bob",
+        .target = "alice",
+        .payload = .{ .object = payload_obj },
+    });
+    try bob_stream.writeAll(raw);
+    try bob_stream.writeAll("\n");
+
+    // Give hubReaderThread time to receive and queue the message.
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+
+    // Use IPC recv to drain messages — should contain the DM from bob.
+    {
+        var client = try ipc.IpcClient.connect(server.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{ .action = .recv });
+        try client.send(req);
+        var resp_buf: [16384]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        const resp_str = resp_line.?;
+        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "msg for alice") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
+    }
+}
+
+test "e2e: RunServer IPC register updates agent metadata on Hub" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const h = try startHub();
+    defer stopHub(h);
+
+    // Start RunServer for "alice".
+    var server = try run.RunServer.init(alloc, "alice", "127.0.0.1", h.port);
+    defer server.deinit();
+    const threads = try server.startThreads();
+    defer server.stopThreads(threads);
+    try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
+
+    // Use IPC register to set agent metadata.
+    {
+        var client = try ipc.IpcClient.connect(server.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{
+            .action = .register,
+            .tool = "claude",
+            .project = "/test/project",
+            .session = "e2e test",
+        });
+        try client.send(req);
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+    }
+
+    // Verify metadata via list_agents — should include tool/project/session.
+    {
+        var client = try ipc.IpcClient.connect(server.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{ .action = .agents });
+        try client.send(req);
+        var resp_buf: [16384]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        const resp_str = resp_line.?;
+        try std.testing.expect(mem.indexOf(u8, resp_str, "claude") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "/test/project") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "e2e test") != null);
+    }
+}
+
+test "e2e: RunServer IPC channel create and send through daemon" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const h = try startHub();
+    defer stopHub(h);
+
+    // Start RunServer for "alice".
+    var srv_alice = try run.RunServer.init(alloc, "alice", "127.0.0.1", h.port);
+    defer srv_alice.deinit();
+    const threads_alice = try srv_alice.startThreads();
+    defer srv_alice.stopThreads(threads_alice);
+    try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
+
+    // Connect "bob" as raw TCP.
+    const bob_stream = try connectAndRegister(alloc, h.port, "bob");
+    defer bob_stream.close();
+    try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
+
+    // Alice creates a channel via IPC.
+    {
+        var client = try ipc.IpcClient.connect(srv_alice.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{
+            .action = .channel_create,
+            .channel = "ipc-chan",
+            .description = "daemon channel test",
+        });
+        try client.send(req);
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+    }
+
+    // Alice invites bob via IPC.
+    {
+        var client = try ipc.IpcClient.connect(srv_alice.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{
+            .action = .channel_invite,
+            .channel = "ipc-chan",
+            .agent_id = "bob",
+        });
+        try client.send(req);
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+    }
+
+    // Bob should receive invite event.
+    var inv_buf: [8192]u8 = undefined;
+    const inv_event = readLine(bob_stream, &inv_buf, 2000);
+    try std.testing.expect(inv_event != null);
+    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"event\":\"invited\"") != null);
+
+    // Alice sends a channel message via IPC send with channel: prefix.
+    {
+        var client = try ipc.IpcClient.connect(srv_alice.socket_path);
+        defer client.deinit();
+        const req = try protocol.serializeIpcRequest(alloc, .{
+            .action = .send,
+            .target = "channel:ipc-chan",
+            .text = "hello via daemon channel",
+        });
+        try client.send(req);
+        var resp_buf: [8192]u8 = undefined;
+        const resp_line = try client.recv(&resp_buf);
+        try std.testing.expect(resp_line != null);
+        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+    }
+
+    // Bob should receive the channel message.
+    var bob_buf: [8192]u8 = undefined;
+    const bob_msg = readLine(bob_stream, &bob_buf, 2000);
+    try std.testing.expect(bob_msg != null);
+    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello via daemon channel") != null);
+}
