@@ -155,14 +155,26 @@ struct DraggableDivider: View {
                     height: isHorizontal ? info.rect.height : 4
                 )
 
-            // Invisible wide grab area
+            // Invisible wide grab area with cursor + drag
             Rectangle()
-                .fill(Color.clear)
+                .fill(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
                 .frame(
                     width: isHorizontal ? grabSize : info.rect.width,
                     height: isHorizontal ? info.rect.height : grabSize
                 )
                 .contentShape(Rectangle())
+                .onHover { hovering in
+                    isHovered = hovering
+                    if hovering {
+                        if isHorizontal {
+                            NSCursor.resizeLeftRight.push()
+                        } else {
+                            NSCursor.resizeUpDown.push()
+                        }
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
         }
         .position(x: centerX, y: centerY)
         .gesture(
@@ -177,17 +189,5 @@ struct DraggableDivider: View {
                     onResize(newRatio)
                 }
         )
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering {
-                if isHorizontal {
-                    NSCursor.resizeLeftRight.push()
-                } else {
-                    NSCursor.resizeUpDown.push()
-                }
-            } else {
-                NSCursor.pop()
-            }
-        }
     }
 }
