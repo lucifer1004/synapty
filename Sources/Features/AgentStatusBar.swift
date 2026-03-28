@@ -4,15 +4,9 @@ import SwiftUI
 
 struct AgentStatusBar: View {
     @ObservedObject var agentMonitor: AgentMonitor
-    @ObservedObject var hubManager: HubManager
 
     var body: some View {
         HStack(spacing: 1) {
-            // Hub status pill
-            HubStatusPill(hubManager: hubManager)
-
-            Divider().frame(height: 16)
-
             // Agent chips (horizontal scroll)
             if agentMonitor.agents.isEmpty {
                 Text("No agents")
@@ -46,33 +40,6 @@ struct AgentStatusBar: View {
         .frame(height: 28)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
-    }
-}
-
-// MARK: - Hub Status Pill
-
-struct HubStatusPill: View {
-    @ObservedObject var hubManager: HubManager
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-            Text("Hub")
-                .font(.system(size: 10, weight: .medium))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-    }
-
-    private var statusColor: Color {
-        switch hubManager.status {
-        case .stopped: return .gray
-        case .starting: return .yellow
-        case .running: return .green
-        case .failed: return .red
-        }
     }
 }
 

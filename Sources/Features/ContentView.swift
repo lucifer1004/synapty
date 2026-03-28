@@ -43,7 +43,7 @@ struct ContentView: View {
                         .background(.black)
                         .foregroundColor(.white)
                 }
-                AgentStatusBar(agentMonitor: agentMonitor, hubManager: hubManager)
+                AgentStatusBar(agentMonitor: agentMonitor)
             }
         }
         .toolbar {
