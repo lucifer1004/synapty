@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-012"
+title = "Refactor bottom status bar: context bar replaces agent rail"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+
+[content]
+description = "Replace agent chips in bottom status bar with contextual info: focused pane agent/session context (left), terminal dimensions (center), Hub summary (right). Agents live only in sidebar."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "gui"
+content = "Replaced AgentStatusBar with ContextStatusBar: focused session context (left), Hub agent count (right). Removed agent chips — agents now sidebar-only."
+
+[[content.acceptance_criteria]]
+text = "Bottom bar shows focused session agent ID, tool, session summary"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Terminal dimensions (cols x rows) in center"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Hub agent count on right"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

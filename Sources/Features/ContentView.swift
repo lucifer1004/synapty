@@ -50,12 +50,7 @@ struct ContentView: View {
                         .background(.black)
                         .foregroundColor(.white)
                 }
-                AgentStatusBar(agentMonitor: agentMonitor, onAgentTap: { [weak paneManager, weak agentMonitor] agent in
-                    if let session = paneManager?.sessions.first(where: { $0.agentID == agent.id }) {
-                        paneManager?.activeSessionID = session.id
-                    }
-                    agentMonitor?.clearAttention(agent.id)
-                })
+                ContextStatusBar(paneManager: paneManager, agentMonitor: agentMonitor, hubManager: hubManager)
             }
         }
         .toolbar {
