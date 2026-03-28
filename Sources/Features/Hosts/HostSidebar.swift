@@ -8,9 +8,8 @@ struct HostSidebar: View {
     @ObservedObject var agentMonitor: AgentMonitor
     @State private var showHostConfig = false
     @State private var showHostPicker = false
-    @State private var showRenameAlert = false
-    @State private var renameSessionID: UUID?
-    @State private var renameText = ""
+    /// ID of the session currently being renamed inline.
+    @State private var editingSessionID: UUID?
 
     /// Called when the user picks a remote host from the picker.
     var onHostConnect: ((HostEntry) -> Void)?
@@ -74,13 +73,11 @@ struct HostSidebar: View {
                             .font(.caption)
                     } else {
                         ForEach(paneManager.sessions) { session in
-                            SessionRow(session: session, paneManager: paneManager)
+                            SessionRow(session: session, paneManager: paneManager, editingSessionID: $editingSessionID)
                                 .tag(session.id)
                                 .contextMenu {
-                                    Button("Rename...") {
-                                        renameSessionID = session.id
-                                        renameText = session.label
-                                        showRenameAlert = true
+                                    Button("Rename") {
+                                        editingSessionID = session.id
                                     }
                                     Divider()
                                     Button("Close Session") {
@@ -120,28 +117,14 @@ struct HostSidebar: View {
             }
             .listStyle(.sidebar)
             .onKeyPress(.return) {
-                // Enter on selected session → rename (Finder pattern)
-                guard let id = paneManager.activeSessionID,
-                      let session = paneManager.sessions.first(where: { $0.id == id }) else {
-                    return .ignored
-                }
-                renameSessionID = session.id
-                renameText = session.label
-                showRenameAlert = true
+                // Enter on selected session → inline rename (Finder pattern)
+                guard let id = paneManager.activeSessionID else { return .ignored }
+                editingSessionID = id
                 return .handled
             }
         }
         .sheet(isPresented: $showHostConfig) {
             HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
-        }
-        .alert("Rename Session", isPresented: $showRenameAlert) {
-            TextField("Session name", text: $renameText)
-            Button("Cancel", role: .cancel) {}
-            Button("Rename") {
-                if let id = renameSessionID, !renameText.isEmpty {
-                    paneManager.renameSession(id, to: renameText)
-                }
-            }
         }
     }
 }
@@ -151,6 +134,10 @@ struct HostSidebar: View {
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
     @ObservedObject var paneManager: TerminalPaneManager
+    @Binding var editingSessionID: UUID?
+    @State private var editText = ""
+
+    private var isEditing: Bool { editingSessionID == session.id }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -172,14 +159,27 @@ struct SessionRow: View {
             }
 
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Text(session.label)
-                        .font(.body)
-                        .lineLimit(1)
-                    if case .connecting = session.state {
-                        Text("...")
+                if isEditing {
+                    TextField("Name", text: $editText, onCommit: {
+                        if !editText.isEmpty {
+                            paneManager.renameSession(session.id, to: editText)
+                        }
+                        editingSessionID = nil
+                    })
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .onAppear { editText = session.label }
+                    .onExitCommand { editingSessionID = nil }
+                } else {
+                    HStack(spacing: 4) {
+                        Text(session.label)
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        if case .connecting = session.state {
+                            Text("...")
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 if session.panes.count > 1 {
