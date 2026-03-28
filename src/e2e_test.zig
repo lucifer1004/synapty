@@ -119,6 +119,29 @@ fn readLine(stream: net.Stream, buf: []u8, timeout_ms: u64) ?[]const u8 {
     return null;
 }
 
+/// Parse an IPC response line, extract the "data" field, and parse it as JSON.
+/// The IPC response is `{"success":...,"data":"<escaped-json>"}` — this
+/// unescapes and parses the nested JSON so callers can navigate the structure.
+/// Caller must use an arena allocator (no explicit deinit needed).
+fn parseIpcData(alloc: Allocator, ipc_line: []const u8) !json.Value {
+    const outer = try json.parseFromSlice(json.Value, alloc, ipc_line, .{ .allocate = .alloc_always });
+    const outer_obj = if (outer.value == .object) outer.value.object else return error.UnexpectedToken;
+    const data_val = outer_obj.get("data") orelse return error.MissingField;
+    if (data_val != .string) return error.UnexpectedToken;
+    const inner = try json.parseFromSlice(json.Value, alloc, data_val.string, .{ .allocate = .alloc_always });
+    return inner.value;
+}
+
+/// Find an agent object by ID in a Hub agents response array.
+fn findAgentInList(agents_arr: json.Array, agent_id: []const u8) ?json.ObjectMap {
+    for (agents_arr.items) |item| {
+        if (item != .object) continue;
+        const id_val = item.object.get("id") orelse continue;
+        if (id_val == .string and mem.eql(u8, id_val.string, agent_id)) return item.object;
+    }
+    return null;
+}
+
 /// Parse an envelope from a JSON line and check the "ok" field in payload.
 fn envelopeOk(allocator: Allocator, line: []const u8) !bool {
     var parsed = try protocol.parseEnvelope(allocator, line);
@@ -385,20 +408,25 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
     try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello from daemon") != null);
     try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"source\":\"alice\"") != null);
 
-    // Use IPC client to list agents — verify both alice and bob appear.
+    // Use IPC client to list agents — parse nested Hub response structurally.
     {
         var client = try ipc.IpcClient.connect(server.socket_path);
         defer client.deinit();
         const req = try protocol.serializeIpcRequest(alloc, .{ .action = .agents });
         try client.send(req);
-        var resp_buf: [8192]u8 = undefined;
+        var resp_buf: [16384]u8 = undefined;
         const resp_line = try client.recv(&resp_buf);
         try std.testing.expect(resp_line != null);
-        const resp_str = resp_line.?;
-        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
-        // The data field contains the Hub's response with agent list.
-        try std.testing.expect(mem.indexOf(u8, resp_str, "alice") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
+
+        const hub_env = try parseIpcData(alloc, resp_line.?);
+        try std.testing.expect(hub_env == .object);
+        const payload = hub_env.object.get("payload") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(payload == .object);
+        const agents_val = payload.object.get("agents") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(agents_val == .array);
+        // Both alice and bob must be present as distinct agent entries.
+        try std.testing.expect(findAgentInList(agents_val.array, "alice") != null);
+        try std.testing.expect(findAgentInList(agents_val.array, "bob") != null);
     }
 }
 
@@ -448,12 +476,34 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
                 var resp_buf: [16384]u8 = undefined;
                 const resp_line = try client.recv(&resp_buf);
                 if (resp_line) |resp_str| {
-                    if (mem.indexOf(u8, resp_str, "msg for alice") != null) {
-                        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
-                        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
-                        found = true;
-                        break;
+                    // Parse the IPC data field (a JSON array of raw message strings).
+                    const data = parseIpcData(alloc, resp_str) catch continue;
+                    if (data != .array) continue;
+                    for (data.array.items) |msg_val| {
+                        if (msg_val != .string) continue;
+                        // Parse each queued message as an envelope.
+                        const env = json.parseFromSlice(json.Value, alloc, msg_val.string, .{ .allocate = .alloc_always }) catch continue;
+                        if (env.value != .object) continue;
+                        const source = env.value.object.get("source") orelse continue;
+                        const payload = env.value.object.get("payload") orelse continue;
+                        if (source == .string and mem.eql(u8, source.string, "bob")) {
+                            if (payload == .object) {
+                                const text_val = payload.object.get("text") orelse continue;
+                                if (text_val == .string and mem.eql(u8, text_val.string, "msg for alice")) {
+                                    // Verify envelope structure.
+                                    const target = env.value.object.get("target") orelse continue;
+                                    try std.testing.expect(target == .string);
+                                    try std.testing.expectEqualStrings("alice", target.string);
+                                    const msg_type = env.value.object.get("type") orelse continue;
+                                    try std.testing.expect(msg_type == .string);
+                                    try std.testing.expectEqualStrings("dm", msg_type.string);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
                     }
+                    if (found) break;
                 }
             }
             std.Thread.sleep(5 * std.time.ns_per_ms);
@@ -494,7 +544,7 @@ test "e2e: RunServer IPC register updates agent metadata on Hub" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Verify metadata via list_agents — tool/project/session keyed correctly.
+    // Verify metadata via list_agents — parse nested Hub response structurally.
     {
         var client = try ipc.IpcClient.connect(server.socket_path);
         defer client.deinit();
@@ -503,18 +553,28 @@ test "e2e: RunServer IPC register updates agent metadata on Hub" {
         var resp_buf: [16384]u8 = undefined;
         const resp_line = try client.recv(&resp_buf);
         try std.testing.expect(resp_line != null);
-        const resp_str = resp_line.?;
-        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
-        // Hub response is JSON-escaped inside the IPC data field, so check
-        // values and field names separately (key:value patterns get escaped).
-        try std.testing.expect(mem.indexOf(u8, resp_str, "alice") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "claude") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "/test/project") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "e2e test") != null);
-        // Verify field names are present (proves structure, not just values).
-        try std.testing.expect(mem.indexOf(u8, resp_str, "tool") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "project") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "session") != null);
+
+        // Parse IPC data → Hub envelope → payload.agents array.
+        const hub_env = try parseIpcData(alloc, resp_line.?);
+        try std.testing.expect(hub_env == .object);
+        const payload = hub_env.object.get("payload") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(payload == .object);
+        const ok_val = payload.object.get("ok") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(ok_val == .bool and ok_val.bool);
+        const agents_val = payload.object.get("agents") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(agents_val == .array);
+
+        // Find alice's entry and verify metadata fields.
+        const alice_obj = findAgentInList(agents_val.array, "alice") orelse return error.TestUnexpectedResult;
+        const tool_val = alice_obj.get("tool") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(tool_val == .string);
+        try std.testing.expectEqualStrings("claude", tool_val.string);
+        const proj_val = alice_obj.get("project") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(proj_val == .string);
+        try std.testing.expectEqualStrings("/test/project", proj_val.string);
+        const sess_val = alice_obj.get("session") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(sess_val == .string);
+        try std.testing.expectEqualStrings("e2e test", sess_val.string);
     }
 }
 
@@ -570,13 +630,27 @@ test "e2e: RunServer IPC channel create and send through daemon" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Bob should receive invite event with channel name and inviter.
+    // Bob should receive invite event — parse structurally.
     var inv_buf: [8192]u8 = undefined;
-    const inv_event = readLine(bob_stream, &inv_buf, 2000);
-    try std.testing.expect(inv_event != null);
-    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"event\":\"invited\"") != null);
-    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"channel\":\"ipc-chan\"") != null);
-    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"by\":\"alice\"") != null);
+    const inv_line = readLine(bob_stream, &inv_buf, 2000);
+    try std.testing.expect(inv_line != null);
+    {
+        var inv_parsed = try protocol.parseEnvelope(alloc, inv_line.?);
+        _ = &inv_parsed;
+        try std.testing.expectEqualStrings("channel_event", inv_parsed.value.@"type");
+        try std.testing.expectEqualStrings("bob", inv_parsed.value.target);
+        try std.testing.expect(inv_parsed.value.payload == .object);
+        const inv_payload = inv_parsed.value.payload.object;
+        const event_val = inv_payload.get("event") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(event_val == .string);
+        try std.testing.expectEqualStrings("invited", event_val.string);
+        const ch_val = inv_payload.get("channel") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(ch_val == .string);
+        try std.testing.expectEqualStrings("ipc-chan", ch_val.string);
+        const by_val = inv_payload.get("by") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(by_val == .string);
+        try std.testing.expectEqualStrings("alice", by_val.string);
+    }
 
     // Alice sends a channel message via IPC send with channel: prefix.
     {
@@ -594,11 +668,19 @@ test "e2e: RunServer IPC channel create and send through daemon" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Bob should receive the channel message with source and target.
+    // Bob should receive the channel message — parse structurally.
     var bob_buf: [8192]u8 = undefined;
-    const bob_msg = readLine(bob_stream, &bob_buf, 2000);
-    try std.testing.expect(bob_msg != null);
-    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello via daemon channel") != null);
-    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"source\":\"alice\"") != null);
-    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"target\":\"channel:ipc-chan\"") != null);
+    const bob_line = readLine(bob_stream, &bob_buf, 2000);
+    try std.testing.expect(bob_line != null);
+    {
+        var msg_parsed = try protocol.parseEnvelope(alloc, bob_line.?);
+        _ = &msg_parsed;
+        try std.testing.expectEqualStrings("channel_msg", msg_parsed.value.@"type");
+        try std.testing.expectEqualStrings("alice", msg_parsed.value.source);
+        try std.testing.expectEqualStrings("channel:ipc-chan", msg_parsed.value.target);
+        try std.testing.expect(msg_parsed.value.payload == .object);
+        const text_val = msg_parsed.value.payload.object.get("text") orelse return error.TestUnexpectedResult;
+        try std.testing.expect(text_val == .string);
+        try std.testing.expectEqualStrings("hello via daemon channel", text_val.string);
+    }
 }
