@@ -1,0 +1,326 @@
+const std = @import("std");
+const net = std.net;
+const mem = std.mem;
+const posix = std.posix;
+const protocol = @import("protocol");
+const Allocator = mem.Allocator;
+const log = std.log.scoped(.hub);
+
+const Connection = @import("connection.zig").Connection;
+const writerThread = @import("connection.zig").writerThread;
+const registry = @import("registry.zig");
+const HubState = registry.HubState;
+const handlers = @import("handlers.zig");
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+pub const default_listen_addr = "127.0.0.1";
+pub const default_listen_port: u16 = 9000;
+
+/// Per-connection receive buffer size (64 KiB).
+pub const recv_buf_size = handlers.recv_buf_size;
+
+// ---------------------------------------------------------------------------
+// Connection release callback
+// ---------------------------------------------------------------------------
+
+/// Called when a Connection's ref_count hits 0. Removes it from
+/// HubState.all_connections, closes the stream, and frees the allocation.
+/// The ctx pointer is a *HubState cast to *anyopaque.
+fn hubReleaseConnection(ctx: *anyopaque, conn: *Connection) void {
+    const state: *HubState = @ptrCast(@alignCast(ctx));
+    state.all_connections_mutex.lock();
+    for (state.all_connections.items, 0..) |c, idx| {
+        if (c == conn) {
+            _ = state.all_connections.swapRemove(idx);
+            break;
+        }
+    }
+    state.all_connections_mutex.unlock();
+    conn.closeStream();
+    conn.deinit();
+    conn.allocator.destroy(conn);
+}
+
+// ---------------------------------------------------------------------------
+// Reader thread
+// ---------------------------------------------------------------------------
+
+/// Reader thread args.
+pub const ReaderArgs = struct {
+    state: *HubState,
+    conn: *Connection,
+};
+
+/// Handle a single client connection: read JSON envelopes and dispatch them.
+/// Uses a per-connection ArenaAllocator so parsed data is freed on disconnect,
+/// and a line buffer so partial TCP frames are carried across reads.
+/// Creates a Connection with an outbound queue and spawns a writer thread.
+pub fn readerThread(args: ReaderArgs) void {
+    const state = args.state;
+    const conn = args.conn;
+    const stream = conn.stream;
+    // Release the reader's reference when done. If no cross-agent enqueue is
+    // in flight, this frees the Connection. Otherwise the last release() frees.
+    defer conn.release();
+
+    // Per-connection arena for data that lives the whole connection (agent_id).
+    var conn_arena = std.heap.ArenaAllocator.init(state.allocator);
+    defer conn_arena.deinit();
+    const conn_alloc = conn_arena.allocator();
+
+    // Per-message arena — reset after each envelope dispatch so memory is bounded.
+    var msg_arena = std.heap.ArenaAllocator.init(state.allocator);
+    defer msg_arena.deinit();
+
+    // Line buffer for TCP framing — carries partial lines across reads.
+    var line_buf: [recv_buf_size]u8 = undefined;
+    var filled: usize = 0;
+
+    // Read until we have at least one complete line (the register envelope).
+    const agent_id = blk: {
+        while (true) {
+            if (filled >= line_buf.len) {
+                log.err("initial message exceeds buffer", .{});
+                return;
+            }
+            const n = stream.read(line_buf[filled..]) catch |err| {
+                log.err("read error on initial message: {any}", .{err});
+                return;
+            };
+            if (n == 0) return;
+            filled += n;
+
+            // Check for a complete first line.
+            if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
+                const first_line = mem.trimRight(u8, line_buf[0..nl], "\r ");
+                if (first_line.len == 0) return;
+
+                // Parse with conn_arena so agent_id survives the connection.
+                const parsed_init = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
+                    log.err("failed to parse initial envelope: {any}", .{err});
+                    return;
+                };
+                if (!mem.eql(u8, parsed_init.value.@"type", "register")) {
+                    log.err("expected register, got: {s}", .{parsed_init.value.@"type"});
+                    return;
+                }
+                // Shift consumed bytes out of line_buf.
+                const consumed = nl + 1;
+                const remaining = filled - consumed;
+                if (remaining > 0) {
+                    mem.copyForwards(u8, line_buf[0..remaining], line_buf[consumed..filled]);
+                }
+                filled = remaining;
+                break :blk parsed_init.value.source;
+            }
+        }
+    };
+
+    // Connection was pre-created by the accept loop and registered in
+    // HubState.all_connections, ensuring deinit can shutdown its stream.
+    state.routing_table.register(agent_id, conn) catch |err| {
+        log.err("failed to register {s}: {any}", .{ agent_id, err });
+        return;
+    };
+
+    // Spawn the writer thread before entering the read loop.
+    const writer = std.Thread.spawn(.{}, writerThread, .{conn}) catch |err| {
+        log.err("failed to spawn writer thread for {s}: {any}", .{ agent_id, err });
+        state.routing_table.unregister(agent_id);
+        return;
+    };
+
+    defer {
+        state.routing_table.unregister(agent_id);
+        state.agent_registry.remove(agent_id);
+        // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
+        _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
+        // Signal writer to drain and stop, then wait for it.
+        conn.shutdown();
+        writer.join();
+        // conn is released by the outer `defer conn.release()`. If refcount hits 0,
+        // removeConnection removes from all_connections, closes stream, and frees.
+    }
+
+    // Process any additional complete lines from the initial read(s).
+    handlers.processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
+
+    // Main receive loop with line buffering.
+    while (true) {
+        if (filled >= line_buf.len) {
+            log.err("message from {s} exceeds buffer", .{agent_id});
+            break;
+        }
+        const n = stream.read(line_buf[filled..]) catch |err| {
+            switch (err) {
+                error.ConnectionResetByPeer, error.BrokenPipe => {},
+                else => log.warn("read error from {s}: {any}", .{ agent_id, err }),
+            }
+            break;
+        };
+        if (n == 0) break;
+        filled += n;
+
+        handlers.processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Server
+// ---------------------------------------------------------------------------
+
+pub const HubServer = struct {
+    listener: net.Server,
+    state: HubState,
+    /// Tracks spawned client handler threads for clean shutdown.
+    client_threads: std.ArrayList(std.Thread),
+    client_threads_mutex: std.Thread.Mutex,
+    /// Accept loop thread, set by startBackground().
+    accept_thread: ?std.Thread,
+
+    pub fn init(allocator: Allocator) !HubServer {
+        _ = allocator;
+        return initWithAddress(default_listen_addr, default_listen_port);
+    }
+
+    /// Create a Hub bound to a specific address/port. Use port 0 for an
+    /// OS-assigned ephemeral port (useful for tests).
+    pub fn initWithAddress(addr: []const u8, port: u16) !HubServer {
+        // Ignore SIGPIPE so writes to disconnected clients return
+        // error.BrokenPipe instead of killing the process.
+        posix.sigaction(posix.SIG.PIPE, &.{
+            .handler = .{ .handler = posix.SIG.IGN },
+            .mask = posix.sigemptyset(),
+            .flags = 0,
+        }, null);
+
+        const address = try net.Address.parseIp4(addr, port);
+        const listener = try address.listen(.{
+            .reuse_address = true,
+        });
+
+        const bound_port = listener.listen_address.getPort();
+        log.info("Synapty Hub listening on {s}:{d}", .{ addr, bound_port });
+
+        return .{
+            .listener = listener,
+            .state = HubState.init(std.heap.page_allocator),
+            .client_threads = std.ArrayList(std.Thread).empty,
+            .client_threads_mutex = .{},
+            .accept_thread = null,
+        };
+    }
+
+    pub fn deinit(self: *HubServer) void {
+        // 1. Close listener to unblock accept() in the accept loop.
+        self.listener.deinit();
+        // 2. Join accept thread — guarantees no more client_threads.append() calls.
+        if (self.accept_thread) |t| t.join();
+        // 3. Shutdown all client streams to unblock readers blocked in read().
+        //    Without this, idle clients prevent deinit from completing.
+        self.state.all_connections_mutex.lock();
+        for (self.state.all_connections.items) |conn| {
+            // Use raw C shutdown to avoid Zig's unreachable on EBADF —
+            // the reader thread may have already closed this fd.
+            _ = std.c.shutdown(conn.stream.handle, 2); // SHUT_RDWR
+        }
+        self.state.all_connections_mutex.unlock();
+        // 4. Join all reader threads (now unblocked by stream shutdown).
+        self.client_threads_mutex.lock();
+        for (self.client_threads.items) |t| t.join();
+        self.client_threads.deinit(std.heap.page_allocator);
+        self.client_threads_mutex.unlock();
+        // 5. Free shared state (including all heap-allocated connections).
+        self.state.deinit();
+    }
+
+    /// Start the accept loop in a background thread. Call deinit() to stop.
+    pub fn startBackground(self: *HubServer) !void {
+        self.accept_thread = try std.Thread.spawn(.{}, runBackground, .{self});
+    }
+
+    /// Accept connections in a loop, spawning a reader thread per client.
+    pub fn run(self: *HubServer) !void {
+        while (true) {
+            const accepted = try self.listener.accept();
+            log.info("accepted connection from {f}", .{accepted.address});
+
+            // Create Connection on heap and register in all_connections BEFORE
+            // spawning the reader thread, so deinit can always shutdown the
+            // stream even if the thread hasn't started yet.
+            const conn = self.state.allocator.create(Connection) catch {
+                accepted.stream.close();
+                continue;
+            };
+            conn.* = Connection.init(
+                self.state.allocator,
+                accepted.stream,
+                @ptrCast(&self.state),
+                &hubReleaseConnection,
+            );
+            {
+                self.state.all_connections_mutex.lock();
+                defer self.state.all_connections_mutex.unlock();
+                self.state.all_connections.append(self.state.allocator, conn) catch {
+                    conn.deinit();
+                    self.state.allocator.destroy(conn);
+                    continue;
+                };
+            }
+
+            const thread = std.Thread.spawn(.{}, readerThread, .{ReaderArgs{
+                .state = &self.state,
+                .conn = conn,
+            }}) catch |err| {
+                log.err("failed to spawn handler thread: {any}", .{err});
+                conn.shutdown();
+                conn.release(); // refcount -> 0 -> removeFromTracking
+                continue;
+            };
+            self.client_threads_mutex.lock();
+            const tracked = blk: {
+                self.client_threads.append(std.heap.page_allocator, thread) catch break :blk false;
+                break :blk true;
+            };
+            self.client_threads_mutex.unlock();
+
+            if (!tracked) {
+                // Can't track the thread — stop it now to prevent an orphaned
+                // reader from accessing freed state after deinit.
+                // Shutdown stream to unblock reader, then join. The reader's
+                // defer will call conn.release() to clean up.
+                _ = std.c.shutdown(conn.stream.handle, 2);
+                thread.join();
+            }
+        }
+    }
+
+    pub fn startInBackground(allocator: Allocator) !*HubServer {
+        const server = try allocator.create(HubServer);
+        errdefer allocator.destroy(server);
+        server.* = try HubServer.init(allocator);
+        errdefer server.deinit();
+
+        try server.startBackground();
+        return server;
+    }
+
+    /// Return a heap-allocated slice of currently registered agent IDs.
+    pub fn registeredAgents(self: *HubServer, allocator: Allocator) ![][]const u8 {
+        return self.state.routing_table.agentIds(allocator);
+    }
+};
+
+/// Thread entry point for background Hub execution. Errors are logged and
+/// the thread exits cleanly so the GUI app is not disrupted.
+/// `error.ConnectionAborted` is the normal shutdown signal (listener closed),
+/// so it is swallowed silently.
+pub fn runBackground(server: *HubServer) void {
+    server.run() catch |err| switch (err) {
+        error.ConnectionAborted => {}, // normal shutdown via deinit()
+        else => log.err("Hub background thread exited with error: {}", .{err}),
+    };
+}

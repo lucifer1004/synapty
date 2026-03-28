@@ -125,6 +125,75 @@ pub fn handleRequest(allocator: Allocator, socket_path: ?[]const u8, line: []con
 }
 
 // ---------------------------------------------------------------------------
+// Tool metadata table
+// ---------------------------------------------------------------------------
+
+const ToolMeta = struct {
+    action: protocol.IpcAction,
+    description: []const u8,
+    schema: []const u8, // JSON schema string for inputSchema
+};
+
+const tool_registry = [_]ToolMeta{
+    .{
+        .action = .send,
+        .description = "Send a DM or channel message",
+        .schema =
+        \\{"type":"object","properties":{"target":{"type":"string","description":"Agent ID for DM, or channel:<name> for group"},"text":{"type":"string","description":"Message text"}},"required":["target","text"]}
+        ,
+    },
+    .{
+        .action = .recv,
+        .description = "Receive pending messages",
+        .schema =
+        \\{"type":"object","properties":{}}
+        ,
+    },
+    .{
+        .action = .agents,
+        .description = "List registered agents with metadata",
+        .schema =
+        \\{"type":"object","properties":{}}
+        ,
+    },
+    .{
+        .action = .register,
+        .description = "Register agent identity with metadata",
+        .schema =
+        \\{"type":"object","properties":{"tool":{"type":"string","description":"Agent platform: claude, codex, gemini, human"},"project":{"type":"string","description":"Project path"},"session":{"type":"string","description":"Session summary"}},"required":["tool"]}
+        ,
+    },
+    .{
+        .action = .channel_create,
+        .description = "Create a group chat channel",
+        .schema =
+        \\{"type":"object","properties":{"name":{"type":"string","description":"Channel name"},"description":{"type":"string","description":"Channel description"}},"required":["name"]}
+        ,
+    },
+    .{
+        .action = .channel_invite,
+        .description = "Invite an agent to a channel",
+        .schema =
+        \\{"type":"object","properties":{"channel":{"type":"string","description":"Channel name"},"agent_id":{"type":"string","description":"Agent to invite"}},"required":["channel","agent_id"]}
+        ,
+    },
+    .{
+        .action = .channel_leave,
+        .description = "Leave a channel",
+        .schema =
+        \\{"type":"object","properties":{"channel":{"type":"string","description":"Channel name"}},"required":["channel"]}
+        ,
+    },
+    .{
+        .action = .channel_list,
+        .description = "List channels you are a member of",
+        .schema =
+        \\{"type":"object","properties":{}}
+        ,
+    },
+};
+
+// ---------------------------------------------------------------------------
 // Method handlers
 // ---------------------------------------------------------------------------
 
@@ -141,19 +210,25 @@ fn handleToolsList(allocator: Allocator, id: json.Value) ![]const u8 {
     const id_str = try jsonValueToString(allocator, id);
     defer allocator.free(id_str);
 
-    // MCP tools per [[RFC-0002:C-CLI-MCP]].
-    return std.fmt.allocPrint(allocator,
-        \\{{"jsonrpc":"2.0","id":{s},"result":{{"tools":[
-        \\{{"name":"synapty_send","description":"Send a DM or channel message","inputSchema":{{"type":"object","properties":{{"target":{{"type":"string","description":"Agent ID for DM, or channel:<name> for group"}},"text":{{"type":"string","description":"Message text"}}}},"required":["target","text"]}}}},
-        \\{{"name":"synapty_recv","description":"Receive pending messages","inputSchema":{{"type":"object","properties":{{}}}}}},
-        \\{{"name":"synapty_agents","description":"List registered agents with metadata","inputSchema":{{"type":"object","properties":{{}}}}}},
-        \\{{"name":"synapty_register","description":"Register agent identity with metadata","inputSchema":{{"type":"object","properties":{{"tool":{{"type":"string","description":"Agent platform: claude, codex, gemini, human"}},"project":{{"type":"string","description":"Project path"}},"session":{{"type":"string","description":"Session summary"}}}},"required":["tool"]}}}},
-        \\{{"name":"synapty_channel_create","description":"Create a group chat channel","inputSchema":{{"type":"object","properties":{{"name":{{"type":"string","description":"Channel name"}},"description":{{"type":"string","description":"Channel description"}}}},"required":["name"]}}}},
-        \\{{"name":"synapty_channel_invite","description":"Invite an agent to a channel","inputSchema":{{"type":"object","properties":{{"channel":{{"type":"string","description":"Channel name"}},"agent_id":{{"type":"string","description":"Agent to invite"}}}},"required":["channel","agent_id"]}}}},
-        \\{{"name":"synapty_channel_leave","description":"Leave a channel","inputSchema":{{"type":"object","properties":{{"channel":{{"type":"string","description":"Channel name"}}}},"required":["channel"]}}}},
-        \\{{"name":"synapty_channel_list","description":"List channels you are a member of","inputSchema":{{"type":"object","properties":{{}}}}}}
-        \\]}}}}
-    , .{id_str});
+    // MCP tools per [[RFC-0002:C-CLI-MCP]] — built from tool_registry.
+    var out = std.ArrayList(u8).empty;
+    defer out.deinit(allocator);
+    try out.appendSlice(allocator, "{\"jsonrpc\":\"2.0\",\"id\":");
+    try out.appendSlice(allocator, id_str);
+    try out.appendSlice(allocator, ",\"result\":{\"tools\":[");
+
+    for (tool_registry, 0..) |tool, i| {
+        if (i > 0) try out.append(allocator, ',');
+        try out.appendSlice(allocator, "{\"name\":\"synapty_");
+        try out.appendSlice(allocator, @tagName(tool.action));
+        try out.appendSlice(allocator, "\",\"description\":\"");
+        try out.appendSlice(allocator, tool.description);
+        try out.appendSlice(allocator, "\",\"inputSchema\":");
+        try out.appendSlice(allocator, tool.schema);
+        try out.append(allocator, '}');
+    }
+    try out.appendSlice(allocator, "]}}");
+    return out.toOwnedSlice(allocator);
 }
 
 fn handleToolsCall(allocator: Allocator, socket_path: ?[]const u8, id: json.Value, params: ?json.Value) ![]const u8 {
