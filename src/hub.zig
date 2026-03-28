@@ -516,7 +516,7 @@ fn handleDm(state: *HubState, stream: net.Stream, arena: Allocator, envelope: pr
 
     if (target_stream) |ts| {
         pushEnvelope(arena, ts, envelope) catch |err| {
-            log.err("failed to deliver dm to {s}: {any}", .{ target, err });
+            log.warn("failed to deliver dm to {s}: {any}", .{ target, err });
             try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "delivery failed");
             return;
         };
@@ -699,7 +699,7 @@ fn handleChannelMsg(state: *HubState, stream: net.Stream, arena: Allocator, enve
         state.routing_table.mutex.unlock();
         if (ms) |s| {
             pushEnvelope(arena, s, envelope) catch |err| {
-                log.err("failed to fan-out to {s}: {any}", .{ mid, err });
+                log.warn("failed to fan-out to {s}: {any}", .{ mid, err });
             };
         }
     }
@@ -739,41 +739,36 @@ fn handleListChannels(state: *HubState, stream: net.Stream, arena: Allocator, en
 fn dispatchEnvelope(state: *HubState, arena: Allocator, stream: net.Stream, agent_id: []const u8, envelope: protocol.Envelope) void {
     const msg_type = envelope.@"type";
 
-    if (mem.eql(u8, msg_type, "list_agents")) {
-        handleListAgents(state, arena, stream, envelope) catch |err| {
-            log.err("list_agents failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "list_channels")) {
-        handleListChannels(state, stream, arena, envelope) catch |err| {
-            log.err("list_channels failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "agent_update")) {
-        handleAgentUpdate(state, stream, arena, envelope) catch |err| {
-            log.err("agent_update failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "dm")) {
-        handleDm(state, stream, arena, envelope) catch |err| {
-            log.err("dm failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "channel_create")) {
-        handleChannelCreate(state, stream, arena, envelope) catch |err| {
-            log.err("channel_create failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "channel_invite")) {
-        handleChannelInvite(state, stream, arena, envelope) catch |err| {
-            log.err("channel_invite failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "channel_leave")) {
-        handleChannelLeave(state, stream, arena, envelope) catch |err| {
-            log.err("channel_leave failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else if (mem.eql(u8, msg_type, "channel_msg")) {
-        handleChannelMsg(state, stream, arena, envelope) catch |err| {
-            log.err("channel_msg failed for {s}: {any}", .{ agent_id, err });
-        };
-    } else {
+    const result: anyerror!void = if (mem.eql(u8, msg_type, "list_agents"))
+        handleListAgents(state, arena, stream, envelope)
+    else if (mem.eql(u8, msg_type, "list_channels"))
+        handleListChannels(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "agent_update"))
+        handleAgentUpdate(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "dm"))
+        handleDm(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "channel_create"))
+        handleChannelCreate(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "channel_invite"))
+        handleChannelInvite(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "channel_leave"))
+        handleChannelLeave(state, stream, arena, envelope)
+    else if (mem.eql(u8, msg_type, "channel_msg"))
+        handleChannelMsg(state, stream, arena, envelope)
+    else {
         log.warn("unknown message type from {s}: {s}", .{ agent_id, msg_type });
-    }
+        return;
+    };
+
+    result catch |err| {
+        // IO errors during handler execution mean the client disconnected
+        // while a response was being written — expected during concurrent
+        // shutdown, not a bug.
+        switch (err) {
+            error.BrokenPipe, error.ConnectionResetByPeer, error.NotOpenForWriting => {},
+            else => log.warn("{s} handler failed for {s}: {any}", .{ msg_type, agent_id, err }),
+        }
+    };
 }
 
 /// Handle a single client connection: read JSON envelopes and dispatch them.

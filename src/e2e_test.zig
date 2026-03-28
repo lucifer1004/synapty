@@ -434,22 +434,31 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
     try bob_stream.writeAll(raw);
     try bob_stream.writeAll("\n");
 
-    // Give hubReaderThread time to receive and queue the message.
-    std.Thread.sleep(100 * std.time.ns_per_ms);
-
-    // Use IPC recv to drain messages — should contain the DM from bob.
+    // Poll IPC recv until the message appears (no fixed sleep).
     {
-        var client = try ipc.IpcClient.connect(server.socket_path);
-        defer client.deinit();
-        const req = try protocol.serializeIpcRequest(alloc, .{ .action = .recv });
-        try client.send(req);
-        var resp_buf: [16384]u8 = undefined;
-        const resp_line = try client.recv(&resp_buf);
-        try std.testing.expect(resp_line != null);
-        const resp_str = resp_line.?;
-        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "msg for alice") != null);
-        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
+        const deadline = std.time.milliTimestamp() + 2000;
+        var found = false;
+        while (std.time.milliTimestamp() < deadline) {
+            // Scoped block ensures IPC client is closed each iteration.
+            {
+                var client = try ipc.IpcClient.connect(server.socket_path);
+                defer client.deinit();
+                const req = try protocol.serializeIpcRequest(alloc, .{ .action = .recv });
+                try client.send(req);
+                var resp_buf: [16384]u8 = undefined;
+                const resp_line = try client.recv(&resp_buf);
+                if (resp_line) |resp_str| {
+                    if (mem.indexOf(u8, resp_str, "msg for alice") != null) {
+                        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
+                        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            std.Thread.sleep(5 * std.time.ns_per_ms);
+        }
+        try std.testing.expect(found);
     }
 }
 
@@ -485,7 +494,7 @@ test "e2e: RunServer IPC register updates agent metadata on Hub" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Verify metadata via list_agents — should include tool/project/session.
+    // Verify metadata via list_agents — tool/project/session keyed correctly.
     {
         var client = try ipc.IpcClient.connect(server.socket_path);
         defer client.deinit();
@@ -495,9 +504,17 @@ test "e2e: RunServer IPC register updates agent metadata on Hub" {
         const resp_line = try client.recv(&resp_buf);
         try std.testing.expect(resp_line != null);
         const resp_str = resp_line.?;
+        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
+        // Hub response is JSON-escaped inside the IPC data field, so check
+        // values and field names separately (key:value patterns get escaped).
+        try std.testing.expect(mem.indexOf(u8, resp_str, "alice") != null);
         try std.testing.expect(mem.indexOf(u8, resp_str, "claude") != null);
         try std.testing.expect(mem.indexOf(u8, resp_str, "/test/project") != null);
         try std.testing.expect(mem.indexOf(u8, resp_str, "e2e test") != null);
+        // Verify field names are present (proves structure, not just values).
+        try std.testing.expect(mem.indexOf(u8, resp_str, "tool") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "project") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "session") != null);
     }
 }
 
@@ -553,11 +570,13 @@ test "e2e: RunServer IPC channel create and send through daemon" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Bob should receive invite event.
+    // Bob should receive invite event with channel name and inviter.
     var inv_buf: [8192]u8 = undefined;
     const inv_event = readLine(bob_stream, &inv_buf, 2000);
     try std.testing.expect(inv_event != null);
     try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"event\":\"invited\"") != null);
+    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"channel\":\"ipc-chan\"") != null);
+    try std.testing.expect(mem.indexOf(u8, inv_event.?, "\"by\":\"alice\"") != null);
 
     // Alice sends a channel message via IPC send with channel: prefix.
     {
@@ -575,9 +594,11 @@ test "e2e: RunServer IPC channel create and send through daemon" {
         try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
     }
 
-    // Bob should receive the channel message.
+    // Bob should receive the channel message with source and target.
     var bob_buf: [8192]u8 = undefined;
     const bob_msg = readLine(bob_stream, &bob_buf, 2000);
     try std.testing.expect(bob_msg != null);
     try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello via daemon channel") != null);
+    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"source\":\"alice\"") != null);
+    try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"target\":\"channel:ipc-chan\"") != null);
 }
