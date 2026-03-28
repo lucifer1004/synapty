@@ -924,6 +924,129 @@ test "list_agents response envelope fields" {
     try std.testing.expectEqual(@as(usize, 2), agents_val.array.items.len);
 }
 
+// ---------------------------------------------------------------------------
+// RFC-0002 state structure tests
+// ---------------------------------------------------------------------------
+
+test "AgentRegistry update and get" {
+    var reg = AgentRegistry.init(std.testing.allocator);
+    defer reg.deinit();
+
+    try reg.update("agent-a", .{ .tool = "codex", .project = "/path", .session = "auth refactor" });
+    const info = reg.get("agent-a").?;
+    try std.testing.expectEqualStrings("codex", info.tool.?);
+    try std.testing.expectEqualStrings("/path", info.project.?);
+    try std.testing.expectEqualStrings("auth refactor", info.session.?);
+}
+
+test "AgentRegistry remove clears entry" {
+    var reg = AgentRegistry.init(std.testing.allocator);
+    defer reg.deinit();
+
+    try reg.update("agent-a", .{ .tool = "claude" });
+    reg.remove("agent-a");
+    try std.testing.expect(reg.get("agent-a") == null);
+}
+
+test "ChannelRegistry create and membership" {
+    var cr = ChannelRegistry.init(std.testing.allocator);
+    defer cr.deinit();
+
+    try cr.create("design", "Design discussion", "agent-a");
+    try std.testing.expect(cr.isMember("design", "agent-a"));
+    try std.testing.expect(!cr.isMember("design", "agent-b"));
+
+    try cr.addMember("design", "agent-b");
+    try std.testing.expect(cr.isMember("design", "agent-b"));
+
+    const members = try cr.getMembers("design", std.testing.allocator);
+    defer std.testing.allocator.free(members);
+    try std.testing.expectEqual(@as(usize, 2), members.len);
+}
+
+test "ChannelRegistry duplicate create returns error" {
+    var cr = ChannelRegistry.init(std.testing.allocator);
+    defer cr.deinit();
+
+    try cr.create("design", "", "agent-a");
+    try std.testing.expectError(error.ChannelExists, cr.create("design", "", "agent-b"));
+}
+
+test "ChannelRegistry removeMember garbage-collects empty channel" {
+    var cr = ChannelRegistry.init(std.testing.allocator);
+    defer cr.deinit();
+
+    try cr.create("temp", "", "agent-a");
+    try cr.removeMember("temp", "agent-a");
+    // Channel should be garbage-collected.
+    try std.testing.expect(!cr.isMember("temp", "agent-a"));
+    try std.testing.expectError(error.ChannelNotFound, cr.getMembers("temp", std.testing.allocator));
+}
+
+test "ChannelRegistry removeFromAll removes agent from all channels" {
+    var cr = ChannelRegistry.init(std.testing.allocator);
+    defer cr.deinit();
+
+    try cr.create("ch-1", "", "agent-a");
+    try cr.create("ch-2", "", "agent-a");
+    try cr.addMember("ch-1", "agent-b");
+
+    const affected = try cr.removeFromAll("agent-a", std.testing.allocator);
+    defer std.testing.allocator.free(affected);
+    try std.testing.expectEqual(@as(usize, 2), affected.len);
+
+    // agent-a should be gone from ch-1, ch-2 should be garbage-collected.
+    try std.testing.expect(!cr.isMember("ch-1", "agent-a"));
+    try std.testing.expect(cr.isMember("ch-1", "agent-b"));
+}
+
+test "ChannelRegistry channelsFor lists memberships" {
+    var cr = ChannelRegistry.init(std.testing.allocator);
+    defer cr.deinit();
+
+    try cr.create("ch-1", "", "agent-a");
+    try cr.create("ch-2", "", "agent-b");
+    try cr.addMember("ch-2", "agent-a");
+
+    const channels = try cr.channelsFor("agent-a", std.testing.allocator);
+    defer std.testing.allocator.free(channels);
+    try std.testing.expectEqual(@as(usize, 2), channels.len);
+}
+
+test "MessageLog append and FIFO eviction" {
+    var ml = MessageLog.init(3);
+    defer ml.deinit(std.testing.allocator);
+
+    try ml.append(std.testing.allocator, .{ .from = "a", .to = "b", .channel = null, .text = "msg1", .ts = 1 });
+    try ml.append(std.testing.allocator, .{ .from = "a", .to = "b", .channel = null, .text = "msg2", .ts = 2 });
+    try ml.append(std.testing.allocator, .{ .from = "a", .to = "b", .channel = null, .text = "msg3", .ts = 3 });
+    try std.testing.expectEqual(@as(usize, 3), ml.entries.items.len);
+
+    // 4th entry should evict the first.
+    try ml.append(std.testing.allocator, .{ .from = "a", .to = "b", .channel = null, .text = "msg4", .ts = 4 });
+    try std.testing.expectEqual(@as(usize, 3), ml.entries.items.len);
+    try std.testing.expectEqualStrings("msg2", ml.entries.items[0].text);
+    try std.testing.expectEqualStrings("msg4", ml.entries.items[2].text);
+}
+
+test "MessageLog channel message has channel field" {
+    var ml = MessageLog.init(10);
+    defer ml.deinit(std.testing.allocator);
+
+    try ml.append(std.testing.allocator, .{ .from = "a", .to = "channel:design", .channel = "design", .text = "hello", .ts = 1 });
+    try std.testing.expectEqualStrings("design", ml.entries.items[0].channel.?);
+}
+
+test "HubState init and deinit" {
+    var state = HubState.init(std.testing.allocator);
+    defer state.deinit();
+
+    // All registries should be empty.
+    const agents = try state.routing_table.agentIds(std.testing.allocator);
+    defer std.testing.allocator.free(agents);
+    try std.testing.expectEqual(@as(usize, 0), agents.len);
+}
+
 test "startInBackground returns valid server handle" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
