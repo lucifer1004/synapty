@@ -1,6 +1,7 @@
 import XCTest
 @testable import Synapty
 
+@MainActor
 final class TerminalPaneManagerTests: XCTestCase {
 
     /// Helper: creates a manager with one local session (mimics ContentView.onAppear).

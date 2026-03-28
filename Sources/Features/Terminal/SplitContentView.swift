@@ -140,10 +140,12 @@ struct DraggableDivider: View {
 
     var body: some View {
         let isHorizontal = info.direction == .horizontal
-        // Visible divider (thin line)
+        // Visible divider — use max(4, size) to ensure visibility
+        let w = info.direction == .horizontal ? max(info.rect.width, 4) : info.rect.width
+        let h = info.direction == .vertical ? max(info.rect.height, 4) : info.rect.height
         Rectangle()
-            .fill(isHovered ? Color.accentColor : Color(NSColor.separatorColor))
-            .frame(width: info.rect.width, height: info.rect.height)
+            .fill(isHovered ? Color.accentColor : Color.gray.opacity(0.5))
+            .frame(width: w, height: h)
             .offset(x: info.rect.minX, y: info.rect.minY)
             // Wider hit area for easier grabbing
             .contentShape(Rectangle().inset(by: isHorizontal ? -4 : -4))

@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Binary tree representing the split layout within a single pane/tab.
 /// Leaves are terminal surfaces; internal nodes are horizontal or vertical splits.
