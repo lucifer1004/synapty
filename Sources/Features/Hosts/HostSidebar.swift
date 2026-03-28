@@ -116,11 +116,16 @@ struct HostSidebar: View {
                 }
             }
             .listStyle(.sidebar)
-            .onKeyPress(.return) {
-                // Enter on selected session → inline rename (Finder pattern)
-                guard let id = paneManager.activeSessionID else { return .ignored }
-                editingSessionID = id
-                return .handled
+            .background {
+                // Hidden button captures Return key via keyboardShortcut —
+                // works even when the List consumes .onKeyPress(.return).
+                Button("") {
+                    guard let id = paneManager.activeSessionID,
+                          editingSessionID == nil else { return }
+                    editingSessionID = id
+                }
+                .keyboardShortcut(.return, modifiers: [])
+                .hidden()
             }
         }
         .sheet(isPresented: $showHostConfig) {
@@ -136,6 +141,7 @@ struct SessionRow: View {
     @ObservedObject var paneManager: TerminalPaneManager
     @Binding var editingSessionID: UUID?
     @State private var editText = ""
+    @FocusState private var isTextFieldFocused: Bool
 
     private var isEditing: Bool { editingSessionID == session.id }
 
@@ -160,16 +166,24 @@ struct SessionRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 if isEditing {
-                    TextField("Name", text: $editText, onCommit: {
-                        if !editText.isEmpty {
-                            paneManager.renameSession(session.id, to: editText)
+                    TextField("Name", text: $editText)
+                        .textFieldStyle(.plain)
+                        .font(.body)
+                        .focused($isTextFieldFocused)
+                        .onAppear {
+                            editText = session.label
+                            // Delay focus to next run loop so the TextField is mounted
+                            DispatchQueue.main.async {
+                                isTextFieldFocused = true
+                            }
                         }
-                        editingSessionID = nil
-                    })
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                    .onAppear { editText = session.label }
-                    .onExitCommand { editingSessionID = nil }
+                        .onSubmit {
+                            if !editText.isEmpty {
+                                paneManager.renameSession(session.id, to: editText)
+                            }
+                            editingSessionID = nil
+                        }
+                        .onExitCommand { editingSessionID = nil }
                 } else {
                     HStack(spacing: 4) {
                         Text(session.label)
