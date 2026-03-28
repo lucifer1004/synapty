@@ -54,6 +54,7 @@ struct AllPanesSplitView: View {
                     }
                 }
             }
+            .coordinateSpace(name: "splitArea")
         }
     }
 }
@@ -138,44 +139,55 @@ struct DraggableDivider: View {
     let onResize: (CGFloat) -> Void
     @State private var isHovered = false
 
+    private let grabSize: CGFloat = 12 // invisible hit area
+
     var body: some View {
         let isHorizontal = info.direction == .horizontal
-        // Visible divider — use max(4, size) to ensure visibility
-        let w = info.direction == .horizontal ? max(info.rect.width, 4) : info.rect.width
-        let h = info.direction == .vertical ? max(info.rect.height, 4) : info.rect.height
-        Rectangle()
-            .fill(isHovered ? Color.accentColor : Color.gray.opacity(0.5))
-            .frame(width: w, height: h)
-            .offset(x: info.rect.minX, y: info.rect.minY)
-            // Wider hit area for easier grabbing
-            .contentShape(Rectangle().inset(by: isHorizontal ? -4 : -4))
-            .onHover { isHovered = $0 }
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        let newRatio: CGFloat
-                        if isHorizontal {
-                            // Horizontal split: drag left/right
-                            let pos = value.location.x + info.rect.minX
-                            newRatio = (pos - info.parentRect.minX) / info.parentRect.width
-                        } else {
-                            // Vertical split: drag up/down
-                            let pos = value.location.y + info.rect.minY
-                            newRatio = (pos - info.parentRect.minY) / info.parentRect.height
-                        }
-                        onResize(newRatio)
-                    }
-            )
-            .onHover { hovering in
-                if hovering {
+        let centerX = info.rect.midX
+        let centerY = info.rect.midY
+
+        ZStack {
+            // Visible thin line
+            Rectangle()
+                .fill(isHovered ? Color.accentColor : Color.gray.opacity(0.5))
+                .frame(
+                    width: isHorizontal ? 4 : info.rect.width,
+                    height: isHorizontal ? info.rect.height : 4
+                )
+
+            // Invisible wide grab area
+            Rectangle()
+                .fill(Color.clear)
+                .frame(
+                    width: isHorizontal ? grabSize : info.rect.width,
+                    height: isHorizontal ? info.rect.height : grabSize
+                )
+                .contentShape(Rectangle())
+        }
+        .position(x: centerX, y: centerY)
+        .gesture(
+            DragGesture(coordinateSpace: .named("splitArea"))
+                .onChanged { value in
+                    let newRatio: CGFloat
                     if isHorizontal {
-                        NSCursor.resizeLeftRight.push()
+                        newRatio = (value.location.x - info.parentRect.minX) / info.parentRect.width
                     } else {
-                        NSCursor.resizeUpDown.push()
+                        newRatio = (value.location.y - info.parentRect.minY) / info.parentRect.height
                     }
-                } else {
-                    NSCursor.pop()
+                    onResize(newRatio)
                 }
+        )
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering {
+                if isHorizontal {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.resizeUpDown.push()
+                }
+            } else {
+                NSCursor.pop()
             }
+        }
     }
 }
