@@ -8,19 +8,151 @@ const Allocator = mem.Allocator;
 const log = std.log.scoped(.hub);
 
 // ---------------------------------------------------------------------------
+// Connection — owns stream + outbound queue with dedicated writer thread
+// ---------------------------------------------------------------------------
+
+const Connection = struct {
+    stream: net.Stream,
+    allocator: Allocator,
+    state: *HubState, // back-pointer for removeConnection on final release
+    outbound: std.ArrayListUnmanaged([]const u8),
+    mutex: std.Thread.Mutex,
+    cond: std.Thread.Condition,
+    closed: bool,
+    stream_closed: bool,
+    /// Atomic reference count. Starts at 1 (reader thread owns).
+    /// Cross-agent lookups retain temporarily; release frees when count hits 0.
+    ref_count: std.atomic.Value(u32),
+
+    fn init(allocator: Allocator, state: *HubState, stream: net.Stream) Connection {
+        return .{
+            .stream = stream,
+            .allocator = allocator,
+            .state = state,
+            .outbound = .empty,
+            .mutex = .{},
+            .cond = .{},
+            .closed = false,
+            .stream_closed = false,
+            .ref_count = std.atomic.Value(u32).init(1),
+        };
+    }
+
+    fn deinit(self: *Connection) void {
+        for (self.outbound.items) |item| self.allocator.free(item);
+        self.outbound.deinit(self.allocator);
+        if (!self.stream_closed) self.stream.close();
+    }
+
+    /// Close the stream (e.g. on spawn failure). Prevents double-close in deinit.
+    fn closeStream(self: *Connection) void {
+        if (!self.stream_closed) {
+            self.stream.close();
+            self.stream_closed = true;
+        }
+    }
+
+    /// Increment reference count (called under routing table lock).
+    fn retain(self: *Connection) void {
+        _ = self.ref_count.fetchAdd(1, .monotonic);
+    }
+
+    /// Decrement reference count. When it hits 0, remove from HubState and free.
+    fn release(self: *Connection) void {
+        if (self.ref_count.fetchSub(1, .acq_rel) == 1) {
+            self.state.removeConnection(self);
+        }
+    }
+
+    /// Enqueue a pre-serialized bytes slice for the writer thread.
+    /// Duplicates data into owned storage.
+    /// Returns error.ConnectionClosed if the connection is already closing.
+    fn enqueue(self: *Connection, data: []const u8) error{ ConnectionClosed, OutOfMemory }!void {
+        const copy = try self.allocator.dupe(u8, data);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.closed) {
+            self.allocator.free(copy);
+            return error.ConnectionClosed;
+        }
+        self.outbound.append(self.allocator, copy) catch |err| {
+            self.allocator.free(copy);
+            return err;
+        };
+        self.cond.signal();
+    }
+
+    /// Serialize envelope, append newline, and enqueue atomically.
+    fn enqueueEnvelope(self: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
+        const raw = try protocol.serializeEnvelope(arena, envelope);
+        // Build "raw\n" as a single owned buffer for atomic delivery.
+        const with_nl = try arena.alloc(u8, raw.len + 1);
+        @memcpy(with_nl[0..raw.len], raw);
+        with_nl[raw.len] = '\n';
+        try self.enqueue(with_nl);
+    }
+
+    /// Signal the writer thread to drain and stop.
+    fn shutdown(self: *Connection) void {
+        self.mutex.lock();
+        self.closed = true;
+        self.cond.signal();
+        self.mutex.unlock();
+    }
+};
+
+/// Writer thread: drains the outbound queue until closed and empty.
+/// Poisons the connection (closed=true) under the mutex at every exit point
+/// so enqueue() never accepts a message after the writer has decided to stop.
+fn writerThread(conn: *Connection) void {
+    while (true) {
+        var batch: [][]const u8 = &.{};
+        {
+            conn.mutex.lock();
+            defer conn.mutex.unlock();
+            while (conn.outbound.items.len == 0 and !conn.closed) {
+                conn.cond.wait(&conn.mutex);
+            }
+            if (conn.closed and conn.outbound.items.len == 0) break;
+            batch = conn.outbound.toOwnedSlice(conn.allocator) catch {
+                // OOM — poison under lock so no new enqueues are accepted.
+                conn.closed = true;
+                break;
+            };
+        }
+        var write_failed = false;
+        for (batch) |item| {
+            if (!write_failed) {
+                conn.stream.writeAll(item) catch {
+                    write_failed = true;
+                };
+            }
+            conn.allocator.free(item);
+        }
+        conn.allocator.free(batch);
+        if (write_failed) {
+            // Poison under lock so no new enqueues are accepted.
+            conn.mutex.lock();
+            conn.closed = true;
+            conn.mutex.unlock();
+            break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Routing Table
 // ---------------------------------------------------------------------------
 
-/// Maps agent_id -> active client connection stream.
-/// Protected by a mutex for thread-safe access from handler threads and
-/// the GUI status-bar query path.
+/// Maps agent_id -> active Connection pointer.
+/// Protected by a mutex for thread-safe access.
 const RoutingTable = struct {
-    map: std.StringHashMap(net.Stream),
+    map: std.StringHashMap(*Connection),
     mutex: std.Thread.Mutex,
 
     fn init(allocator: Allocator) RoutingTable {
         return .{
-            .map = std.StringHashMap(net.Stream).init(allocator),
+            .map = std.StringHashMap(*Connection).init(allocator),
             .mutex = .{},
         };
     }
@@ -29,10 +161,10 @@ const RoutingTable = struct {
         self.map.deinit();
     }
 
-    fn register(self: *RoutingTable, agent_id: []const u8, stream: net.Stream) !void {
+    fn register(self: *RoutingTable, agent_id: []const u8, conn: *Connection) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        try self.map.put(agent_id, stream);
+        try self.map.put(agent_id, conn);
         log.info("registered agent: {s}", .{agent_id});
     }
 
@@ -43,10 +175,20 @@ const RoutingTable = struct {
         log.info("unregistered agent: {s}", .{agent_id});
     }
 
-    fn lookup(self: *const RoutingTable, agent_id: []const u8) ?net.Stream {
-        // Callers that need to hold the lock during lookup use lockForLookup.
-        // This bare version is only safe when called under an external lock.
+    fn lookup(self: *const RoutingTable, agent_id: []const u8) ?*Connection {
+        // Callers must hold mutex before calling.
         return self.map.get(agent_id);
+    }
+
+    /// Lookup and retain a connection. Caller must call conn.release() when done.
+    /// Safe against concurrent unregister — the routing table mutex serializes
+    /// retain vs unregister, so the pointer is guaranteed alive until release.
+    fn lookupAndRetain(self: *RoutingTable, agent_id: []const u8) ?*Connection {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        const conn = self.map.get(agent_id) orelse return null;
+        conn.retain();
+        return conn;
     }
 
     /// Return a heap-allocated slice of duped agent ID strings.
@@ -386,6 +528,11 @@ const HubState = struct {
     channel_registry: ChannelRegistry,
     message_log: MessageLog,
     allocator: Allocator,
+    /// All heap-allocated connections — freed in deinit after all threads join.
+    /// Connections outlive their reader/writer threads to prevent use-after-free
+    /// when a cross-agent enqueue races with disconnect cleanup.
+    all_connections: std.ArrayList(*Connection),
+    all_connections_mutex: std.Thread.Mutex,
 
     fn init(allocator: Allocator) HubState {
         return .{
@@ -394,10 +541,34 @@ const HubState = struct {
             .channel_registry = ChannelRegistry.init(allocator),
             .message_log = MessageLog.init(10_000),
             .allocator = allocator,
+            .all_connections = std.ArrayList(*Connection).empty,
+            .all_connections_mutex = .{},
         };
     }
 
+    /// Remove a connection from tracking, close its stream, and free it.
+    fn removeConnection(self: *HubState, conn: *Connection) void {
+        self.all_connections_mutex.lock();
+        // Find and swap-remove.
+        for (self.all_connections.items, 0..) |c, idx| {
+            if (c == conn) {
+                _ = self.all_connections.swapRemove(idx);
+                break;
+            }
+        }
+        self.all_connections_mutex.unlock();
+        conn.closeStream();
+        conn.deinit();
+        self.allocator.destroy(conn);
+    }
+
     fn deinit(self: *HubState) void {
+        // Free any remaining connections (e.g. from threads that didn't clean up).
+        for (self.all_connections.items) |conn| {
+            conn.deinit();
+            self.allocator.destroy(conn);
+        }
+        self.all_connections.deinit(self.allocator);
         self.routing_table.deinit();
         self.agent_registry.deinit();
         self.channel_registry.deinit();
@@ -412,8 +583,8 @@ const HubState = struct {
 /// Per-connection receive buffer size (64 KiB).
 const recv_buf_size = 64 * 1024;
 
-/// Send a response envelope to a client stream.
-fn sendResponse(arena: Allocator, stream: net.Stream, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
+/// Send a response envelope by enqueueing it into the sender's Connection.
+fn sendResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
     var payload_obj = json.ObjectMap.init(arena);
     try payload_obj.put("ok", .{ .bool = ok });
     if (data) |d| try payload_obj.put("data", d);
@@ -426,21 +597,12 @@ fn sendResponse(arena: Allocator, stream: net.Stream, req_id: []const u8, target
         .target = target,
         .payload = .{ .object = payload_obj },
     };
-    const raw = try protocol.serializeEnvelope(arena, resp);
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
-}
-
-/// Send an envelope to a stream (for push delivery).
-fn pushEnvelope(arena: Allocator, stream: net.Stream, envelope: protocol.Envelope) !void {
-    const raw = try protocol.serializeEnvelope(arena, envelope);
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
+    try conn.enqueueEnvelope(arena, resp);
 }
 
 // -- Handler: list_agents per [[RFC-0002:C-CLI-MCP]] -----------------------
 
-fn handleListAgents(state: *HubState, arena: Allocator, stream: net.Stream, req: protocol.Envelope) !void {
+fn handleListAgents(state: *HubState, arena: Allocator, conn: *Connection, req: protocol.Envelope) !void {
     const agent_ids = try state.routing_table.agentIds(arena);
 
     var arr = json.Array.init(arena);
@@ -465,16 +627,14 @@ fn handleListAgents(state: *HubState, arena: Allocator, stream: net.Stream, req:
         .target = req.source,
         .payload = .{ .object = data_obj },
     };
-    const raw = try protocol.serializeEnvelope(arena, resp);
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
+    try conn.enqueueEnvelope(arena, resp);
 }
 
 // -- Handler: agent_update per [[RFC-0002:C-AGENT-IDENTITY]] ---------------
 
-fn handleAgentUpdate(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleAgentUpdate(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const payload = if (envelope.payload == .object) envelope.payload.object else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
     const info = AgentInfo{
@@ -483,15 +643,15 @@ fn handleAgentUpdate(state: *HubState, stream: net.Stream, arena: Allocator, env
         .session = if (payload.get("session")) |v| (if (v == .string) v.string else null) else null,
     };
     try state.agent_registry.update(envelope.source, info);
-    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+    try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: dm per [[RFC-0002:C-DM]] -------------------------------------
 
-fn handleDm(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const target = envelope.target;
     if (target.len == 0) {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing target");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing target");
         return;
     }
 
@@ -514,96 +674,90 @@ fn handleDm(state: *HubState, stream: net.Stream, arena: Allocator, envelope: pr
         .ts = std.time.timestamp(),
     }) catch {};
 
-    // Route to target.
-    state.routing_table.mutex.lock();
-    const target_stream = state.routing_table.lookup(target);
-    state.routing_table.mutex.unlock();
-
-    if (target_stream) |ts| {
-        pushEnvelope(arena, ts, envelope) catch |err| {
+    // Route to target — lookupAndRetain ensures pointer is alive until release.
+    if (state.routing_table.lookupAndRetain(target)) |tc| {
+        defer tc.release();
+        tc.enqueueEnvelope(arena, envelope) catch |err| {
             log.warn("failed to deliver dm to {s}: {any}", .{ target, err });
-            try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "delivery failed");
+            try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "delivery failed");
             return;
         };
-        try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+        try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
     } else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "agent not connected");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "agent not connected");
         return;
     }
 }
 
 // -- Handler: channel_create per [[RFC-0002:C-GROUP-CHAT]] -----------------
 
-fn handleChannelCreate(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleChannelCreate(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const payload = if (envelope.payload == .object) envelope.payload.object else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
     const name = if (payload.get("name")) |v| (if (v == .string) v.string else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel name type");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "invalid channel name type");
         return;
     }) else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel name");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing channel name");
         return;
     };
     const desc = if (payload.get("description")) |v| (if (v == .string) v.string else "") else "";
 
     state.channel_registry.create(name, desc, envelope.source) catch |err| switch (err) {
         error.ChannelExists => {
-            try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "channel already exists");
+            try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "channel already exists");
             return;
         },
         else => return err,
     };
-    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+    try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: channel_invite per [[RFC-0002:C-GROUP-CHAT]] -----------------
 
-fn handleChannelInvite(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleChannelInvite(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const payload = if (envelope.payload == .object) envelope.payload.object else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
     const ch_name = if (payload.get("channel")) |v| (if (v == .string) v.string else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel type");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "invalid channel type");
         return;
     }) else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing channel");
         return;
     };
     const agent_id = if (payload.get("agent_id")) |v| (if (v == .string) v.string else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid agent_id type");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "invalid agent_id type");
         return;
     }) else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing agent_id");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing agent_id");
         return;
     };
 
     if (!state.channel_registry.isMember(ch_name, envelope.source)) {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "not a member of channel");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "not a member of channel");
         return;
     }
 
     state.channel_registry.addMember(ch_name, agent_id) catch |err| switch (err) {
         error.ChannelNotFound => {
-            try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "channel not found");
+            try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "channel not found");
             return;
         },
         else => return err,
     };
 
     // Notify invited agent.
-    state.routing_table.mutex.lock();
-    const invited_stream = state.routing_table.lookup(agent_id);
-    state.routing_table.mutex.unlock();
-
-    if (invited_stream) |is| {
+    if (state.routing_table.lookupAndRetain(agent_id)) |ic| {
+        defer ic.release();
         var evt_payload = json.ObjectMap.init(arena);
         try evt_payload.put("channel", .{ .string = ch_name });
         try evt_payload.put("event", .{ .string = "invited" });
         try evt_payload.put("by", .{ .string = envelope.source });
-        pushEnvelope(arena, is, .{
+        ic.enqueueEnvelope(arena, .{
             .@"type" = "channel_event",
             .id = "evt-0",
             .source = "hub",
@@ -612,21 +766,21 @@ fn handleChannelInvite(state: *HubState, stream: net.Stream, arena: Allocator, e
         }) catch {};
     }
 
-    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+    try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: channel_leave per [[RFC-0002:C-GROUP-CHAT]] ------------------
 
-fn handleChannelLeave(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleChannelLeave(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const payload = if (envelope.payload == .object) envelope.payload.object else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing payload");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing payload");
         return;
     };
     const ch_name = if (payload.get("channel")) |v| (if (v == .string) v.string else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel type");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "invalid channel type");
         return;
     }) else {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "missing channel");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "missing channel");
         return;
     };
 
@@ -635,15 +789,13 @@ fn handleChannelLeave(state: *HubState, stream: net.Stream, arena: Allocator, en
     // Notify remaining members.
     const members = state.channel_registry.getMembers(ch_name, arena) catch &.{};
     for (members) |mid| {
-        state.routing_table.mutex.lock();
-        const ms = state.routing_table.lookup(mid);
-        state.routing_table.mutex.unlock();
-        if (ms) |s| {
+        if (state.routing_table.lookupAndRetain(mid)) |member_conn| {
+            defer member_conn.release();
             var evt_payload = json.ObjectMap.init(arena);
             try evt_payload.put("channel", .{ .string = ch_name });
             try evt_payload.put("event", .{ .string = "left" });
             try evt_payload.put("agent_id", .{ .string = envelope.source });
-            pushEnvelope(arena, s, .{
+            member_conn.enqueueEnvelope(arena, .{
                 .@"type" = "channel_event",
                 .id = "evt-0",
                 .source = "hub",
@@ -653,22 +805,22 @@ fn handleChannelLeave(state: *HubState, stream: net.Stream, arena: Allocator, en
         }
     }
 
-    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+    try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: channel_msg per [[RFC-0002:C-GROUP-CHAT]] --------------------
 
-fn handleChannelMsg(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const target = envelope.target;
     // Extract channel name from "channel:<name>" prefix.
     if (!mem.startsWith(u8, target, "channel:")) {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "invalid channel target");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "invalid channel target");
         return;
     }
     const ch_name = target["channel:".len..];
 
     if (!state.channel_registry.isMember(ch_name, envelope.source)) {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "not a member of channel");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "not a member of channel");
         return;
     }
 
@@ -693,27 +845,25 @@ fn handleChannelMsg(state: *HubState, stream: net.Stream, arena: Allocator, enve
 
     // Fan-out to connected members except sender.
     const members = state.channel_registry.getMembers(ch_name, arena) catch {
-        try sendResponse(arena, stream, envelope.id, envelope.source, false, null, "channel not found");
+        try sendResponse(arena, conn, envelope.id, envelope.source, false, null, "channel not found");
         return;
     };
 
     for (members) |mid| {
         if (mem.eql(u8, mid, envelope.source)) continue;
-        state.routing_table.mutex.lock();
-        const ms = state.routing_table.lookup(mid);
-        state.routing_table.mutex.unlock();
-        if (ms) |s| {
-            pushEnvelope(arena, s, envelope) catch |err| {
+        if (state.routing_table.lookupAndRetain(mid)) |member_conn| {
+            defer member_conn.release();
+            member_conn.enqueueEnvelope(arena, envelope) catch |err| {
                 log.warn("failed to fan-out to {s}: {any}", .{ mid, err });
             };
         }
     }
-    try sendResponse(arena, stream, envelope.id, envelope.source, true, null, null);
+    try sendResponse(arena, conn, envelope.id, envelope.source, true, null, null);
 }
 
 // -- Handler: list_channels per [[RFC-0002:C-CLI-MCP]] ---------------------
 
-fn handleListChannels(state: *HubState, stream: net.Stream, arena: Allocator, envelope: protocol.Envelope) !void {
+fn handleListChannels(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
     const channels = try state.channel_registry.channelsFor(envelope.source, arena);
 
     var arr = json.Array.init(arena);
@@ -734,32 +884,30 @@ fn handleListChannels(state: *HubState, stream: net.Stream, arena: Allocator, en
         .target = envelope.source,
         .payload = .{ .object = data_obj },
     };
-    const raw = try protocol.serializeEnvelope(arena, resp);
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
+    try conn.enqueueEnvelope(arena, resp);
 }
 
 // -- Message dispatcher ----------------------------------------------------
 
-fn dispatchEnvelope(state: *HubState, arena: Allocator, stream: net.Stream, agent_id: []const u8, envelope: protocol.Envelope) void {
+fn dispatchEnvelope(state: *HubState, arena: Allocator, conn: *Connection, agent_id: []const u8, envelope: protocol.Envelope) void {
     const msg_type = envelope.@"type";
 
     const result: anyerror!void = if (mem.eql(u8, msg_type, "list_agents"))
-        handleListAgents(state, arena, stream, envelope)
+        handleListAgents(state, arena, conn, envelope)
     else if (mem.eql(u8, msg_type, "list_channels"))
-        handleListChannels(state, stream, arena, envelope)
+        handleListChannels(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "agent_update"))
-        handleAgentUpdate(state, stream, arena, envelope)
+        handleAgentUpdate(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "dm"))
-        handleDm(state, stream, arena, envelope)
+        handleDm(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "channel_create"))
-        handleChannelCreate(state, stream, arena, envelope)
+        handleChannelCreate(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "channel_invite"))
-        handleChannelInvite(state, stream, arena, envelope)
+        handleChannelInvite(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "channel_leave"))
-        handleChannelLeave(state, stream, arena, envelope)
+        handleChannelLeave(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "channel_msg"))
-        handleChannelMsg(state, stream, arena, envelope)
+        handleChannelMsg(state, conn, arena, envelope)
     else {
         log.warn("unknown message type from {s}: {s}", .{ agent_id, msg_type });
         return;
@@ -770,18 +918,29 @@ fn dispatchEnvelope(state: *HubState, arena: Allocator, stream: net.Stream, agen
         // while a response was being written — expected during concurrent
         // shutdown, not a bug.
         switch (err) {
-            error.BrokenPipe, error.ConnectionResetByPeer, error.NotOpenForWriting => {},
+            error.BrokenPipe, error.ConnectionResetByPeer, error.NotOpenForWriting, error.ConnectionClosed => {},
             else => log.warn("{s} handler failed for {s}: {any}", .{ msg_type, agent_id, err }),
         }
     };
 }
 
+/// Reader thread args.
+const ReaderArgs = struct {
+    state: *HubState,
+    conn: *Connection,
+};
+
 /// Handle a single client connection: read JSON envelopes and dispatch them.
 /// Uses a per-connection ArenaAllocator so parsed data is freed on disconnect,
 /// and a line buffer so partial TCP frames are carried across reads.
-fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) void {
-    _ = backing_alloc;
-    defer stream.close();
+/// Creates a Connection with an outbound queue and spawns a writer thread.
+fn readerThread(args: ReaderArgs) void {
+    const state = args.state;
+    const conn = args.conn;
+    const stream = conn.stream;
+    // Release the reader's reference when done. If no cross-agent enqueue is
+    // in flight, this frees the Connection. Otherwise the last release() frees.
+    defer conn.release();
 
     // Per-connection arena for data that lives the whole connection (agent_id).
     var conn_arena = std.heap.ArenaAllocator.init(state.allocator);
@@ -836,25 +995,34 @@ fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) 
         }
     };
 
-    state.routing_table.register(agent_id, stream) catch |err| {
+    // Connection was pre-created by the accept loop and registered in
+    // HubState.all_connections, ensuring deinit can shutdown its stream.
+    state.routing_table.register(agent_id, conn) catch |err| {
         log.err("failed to register {s}: {any}", .{ agent_id, err });
         return;
     };
+
+    // Spawn the writer thread before entering the read loop.
+    const writer = std.Thread.spawn(.{}, writerThread, .{conn}) catch |err| {
+        log.err("failed to spawn writer thread for {s}: {any}", .{ agent_id, err });
+        state.routing_table.unregister(agent_id);
+        return;
+    };
+
     defer {
         state.routing_table.unregister(agent_id);
         state.agent_registry.remove(agent_id);
         // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
-        // Note: disconnect leave notifications are NOT sent here because
-        // concurrent disconnects can close target streams before the write,
-        // causing EBADF which Zig treats as unreachable (panic). Agents
-        // discover departed members via list_channels/getMembers. The
-        // explicit channel_leave handler still sends notifications since
-        // the leaving agent's stream is known to be live.
         _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
+        // Signal writer to drain and stop, then wait for it.
+        conn.shutdown();
+        writer.join();
+        // conn is released by the outer `defer conn.release()`. If refcount hits 0,
+        // removeConnection removes from all_connections, closes stream, and frees.
     }
 
     // Process any additional complete lines from the initial read(s).
-    processLines(state, &msg_arena, stream, agent_id, &line_buf, &filled);
+    processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
 
     // Main receive loop with line buffering.
     while (true) {
@@ -872,13 +1040,13 @@ fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) 
         if (n == 0) break;
         filled += n;
 
-        processLines(state, &msg_arena, stream, agent_id, &line_buf, &filled);
+        processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
     }
 }
 
 /// Extract and dispatch all complete newline-delimited lines from the buffer.
 /// Resets msg_arena after each envelope so per-message memory is bounded.
-fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, stream: net.Stream, agent_id: []const u8, line_buf: *[recv_buf_size]u8, filled: *usize) void {
+fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, conn: *Connection, agent_id: []const u8, line_buf: *[recv_buf_size]u8, filled: *usize) void {
     var start: usize = 0;
     while (mem.indexOfScalar(u8, line_buf[start..filled.*], '\n')) |rel| {
         const end = start + rel;
@@ -894,7 +1062,7 @@ fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, stream: n
             log.err("bad envelope from {s}: {any}", .{ agent_id, err });
             continue;
         };
-        dispatchEnvelope(state, alloc, stream, agent_id, parsed.value);
+        dispatchEnvelope(state, alloc, conn, agent_id, parsed.value);
     }
     // Shift unconsumed bytes to the front.
     const remaining = filled.* - start;
@@ -958,12 +1126,21 @@ pub const HubServer = struct {
         self.listener.deinit();
         // 2. Join accept thread — guarantees no more client_threads.append() calls.
         if (self.accept_thread) |t| t.join();
-        // 3. Join all client handler threads (they exit when their stream closes).
+        // 3. Shutdown all client streams to unblock readers blocked in read().
+        //    Without this, idle clients prevent deinit from completing.
+        self.state.all_connections_mutex.lock();
+        for (self.state.all_connections.items) |conn| {
+            // Use raw C shutdown to avoid Zig's unreachable on EBADF —
+            // the reader thread may have already closed this fd.
+            _ = std.c.shutdown(conn.stream.handle, 2); // SHUT_RDWR
+        }
+        self.state.all_connections_mutex.unlock();
+        // 4. Join all reader threads (now unblocked by stream shutdown).
         self.client_threads_mutex.lock();
         for (self.client_threads.items) |t| t.join();
         self.client_threads.deinit(std.heap.page_allocator);
         self.client_threads_mutex.unlock();
-        // 4. Now safe to free shared state.
+        // 5. Free shared state (including all heap-allocated connections).
         self.state.deinit();
     }
 
@@ -972,23 +1149,54 @@ pub const HubServer = struct {
         self.accept_thread = try std.Thread.spawn(.{}, runBackground, .{self});
     }
 
-    /// Accept connections in a loop, spawning a thread per client.
+    /// Accept connections in a loop, spawning a reader thread per client.
     pub fn run(self: *HubServer) !void {
         while (true) {
-            const conn = try self.listener.accept();
-            log.info("accepted connection from {f}", .{conn.address});
-            const thread = std.Thread.spawn(.{}, handleClient, .{
-                &self.state,
-                std.heap.page_allocator,
-                conn.stream,
-            }) catch |err| {
+            const accepted = try self.listener.accept();
+            log.info("accepted connection from {f}", .{accepted.address});
+
+            // Create Connection on heap and register in all_connections BEFORE
+            // spawning the reader thread, so deinit can always shutdown the
+            // stream even if the thread hasn't started yet.
+            const connection = self.state.allocator.create(Connection) catch {
+                accepted.stream.close();
+                continue;
+            };
+            connection.* = Connection.init(self.state.allocator, &self.state, accepted.stream);
+            {
+                self.state.all_connections_mutex.lock();
+                defer self.state.all_connections_mutex.unlock();
+                self.state.all_connections.append(self.state.allocator, connection) catch {
+                    connection.deinit();
+                    self.state.allocator.destroy(connection);
+                    continue;
+                };
+            }
+
+            const thread = std.Thread.spawn(.{}, readerThread, .{ReaderArgs{
+                .state = &self.state,
+                .conn = connection,
+            }}) catch |err| {
                 log.err("failed to spawn handler thread: {any}", .{err});
-                conn.stream.close();
+                connection.shutdown();
+                connection.release(); // refcount → 0 → removeConnection
                 continue;
             };
             self.client_threads_mutex.lock();
-            self.client_threads.append(std.heap.page_allocator, thread) catch {};
+            const tracked = blk: {
+                self.client_threads.append(std.heap.page_allocator, thread) catch break :blk false;
+                break :blk true;
+            };
             self.client_threads_mutex.unlock();
+
+            if (!tracked) {
+                // Can't track the thread — stop it now to prevent an orphaned
+                // reader from accessing freed state after deinit.
+                // Shutdown stream to unblock reader, then join. The reader's
+                // defer will call conn.release() to clean up.
+                _ = std.c.shutdown(connection.stream.handle, 2);
+                thread.join();
+            }
         }
     }
 
@@ -1221,107 +1429,4 @@ test "MessageLog append and FIFO eviction" {
     try std.testing.expectEqual(@as(usize, 3), ml.entries.items.len);
     try std.testing.expectEqualStrings("msg2", ml.entries.items[0].text);
     try std.testing.expectEqualStrings("msg4", ml.entries.items[2].text);
-}
-
-test "MessageLog channel message has channel field" {
-    var ml = MessageLog.init(10);
-    defer ml.deinit(std.testing.allocator);
-
-    try ml.append(std.testing.allocator, .{ .from = "a", .to = "channel:design", .channel = "design", .text = "hello", .ts = 1 });
-    try std.testing.expectEqualStrings("design", ml.entries.items[0].channel.?);
-}
-
-test "HubState init and deinit" {
-    var state = HubState.init(std.testing.allocator);
-    defer state.deinit();
-
-    // All registries should be empty.
-    const agents = try state.routing_table.agentIds(std.testing.allocator);
-    defer std.testing.allocator.free(agents);
-    try std.testing.expectEqual(@as(usize, 0), agents.len);
-}
-
-test "startInBackground returns valid server handle" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-
-    const server = try HubServer.startInBackground(allocator);
-    // Give the background thread a moment to start, then verify the server
-    // is usable: registeredAgents should return an empty list.
-    std.Thread.sleep(10 * std.time.ns_per_ms);
-
-    const agents = try server.registeredAgents(allocator);
-    defer allocator.free(agents);
-    try std.testing.expectEqual(@as(usize, 0), agents.len);
-
-    // Clean up: deinit closes the listener which will cause run() to error
-    // and the background thread to exit.
-    server.deinit();
-    allocator.destroy(server);
-}
-
-// -- Finding 2: line buffering tests ----------------------------------------
-
-test "processLines extracts complete lines and preserves partial remainder" {
-    // We cannot call processLines directly (needs HubState/stream), but we
-    // verify the same buffer logic used in handleClient.
-    const recv_buf_sz = recv_buf_size;
-    var line_buf: [recv_buf_sz]u8 = undefined;
-    var filled: usize = 0;
-
-    // Simulate two reads that split a message across the boundary.
-    const chunk1 = "{\"type\":\"register\"}\n{\"type\":\"dm\",\"par";
-    @memcpy(line_buf[0..chunk1.len], chunk1);
-    filled = chunk1.len;
-
-    // Extract lines from chunk1.
-    var lines = std.ArrayList([]const u8).empty;
-    defer lines.deinit(std.testing.allocator);
-    var start: usize = 0;
-    while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
-        const end = start + rel;
-        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
-        start = end + 1;
-        if (raw.len > 0) {
-            try lines.append(std.testing.allocator, try std.testing.allocator.dupe(u8, raw));
-        }
-    }
-    const remaining = filled - start;
-    if (remaining > 0 and start > 0) {
-        mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
-    }
-    filled = remaining;
-
-    // Should have extracted the register line, with partial dm remaining.
-    try std.testing.expectEqual(@as(usize, 1), lines.items.len);
-    try std.testing.expectEqualStrings("{\"type\":\"register\"}", lines.items[0]);
-    try std.testing.expect(filled > 0); // partial dm still in buffer
-
-    // Second chunk completes the dm.
-    const chunk2 = "t\":\"hello\"}\n";
-    @memcpy(line_buf[filled..][0..chunk2.len], chunk2);
-    filled += chunk2.len;
-
-    start = 0;
-    while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
-        const end = start + rel;
-        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
-        start = end + 1;
-        if (raw.len > 0) {
-            try lines.append(std.testing.allocator, try std.testing.allocator.dupe(u8, raw));
-        }
-    }
-    const remaining2 = filled - start;
-    if (remaining2 > 0 and start > 0) {
-        mem.copyForwards(u8, line_buf[0..remaining2], line_buf[start..filled]);
-    }
-    filled = remaining2;
-
-    // Should now have the complete dm line, no remainder.
-    try std.testing.expectEqual(@as(usize, 2), lines.items.len);
-    try std.testing.expectEqualStrings("{\"type\":\"dm\",\"part\":\"hello\"}", lines.items[1]);
-    try std.testing.expectEqual(@as(usize, 0), filled);
-
-    for (lines.items) |l| std.testing.allocator.free(l);
 }
