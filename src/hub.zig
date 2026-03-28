@@ -927,6 +927,8 @@ pub const HubServer = struct {
     /// Tracks spawned client handler threads for clean shutdown.
     client_threads: std.ArrayList(std.Thread),
     client_threads_mutex: std.Thread.Mutex,
+    /// Accept loop thread, set by startBackground().
+    accept_thread: ?std.Thread,
 
     pub fn init(allocator: Allocator) !HubServer {
         _ = allocator;
@@ -949,19 +951,27 @@ pub const HubServer = struct {
             .state = HubState.init(std.heap.page_allocator),
             .client_threads = std.ArrayList(std.Thread).empty,
             .client_threads_mutex = .{},
+            .accept_thread = null,
         };
     }
 
     pub fn deinit(self: *HubServer) void {
-        // Close listener first to stop accepting new connections.
+        // 1. Close listener to unblock accept() in the accept loop.
         self.listener.deinit();
-        // Join all client handler threads (they exit when their stream closes).
+        // 2. Join accept thread — guarantees no more client_threads.append() calls.
+        if (self.accept_thread) |t| t.join();
+        // 3. Join all client handler threads (they exit when their stream closes).
         self.client_threads_mutex.lock();
         for (self.client_threads.items) |t| t.join();
         self.client_threads.deinit(std.heap.page_allocator);
         self.client_threads_mutex.unlock();
-        // Now safe to free shared state.
+        // 4. Now safe to free shared state.
         self.state.deinit();
+    }
+
+    /// Start the accept loop in a background thread. Call deinit() to stop.
+    pub fn startBackground(self: *HubServer) !void {
+        self.accept_thread = try std.Thread.spawn(.{}, runBackground, .{self});
     }
 
     /// Accept connections in a loop, spawning a thread per client.
@@ -990,7 +1000,7 @@ pub const HubServer = struct {
         server.* = try HubServer.init(allocator);
         errdefer server.deinit();
 
-        _ = try std.Thread.spawn(.{}, runBackground, .{server});
+        try server.startBackground();
         return server;
     }
 

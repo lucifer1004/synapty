@@ -15,7 +15,6 @@ const Allocator = mem.Allocator;
 const TestHub = struct {
     server: *hub.HubServer,
     port: u16,
-    thread: std.Thread,
 };
 
 /// Start a Hub on an ephemeral port.
@@ -24,23 +23,44 @@ fn startHub() !TestHub {
     const server = try allocator.create(hub.HubServer);
     server.* = try hub.HubServer.initWithAddress("127.0.0.1", 0);
     const port = server.listener.listen_address.getPort();
-    const thread = try std.Thread.spawn(.{}, hubRunWrapper, .{server});
-    // Give the accept loop a moment to start.
-    std.Thread.sleep(10 * std.time.ns_per_ms);
-    return .{ .server = server, .port = port, .thread = thread };
-}
-
-/// Wrapper that swallows the expected ConnectionAborted on shutdown.
-fn hubRunWrapper(server: *hub.HubServer) void {
-    server.run() catch {};
+    try server.startBackground();
+    return .{ .server = server, .port = port };
 }
 
 fn stopHub(h: TestHub) void {
-    // deinit closes listener (unblocks accept), joins all client handler threads,
-    // then frees state — no sleep needed.
+    // deinit: closes listener → joins accept thread → joins client threads → frees state.
     h.server.deinit();
-    h.thread.join();
     std.heap.page_allocator.destroy(h.server);
+}
+
+/// Poll until an agent appears in the Hub's routing table (or timeout).
+fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
+    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+    while (std.time.milliTimestamp() < deadline) {
+        const agents = server.registeredAgents(std.heap.page_allocator) catch return false;
+        defer std.heap.page_allocator.free(agents);
+        for (agents) |id| {
+            if (mem.eql(u8, id, agent_id)) return true;
+        }
+        std.Thread.sleep(2 * std.time.ns_per_ms);
+    }
+    return false;
+}
+
+/// Poll until an agent is NOT in the Hub's routing table (or timeout).
+fn waitForUnregistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
+    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+    while (std.time.milliTimestamp() < deadline) {
+        const agents = server.registeredAgents(std.heap.page_allocator) catch return true;
+        defer std.heap.page_allocator.free(agents);
+        var found = false;
+        for (agents) |id| {
+            if (mem.eql(u8, id, agent_id)) found = true;
+        }
+        if (!found) return true;
+        std.Thread.sleep(2 * std.time.ns_per_ms);
+    }
+    return false;
 }
 
 /// Connect to Hub and send a register envelope. Returns the connected stream.
@@ -118,14 +138,7 @@ test "e2e: register handshake — agent appears in registered list" {
     const stream = try connectAndRegister(alloc, h.port, "agent-e2e-reg");
     defer stream.close();
 
-    std.Thread.sleep(20 * std.time.ns_per_ms);
-
-    const agents = try h.server.registeredAgents(alloc);
-    var found = false;
-    for (agents) |id| {
-        if (mem.eql(u8, id, "agent-e2e-reg")) found = true;
-    }
-    try std.testing.expect(found);
+    try std.testing.expect(waitForRegistered(h.server, "agent-e2e-reg", 2000));
 }
 
 test "e2e: DM routing — message delivered to target agent" {
@@ -140,7 +153,7 @@ test "e2e: DM routing — message delivered to target agent" {
     defer stream_a.close();
     const stream_b = try connectAndRegister(alloc, h.port, "bob");
     defer stream_b.close();
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
     // Alice sends a DM to Bob.
     var payload_obj = json.ObjectMap.init(alloc);
@@ -179,7 +192,7 @@ test "e2e: DM to unknown agent returns error response" {
 
     const stream = try connectAndRegister(alloc, h.port, "sender");
     defer stream.close();
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.testing.expect(waitForRegistered(h.server, "sender", 2000));
 
     var payload_obj = json.ObjectMap.init(alloc);
     try payload_obj.put("text", .{ .string = "anyone there?" });
@@ -209,28 +222,10 @@ test "e2e: disconnect cleanup — agent removed from routing" {
     defer stopHub(h);
 
     const stream = try connectAndRegister(alloc, h.port, "ephemeral");
-    std.Thread.sleep(20 * std.time.ns_per_ms);
-
-    {
-        const agents = try h.server.registeredAgents(alloc);
-        var found = false;
-        for (agents) |id| {
-            if (mem.eql(u8, id, "ephemeral")) found = true;
-        }
-        try std.testing.expect(found);
-    }
+    try std.testing.expect(waitForRegistered(h.server, "ephemeral", 2000));
 
     stream.close();
-    std.Thread.sleep(50 * std.time.ns_per_ms);
-
-    {
-        const agents = try h.server.registeredAgents(alloc);
-        var found = false;
-        for (agents) |id| {
-            if (mem.eql(u8, id, "ephemeral")) found = true;
-        }
-        try std.testing.expect(!found);
-    }
+    try std.testing.expect(waitForUnregistered(h.server, "ephemeral", 2000));
 }
 
 test "e2e: channel create + send fan-out to members" {
@@ -248,7 +243,7 @@ test "e2e: channel create + send fan-out to members" {
     defer stream_b.close();
     const stream_c = try connectAndRegister(alloc, h.port, "ch-carol");
     defer stream_c.close();
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.testing.expect(waitForRegistered(h.server, "ch-carol", 2000));
 
     // Alice creates a channel.
     {
@@ -349,14 +344,14 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
     // Connect "bob" as a raw TCP agent to the Hub.
     const bob_stream = try connectAndRegister(alloc, h.port, "bob");
     defer bob_stream.close();
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
     // Start a RunServer for "alice" connected to the same Hub.
     var server = try run.RunServer.init(alloc, "alice", "127.0.0.1", h.port);
     defer server.deinit();
     const threads = try server.startThreads();
     defer server.stopThreads(threads);
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
 
     // Use IPC client to send a DM from alice to bob through the daemon.
     {
@@ -382,7 +377,7 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
     try std.testing.expect(mem.indexOf(u8, bob_msg.?, "hello from daemon") != null);
     try std.testing.expect(mem.indexOf(u8, bob_msg.?, "\"source\":\"alice\"") != null);
 
-    // Use IPC client to list agents — should see both alice and bob.
+    // Use IPC client to list agents — verify both alice and bob appear.
     {
         var client = try ipc.IpcClient.connect(server.socket_path);
         defer client.deinit();
@@ -391,6 +386,10 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
         var resp_buf: [8192]u8 = undefined;
         const resp_line = try client.recv(&resp_buf);
         try std.testing.expect(resp_line != null);
-        try std.testing.expect(mem.indexOf(u8, resp_line.?, "\"success\":true") != null);
+        const resp_str = resp_line.?;
+        try std.testing.expect(mem.indexOf(u8, resp_str, "\"success\":true") != null);
+        // The data field contains the Hub's response with agent list.
+        try std.testing.expect(mem.indexOf(u8, resp_str, "alice") != null);
+        try std.testing.expect(mem.indexOf(u8, resp_str, "bob") != null);
     }
 }
