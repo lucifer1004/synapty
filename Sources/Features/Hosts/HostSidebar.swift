@@ -8,6 +8,9 @@ struct HostSidebar: View {
     @ObservedObject var agentMonitor: AgentMonitor
     @State private var showHostConfig = false
     @State private var showHostPicker = false
+    @State private var showRenameAlert = false
+    @State private var renameSessionID: UUID?
+    @State private var renameText = ""
 
     /// Called when the user picks a remote host from the picker.
     var onHostConnect: ((HostEntry) -> Void)?
@@ -74,6 +77,12 @@ struct HostSidebar: View {
                             SessionRow(session: session, paneManager: paneManager)
                                 .tag(session.id)
                                 .contextMenu {
+                                    Button("Rename...") {
+                                        renameSessionID = session.id
+                                        renameText = session.label
+                                        showRenameAlert = true
+                                    }
+                                    Divider()
                                     Button("Close Session") {
                                         paneManager.removeSession(session)
                                     }
@@ -114,6 +123,15 @@ struct HostSidebar: View {
         .sheet(isPresented: $showHostConfig) {
             HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
         }
+        .alert("Rename Session", isPresented: $showRenameAlert) {
+            TextField("Session name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                if let id = renameSessionID, !renameText.isEmpty {
+                    paneManager.renameSession(id, to: renameText)
+                }
+            }
+        }
     }
 }
 
@@ -122,8 +140,6 @@ struct HostSidebar: View {
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
     @ObservedObject var paneManager: TerminalPaneManager
-    @State private var isEditing = false
-    @State private var editText = ""
 
     var body: some View {
         HStack(spacing: 6) {
@@ -145,29 +161,14 @@ struct SessionRow: View {
             }
 
             VStack(alignment: .leading, spacing: 1) {
-                if isEditing {
-                    TextField("Name", text: $editText, onCommit: {
-                        if !editText.isEmpty {
-                            paneManager.renameSession(session.id, to: editText)
-                        }
-                        isEditing = false
-                    })
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                } else {
-                    HStack(spacing: 4) {
-                        Text(session.label)
+                HStack(spacing: 4) {
+                    Text(session.label)
+                        .font(.body)
+                        .lineLimit(1)
+                    if case .connecting = session.state {
+                        Text("...")
                             .font(.body)
-                            .lineLimit(1)
-                        if case .connecting = session.state {
-                            Text("...")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .onTapGesture(count: 2) {
-                        editText = session.label
-                        isEditing = true
+                            .foregroundColor(.secondary)
                     }
                 }
                 if session.panes.count > 1 {

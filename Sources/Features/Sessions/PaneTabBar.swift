@@ -3,6 +3,9 @@ import SwiftUI
 struct PaneTabBar: View {
     @ObservedObject var paneManager: TerminalPaneManager
     let session: TerminalPaneManager.Session
+    @State private var showRenameAlert = false
+    @State private var renamePaneID: UUID?
+    @State private var renameText = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -13,9 +16,19 @@ struct PaneTabBar: View {
                             pane: pane,
                             isActive: session.activePaneID == pane.id,
                             onSelect: { paneManager.activatePane(pane) },
-                            onClose: { paneManager.removePane(pane) },
-                            onRename: { newName in paneManager.renamePane(pane.id, to: newName) }
+                            onClose: { paneManager.removePane(pane) }
                         )
+                        .contextMenu {
+                            Button("Rename...") {
+                                renamePaneID = pane.id
+                                renameText = pane.label
+                                showRenameAlert = true
+                            }
+                            Divider()
+                            Button("Close Tab") {
+                                paneManager.removePane(pane)
+                            }
+                        }
                     }
                 }
             }
@@ -32,6 +45,15 @@ struct PaneTabBar: View {
         }
         .frame(height: 30)
         .background(Color(NSColor.windowBackgroundColor))
+        .alert("Rename Tab", isPresented: $showRenameAlert) {
+            TextField("Tab name", text: $renameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                if let id = renamePaneID, !renameText.isEmpty {
+                    paneManager.renamePane(id, to: renameText)
+                }
+            }
+        }
     }
 }
 
@@ -40,30 +62,12 @@ struct PaneTab: View {
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
-    let onRename: (String) -> Void
-
-    @State private var isEditing = false
-    @State private var editText = ""
 
     var body: some View {
         HStack(spacing: 4) {
-            if isEditing {
-                TextField("Name", text: $editText, onCommit: {
-                    if !editText.isEmpty { onRename(editText) }
-                    isEditing = false
-                })
-                .textFieldStyle(.plain)
+            Text(pane.label)
                 .font(.system(size: 12))
-                .frame(minWidth: 60)
-            } else {
-                Text(pane.label)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .onTapGesture(count: 2) {
-                        editText = pane.label
-                        isEditing = true
-                    }
-            }
+                .lineLimit(1)
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
