@@ -142,6 +142,13 @@ struct SessionRow: View {
 
     private var isEditing: Bool { editingSessionID == session.id }
 
+    private func commitRename() {
+        if !editText.isEmpty {
+            paneManager.renameSession(session.id, to: editText)
+        }
+        editingSessionID = nil
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             // Status dot
@@ -169,18 +176,19 @@ struct SessionRow: View {
                         .focused($isTextFieldFocused)
                         .onAppear {
                             editText = session.label
-                            // Delay focus to next run loop so the TextField is mounted
                             DispatchQueue.main.async {
                                 isTextFieldFocused = true
                             }
                         }
                         .onSubmit {
-                            if !editText.isEmpty {
-                                paneManager.renameSession(session.id, to: editText)
-                            }
-                            editingSessionID = nil
+                            commitRename()
                         }
                         .onExitCommand { editingSessionID = nil }
+                        .onChange(of: isTextFieldFocused) { _, focused in
+                            if !focused {
+                                commitRename()
+                            }
+                        }
                 } else {
                     HStack(spacing: 4) {
                         Text(session.label)

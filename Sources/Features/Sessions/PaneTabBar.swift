@@ -67,6 +67,11 @@ struct PaneTab: View {
 
     private var isEditing: Bool { editingPaneID == pane.id }
 
+    private func commitRename() {
+        if !editText.isEmpty { onRename(editText) }
+        editingPaneID = nil
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             if isEditing {
@@ -81,11 +86,11 @@ struct PaneTab: View {
                             isTextFieldFocused = true
                         }
                     }
-                    .onSubmit {
-                        if !editText.isEmpty { onRename(editText) }
-                        editingPaneID = nil
-                    }
+                    .onSubmit { commitRename() }
                     .onExitCommand { editingPaneID = nil }
+                    .onChange(of: isTextFieldFocused) { _, focused in
+                        if !focused { commitRename() }
+                    }
             } else {
                 Text(pane.label)
                     .font(.system(size: 12))
