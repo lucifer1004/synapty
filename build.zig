@@ -177,55 +177,32 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run all unit tests");
 
-    // Standalone module tests (protocol, ipc)
+    // Standalone module tests (no imports)
     inline for (.{ "protocol", "ipc" }) |name| {
-        const test_mod = b.createModule(.{
-            .root_source_file = b.path("src/" ++ name ++ ".zig"),
-            .target = target,
-            .optimize = optimize,
-        });
-        const tests = b.addTest(.{ .root_module = test_mod });
-        test_step.dependOn(&b.addRunArtifact(tests).step);
+        addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{}, target, optimize);
     }
 
-    // Tests with imports matching their executable modules
-    const hub_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/hub.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = mods.protocol },
-        },
-    });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = hub_test_mod })).step);
+    // hub: protocol
+    addTestModule(b, test_step, "src/hub.zig", &.{
+        .{ .name = "protocol", .module = mods.protocol },
+    }, target, optimize);
 
-    const daemon_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/daemon.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
+    // daemon: protocol + ipc + run
+    addTestModule(b, test_step, "src/daemon.zig", &.{
+        .{ .name = "protocol", .module = mods.protocol },
+        .{ .name = "ipc", .module = mods.ipc },
+        .{ .name = "run", .module = mods.run },
+    }, target, optimize);
+
+    // run and mcp: protocol + ipc
+    inline for (.{ "run", "mcp" }) |name| {
+        addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "ipc", .module = mods.ipc },
-            .{ .name = "run", .module = mods.run },
-        },
-    });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = daemon_test_mod })).step);
-
-    // run and mcp tests share the same import set (protocol + ipc)
-    inline for (.{ "run", "mcp" }) |name| {
-        const test_mod = b.createModule(.{
-            .root_source_file = b.path("src/" ++ name ++ ".zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "protocol", .module = mods.protocol },
-                .{ .name = "ipc", .module = mods.ipc },
-            },
-        });
-        test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = test_mod })).step);
+        }, target, optimize);
     }
 
-    // e2e integration tests (hub + run + protocol + ipc)
+    // e2e: protocol + ipc + run + hub
     const hub_module = b.createModule(.{
         .root_source_file = b.path("src/hub.zig"),
         .target = target,
@@ -234,30 +211,41 @@ pub fn build(b: *std.Build) void {
             .{ .name = "protocol", .module = mods.protocol },
         },
     });
-    const e2e_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/e2e_test.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = mods.protocol },
-            .{ .name = "ipc", .module = mods.ipc },
-            .{ .name = "run", .module = mods.run },
-            .{ .name = "hub", .module = hub_module },
-        },
-    });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = e2e_test_mod })).step);
+    addTestModule(b, test_step, "src/e2e_test.zig", &.{
+        .{ .name = "protocol", .module = mods.protocol },
+        .{ .name = "ipc", .module = mods.ipc },
+        .{ .name = "run", .module = mods.run },
+        .{ .name = "hub", .module = hub_module },
+    }, target, optimize);
 
-    // cli tests need all four imports
-    const cli_test_mod = b.createModule(.{
-        .root_source_file = b.path("src/cli.zig"),
+    // cli: protocol + ipc + run + mcp
+    addTestModule(b, test_step, "src/cli.zig", &.{
+        .{ .name = "protocol", .module = mods.protocol },
+        .{ .name = "ipc", .module = mods.ipc },
+        .{ .name = "run", .module = mods.run },
+        .{ .name = "mcp", .module = mods.mcp },
+    }, target, optimize);
+}
+
+// ---------------------------------------------------------------------------
+// Test helper
+// ---------------------------------------------------------------------------
+
+/// Create a test module with the given root source file and imports, and
+/// wire it into the test step.
+fn addTestModule(
+    b: *std.Build,
+    test_step: *std.Build.Step,
+    root: []const u8,
+    imports: []const std.Build.Module.Import,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) void {
+    const mod = b.createModule(.{
+        .root_source_file = b.path(root),
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = mods.protocol },
-            .{ .name = "ipc", .module = mods.ipc },
-            .{ .name = "run", .module = mods.run },
-            .{ .name = "mcp", .module = mods.mcp },
-        },
+        .imports = imports,
     });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = cli_test_mod })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = mod })).step);
 }

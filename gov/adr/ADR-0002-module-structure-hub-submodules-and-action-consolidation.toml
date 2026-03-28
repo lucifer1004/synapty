@@ -1,0 +1,17 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0002"
+title = "Module Structure — Hub Submodules and Action Consolidation"
+status = "proposed"
+date = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+context = "hub.zig grew to 1432 lines with 4 distinct concerns (connection lifecycle, registries, message handlers, server). cli.zig mixed arg parsing with transport logic. IPC action definitions were duplicated across 4 files. build.zig had repeated test module wiring."
+decision = """
+Describe the decision that was made.
+What is the change that we're proposing and/or doing?"""
+consequences = """
+Describe the resulting context after applying the decision.
+What becomes easier or more difficult to do because of this change?"""

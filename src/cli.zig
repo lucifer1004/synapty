@@ -10,25 +10,38 @@ const Allocator = mem.Allocator;
 const log = std.log.scoped(.cli);
 
 // ---------------------------------------------------------------------------
-// Constants
+// Sub-module re-exports
 // ---------------------------------------------------------------------------
 
-const hub_addr = "127.0.0.1";
-const hub_port: u16 = 9000;
-const temp_agent_prefix = "cli-tmp-";
+const commands = @import("cli/commands.zig");
+const transport = @import("cli/transport.zig");
 
 // ---------------------------------------------------------------------------
-// Subcommand types
+// Subcommand types — IPC actions reference protocol.IpcAction as SSOT
 // ---------------------------------------------------------------------------
 
-pub const Subcommand = union(enum) {
+/// IPC-routed subcommand: the action enum comes from protocol.IpcAction.
+pub const IpcSubcommand = struct {
+    action: protocol.IpcAction,
+    args: IpcArgs,
+};
+
+/// Per-action argument payloads.
+pub const IpcArgs = union(enum) {
     register: RegisterArgs,
     send: SendArgs,
     recv: RecvArgs,
     agents,
+    channel_create: ChannelCreateArgs,
+    channel_invite: ChannelInviteArgs,
+    channel_leave: ChannelLeaveArgs,
+    channel_list,
+};
+
+pub const Subcommand = union(enum) {
+    ipc: IpcSubcommand,
     run: RunArgs,
     mcp_serve,
-    channel: ChannelArgs,
 };
 
 /// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
@@ -50,14 +63,6 @@ pub const RecvArgs = struct {
 pub const RunArgs = struct {
     agent_id: []const u8,
     child_argv: []const []const u8,
-};
-
-/// Channel subcommands per [[RFC-0002:C-GROUP-CHAT]].
-pub const ChannelArgs = union(enum) {
-    create: ChannelCreateArgs,
-    invite: ChannelInviteArgs,
-    leave: ChannelLeaveArgs,
-    list,
 };
 
 pub const ChannelCreateArgs = struct {
@@ -113,12 +118,18 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
             }
         }
         if (tool == null) return ParseError.MissingArgument;
-        return .{ .register = .{ .tool = tool.?, .project = project, .session = session_val } };
+        return .{ .ipc = .{
+            .action = .register,
+            .args = .{ .register = .{ .tool = tool.?, .project = project, .session = session_val } },
+        } };
     }
 
     if (mem.eql(u8, sub, "send")) {
         if (args.len < 3) return ParseError.MissingArgument;
-        return .{ .send = .{ .target = args[1], .text = args[2] } };
+        return .{ .ipc = .{
+            .action = .send,
+            .args = .{ .send = .{ .target = args[1], .text = args[2] } },
+        } };
     }
 
     if (mem.eql(u8, sub, "recv")) {
@@ -126,11 +137,17 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
         for (args[1..]) |arg| {
             if (mem.eql(u8, arg, "--wait")) wait = true;
         }
-        return .{ .recv = .{ .wait = wait } };
+        return .{ .ipc = .{
+            .action = .recv,
+            .args = .{ .recv = .{ .wait = wait } },
+        } };
     }
 
     if (mem.eql(u8, sub, "agents")) {
-        return .agents;
+        return .{ .ipc = .{
+            .action = .agents,
+            .args = .agents,
+        } };
     }
 
     if (mem.eql(u8, sub, "run")) {
@@ -176,15 +193,27 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
                     desc = args[i];
                 }
             }
-            return .{ .channel = .{ .create = .{ .name = args[2], .description = desc } } };
+            return .{ .ipc = .{
+                .action = .channel_create,
+                .args = .{ .channel_create = .{ .name = args[2], .description = desc } },
+            } };
         } else if (mem.eql(u8, channel_sub, "invite")) {
             if (args.len < 4) return ParseError.MissingArgument;
-            return .{ .channel = .{ .invite = .{ .channel = args[2], .agent_id = args[3] } } };
+            return .{ .ipc = .{
+                .action = .channel_invite,
+                .args = .{ .channel_invite = .{ .channel = args[2], .agent_id = args[3] } },
+            } };
         } else if (mem.eql(u8, channel_sub, "leave")) {
             if (args.len < 3) return ParseError.MissingArgument;
-            return .{ .channel = .{ .leave = .{ .channel = args[2] } } };
+            return .{ .ipc = .{
+                .action = .channel_leave,
+                .args = .{ .channel_leave = .{ .channel = args[2] } },
+            } };
         } else if (mem.eql(u8, channel_sub, "list")) {
-            return .{ .channel = .{ .list = {} } };
+            return .{ .ipc = .{
+                .action = .channel_list,
+                .args = .channel_list,
+            } };
         }
         return ParseError.UnknownSubcommand;
     }
@@ -194,245 +223,6 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
     }
 
     return ParseError.UnknownSubcommand;
-}
-
-// ---------------------------------------------------------------------------
-// Hub connection helpers
-// ---------------------------------------------------------------------------
-
-/// Connect to the Hub and send an initial register envelope.
-/// Returns the open stream; caller must close it.
-fn connectAndRegister(allocator: Allocator, agent_id: []const u8) !net.Stream {
-    const address = net.Address.parseIp4(hub_addr, hub_port) catch unreachable;
-    const stream = try net.tcpConnectToAddress(address);
-    errdefer stream.close();
-
-    const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
-    const payload = try protocol.serializeEnvelope(allocator, reg);
-    defer allocator.free(payload);
-
-    _ = try stream.write(payload);
-    _ = try stream.write("\n");
-    return stream;
-}
-
-// ---------------------------------------------------------------------------
-// Subcommand handlers
-// ---------------------------------------------------------------------------
-
-/// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
-/// Routes through IPC to daemon, which forwards agent_update to Hub.
-fn runRegister(allocator: Allocator, args: RegisterArgs) !void {
-    const stdout = std.fs.File.stdout();
-
-    const sock_env = std.posix.getenv("SYNAPTY_SOCK") orelse {
-        try std.fs.File.stderr().writeAll("error: not in a synapty session (SYNAPTY_SOCK not set)\n");
-        std.process.exit(1);
-    };
-    var client = try ipc.IpcClient.connect(sock_env);
-    defer client.deinit();
-
-    const req = try protocol.serializeIpcRequest(allocator, .{
-        .action = .register,
-        .tool = args.tool,
-        .project = args.project,
-        .session = args.session,
-    });
-    defer allocator.free(req);
-    try client.send(req);
-
-    var buf: [4096]u8 = undefined;
-    if (try client.recv(&buf)) |response| {
-        try stdout.writeAll(response);
-        try stdout.writeAll("\n");
-    }
-}
-
-/// Channel subcommand handler per [[RFC-0002:C-GROUP-CHAT]].
-fn runChannel(allocator: Allocator, args: ChannelArgs) !void {
-    const stdout = std.fs.File.stdout();
-
-    const sock_env = std.posix.getenv("SYNAPTY_SOCK") orelse {
-        try std.fs.File.stderr().writeAll("error: not in a synapty session (SYNAPTY_SOCK not set)\n");
-        std.process.exit(1);
-    };
-    var client = try ipc.IpcClient.connect(sock_env);
-    defer client.deinit();
-
-    const req = try protocol.serializeIpcRequest(allocator, switch (args) {
-        .create => |a| .{ .action = .channel_create, .channel = a.name, .description = a.description },
-        .invite => |a| .{ .action = .channel_invite, .channel = a.channel, .agent_id = a.agent_id },
-        .leave => |a| .{ .action = .channel_leave, .channel = a.channel },
-        .list => .{ .action = .channel_list },
-    });
-    defer allocator.free(req);
-    try client.send(req);
-
-    var buf: [4096]u8 = undefined;
-    if (try client.recv(&buf)) |response| {
-        try stdout.writeAll(response);
-        try stdout.writeAll("\n");
-    }
-}
-
-fn runSend(allocator: Allocator, args: SendArgs) !void {
-    const stdout = std.fs.File.stdout();
-
-    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path: []const u8 = sock_env;
-        var client = try ipc.IpcClient.connect(sock_path);
-        defer client.deinit();
-        const req = try protocol.serializeIpcRequest(allocator, .{
-            .action = .send,
-            .target = args.target,
-            .text = args.text,
-        });
-        defer allocator.free(req);
-        try client.send(req);
-        var buf: [4096]u8 = undefined;
-        if (try client.recv(&buf)) |response| {
-            try stdout.writeAll(response);
-            try stdout.writeAll("\n");
-        }
-        return;
-    }
-
-    // Fallback: direct Hub TCP connection.
-    // Build a temporary source ID for this one-shot send.
-    const source_id = try std.fmt.allocPrint(allocator, "{s}{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
-    defer allocator.free(source_id);
-
-    const stream = try connectAndRegister(allocator, source_id);
-    defer stream.close();
-
-    // Build the DM envelope per [[RFC-0002:C-DM]].
-    var payload_obj = json.ObjectMap.init(allocator);
-    try payload_obj.put("text", .{ .string = args.text });
-    const envelope = protocol.Envelope{
-        .@"type" = "dm",
-        .id = "send-0",
-        .source = source_id,
-        .target = args.target,
-        .payload = .{ .object = payload_obj },
-    };
-    const raw = try protocol.serializeEnvelope(allocator, envelope);
-    defer allocator.free(raw);
-
-    _ = try stream.write(raw);
-
-    const msg = try std.fmt.allocPrint(allocator, "sent to {s}: {s}\n", .{ args.target, args.text });
-    defer allocator.free(msg);
-    try stdout.writeAll(msg);
-}
-
-fn runRecv(allocator: Allocator, args: RecvArgs) !void {
-    const stdout = std.fs.File.stdout();
-
-    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path: []const u8 = sock_env;
-        var client = try ipc.IpcClient.connect(sock_path);
-        defer client.deinit();
-        const req = try protocol.serializeIpcRequest(allocator, .{
-            .action = .recv,
-        });
-        defer allocator.free(req);
-        try client.send(req);
-        var buf: [4096]u8 = undefined;
-        if (try client.recv(&buf)) |response| {
-            try stdout.writeAll(response);
-            try stdout.writeAll("\n");
-        }
-        return;
-    }
-
-    // Fallback: direct Hub TCP connection.
-    // Build a temporary source ID for this one-shot recv.
-    const source_id = try std.fmt.allocPrint(allocator, "{s}recv-{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
-    defer allocator.free(source_id);
-
-    const stream = try connectAndRegister(allocator, source_id);
-    defer stream.close();
-
-    var buf: [64 * 1024]u8 = undefined;
-
-    if (args.wait) {
-        // Block until a message arrives, then print it.
-        const n = try stream.read(&buf);
-        if (n > 0) {
-            try stdout.writeAll(buf[0..n]);
-            try stdout.writeAll("\n");
-        }
-    } else {
-        // Poll once with a non-blocking read via POSIX O_NONBLOCK.
-        // For V1 simplicity we attempt a single read with a short timeout
-        // by setting the socket to non-blocking mode.
-        const fd = stream.handle;
-        var flags = try std.posix.fcntl(fd, std.posix.F.GETFL, 0);
-        flags |= 1 << @bitOffsetOf(std.posix.O, "NONBLOCK");
-        _ = try std.posix.fcntl(fd, std.posix.F.SETFL, flags);
-
-        const n = stream.read(&buf) catch |err| switch (err) {
-            error.WouldBlock => 0,
-            else => return err,
-        };
-        if (n > 0) {
-            try stdout.writeAll(buf[0..n]);
-            try stdout.writeAll("\n");
-        } else {
-            try stdout.writeAll("no messages\n");
-        }
-    }
-}
-
-fn runAgents(allocator: Allocator) !void {
-    const stdout = std.fs.File.stdout();
-
-    if (std.posix.getenv("SYNAPTY_SOCK")) |sock_env| {
-        const sock_path: []const u8 = sock_env;
-        var client = try ipc.IpcClient.connect(sock_path);
-        defer client.deinit();
-        const req = try protocol.serializeIpcRequest(allocator, .{
-            .action = .agents,
-        });
-        defer allocator.free(req);
-        try client.send(req);
-        var buf: [4096]u8 = undefined;
-        if (try client.recv(&buf)) |response| {
-            try stdout.writeAll(response);
-            try stdout.writeAll("\n");
-        }
-        return;
-    }
-
-    // Fallback: direct Hub TCP connection.
-    const source_id = try std.fmt.allocPrint(allocator, "{s}agents-{d}", .{ temp_agent_prefix, std.time.milliTimestamp() });
-    defer allocator.free(source_id);
-
-    const stream = try connectAndRegister(allocator, source_id);
-    defer stream.close();
-
-    // Send a list_agents request envelope.
-    const envelope = protocol.Envelope{
-        .@"type" = "list_agents",
-        .id = "agents-0",
-        .source = source_id,
-        .target = "hub",
-    };
-    const raw = try protocol.serializeEnvelope(allocator, envelope);
-    defer allocator.free(raw);
-
-    _ = try stream.write(raw);
-    _ = try stream.write("\n");
-
-    // Read the response (best-effort, no timeout in V1).
-    var buf: [64 * 1024]u8 = undefined;
-    const n = stream.read(&buf) catch 0;
-    if (n > 0) {
-        try stdout.writeAll(buf[0..n]);
-        try stdout.writeAll("\n");
-    } else {
-        try stdout.writeAll("(no response from hub)\n");
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -473,13 +263,15 @@ pub fn main() !void {
     };
 
     switch (sub) {
-        .register => |a| try runRegister(allocator, a),
-        .send => |a| try runSend(allocator, a),
-        .recv => |a| try runRecv(allocator, a),
-        .agents => try runAgents(allocator),
-        .channel => |a| try runChannel(allocator, a),
+        .ipc => |ipc_sub| switch (ipc_sub.action) {
+            .register => try commands.runRegister(allocator, ipc_sub.args.register),
+            .send => try commands.runSend(allocator, ipc_sub.args.send),
+            .recv => try commands.runRecv(allocator, ipc_sub.args.recv),
+            .agents => try commands.runAgents(allocator),
+            .channel_create, .channel_invite, .channel_leave, .channel_list => try commands.runChannel(allocator, ipc_sub.action, ipc_sub.args),
+        },
         .run => |a| {
-            var server = try run.RunServer.init(allocator, a.agent_id, hub_addr, hub_port);
+            var server = try run.RunServer.init(allocator, a.agent_id, transport.hub_addr, transport.hub_port);
             defer server.deinit();
             try server.run(a.child_argv);
         },
@@ -505,8 +297,9 @@ test "parseArgs: unknown subcommand returns error" {
 
 test "parseArgs: register subcommand" {
     const result = try parseArgs(&.{ "register", "--tool", "codex", "--project", "/path" });
-    try std.testing.expectEqualStrings("codex", result.register.tool);
-    try std.testing.expectEqualStrings("/path", result.register.project.?);
+    try std.testing.expectEqualStrings("codex", result.ipc.args.register.tool);
+    try std.testing.expectEqualStrings("/path", result.ipc.args.register.project.?);
+    try std.testing.expectEqual(protocol.IpcAction.register, result.ipc.action);
 }
 
 test "parseArgs: register missing --tool returns error" {
@@ -516,25 +309,29 @@ test "parseArgs: register missing --tool returns error" {
 
 test "parseArgs: send subcommand" {
     const result = try parseArgs(&.{ "send", "agent-b", "hello world" });
-    try std.testing.expectEqualStrings("agent-b", result.send.target);
-    try std.testing.expectEqualStrings("hello world", result.send.text);
+    try std.testing.expectEqualStrings("agent-b", result.ipc.args.send.target);
+    try std.testing.expectEqualStrings("hello world", result.ipc.args.send.text);
+    try std.testing.expectEqual(protocol.IpcAction.send, result.ipc.action);
 }
 
 test "parseArgs: channel create subcommand" {
     const result = try parseArgs(&.{ "channel", "create", "design-review", "--description", "Auth redesign" });
-    try std.testing.expectEqualStrings("design-review", result.channel.create.name);
-    try std.testing.expectEqualStrings("Auth redesign", result.channel.create.description.?);
+    try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_create.name);
+    try std.testing.expectEqualStrings("Auth redesign", result.ipc.args.channel_create.description.?);
+    try std.testing.expectEqual(protocol.IpcAction.channel_create, result.ipc.action);
 }
 
 test "parseArgs: channel invite subcommand" {
     const result = try parseArgs(&.{ "channel", "invite", "design-review", "agent-b" });
-    try std.testing.expectEqualStrings("design-review", result.channel.invite.channel);
-    try std.testing.expectEqualStrings("agent-b", result.channel.invite.agent_id);
+    try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_invite.channel);
+    try std.testing.expectEqualStrings("agent-b", result.ipc.args.channel_invite.agent_id);
+    try std.testing.expectEqual(protocol.IpcAction.channel_invite, result.ipc.action);
 }
 
 test "parseArgs: channel list subcommand" {
     const result = try parseArgs(&.{ "channel", "list" });
-    try std.testing.expect(result.channel == .list);
+    try std.testing.expectEqual(protocol.IpcAction.channel_list, result.ipc.action);
+    try std.testing.expect(result.ipc.args == .channel_list);
 }
 
 test "parseArgs: send missing payload returns error" {
@@ -544,17 +341,17 @@ test "parseArgs: send missing payload returns error" {
 
 test "parseArgs: recv without --wait" {
     const result = try parseArgs(&.{"recv"});
-    try std.testing.expect(!result.recv.wait);
+    try std.testing.expect(!result.ipc.args.recv.wait);
 }
 
 test "parseArgs: recv with --wait" {
     const result = try parseArgs(&.{ "recv", "--wait" });
-    try std.testing.expect(result.recv.wait);
+    try std.testing.expect(result.ipc.args.recv.wait);
 }
 
 test "parseArgs: agents subcommand" {
     const result = try parseArgs(&.{"agents"});
-    try std.testing.expectEqual(Subcommand.agents, result);
+    try std.testing.expectEqual(protocol.IpcAction.agents, result.ipc.action);
 }
 
 test "register envelope has correct fields for agent-id" {
@@ -588,7 +385,7 @@ test "parseArgs: run subcommand with --id and -- child" {
 
 test "parseArgs: mcp-serve subcommand" {
     const result = try parseArgs(&.{"mcp-serve"});
-    try std.testing.expectEqual(Subcommand.mcp_serve, result);
+    try std.testing.expect(result == .mcp_serve);
 }
 
 test "parseArgs: run without --id returns error" {
@@ -604,4 +401,10 @@ test "parseArgs: run with --id but without -- returns error" {
 test "parseArgs: run with --id and -- but no child command returns error" {
     const result = parseArgs(&.{ "run", "--id", "foo", "--" });
     try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+// Pull in tests from sub-modules.
+comptime {
+    _ = @import("cli/commands.zig");
+    _ = @import("cli/transport.zig");
 }

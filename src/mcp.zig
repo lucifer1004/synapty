@@ -169,47 +169,61 @@ fn handleToolsCall(allocator: Allocator, socket_path: ?[]const u8, id: json.Valu
 
     const args_val = p_obj.get("arguments");
 
-    // Build IPC request based on tool name.
+    // Resolve IPC action from tool name using protocol.IpcAction as SSOT.
+    // Tool names follow the pattern "synapty_" ++ @tagName(action).
+    const action: protocol.IpcAction = blk: {
+        const prefix = "synapty_";
+        if (mem.startsWith(u8, tool_name, prefix)) {
+            const suffix = tool_name[prefix.len..];
+            inline for (@typeInfo(protocol.IpcAction).@"enum".fields) |f| {
+                if (mem.eql(u8, suffix, f.name)) break :blk @enumFromInt(f.value);
+            }
+        }
+        return buildErrorResponse(allocator, id, -32602, "Unknown tool");
+    };
+
+    // Build IPC request with action-specific argument extraction.
     const ipc_req: protocol.IpcRequest = blk: {
-        if (mem.eql(u8, tool_name, "synapty_send")) {
-            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
-            const target_val = args_obj.get("target") orelse return buildErrorResponse(allocator, id, -32602, "Missing target");
-            const text_val = args_obj.get("text") orelse return buildErrorResponse(allocator, id, -32602, "Missing text");
-            break :blk .{
-                .action = .send,
-                .target = if (target_val == .string) target_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid target type"),
-                .text = if (text_val == .string) text_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid text type"),
-            };
-        } else if (mem.eql(u8, tool_name, "synapty_recv")) {
-            break :blk .{ .action = .recv };
-        } else if (mem.eql(u8, tool_name, "synapty_agents")) {
-            break :blk .{ .action = .agents };
-        } else if (mem.eql(u8, tool_name, "synapty_register")) {
-            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
-            const tool_val = args_obj.get("tool") orelse return buildErrorResponse(allocator, id, -32602, "Missing tool");
-            const tool_str = if (tool_val == .string) tool_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid tool type");
-            const proj = if (args_obj.get("project")) |v| (if (v == .string) v.string else null) else null;
-            const sess = if (args_obj.get("session")) |v| (if (v == .string) v.string else null) else null;
-            break :blk .{ .action = .register, .tool = tool_str, .project = proj, .session = sess };
-        } else if (mem.eql(u8, tool_name, "synapty_channel_create")) {
-            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
-            const name_v = args_obj.get("name") orelse return buildErrorResponse(allocator, id, -32602, "Missing name");
-            const name_str = if (name_v == .string) name_v.string else return buildErrorResponse(allocator, id, -32602, "Invalid name type");
-            const desc = if (args_obj.get("description")) |v| (if (v == .string) v.string else null) else null;
-            break :blk .{ .action = .channel_create, .channel = name_str, .description = desc };
-        } else if (mem.eql(u8, tool_name, "synapty_channel_invite")) {
-            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
-            const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
-            const aid = args_obj.get("agent_id") orelse return buildErrorResponse(allocator, id, -32602, "Missing agent_id");
-            break :blk .{ .action = .channel_invite, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type"), .agent_id = if (aid == .string) aid.string else return buildErrorResponse(allocator, id, -32602, "Invalid agent_id type") };
-        } else if (mem.eql(u8, tool_name, "synapty_channel_leave")) {
-            const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
-            const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
-            break :blk .{ .action = .channel_leave, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type") };
-        } else if (mem.eql(u8, tool_name, "synapty_channel_list")) {
-            break :blk .{ .action = .channel_list };
-        } else {
-            return buildErrorResponse(allocator, id, -32602, "Unknown tool");
+        switch (action) {
+            .send => {
+                const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+                const target_val = args_obj.get("target") orelse return buildErrorResponse(allocator, id, -32602, "Missing target");
+                const text_val = args_obj.get("text") orelse return buildErrorResponse(allocator, id, -32602, "Missing text");
+                break :blk .{
+                    .action = .send,
+                    .target = if (target_val == .string) target_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid target type"),
+                    .text = if (text_val == .string) text_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid text type"),
+                };
+            },
+            .recv => break :blk .{ .action = .recv },
+            .agents => break :blk .{ .action = .agents },
+            .register => {
+                const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+                const tool_val = args_obj.get("tool") orelse return buildErrorResponse(allocator, id, -32602, "Missing tool");
+                const tool_str = if (tool_val == .string) tool_val.string else return buildErrorResponse(allocator, id, -32602, "Invalid tool type");
+                const proj = if (args_obj.get("project")) |v| (if (v == .string) v.string else null) else null;
+                const sess = if (args_obj.get("session")) |v| (if (v == .string) v.string else null) else null;
+                break :blk .{ .action = .register, .tool = tool_str, .project = proj, .session = sess };
+            },
+            .channel_create => {
+                const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+                const name_v = args_obj.get("name") orelse return buildErrorResponse(allocator, id, -32602, "Missing name");
+                const name_str = if (name_v == .string) name_v.string else return buildErrorResponse(allocator, id, -32602, "Invalid name type");
+                const desc = if (args_obj.get("description")) |v| (if (v == .string) v.string else null) else null;
+                break :blk .{ .action = .channel_create, .channel = name_str, .description = desc };
+            },
+            .channel_invite => {
+                const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+                const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
+                const aid = args_obj.get("agent_id") orelse return buildErrorResponse(allocator, id, -32602, "Missing agent_id");
+                break :blk .{ .action = .channel_invite, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type"), .agent_id = if (aid == .string) aid.string else return buildErrorResponse(allocator, id, -32602, "Invalid agent_id type") };
+            },
+            .channel_leave => {
+                const args_obj = if (args_val) |av| (if (av == .object) av.object else return buildErrorResponse(allocator, id, -32602, "Invalid arguments type")) else return buildErrorResponse(allocator, id, -32602, "Missing arguments");
+                const ch = args_obj.get("channel") orelse return buildErrorResponse(allocator, id, -32602, "Missing channel");
+                break :blk .{ .action = .channel_leave, .channel = if (ch == .string) ch.string else return buildErrorResponse(allocator, id, -32602, "Invalid channel type") };
+            },
+            .channel_list => break :blk .{ .action = .channel_list },
         }
     };
 

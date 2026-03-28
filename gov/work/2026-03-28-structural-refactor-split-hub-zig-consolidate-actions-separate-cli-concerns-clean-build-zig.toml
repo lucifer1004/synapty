@@ -1,0 +1,53 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-008"
+title = "Structural refactor: split hub.zig, consolidate actions, separate CLI concerns, clean build.zig"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+description = "Address 4 structural findings: (1) Split hub.zig (1432 lines) into hub/ submodules — connection, registry, handlers, server. (2) Consolidate IPC action definitions into protocol.zig as single source of truth. (3) Separate CLI concerns — arg parsing, transports, command handlers. (4) Reduce build.zig duplication with module helpers. Pure refactor, no behavioral changes."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "structure"
+content = "All 4 structural refactors complete. 50/50 stress test passes."
+
+[[content.acceptance_criteria]]
+text = "hub.zig split into hub/ submodules"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "IPC action dispatch consolidated via protocol.zig"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "cli.zig separated into parsing, transport, handlers"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "build.zig module wiring deduplicated"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes (50/50 stress)"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "e2e tests unchanged and passing"
+status = "done"
+category = "chore"
