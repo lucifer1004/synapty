@@ -44,6 +44,7 @@ struct PaneTabBar: View {
         .frame(height: 30)
         .background(Color(NSColor.windowBackgroundColor))
         .focusable()
+        .focusEffectDisabled()
         .onKeyPress(.return) {
             guard editingPaneID == nil,
                   let activePaneID = session.activePaneID else { return .ignored }

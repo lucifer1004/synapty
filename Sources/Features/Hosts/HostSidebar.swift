@@ -117,6 +117,7 @@ struct HostSidebar: View {
             }
             .listStyle(.sidebar)
             .focusable()
+            .focusEffectDisabled()
             .onKeyPress(.return) {
                 guard editingSessionID == nil,
                       let id = paneManager.activeSessionID else { return .ignored }
