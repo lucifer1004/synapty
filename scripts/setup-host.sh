@@ -14,7 +14,7 @@ KEY="${5:-}"
 
 DEST="${USER}@${HOST}"
 SSH_FLAGS="-p ${PORT}"
-SCP_FLAGS="-P ${PORT}"
+SCP_FLAGS="-O -P ${PORT}"
 if [ -n "$KEY" ]; then
     SSH_FLAGS="-i ${KEY} ${SSH_FLAGS}"
     SCP_FLAGS="-i ${KEY} ${SCP_FLAGS}"
@@ -56,7 +56,7 @@ echo "Remote platform: ${REMOTE_PLATFORM} -> ${DEPLOY_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_BIN=""
 for candidate in \
-    "${SCRIPT_DIR}/../deploy/${DEPLOY_DIR}/synapty" \
+    "${SCRIPT_DIR}/../zig-out/${DEPLOY_DIR}/synapty" \
     "${SCRIPT_DIR}/../../Resources/deploy/${DEPLOY_DIR}/synapty" \
     "zig-out/${DEPLOY_DIR}/synapty"; do
     if [ -f "$candidate" ]; then
@@ -78,12 +78,15 @@ echo "Local binary: ${LOCAL_BIN}"
 ssh $SSH_FLAGS "$DEST" "mkdir -p .synapty/bin"
 
 LOCAL_MD5=$(md5 -q "$LOCAL_BIN" 2>/dev/null || md5sum "$LOCAL_BIN" | awk '{print $1}')
-REMOTE_MD5=$(ssh $SSH_FLAGS "$DEST" "md5sum .synapty/bin/synapty 2>/dev/null | awk '{print \$1}'" || echo "")
+REMOTE_MD5=$(ssh $SSH_FLAGS "$DEST" "md5sum .synapty/bin/synapty 2>/dev/null | awk '{print \$1}' || md5 -q .synapty/bin/synapty 2>/dev/null" || echo "")
 
 if [ "$LOCAL_MD5" = "$REMOTE_MD5" ]; then
     echo "Binary unchanged, skipping upload."
 else
     echo "Uploading binary..."
+    # Remove first — Linux allows unlinking a running executable (it stays in
+    # memory), but writes to an active text segment fail with ETXTBSY.
+    ssh $SSH_FLAGS "$DEST" "rm -f .synapty/bin/synapty"
     scp $SCP_FLAGS "$LOCAL_BIN" "$DEST":.synapty/bin/synapty
     ssh $SSH_FLAGS "$DEST" "chmod +x .synapty/bin/synapty"
     echo "Upload complete."
