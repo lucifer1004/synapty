@@ -28,15 +28,19 @@ pub const Subcommand = union(enum) {
     agents,
     run: RunArgs,
     mcp_serve,
+    channel: ChannelArgs,
 };
 
+/// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
 pub const RegisterArgs = struct {
-    agent_id: []const u8,
+    tool: []const u8,
+    project: ?[]const u8 = null,
+    session: ?[]const u8 = null,
 };
 
 pub const SendArgs = struct {
     target: []const u8,
-    payload: []const u8,
+    text: []const u8,
 };
 
 pub const RecvArgs = struct {
@@ -46,6 +50,28 @@ pub const RecvArgs = struct {
 pub const RunArgs = struct {
     agent_id: []const u8,
     child_argv: []const []const u8,
+};
+
+/// Channel subcommands per [[RFC-0002:C-GROUP-CHAT]].
+pub const ChannelArgs = union(enum) {
+    create: ChannelCreateArgs,
+    invite: ChannelInviteArgs,
+    leave: ChannelLeaveArgs,
+    list,
+};
+
+pub const ChannelCreateArgs = struct {
+    name: []const u8,
+    description: ?[]const u8 = null,
+};
+
+pub const ChannelInviteArgs = struct {
+    channel: []const u8,
+    agent_id: []const u8,
+};
+
+pub const ChannelLeaveArgs = struct {
+    channel: []const u8,
 };
 
 // ---------------------------------------------------------------------------
@@ -66,13 +92,33 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
     const sub = args[0];
 
     if (mem.eql(u8, sub, "register")) {
-        if (args.len < 2) return ParseError.MissingArgument;
-        return .{ .register = .{ .agent_id = args[1] } };
+        // register --tool <t> [--project <p>] [--session <s>]
+        var tool: ?[]const u8 = null;
+        var project: ?[]const u8 = null;
+        var session_val: ?[]const u8 = null;
+        var i: usize = 1;
+        while (i < args.len) : (i += 1) {
+            if (mem.eql(u8, args[i], "--tool")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingArgument;
+                tool = args[i];
+            } else if (mem.eql(u8, args[i], "--project")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingArgument;
+                project = args[i];
+            } else if (mem.eql(u8, args[i], "--session")) {
+                i += 1;
+                if (i >= args.len) return ParseError.MissingArgument;
+                session_val = args[i];
+            }
+        }
+        if (tool == null) return ParseError.MissingArgument;
+        return .{ .register = .{ .tool = tool.?, .project = project, .session = session_val } };
     }
 
     if (mem.eql(u8, sub, "send")) {
         if (args.len < 3) return ParseError.MissingArgument;
-        return .{ .send = .{ .target = args[1], .payload = args[2] } };
+        return .{ .send = .{ .target = args[1], .text = args[2] } };
     }
 
     if (mem.eql(u8, sub, "recv")) {
@@ -116,6 +162,33 @@ pub fn parseArgs(args: []const []const u8) ParseError!Subcommand {
         } };
     }
 
+    if (mem.eql(u8, sub, "channel")) {
+        if (args.len < 2) return ParseError.MissingArgument;
+        const channel_sub = args[1];
+        if (mem.eql(u8, channel_sub, "create")) {
+            if (args.len < 3) return ParseError.MissingArgument;
+            var desc: ?[]const u8 = null;
+            var i: usize = 3;
+            while (i < args.len) : (i += 1) {
+                if (mem.eql(u8, args[i], "--description")) {
+                    i += 1;
+                    if (i >= args.len) return ParseError.MissingArgument;
+                    desc = args[i];
+                }
+            }
+            return .{ .channel = .{ .create = .{ .name = args[2], .description = desc } } };
+        } else if (mem.eql(u8, channel_sub, "invite")) {
+            if (args.len < 4) return ParseError.MissingArgument;
+            return .{ .channel = .{ .invite = .{ .channel = args[2], .agent_id = args[3] } } };
+        } else if (mem.eql(u8, channel_sub, "leave")) {
+            if (args.len < 3) return ParseError.MissingArgument;
+            return .{ .channel = .{ .leave = .{ .channel = args[2] } } };
+        } else if (mem.eql(u8, channel_sub, "list")) {
+            return .{ .channel = .{ .list = {} } };
+        }
+        return ParseError.UnknownSubcommand;
+    }
+
     if (mem.eql(u8, sub, "mcp-serve")) {
         return .mcp_serve;
     }
@@ -147,15 +220,59 @@ fn connectAndRegister(allocator: Allocator, agent_id: []const u8) !net.Stream {
 // Subcommand handlers
 // ---------------------------------------------------------------------------
 
+/// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
+/// Routes through IPC to daemon, which forwards agent_update to Hub.
 fn runRegister(allocator: Allocator, args: RegisterArgs) !void {
     const stdout = std.fs.File.stdout();
 
-    const stream = try connectAndRegister(allocator, args.agent_id);
-    defer stream.close();
+    const sock_env = std.posix.getenv("SYNAPTY_SOCK") orelse {
+        try std.fs.File.stderr().writeAll("error: not in a synapty session (SYNAPTY_SOCK not set)\n");
+        std.process.exit(1);
+    };
+    var client = try ipc.IpcClient.connect(sock_env);
+    defer client.deinit();
 
-    const msg = try std.fmt.allocPrint(allocator, "registered: {s}\n", .{args.agent_id});
-    defer allocator.free(msg);
-    try stdout.writeAll(msg);
+    const req = try protocol.serializeIpcRequest(allocator, .{
+        .action = .register,
+        .tool = args.tool,
+        .project = args.project,
+        .session = args.session,
+    });
+    defer allocator.free(req);
+    try client.send(req);
+
+    var buf: [4096]u8 = undefined;
+    if (try client.recv(&buf)) |response| {
+        try stdout.writeAll(response);
+        try stdout.writeAll("\n");
+    }
+}
+
+/// Channel subcommand handler per [[RFC-0002:C-GROUP-CHAT]].
+fn runChannel(allocator: Allocator, args: ChannelArgs) !void {
+    const stdout = std.fs.File.stdout();
+
+    const sock_env = std.posix.getenv("SYNAPTY_SOCK") orelse {
+        try std.fs.File.stderr().writeAll("error: not in a synapty session (SYNAPTY_SOCK not set)\n");
+        std.process.exit(1);
+    };
+    var client = try ipc.IpcClient.connect(sock_env);
+    defer client.deinit();
+
+    const req = try protocol.serializeIpcRequest(allocator, switch (args) {
+        .create => |a| .{ .action = .channel_create, .channel = a.name, .description = a.description },
+        .invite => |a| .{ .action = .channel_invite, .channel = a.channel, .agent_id = a.agent_id },
+        .leave => |a| .{ .action = .channel_leave, .channel = a.channel },
+        .list => .{ .action = .channel_list },
+    });
+    defer allocator.free(req);
+    try client.send(req);
+
+    var buf: [4096]u8 = undefined;
+    if (try client.recv(&buf)) |response| {
+        try stdout.writeAll(response);
+        try stdout.writeAll("\n");
+    }
 }
 
 fn runSend(allocator: Allocator, args: SendArgs) !void {
@@ -168,7 +285,7 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
         const req = try protocol.serializeIpcRequest(allocator, .{
             .action = .send,
             .target = args.target,
-            .text = args.payload,
+            .text = args.text,
         });
         defer allocator.free(req);
         try client.send(req);
@@ -190,7 +307,7 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
 
     // Build the DM envelope per [[RFC-0002:C-DM]].
     var payload_obj = json.ObjectMap.init(allocator);
-    try payload_obj.put("text", .{ .string = args.payload });
+    try payload_obj.put("text", .{ .string = args.text });
     const envelope = protocol.Envelope{
         .@"type" = "dm",
         .id = "send-0",
@@ -203,7 +320,7 @@ fn runSend(allocator: Allocator, args: SendArgs) !void {
 
     _ = try stream.write(raw);
 
-    const msg = try std.fmt.allocPrint(allocator, "sent to {s}: {s}\n", .{ args.target, args.payload });
+    const msg = try std.fmt.allocPrint(allocator, "sent to {s}: {s}\n", .{ args.target, args.text });
     defer allocator.free(msg);
     try stdout.writeAll(msg);
 }
@@ -343,7 +460,7 @@ pub fn main() !void {
     const sub = parseArgs(arg_list.items) catch |err| {
         switch (err) {
             ParseError.MissingSubcommand => {
-                try stderr.writeAll("usage: synapty <register|send|recv|agents|run|mcp-serve> [args]\n");
+                try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
                 try stderr.writeAll("error: unknown subcommand\n");
@@ -360,6 +477,7 @@ pub fn main() !void {
         .send => |a| try runSend(allocator, a),
         .recv => |a| try runRecv(allocator, a),
         .agents => try runAgents(allocator),
+        .channel => |a| try runChannel(allocator, a),
         .run => |a| {
             var server = try run.RunServer.init(allocator, a.agent_id, hub_addr, hub_port);
             defer server.deinit();
@@ -386,11 +504,12 @@ test "parseArgs: unknown subcommand returns error" {
 }
 
 test "parseArgs: register subcommand" {
-    const result = try parseArgs(&.{ "register", "my-agent" });
-    try std.testing.expectEqualStrings("my-agent", result.register.agent_id);
+    const result = try parseArgs(&.{ "register", "--tool", "codex", "--project", "/path" });
+    try std.testing.expectEqualStrings("codex", result.register.tool);
+    try std.testing.expectEqualStrings("/path", result.register.project.?);
 }
 
-test "parseArgs: register missing agent-id returns error" {
+test "parseArgs: register missing --tool returns error" {
     const result = parseArgs(&.{"register"});
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
@@ -398,7 +517,24 @@ test "parseArgs: register missing agent-id returns error" {
 test "parseArgs: send subcommand" {
     const result = try parseArgs(&.{ "send", "agent-b", "hello world" });
     try std.testing.expectEqualStrings("agent-b", result.send.target);
-    try std.testing.expectEqualStrings("hello world", result.send.payload);
+    try std.testing.expectEqualStrings("hello world", result.send.text);
+}
+
+test "parseArgs: channel create subcommand" {
+    const result = try parseArgs(&.{ "channel", "create", "design-review", "--description", "Auth redesign" });
+    try std.testing.expectEqualStrings("design-review", result.channel.create.name);
+    try std.testing.expectEqualStrings("Auth redesign", result.channel.create.description.?);
+}
+
+test "parseArgs: channel invite subcommand" {
+    const result = try parseArgs(&.{ "channel", "invite", "design-review", "agent-b" });
+    try std.testing.expectEqualStrings("design-review", result.channel.invite.channel);
+    try std.testing.expectEqualStrings("agent-b", result.channel.invite.agent_id);
+}
+
+test "parseArgs: channel list subcommand" {
+    const result = try parseArgs(&.{ "channel", "list" });
+    try std.testing.expect(result.channel == .list);
 }
 
 test "parseArgs: send missing payload returns error" {
