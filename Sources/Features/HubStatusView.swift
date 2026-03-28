@@ -1,30 +1,26 @@
 import SwiftUI
 
-/// Hub status sheet — shows running state, port, logs, and restart button.
-struct HubStatusView: View {
+/// Hub status popover — non-blocking, attached to toolbar button.
+/// Replaces the previous 500x400 modal sheet.
+struct HubStatusPopover: View {
     @ObservedObject var hubManager: HubManager
-    @Binding var isPresented: Bool
+    @ObservedObject var agentMonitor: AgentMonitor
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 Text("Hub Status")
                     .font(.headline)
                 Spacer()
-                Button {
-                    isPresented = false
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
             Divider()
 
-            // Status info
+            // Status + controls
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Circle()
@@ -38,52 +34,57 @@ struct HubStatusView: View {
                         .foregroundColor(.secondary)
                 }
 
-                HStack {
+                HStack(spacing: 8) {
                     if case .running(let owned) = hubManager.status {
                         if owned {
-                            Button("Restart") { hubManager.restartHub() }
                             Button("Stop") { hubManager.stopHub() }
+                                .controlSize(.small)
+                            Button("Restart") { hubManager.restartHub() }
+                                .controlSize(.small)
                         }
                     } else if !hubManager.status.isRunning {
                         Button("Start") { hubManager.launchHub() }
+                            .controlSize(.small)
                     }
                 }
+
+                // Agent count
+                let count = agentMonitor.agents.count
+                Text("\(count) agent\(count == 1 ? "" : "s") connected")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
 
             Divider()
 
-            // Logs
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Logs")
-                    .font(.subheadline)
+            // Compact recent log (last 8 lines)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Recent Log")
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
+                    .textCase(.uppercase)
 
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
-                            ForEach(Array(hubManager.logs.enumerated()), id: \.offset) { idx, line in
-                                Text(line)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundColor(.primary)
-                                    .id(idx)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: hubManager.logs.count) { _ in
-                        if let last = hubManager.logs.indices.last {
-                            proxy.scrollTo(last, anchor: .bottom)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(recentLogs.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: .infinity)
-                .background(Color(NSColor.textBackgroundColor))
+                .frame(maxHeight: 120)
+                .background(Color(NSColor.textBackgroundColor).opacity(0.5))
                 .cornerRadius(4)
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 320)
     }
 
     private var statusColor: Color {
@@ -93,5 +94,9 @@ struct HubStatusView: View {
         case .running: return .green
         case .failed: return .red
         }
+    }
+
+    private var recentLogs: [String] {
+        Array(hubManager.logs.suffix(8))
     }
 }

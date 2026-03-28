@@ -7,7 +7,7 @@ struct ContentView: View {
     @StateObject private var paneManager = TerminalPaneManager()
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
-    @State private var showHubStatus = false
+    @State private var showHubPopover = false
 
     var body: some View {
         NavigationSplitView {
@@ -15,6 +15,7 @@ struct ContentView: View {
                 hostStore: hostStore,
                 paneManager: paneManager,
                 tunnelManager: tunnelManager,
+                agentMonitor: agentMonitor,
                 onHostConnect: { host in
                     tunnelManager.ensureTunnel(for: host) { [weak paneManager] cmd in
                         paneManager?.addRemoteSession(label: host.label, hostEntry: host, command: cmd)
@@ -42,13 +43,13 @@ struct ContentView: View {
                         .background(.black)
                         .foregroundColor(.white)
                 }
-                AgentStatusBar(agentMonitor: agentMonitor)
+                AgentStatusBar(agentMonitor: agentMonitor, hubManager: hubManager)
             }
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
-                    showHubStatus = true
+                    showHubPopover.toggle()
                 } label: {
                     HStack(spacing: 4) {
                         Circle()
@@ -59,10 +60,10 @@ struct ContentView: View {
                     }
                 }
                 .help("Hub Status")
+                .popover(isPresented: $showHubPopover, arrowEdge: .bottom) {
+                    HubStatusPopover(hubManager: hubManager, agentMonitor: agentMonitor)
+                }
             }
-        }
-        .sheet(isPresented: $showHubStatus) {
-            HubStatusView(hubManager: hubManager, isPresented: $showHubStatus)
         }
         .onAppear {
             hubManager.ensureRunning()

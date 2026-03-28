@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Session-based sidebar. Shows active terminal sessions.
-/// Gear button opens host config sheet. Plus button opens host picker.
+/// Session-based sidebar. Shows active terminal sessions, online agents, and host management.
 struct HostSidebar: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var paneManager: TerminalPaneManager
     @ObservedObject var tunnelManager: TunnelManager
+    @ObservedObject var agentMonitor: AgentMonitor
     @State private var showHostConfig = false
     @State private var showHostPicker = false
 
@@ -55,36 +55,55 @@ struct HostSidebar: View {
 
             Divider()
 
-            // Session list
-            if paneManager.sessions.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No active sessions")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    Text("Click + to open a session")
-                        .foregroundColor(.secondary)
-                        .font(.caption2)
+            List(selection: Binding(
+                get: { paneManager.activeSessionID },
+                set: { id in
+                    if let id { paneManager.activeSessionID = id }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(selection: Binding(
-                    get: { paneManager.activeSessionID },
-                    set: { id in
-                        if let id { paneManager.activeSessionID = id }
-                    }
-                )) {
-                    ForEach(paneManager.sessions) { session in
-                        SessionRow(session: session)
-                            .tag(session.id)
-                            .contextMenu {
-                                Button("Close Session") {
-                                    paneManager.removeSession(session)
+            )) {
+                // SESSIONS section
+                Section {
+                    if paneManager.sessions.isEmpty {
+                        Text("No active sessions")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    } else {
+                        ForEach(paneManager.sessions) { session in
+                            SessionRow(session: session)
+                                .tag(session.id)
+                                .contextMenu {
+                                    Button("Close Session") {
+                                        paneManager.removeSession(session)
+                                    }
                                 }
-                            }
+                        }
                     }
+                } header: {
+                    Text("Sessions")
+                        .font(.system(size: 10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .foregroundColor(.secondary)
                 }
-                .listStyle(.sidebar)
+
+                // AGENTS section per [[RFC-0002:C-AGENT-IDENTITY]]
+                Section {
+                    if agentMonitor.agents.isEmpty {
+                        Text("No agents")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    } else {
+                        ForEach(agentMonitor.agents) { agent in
+                            AgentRow(agent: agent)
+                        }
+                    }
+                } header: {
+                    Text("Agents")
+                        .font(.system(size: 10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .foregroundColor(.secondary)
+                }
             }
+            .listStyle(.sidebar)
         }
         .sheet(isPresented: $showHostConfig) {
             HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
@@ -92,7 +111,8 @@ struct HostSidebar: View {
     }
 }
 
-/// Row in the session list showing the session label and pane count.
+// MARK: - Session Row
+
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
 
@@ -116,7 +136,41 @@ struct SessionRow: View {
     }
 }
 
-/// Popover showing available hosts to connect to.
+// MARK: - Agent Row
+
+struct AgentRow: View {
+    let agent: AgentInfo
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: agent.tool.sfSymbol)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(agent.tool.accentColor)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(agent.tool.displayName)
+                    .font(.body)
+                    .lineLimit(1)
+                if agent.session != "-" {
+                    Text(agent.session)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(agent.id)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .help("\(agent.id)\n\(agent.project)")
+    }
+}
+
+// MARK: - Host Picker Popover
+
 struct HostPickerPopover: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var tunnelManager: TunnelManager
@@ -135,7 +189,6 @@ struct HostPickerPopover: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
-                    // Local is always first
                     Button {
                         onSelectLocal()
                     } label: {

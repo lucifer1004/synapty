@@ -10,12 +10,17 @@ completed = "2026-03-28"
 refs = ["RFC-0002"]
 
 [content]
-description = "Fix 6 code review findings across src/run.zig, src/hub.zig, src/mcp.zig, src/protocol.zig. Findings: (1) shutdown hang — blocking I/O not interrupted before thread join, (2) broken TCP framing — no line-buffering across read() boundaries, (3) silent channel send failure — send path always emits dm, (4) hub socket data race — concurrent readers on same stream, (5) unbounded memory growth — page_allocator + alloc_always never freed, (6) crash on malformed input — unchecked json.Value union access. All are bug fixes against existing RFC-0002 specified behavior."
+description = "Redesign Swift GUI per approved plan: AgentMonitor with rich metadata parsing, agent chips in status rail, Hub toolbar popover (not modal sheet), sidebar agents section, message log window."
 
 [[content.journal]]
 date = "2026-03-28"
 scope = "protocol"
 content = "All 6 findings fixed across src/mcp.zig, src/hub.zig, src/run.zig. Tests pass, govctl check passes."
+
+[[content.journal]]
+date = "2026-03-28"
+scope = "gui"
+content = "Swift UI redesign complete: AgentMonitor with ToolType/AgentInfo/ChatMessage models + bundled binary path + JSON metadata parsing; AgentStatusBar with tool-colored chips + HubStatusPill + horizontal scroll; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView as new file. Xcode build succeeds, govctl check passes."
 
 [[content.acceptance_criteria]]
 text = "RunServer.run() shutdown closes streams before joining threads"
@@ -69,5 +74,35 @@ category = "chore"
 
 [[content.acceptance_criteria]]
 text = "govctl check passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "AgentMonitor parses tab-separated metadata into AgentInfo with ToolType"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AgentStatusBar with tool-colored chips, hub pill, horizontal scroll"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HubStatusPopover replaces modal sheet"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Sidebar AGENTS section with tool icons"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "MessageLogView as separate window"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
 status = "done"
 category = "chore"
