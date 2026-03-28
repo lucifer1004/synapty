@@ -338,6 +338,13 @@ import Foundation
         }
     }
 
+    /// Update the split ratio for a split node.
+    func resizeSplit(splitID: UUID, ratio: CGFloat) {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let pIdx = sessions[sIdx].panes.firstIndex(where: { $0.id == sessions[sIdx].activePaneID }) else { return }
+        sessions[sIdx].panes[pIdx].splitRoot.setRatio(splitID: splitID, ratio: ratio)
+    }
+
     /// Set focus to a specific leaf (called from surface becomeFirstResponder).
     func focusLeaf(_ leafID: UUID) {
         for sIdx in sessions.indices {

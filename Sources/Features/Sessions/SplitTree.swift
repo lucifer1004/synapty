@@ -19,12 +19,15 @@ indirect enum SplitNode: Identifiable {
     struct SplitData: Identifiable {
         let id: UUID
         let direction: SplitDirection
+        /// Split ratio (0.0–1.0). First child gets `ratio` of the space.
+        var ratio: CGFloat
         var first: SplitNode
         var second: SplitNode
 
-        init(direction: SplitDirection, first: SplitNode, second: SplitNode) {
+        init(direction: SplitDirection, first: SplitNode, second: SplitNode, ratio: CGFloat = 0.5) {
             self.id = UUID()
             self.direction = direction
+            self.ratio = ratio
             self.first = first
             self.second = second
         }
@@ -123,6 +126,23 @@ indirect enum SplitNode: Identifiable {
                 newData.second = newSecond
             }
             return .split(newData)
+        }
+    }
+
+    /// Update the split ratio for a split node by ID. Clamps to [0.1, 0.9].
+    mutating func setRatio(splitID: UUID, ratio: CGFloat) {
+        switch self {
+        case .leaf:
+            break
+        case .split(var data):
+            if data.id == splitID {
+                data.ratio = min(max(ratio, 0.1), 0.9)
+                self = .split(data)
+            } else {
+                data.first.setRatio(splitID: splitID, ratio: ratio)
+                data.second.setRatio(splitID: splitID, ratio: ratio)
+                self = .split(data)
+            }
         }
     }
 
