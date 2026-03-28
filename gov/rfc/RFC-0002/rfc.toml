@@ -1,0 +1,44 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0002"
+title = "A2A Messaging Protocol — IM-Style DM and Group Chat"
+version = "0.1.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-03-28"
+updated = "2026-03-28"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+
+[[sections]]
+title = "Agent Identity"
+clauses = ["clauses/C-AGENT-IDENTITY.toml"]
+
+[[sections]]
+title = "Protocol"
+clauses = [
+    "clauses/C-MESSAGE-ENVELOPE.toml",
+    "clauses/C-MESSAGE-TYPES.toml",
+    "clauses/C-DM.toml",
+    "clauses/C-GROUP-CHAT.toml",
+]
+
+[[sections]]
+title = "Hub"
+clauses = ["clauses/C-HUB-STATE.toml"]
+
+[[sections]]
+title = "Interface"
+clauses = ["clauses/C-CLI-MCP.toml"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-03-28"
+notes = "Initial draft"

@@ -1,0 +1,89 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-GROUP-CHAT"
+title = "Group Chat Channels"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Group chat channels enable multi-agent conversations. Channels are named, have explicit membership, and fan out messages to all members.
+
+### Creating a Channel
+
+An agent creates a channel by sending `channel_create` to `hub`:
+
+```json
+{
+  "type": "channel_create",
+  "id": "req-001",
+  "source": "local-abc1",
+  "target": "hub",
+  "payload": { "name": "design-review", "description": "Discussing the auth module redesign" }
+}
+```
+
+| Field         | Type   | Required | Description |
+|---------------|--------|----------|-------------|
+| `name`        | string | YES      | Channel name (see naming rules in [[RFC-0002:C-HUB-STATE]]) |
+| `description` | string | NO       | Human-readable purpose of the channel |
+
+The Hub MUST reject creation if a channel with the same name already exists (case-insensitive). The creating agent is automatically added as the first member. The Hub responds with `response` containing the channel info in `data`.
+
+### Inviting Agents
+
+A channel member invites another agent by sending `channel_invite` to `hub`:
+
+```json
+{
+  "type": "channel_invite",
+  "id": "req-002",
+  "source": "local-abc1",
+  "target": "hub",
+  "payload": { "channel": "design-review", "agent_id": "dev-server-ghi3" }
+}
+```
+
+The Hub MUST verify that the sender is a member of the channel and that the invited agent is registered and connected. The invited agent is immediately added as a member (no accept/reject in V1). The Hub sends a `channel_event` (`event: "invited"`) to the invited agent and a `channel_event` (`event: "joined"`) to all existing members.
+
+### Sending a Channel Message
+
+A member sends a message to the channel using the `channel:` prefix in the target:
+
+```json
+{
+  "type": "channel_msg",
+  "id": "msg-010",
+  "source": "local-abc1",
+  "target": "channel:design-review",
+  "payload": { "text": "I've pushed the auth changes. Please review." }
+}
+```
+
+The Hub MUST verify the sender is a member. Non-members MUST receive a `response` with `ok: false`.
+
+### Fan-Out Delivery
+
+The Hub MUST deliver channel messages to all **connected** members except the sender. Each delivered envelope preserves the original `source` (the sender's agent ID). Disconnected members do not receive the message (the Hub does not queue). The message is appended to the global log regardless.
+
+### Leaving a Channel
+
+An agent leaves by sending `channel_leave` to `hub`:
+
+```json
+{
+  "type": "channel_leave",
+  "id": "req-003",
+  "source": "dev-server-ghi3",
+  "target": "hub",
+  "payload": { "channel": "design-review" }
+}
+```
+
+The Hub MUST remove the agent from the member list and notify remaining members with `channel_event` (`event: "left"`).
+
+**Rationale:** Explicit channel membership (vs. pub/sub topics) matches the IM model where group conversations have a defined participant list. Immediate invite acceptance (no confirmation flow) keeps V1 simple — agents trust each other in a cooperative multi-agent environment. The `channel:` target prefix enables the Hub to route messages by inspecting the target field without parsing the payload, keeping routing logic fast and uniform.
+
+*Since: v0.1.0*"""
