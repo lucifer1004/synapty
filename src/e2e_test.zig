@@ -35,10 +35,14 @@ fn stopHub(h: TestHub) void {
 
 /// Poll until an agent appears in the Hub's routing table (or timeout).
 fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
+    const alloc = std.heap.page_allocator;
     const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
     while (std.time.milliTimestamp() < deadline) {
-        const agents = server.registeredAgents(std.heap.page_allocator) catch return false;
-        defer std.heap.page_allocator.free(agents);
+        const agents = server.registeredAgents(alloc) catch return false;
+        defer {
+            for (agents) |id| alloc.free(id);
+            alloc.free(agents);
+        }
         for (agents) |id| {
             if (mem.eql(u8, id, agent_id)) return true;
         }
@@ -49,10 +53,14 @@ fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u
 
 /// Poll until an agent is NOT in the Hub's routing table (or timeout).
 fn waitForUnregistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
+    const alloc = std.heap.page_allocator;
     const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
     while (std.time.milliTimestamp() < deadline) {
-        const agents = server.registeredAgents(std.heap.page_allocator) catch return true;
-        defer std.heap.page_allocator.free(agents);
+        const agents = server.registeredAgents(alloc) catch return true;
+        defer {
+            for (agents) |id| alloc.free(id);
+            alloc.free(agents);
+        }
         var found = false;
         for (agents) |id| {
             if (mem.eql(u8, id, agent_id)) found = true;

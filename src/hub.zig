@@ -49,18 +49,21 @@ const RoutingTable = struct {
         return self.map.get(agent_id);
     }
 
-    /// Return a heap-allocated slice of all currently registered agent IDs.
-    /// Caller owns the returned slice and must free it with `allocator`.
+    /// Return a heap-allocated slice of duped agent ID strings.
+    /// Caller owns both the slice and each string — free strings first, then slice.
     fn agentIds(self: *RoutingTable, allocator: Allocator) ![][]const u8 {
         self.mutex.lock();
         defer self.mutex.unlock();
         const count = self.map.count();
         const slice = try allocator.alloc([]const u8, count);
-        errdefer allocator.free(slice);
-        var it = self.map.keyIterator();
         var i: usize = 0;
+        errdefer {
+            for (slice[0..i]) |s| allocator.free(s);
+            allocator.free(slice);
+        }
+        var it = self.map.keyIterator();
         while (it.next()) |key| : (i += 1) {
-            slice[i] = key.*;
+            slice[i] = try allocator.dupe(u8, key.*);
         }
         return slice;
     }
@@ -876,7 +879,10 @@ fn handleClient(state: *HubState, backing_alloc: Allocator, stream: net.Stream) 
             break;
         }
         const n = stream.read(line_buf[filled..]) catch |err| {
-            log.err("read error from {s}: {any}", .{ agent_id, err });
+            switch (err) {
+                error.ConnectionResetByPeer, error.BrokenPipe => {},
+                else => log.warn("read error from {s}: {any}", .{ agent_id, err }),
+            }
             break;
         };
         if (n == 0) break;
