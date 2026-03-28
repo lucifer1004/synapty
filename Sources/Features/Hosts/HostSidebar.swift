@@ -119,6 +119,17 @@ struct HostSidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            .onKeyPress(.return) {
+                // Enter on selected session → rename (Finder pattern)
+                guard let id = paneManager.activeSessionID,
+                      let session = paneManager.sessions.first(where: { $0.id == id }) else {
+                    return .ignored
+                }
+                renameSessionID = session.id
+                renameText = session.label
+                showRenameAlert = true
+                return .handled
+            }
         }
         .sheet(isPresented: $showHostConfig) {
             HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
