@@ -73,8 +73,8 @@ struct SynaptyCommands: Commands {
             }
         }
 
-        // Help menu addition
-        CommandGroup(after: .help) {
+        // Replace default "Synapty Help" with our own help items
+        CommandGroup(replacing: .help) {
             Button("Keyboard Shortcuts") {
                 NotificationCenter.default.post(name: .synaptyShowShortcuts, object: nil)
             }
