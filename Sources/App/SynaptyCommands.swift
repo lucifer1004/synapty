@@ -1,0 +1,91 @@
+import SwiftUI
+
+/// macOS menu bar commands for Synapty.
+/// Provides discoverable keyboard shortcuts and fallback when terminal doesn't have focus.
+struct SynaptyCommands: Commands {
+    var body: some Commands {
+        // Replace default "New Window" with Shell menu items
+        CommandGroup(replacing: .newItem) {
+            Button("New Session") {
+                TerminalCoordinatorRef.instance?.requestNewTab()
+                // TODO: This should create a new session, not a tab.
+                // For now, reuse addLocalSession via notification.
+                NotificationCenter.default.post(name: .synaptyNewSession, object: nil)
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button("New Tab") {
+                TerminalCoordinatorRef.instance?.requestNewTab()
+            }
+            .keyboardShortcut("t", modifiers: .command)
+
+            Divider()
+
+            Button("Split Right") {
+                TerminalCoordinatorRef.instance?.requestSplit(direction: .horizontal)
+            }
+            .keyboardShortcut("d", modifiers: .command)
+
+            Button("Split Down") {
+                TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical)
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Close Split") {
+                TerminalCoordinatorRef.instance?.requestCloseSplit()
+            }
+            .keyboardShortcut("w", modifiers: .command)
+        }
+
+        // Navigate menu
+        CommandMenu("Navigate") {
+            Button("Next Split") {
+                TerminalCoordinatorRef.instance?.requestFocusNextSplit()
+            }
+            .keyboardShortcut("]", modifiers: .command)
+
+            Button("Previous Split") {
+                TerminalCoordinatorRef.instance?.requestFocusPreviousSplit()
+            }
+            .keyboardShortcut("[", modifiers: .command)
+
+            Divider()
+
+            Button("Next Tab") {
+                TerminalCoordinatorRef.instance?.requestNextTab()
+            }
+            .keyboardShortcut("]", modifiers: [.command, .shift])
+
+            Button("Previous Tab") {
+                TerminalCoordinatorRef.instance?.requestPreviousTab()
+            }
+            .keyboardShortcut("[", modifiers: [.command, .shift])
+
+            Divider()
+
+            ForEach(1..<10, id: \.self) { num in
+                Button("Session \(num)") {
+                    TerminalCoordinatorRef.instance?.requestSwitchSession(index: num)
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(num)")), modifiers: .command)
+            }
+        }
+
+        // Help menu addition
+        CommandGroup(after: .help) {
+            Button("Keyboard Shortcuts") {
+                NotificationCenter.default.post(name: .synaptyShowShortcuts, object: nil)
+            }
+            .keyboardShortcut("/", modifiers: [.command, .shift])
+        }
+    }
+}
+
+// MARK: - Notification names for menu → ContentView communication
+
+extension Notification.Name {
+    static let synaptyNewSession = Notification.Name("synaptyNewSession")
+    static let synaptyShowShortcuts = Notification.Name("synaptyShowShortcuts")
+}

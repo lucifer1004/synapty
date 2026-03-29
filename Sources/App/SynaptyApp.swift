@@ -11,6 +11,9 @@ struct SynaptyApp: App {
         }
         .windowStyle(.titleBar)
         .defaultSize(width: 900, height: 600)
+        .commands {
+            SynaptyCommands()
+        }
     }
 }
 

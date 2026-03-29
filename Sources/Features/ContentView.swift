@@ -8,6 +8,7 @@ struct ContentView: View {
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
     @State private var showHubSheet = false
+    @State private var showShortcuts = false
 
     var body: some View {
         NavigationSplitView {
@@ -73,6 +74,15 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showHubSheet) {
             HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, isPresented: $showHubSheet)
+        }
+        .sheet(isPresented: $showShortcuts) {
+            KeyboardShortcutsView(isPresented: $showShortcuts)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
+            paneManager.addLocalSession()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyShowShortcuts)) { _ in
+            showShortcuts = true
         }
         .onAppear {
             hubManager.ensureRunning()
