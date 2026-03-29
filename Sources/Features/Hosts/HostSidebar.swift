@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Session-based sidebar. Shows active terminal sessions, online agents, and host management.
+/// Session-based sidebar. Shows active terminal sessions with nested agent info and host management.
 struct HostSidebar: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var paneManager: TerminalPaneManager
@@ -15,7 +15,7 @@ struct HostSidebar: View {
     var onHostConnect: ((HostEntry) -> Void)?
     /// Called when the user picks "Local" from the picker.
     var onNewLocalPane: (() -> Void)?
-    /// Called when the user clicks an agent row to focus its pane.
+    /// Called when the user taps the agent sub-row to focus its pane.
     var onAgentTap: ((AgentInfo) -> Void)?
 
     var body: some View {
@@ -65,7 +65,6 @@ struct HostSidebar: View {
                     if let id { paneManager.activeSessionID = id }
                 }
             )) {
-                // SESSIONS section
                 Section {
                     if paneManager.sessions.isEmpty {
                         Text("No active sessions")
@@ -73,43 +72,29 @@ struct HostSidebar: View {
                             .font(.caption)
                     } else {
                         ForEach(paneManager.sessions) { session in
-                            SessionRow(session: session, paneManager: paneManager, editingSessionID: $editingSessionID)
-                                .tag(session.id)
-                                .contextMenu {
-                                    Button("Rename") {
-                                        editingSessionID = session.id
-                                    }
-                                    Divider()
-                                    Button("Close Session") {
-                                        paneManager.removeSession(session)
-                                    }
+                            let agent = agentMonitor.agents.first(where: { $0.id == session.agentID })
+                            let attention = agent.map { agentMonitor.needsAttention.contains($0.id) } ?? false
+                            SessionRow(
+                                session: session,
+                                paneManager: paneManager,
+                                editingSessionID: $editingSessionID,
+                                agent: agent,
+                                agentNeedsAttention: attention
+                            )
+                            .tag(session.id)
+                            .contextMenu {
+                                Button("Rename") {
+                                    editingSessionID = session.id
                                 }
+                                Divider()
+                                Button("Close Session") {
+                                    paneManager.removeSession(session)
+                                }
+                            }
                         }
                     }
                 } header: {
                     Text("Sessions")
-                        .font(.system(size: 10, weight: .semibold))
-                        .textCase(.uppercase)
-                        .foregroundColor(.secondary)
-                }
-
-                // AGENTS section per [[RFC-0002:C-AGENT-IDENTITY]]
-                Section {
-                    if agentMonitor.agents.isEmpty {
-                        Text("No agents")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    } else {
-                        ForEach(agentMonitor.agents) { agent in
-                            AgentRow(
-                                agent: agent,
-                                needsAttention: agentMonitor.needsAttention.contains(agent.id)
-                            )
-                            .onTapGesture { onAgentTap?(agent) }
-                        }
-                    }
-                } header: {
-                    Text("Agents")
                         .font(.system(size: 10, weight: .semibold))
                         .textCase(.uppercase)
                         .foregroundColor(.secondary)
@@ -137,8 +122,15 @@ struct SessionRow: View {
     let session: TerminalPaneManager.Session
     @ObservedObject var paneManager: TerminalPaneManager
     @Binding var editingSessionID: UUID?
+    /// Agent registered on this session, if any.
+    let agent: AgentInfo?
+    let agentNeedsAttention: Bool
+
     @State private var editText = ""
     @FocusState private var isTextFieldFocused: Bool
+    @State private var now = Date()
+
+    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var isEditing: Bool { editingSessionID == session.id }
 
@@ -149,114 +141,217 @@ struct SessionRow: View {
         editingSessionID = nil
     }
 
+    // MARK: - Derived display values
+
+    private var hostAddress: String? {
+        guard let host = session.hostEntry else { return nil }
+        return "\(host.username)@\(host.address)"
+    }
+
+    private var tabCount: Int { session.panes.count }
+
+    private var splitCount: Int {
+        session.panes.reduce(0) { $0 + $1.splitRoot.leaves.count }
+    }
+
+    /// Human-readable duration string from session creation. Sessions don't carry a
+    /// `createdAt` timestamp in V1 data model, so we derive from `agentID` presence
+    /// as a proxy and fall back to the `now` ticker for display only.
+    /// NOTE: When `Session` gains a `createdAt: Date` field this should use that directly.
+    private func durationString(from date: Date) -> String {
+        let elapsed = Int(now.timeIntervalSince(date))
+        if elapsed < 60 { return "\(elapsed)s" }
+        let minutes = elapsed / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return mins == 0 ? "\(hours)h" : "\(hours)h \(mins)m"
+    }
+
+    /// Tab + split count summary, e.g. "2 tabs · 3 splits", "1 tab", "2 tabs"
+    private var countSummary: String? {
+        let tabs = tabCount
+        let splits = session.panes.reduce(0) { $0 + max(0, $1.splitRoot.leaves.count - 1) }
+        var parts: [String] = []
+        if tabs > 1 { parts.append("\(tabs) tabs") }
+        if splits > 0 { parts.append("\(splits) split\(splits == 1 ? "" : "s")") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    // MARK: - Body
+
     var body: some View {
-        HStack(spacing: 6) {
-            // Status dot
-            switch session.state {
-            case .connecting:
-                Circle()
-                    .fill(.yellow)
-                    .frame(width: 8, height: 8)
-                    .modifier(PulseAnimation())
-            case .connected:
-                Circle()
-                    .fill(session.isLocal ? .green : .blue)
-                    .frame(width: 8, height: 8)
-            case .failed:
-                Circle()
-                    .fill(.red)
-                    .frame(width: 8, height: 8)
-            }
+        HStack(alignment: .top, spacing: 6) {
+            // Status dot — vertically centered with label
+            statusDot
+                .padding(.top, 4)
 
             VStack(alignment: .leading, spacing: 1) {
-                if isEditing {
-                    TextField("Name", text: $editText)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .focused($isTextFieldFocused)
-                        .onAppear {
-                            editText = session.label
-                            DispatchQueue.main.async {
-                                isTextFieldFocused = true
-                            }
-                        }
-                        .onSubmit {
-                            commitRename()
-                        }
-                        .onExitCommand { editingSessionID = nil }
-                        .onChange(of: isTextFieldFocused) { _, focused in
-                            if !focused {
-                                commitRename()
-                            }
-                        }
-                } else {
-                    HStack(spacing: 4) {
-                        Text(session.label)
-                            .font(.body)
-                            .lineLimit(1)
-                        if case .connecting = session.state {
-                            Text("...")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
+                // Primary row: label + duration
+                HStack(spacing: 0) {
+                    labelView
+                    Spacer(minLength: 6)
+                    if case .connecting = session.state {
+                        EmptyView()
+                    } else if case .failed = session.state {
+                        EmptyView()
+                    } else {
+                        Text(durationString(from: session.createdAt))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                if session.panes.count > 1 {
-                    Text("\(session.panes.count) panes")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+
+                // Host address — remote sessions only
+                if let addr = hostAddress {
+                    Text(addr)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+
+                // Count summary — only when there is something notable
+                if let summary = countSummary {
+                    Text(summary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                // Error message
                 if case .failed(let msg) = session.state {
                     Text(msg)
-                        .font(.caption2)
+                        .font(.system(size: 10))
                         .foregroundColor(.red)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                }
+
+                // Agent sub-row — only when an agent is registered
+                if let agent {
+                    AgentSubRow(agent: agent, needsAttention: agentNeedsAttention)
+                        .padding(.top, 4)
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
         .opacity(session.state == .connecting ? 0.6 : 1.0)
+        .onReceive(timer) { date in now = date }
+    }
+
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var statusDot: some View {
+        switch session.state {
+        case .connecting:
+            Circle()
+                .fill(.yellow)
+                .frame(width: 8, height: 8)
+                .modifier(PulseAnimation())
+        case .connected:
+            Circle()
+                .fill(session.isLocal ? .green : .blue)
+                .frame(width: 8, height: 8)
+        case .failed:
+            Circle()
+                .fill(.red)
+                .frame(width: 8, height: 8)
+        }
+    }
+
+    @ViewBuilder
+    private var labelView: some View {
+        if isEditing {
+            TextField("Name", text: $editText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .focused($isTextFieldFocused)
+                .onAppear {
+                    editText = session.label
+                    DispatchQueue.main.async { isTextFieldFocused = true }
+                }
+                .onSubmit { commitRename() }
+                .onExitCommand { editingSessionID = nil }
+                .onChange(of: isTextFieldFocused) { _, focused in
+                    if !focused { commitRename() }
+                }
+        } else {
+            HStack(spacing: 4) {
+                Text(session.label)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                if case .connecting = session.state {
+                    Text("connecting")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }
 
-// MARK: - Agent Row
+// MARK: - Agent Sub-Row
 
-struct AgentRow: View {
+/// Nested agent display within a session row.
+/// A 2pt vertical rule in the tool's accent color (amber when attention) visually
+/// anchors the agent to its parent session.
+struct AgentSubRow: View {
     let agent: AgentInfo
     let needsAttention: Bool
 
+    private var ruleColor: Color {
+        needsAttention ? .orange : agent.tool.accentColor
+    }
+
+    private var iconColor: Color {
+        needsAttention ? .orange : agent.tool.accentColor
+    }
+
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: agent.tool.sfSymbol)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(needsAttention ? .orange : agent.tool.accentColor)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(agent.tool.displayName)
-                    .font(.body)
-                    .lineLimit(1)
-                if agent.session != "-" {
-                    Text(agent.session)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text(agent.id)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+        HStack(alignment: .center, spacing: 0) {
+            // Accent rule
+            Rectangle()
+                .fill(ruleColor)
+                .frame(width: 2)
+                .cornerRadius(1)
+
+            HStack(alignment: .center, spacing: 5) {
+                Image(systemName: agent.tool.sfSymbol)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 14, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 4) {
+                        Text(agent.tool.displayName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+
+                        Spacer(minLength: 4)
+
+                        if needsAttention {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 5, height: 5)
+                                .modifier(PulseAnimation())
+                        }
+                    }
+
+                    if agent.session != "-" {
+                        Text(agent.session)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else if agent.project != "-" {
+                        Text(agent.project)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
-            Spacer()
-            if needsAttention {
-                Circle()
-                    .fill(.orange)
-                    .frame(width: 6, height: 6)
-                    .modifier(PulseAnimation())
-            }
+            .padding(.leading, 6)
+            .padding(.vertical, 3)
         }
-        .padding(.vertical, 2)
-        .help("\(agent.id)\n\(agent.project)")
     }
 }
 

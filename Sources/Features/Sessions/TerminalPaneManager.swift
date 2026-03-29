@@ -82,6 +82,7 @@ import Foundation
         let agentID: String?
         /// Connection state — connecting shows placeholder in sidebar.
         var state: SessionState
+        let createdAt: Date
         var panes: [Pane]
         var activePaneID: UUID?
 
@@ -98,6 +99,7 @@ import Foundation
             self.hostEntry = hostEntry
             self.agentID = agentID
             self.state = state
+            self.createdAt = Date()
             let pane = Pane(label: "Shell", command: initialCommand)
             self.panes = [pane]
             self.activePaneID = pane.id
