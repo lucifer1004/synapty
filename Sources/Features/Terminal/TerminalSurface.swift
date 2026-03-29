@@ -218,11 +218,33 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestCloseSplit() }
                 return true
             case "]":
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusNextSplit() }
+                if hasShift {
+                    // Cmd+Shift+] → next tab
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestNextTab() }
+                } else {
+                    // Cmd+] → next split
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusNextSplit() }
+                }
                 return true
             case "[":
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusPreviousSplit() }
+                if hasShift {
+                    // Cmd+Shift+[ → previous tab
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestPreviousTab() }
+                } else {
+                    // Cmd+[ → previous split
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusPreviousSplit() }
+                }
                 return true
+            case "t":
+                // Cmd+T → new tab in current session
+                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestNewTab() }
+                return true
+            case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+                // Cmd+1–9 → switch to session by number
+                if let num = Int(chars) {
+                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSwitchSession(index: num) }
+                    return true
+                }
             default:
                 break
             }

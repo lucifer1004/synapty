@@ -10,6 +10,10 @@ protocol TerminalCoordinator: AnyObject {
     func requestCloseSplit()
     func requestFocusNextSplit()
     func requestFocusPreviousSplit()
+    func requestNewTab()
+    func requestNextTab()
+    func requestPreviousTab()
+    func requestSwitchSession(index: Int)
     func leafDidFocus(_ leafID: UUID)
     func leafDidClose(_ leafID: UUID)
 }

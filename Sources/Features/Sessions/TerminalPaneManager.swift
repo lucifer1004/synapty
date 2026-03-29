@@ -22,6 +22,22 @@ import Foundation
         focusPreviousLeaf()
     }
 
+    func requestNewTab() {
+        addPaneToActiveSession()
+    }
+
+    func requestNextTab() {
+        activateNextPane()
+    }
+
+    func requestPreviousTab() {
+        activatePreviousPane()
+    }
+
+    func requestSwitchSession(index: Int) {
+        activateSessionByIndex(index)
+    }
+
     func leafDidFocus(_ leafID: UUID) {
         focusLeaf(leafID)
     }
@@ -195,6 +211,32 @@ import Foundation
 
     func activateSession(_ session: Session) {
         activeSessionID = session.id
+    }
+
+    /// Switch to session by 1-based index (for Cmd+1–9).
+    func activateSessionByIndex(_ index: Int) {
+        guard index >= 1, index <= sessions.count else { return }
+        activeSessionID = sessions[index - 1].id
+    }
+
+    /// Switch to next tab (pane) in active session.
+    func activateNextPane() {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let currentID = sessions[sIdx].activePaneID else { return }
+        let panes = sessions[sIdx].panes
+        guard let pIdx = panes.firstIndex(where: { $0.id == currentID }) else { return }
+        let nextIdx = (pIdx + 1) % panes.count
+        sessions[sIdx].activePaneID = panes[nextIdx].id
+    }
+
+    /// Switch to previous tab (pane) in active session.
+    func activatePreviousPane() {
+        guard let sIdx = sessions.firstIndex(where: { $0.id == activeSessionID }),
+              let currentID = sessions[sIdx].activePaneID else { return }
+        let panes = sessions[sIdx].panes
+        guard let pIdx = panes.firstIndex(where: { $0.id == currentID }) else { return }
+        let prevIdx = pIdx == 0 ? panes.count - 1 : pIdx - 1
+        sessions[sIdx].activePaneID = panes[prevIdx].id
     }
 
     // MARK: - Pane management
