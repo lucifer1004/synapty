@@ -130,7 +130,7 @@ struct SessionRow: View {
     @FocusState private var isTextFieldFocused: Bool
     @State private var now = Date()
 
-    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
     private var isEditing: Bool { editingSessionID == session.id }
 
@@ -160,7 +160,7 @@ struct SessionRow: View {
     /// NOTE: When `Session` gains a `createdAt: Date` field this should use that directly.
     private func durationString(from date: Date) -> String {
         let elapsed = Int(now.timeIntervalSince(date))
-        if elapsed < 60 { return "\(elapsed)s" }
+        if elapsed < 60 { return "< 1m" }
         let minutes = elapsed / 60
         if minutes < 60 { return "\(minutes)m" }
         let hours = minutes / 60
