@@ -22,6 +22,7 @@ pub fn parseArgs(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (mem.eql(u8, sub, "recv")) return parseRecv(allocator, rest);
     if (mem.eql(u8, sub, "agents")) return parseNoArgs(allocator, rest, .agents);
     if (mem.eql(u8, sub, "run")) return parseRun(allocator, rest);
+    if (mem.eql(u8, sub, "hub")) return parseHub(allocator, rest);
     if (mem.eql(u8, sub, "channel")) return parseChannel(allocator, rest);
     if (mem.eql(u8, sub, "mcp-serve")) return parseMcpServe(allocator, rest);
 
@@ -117,8 +118,9 @@ fn parseRun(allocator: Allocator, args: []const []const u8) !Subcommand {
     const child_argv = args[dash_pos + 1 ..];
 
     const params = comptime clap.parseParamsComptime(
-        \\    --id <str>  Agent identifier (required).
-        \\-h, --help      Display help and exit.
+        \\    --id <str>   Agent identifier (required).
+        \\    --hub <str>  Hub address as host:port (default: 127.0.0.1:9000).
+        \\-h, --help       Display help and exit.
         \\
     );
     var iter = clap.args.SliceIterator{ .args = flag_args };
@@ -128,7 +130,42 @@ fn parseRun(allocator: Allocator, args: []const []const u8) !Subcommand {
     defer res.deinit();
 
     const agent_id = res.args.id orelse return ParseError.MissingArgument;
-    return .{ .run = .{ .agent_id = agent_id, .child_argv = child_argv } };
+
+    // Parse optional --hub host:port, default to 127.0.0.1:9000.
+    var hub_addr: []const u8 = "127.0.0.1";
+    var hub_port: u16 = 9000;
+    if (res.args.hub) |hub_str| {
+        const colon_idx = mem.lastIndexOfScalar(u8, hub_str, ':') orelse return ParseError.MissingArgument;
+        const host = hub_str[0..colon_idx];
+        const port_str = hub_str[colon_idx + 1 ..];
+        if (host.len == 0 or port_str.len == 0) return ParseError.MissingArgument;
+        hub_port = std.fmt.parseInt(u16, port_str, 10) catch return ParseError.MissingArgument;
+        hub_addr = host;
+    }
+
+    return .{ .run = .{
+        .agent_id = agent_id,
+        .child_argv = child_argv,
+        .hub_addr = hub_addr,
+        .hub_port = hub_port,
+    } };
+}
+
+/// Standalone Hub for development/testing [[ADR-0004]].
+fn parseHub(allocator: Allocator, args: []const []const u8) !Subcommand {
+    const params = comptime clap.parseParamsComptime(
+        \\    --port <u16>  Listen port (default: 9000).
+        \\-h, --help        Display help and exit.
+        \\
+    );
+    var iter = clap.args.SliceIterator{ .args = args };
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+        .allocator = allocator,
+    }) catch return ParseError.MissingArgument;
+    defer res.deinit();
+
+    if (res.args.help != 0) return ParseError.HelpRequested;
+    return .{ .hub = .{ .port = res.args.port orelse 9000 } };
 }
 
 /// Parser for subcommands with no arguments (agents, channel list).

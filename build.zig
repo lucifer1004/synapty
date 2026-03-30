@@ -63,7 +63,7 @@ pub fn build(b: *std.Build) void {
     const mods = createModuleSet(b, target, optimize);
 
     // ---------------------------------------------------------------------------
-    // synapty-hub executable
+    // Hub module (used by CLI 'hub' subcommand and GUI app) [[ADR-0004]]
     // ---------------------------------------------------------------------------
 
     const hub_mod = b.createModule(.{
@@ -74,40 +74,9 @@ pub fn build(b: *std.Build) void {
             .{ .name = "protocol", .module = mods.protocol },
         },
     });
-    const hub_exe = b.addExecutable(.{
-        .name = "synapty-hub",
-        .root_module = hub_mod,
-    });
-    b.installArtifact(hub_exe);
-
-    const hub_step = b.step("hub", "Build the Synapty Hub (local router)");
-    hub_step.dependOn(&hub_exe.step);
 
     // ---------------------------------------------------------------------------
-    // synapty-daemon executable
-    // ---------------------------------------------------------------------------
-
-    const daemon_mod = b.createModule(.{
-        .root_source_file = b.path("src/daemon.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "protocol", .module = mods.protocol },
-            .{ .name = "ipc", .module = mods.ipc },
-            .{ .name = "run", .module = mods.run },
-        },
-    });
-    const daemon_exe = b.addExecutable(.{
-        .name = "synapty-daemon",
-        .root_module = daemon_mod,
-    });
-    b.installArtifact(daemon_exe);
-
-    const daemon_step = b.step("daemon", "Build the Synapty Daemon (remote companion)");
-    daemon_step.dependOn(&daemon_exe.step);
-
-    // ---------------------------------------------------------------------------
-    // synapty CLI executable (uses zig-clap for arg parsing [[ADR-0003]])
+    // synapty CLI — single unified binary [[ADR-0004]]
     // ---------------------------------------------------------------------------
 
     const clap_dep = b.dependency("clap", .{});
@@ -122,6 +91,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "ipc", .module = mods.ipc },
             .{ .name = "run", .module = mods.run },
             .{ .name = "mcp", .module = mods.mcp },
+            .{ .name = "hub", .module = hub_mod },
             .{ .name = "clap", .module = clap_mod },
         },
     });
@@ -151,6 +121,14 @@ pub fn build(b: *std.Build) void {
             .abi = deploy.abi,
         });
         const deploy_mods = createModuleSet(b, deploy_target, deploy_optimize);
+        const deploy_hub_mod = b.createModule(.{
+            .root_source_file = b.path("src/hub.zig"),
+            .target = deploy_target,
+            .optimize = deploy_optimize,
+            .imports = &.{
+                .{ .name = "protocol", .module = deploy_mods.protocol },
+            },
+        });
         const deploy_cli_mod = b.createModule(.{
             .root_source_file = b.path("src/cli.zig"),
             .target = deploy_target,
@@ -160,6 +138,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "ipc", .module = deploy_mods.ipc },
                 .{ .name = "run", .module = deploy_mods.run },
                 .{ .name = "mcp", .module = deploy_mods.mcp },
+                .{ .name = "hub", .module = deploy_hub_mod },
                 .{ .name = "clap", .module = clap_mod },
             },
         });
@@ -192,13 +171,6 @@ pub fn build(b: *std.Build) void {
         .{ .name = "protocol", .module = mods.protocol },
     }, target, optimize);
 
-    // daemon: protocol + ipc + run
-    addTestModule(b, test_step, "src/daemon.zig", &.{
-        .{ .name = "protocol", .module = mods.protocol },
-        .{ .name = "ipc", .module = mods.ipc },
-        .{ .name = "run", .module = mods.run },
-    }, target, optimize);
-
     // run and mcp: protocol + ipc
     inline for (.{ "run", "mcp" }) |name| {
         addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{
@@ -223,12 +195,13 @@ pub fn build(b: *std.Build) void {
         .{ .name = "hub", .module = hub_module },
     }, target, optimize);
 
-    // cli: protocol + ipc + run + mcp + clap
+    // cli: protocol + ipc + run + mcp + hub + clap
     addTestModule(b, test_step, "src/cli.zig", &.{
         .{ .name = "protocol", .module = mods.protocol },
         .{ .name = "ipc", .module = mods.ipc },
         .{ .name = "run", .module = mods.run },
         .{ .name = "mcp", .module = mods.mcp },
+        .{ .name = "hub", .module = hub_mod },
         .{ .name = "clap", .module = clap_mod },
     }, target, optimize);
 }

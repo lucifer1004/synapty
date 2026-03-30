@@ -15,6 +15,7 @@ const log = std.log.scoped(.cli);
 
 const commands = @import("cli/commands.zig");
 const transport = @import("cli/transport.zig");
+const hub = @import("hub");
 
 // ---------------------------------------------------------------------------
 // Shared types — defined in cli/types.zig, re-exported here for callers
@@ -28,6 +29,7 @@ pub const RegisterArgs = types.RegisterArgs;
 pub const SendArgs = types.SendArgs;
 pub const RecvArgs = types.RecvArgs;
 pub const RunArgs = types.RunArgs;
+pub const HubArgs = types.HubArgs;
 pub const ChannelCreateArgs = types.ChannelCreateArgs;
 pub const ChannelInviteArgs = types.ChannelInviteArgs;
 pub const ChannelLeaveArgs = types.ChannelLeaveArgs;
@@ -67,16 +69,13 @@ pub fn main() !void {
                 std.process.exit(0);
             },
             ParseError.MissingSubcommand => {
-                try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|mcp-serve> [args]\n");
+                try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|hub|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
                 try stderr.writeAll("error: unknown subcommand\n");
             },
             ParseError.MissingArgument => {
                 try stderr.writeAll("error: missing required argument\n");
-            },
-            else => {
-                try stderr.writeAll("error: invalid arguments\n");
             },
         }
         std.process.exit(1);
@@ -91,9 +90,14 @@ pub fn main() !void {
             .channel_create, .channel_invite, .channel_leave, .channel_list => try commands.runChannel(allocator, ipc_sub.action, ipc_sub.args),
         },
         .run => |a| {
-            var server = try run.RunServer.init(allocator, a.agent_id, transport.hub_addr, transport.hub_port);
+            var server = try run.RunServer.init(allocator, a.agent_id, a.hub_addr, a.hub_port);
             defer server.deinit();
             try server.run(a.child_argv);
+        },
+        .hub => |h| {
+            var hub_server = try hub.HubServer.initWithAddress("0.0.0.0", h.port);
+            defer hub_server.deinit();
+            try hub_server.run();
         },
         .mcp_serve => {
             try mcp.runMcp(allocator);
@@ -368,6 +372,49 @@ test "parseArgs: register --project without value returns error" {
 
 test "parseArgs: register --session without value returns error" {
     const result = parseArgs(std.testing.allocator, &.{ "register", "--tool", "x", "--session" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+// ---------------------------------------------------------------------------
+// hub subcommand + run --hub tests [[ADR-0004]]
+// ---------------------------------------------------------------------------
+
+test "parseArgs: hub subcommand defaults" {
+    const result = try parseArgs(std.testing.allocator, &.{"hub"});
+    try std.testing.expectEqual(@as(u16, 9000), result.hub.port);
+}
+
+test "parseArgs: hub --port custom" {
+    const result = try parseArgs(std.testing.allocator, &.{ "hub", "--port", "8080" });
+    try std.testing.expectEqual(@as(u16, 8080), result.hub.port);
+}
+
+test "parseArgs: hub --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "hub", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: run with --hub flag" {
+    const result = try parseArgs(std.testing.allocator, &.{ "run", "--id", "a1", "--hub", "10.0.0.1:8080", "--", "bash" });
+    try std.testing.expectEqualStrings("a1", result.run.agent_id);
+    try std.testing.expectEqualStrings("10.0.0.1", result.run.hub_addr);
+    try std.testing.expectEqual(@as(u16, 8080), result.run.hub_port);
+    try std.testing.expectEqualStrings("bash", result.run.child_argv[0]);
+}
+
+test "parseArgs: run without --hub uses defaults" {
+    const result = try parseArgs(std.testing.allocator, &.{ "run", "--id", "a1", "--", "bash" });
+    try std.testing.expectEqualStrings("127.0.0.1", result.run.hub_addr);
+    try std.testing.expectEqual(@as(u16, 9000), result.run.hub_port);
+}
+
+test "parseArgs: run --hub invalid format returns error" {
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--id", "a1", "--hub", "noport", "--", "bash" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: run --hub empty host returns error" {
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--id", "a1", "--hub", ":9000", "--", "bash" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 

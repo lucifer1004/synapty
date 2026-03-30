@@ -26,6 +26,7 @@ pub const IpcArgs = union(enum) {
 pub const Subcommand = union(enum) {
     ipc: IpcSubcommand,
     run: RunArgs,
+    hub: HubArgs,
     mcp_serve,
 };
 
@@ -48,6 +49,15 @@ pub const RecvArgs = struct {
 pub const RunArgs = struct {
     agent_id: []const u8,
     child_argv: []const []const u8,
+    /// Hub address. Default: 127.0.0.1
+    hub_addr: []const u8 = "127.0.0.1",
+    /// Hub port. Default: 9000
+    hub_port: u16 = 9000,
+};
+
+/// Arguments for the standalone hub subcommand [[ADR-0004]].
+pub const HubArgs = struct {
+    port: u16 = 9000,
 };
 
 pub const ChannelCreateArgs = struct {
