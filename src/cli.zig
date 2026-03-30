@@ -217,6 +217,80 @@ test "parseArgs: run with --id and -- but no child command returns error" {
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
+// ---------------------------------------------------------------------------
+// Strengthened coverage for zig-clap migration [[WI-2026-03-30-001]]
+// ---------------------------------------------------------------------------
+
+test "parseArgs: register with --session flag" {
+    const result = try parseArgs(&.{ "register", "--tool", "claude", "--session", "s1" });
+    try std.testing.expectEqualStrings("claude", result.ipc.args.register.tool);
+    try std.testing.expectEqualStrings("s1", result.ipc.args.register.session.?);
+    try std.testing.expect(result.ipc.args.register.project == null);
+}
+
+test "parseArgs: register with all three flags" {
+    const result = try parseArgs(&.{ "register", "--tool", "codex", "--project", "/p", "--session", "s2" });
+    try std.testing.expectEqualStrings("codex", result.ipc.args.register.tool);
+    try std.testing.expectEqualStrings("/p", result.ipc.args.register.project.?);
+    try std.testing.expectEqualStrings("s2", result.ipc.args.register.session.?);
+}
+
+test "parseArgs: register --tool without value returns error" {
+    const result = parseArgs(&.{ "register", "--tool" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: channel leave subcommand" {
+    const result = try parseArgs(&.{ "channel", "leave", "design-review" });
+    try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_leave.channel);
+    try std.testing.expectEqual(protocol.IpcAction.channel_leave, result.ipc.action);
+}
+
+test "parseArgs: channel create without --description" {
+    const result = try parseArgs(&.{ "channel", "create", "general" });
+    try std.testing.expectEqualStrings("general", result.ipc.args.channel_create.name);
+    try std.testing.expect(result.ipc.args.channel_create.description == null);
+}
+
+test "parseArgs: channel unknown sub-action returns error" {
+    const result = parseArgs(&.{ "channel", "bogus" });
+    try std.testing.expectError(ParseError.UnknownSubcommand, result);
+}
+
+test "parseArgs: channel missing sub-action returns error" {
+    const result = parseArgs(&.{"channel"});
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: channel create missing name returns error" {
+    const result = parseArgs(&.{ "channel", "create" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: channel invite missing agent returns error" {
+    const result = parseArgs(&.{ "channel", "invite", "ch1" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: channel leave missing channel returns error" {
+    const result = parseArgs(&.{ "channel", "leave" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: run with multi-word child command" {
+    const result = try parseArgs(&.{ "run", "--id", "a1", "--", "python", "-c", "print('hi')" });
+    try std.testing.expectEqualStrings("a1", result.run.agent_id);
+    try std.testing.expectEqual(@as(usize, 3), result.run.child_argv.len);
+    try std.testing.expectEqualStrings("python", result.run.child_argv[0]);
+    try std.testing.expectEqualStrings("print('hi')", result.run.child_argv[2]);
+}
+
+test "parseArgs: send exact boundary (3 args)" {
+    const result = try parseArgs(&.{ "send", "tgt", "msg" });
+    try std.testing.expectEqualStrings("tgt", result.ipc.args.send.target);
+    try std.testing.expectEqualStrings("msg", result.ipc.args.send.text);
+}
+
 // Pull in tests from sub-modules.
 comptime {
     _ = @import("cli/commands.zig");
