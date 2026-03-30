@@ -326,6 +326,51 @@ test "parseArgs: channel create --help returns HelpRequested" {
     try std.testing.expectError(ParseError.HelpRequested, result);
 }
 
+test "parseArgs: channel invite --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "invite", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: channel leave --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "leave", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: channel list --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "list", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: agents --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "agents", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: mcp-serve --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "mcp-serve", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: run --help without -- returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: top-level --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{"--help"});
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: register --project without value returns error" {
+    const result = parseArgs(std.testing.allocator, &.{ "register", "--tool", "x", "--project" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
+test "parseArgs: register --session without value returns error" {
+    const result = parseArgs(std.testing.allocator, &.{ "register", "--tool", "x", "--session" });
+    try std.testing.expectError(ParseError.MissingArgument, result);
+}
+
 // Pull in tests from sub-modules.
 comptime {
     _ = @import("cli/commands.zig");

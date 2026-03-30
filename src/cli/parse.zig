@@ -14,13 +14,16 @@ pub fn parseArgs(allocator: Allocator, args: []const []const u8) !Subcommand {
     const sub = args[0];
     const rest = args[1..];
 
+    // Top-level --help before subcommand dispatch.
+    if (mem.eql(u8, sub, "--help") or mem.eql(u8, sub, "-h")) return ParseError.HelpRequested;
+
     if (mem.eql(u8, sub, "register")) return parseRegister(allocator, rest);
     if (mem.eql(u8, sub, "send")) return parseSend(allocator, rest);
     if (mem.eql(u8, sub, "recv")) return parseRecv(allocator, rest);
-    if (mem.eql(u8, sub, "agents")) return .{ .ipc = .{ .action = .agents, .args = .agents } };
+    if (mem.eql(u8, sub, "agents")) return parseNoArgs(allocator, rest, .agents);
     if (mem.eql(u8, sub, "run")) return parseRun(allocator, rest);
     if (mem.eql(u8, sub, "channel")) return parseChannel(allocator, rest);
-    if (mem.eql(u8, sub, "mcp-serve")) return .mcp_serve;
+    if (mem.eql(u8, sub, "mcp-serve")) return parseMcpServe(allocator, rest);
 
     return ParseError.UnknownSubcommand;
 }
@@ -128,6 +131,43 @@ fn parseRun(allocator: Allocator, args: []const []const u8) !Subcommand {
     return .{ .run = .{ .agent_id = agent_id, .child_argv = child_argv } };
 }
 
+/// Parser for subcommands with no arguments (agents, channel list).
+/// Only checks for --help.
+fn parseNoArgs(allocator: Allocator, args: []const []const u8, action: @import("protocol").IpcAction) !Subcommand {
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help  Display help and exit.
+        \\
+    );
+    var iter = clap.args.SliceIterator{ .args = args };
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+        .allocator = allocator,
+    }) catch return ParseError.MissingArgument;
+    defer res.deinit();
+
+    if (res.args.help != 0) return ParseError.HelpRequested;
+
+    return switch (action) {
+        .agents => .{ .ipc = .{ .action = .agents, .args = .agents } },
+        .channel_list => .{ .ipc = .{ .action = .channel_list, .args = .channel_list } },
+        else => ParseError.UnknownSubcommand,
+    };
+}
+
+fn parseMcpServe(allocator: Allocator, args: []const []const u8) !Subcommand {
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help  Display help and exit.
+        \\
+    );
+    var iter = clap.args.SliceIterator{ .args = args };
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+        .allocator = allocator,
+    }) catch return ParseError.MissingArgument;
+    defer res.deinit();
+
+    if (res.args.help != 0) return ParseError.HelpRequested;
+    return .mcp_serve;
+}
+
 fn parseChannel(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (args.len == 0) return ParseError.MissingArgument;
     const action = args[0];
@@ -136,7 +176,7 @@ fn parseChannel(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (mem.eql(u8, action, "create")) return parseChannelCreate(allocator, rest);
     if (mem.eql(u8, action, "invite")) return parseChannelInvite(allocator, rest);
     if (mem.eql(u8, action, "leave")) return parseChannelLeave(allocator, rest);
-    if (mem.eql(u8, action, "list")) return .{ .ipc = .{ .action = .channel_list, .args = .channel_list } };
+    if (mem.eql(u8, action, "list")) return parseNoArgs(allocator, rest, .channel_list);
 
     return ParseError.UnknownSubcommand;
 }
