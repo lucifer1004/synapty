@@ -61,7 +61,7 @@ pub fn main() !void {
         try arg_list.append(allocator, arg);
     }
 
-    const sub = parseArgs(arg_list.items) catch |err| {
+    const sub = parseArgs(allocator, arg_list.items) catch |err| {
         switch (err) {
             ParseError.MissingSubcommand => {
                 try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|mcp-serve> [args]\n");
@@ -71,6 +71,9 @@ pub fn main() !void {
             },
             ParseError.MissingArgument => {
                 try stderr.writeAll("error: missing required argument\n");
+            },
+            else => {
+                try stderr.writeAll("error: invalid arguments\n");
             },
         }
         std.process.exit(1);
@@ -100,71 +103,71 @@ pub fn main() !void {
 // ---------------------------------------------------------------------------
 
 test "parseArgs: missing subcommand returns error" {
-    const result = parseArgs(&.{});
+    const result = parseArgs(std.testing.allocator, &.{});
     try std.testing.expectError(ParseError.MissingSubcommand, result);
 }
 
 test "parseArgs: unknown subcommand returns error" {
-    const result = parseArgs(&.{"bogus"});
+    const result = parseArgs(std.testing.allocator, &.{"bogus"});
     try std.testing.expectError(ParseError.UnknownSubcommand, result);
 }
 
 test "parseArgs: register subcommand" {
-    const result = try parseArgs(&.{ "register", "--tool", "codex", "--project", "/path" });
+    const result = try parseArgs(std.testing.allocator, &.{ "register", "--tool", "codex", "--project", "/path" });
     try std.testing.expectEqualStrings("codex", result.ipc.args.register.tool);
     try std.testing.expectEqualStrings("/path", result.ipc.args.register.project.?);
     try std.testing.expectEqual(protocol.IpcAction.register, result.ipc.action);
 }
 
 test "parseArgs: register missing --tool returns error" {
-    const result = parseArgs(&.{"register"});
+    const result = parseArgs(std.testing.allocator, &.{"register"});
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: send subcommand" {
-    const result = try parseArgs(&.{ "send", "agent-b", "hello world" });
+    const result = try parseArgs(std.testing.allocator, &.{ "send", "agent-b", "hello world" });
     try std.testing.expectEqualStrings("agent-b", result.ipc.args.send.target);
     try std.testing.expectEqualStrings("hello world", result.ipc.args.send.text);
     try std.testing.expectEqual(protocol.IpcAction.send, result.ipc.action);
 }
 
 test "parseArgs: channel create subcommand" {
-    const result = try parseArgs(&.{ "channel", "create", "design-review", "--description", "Auth redesign" });
+    const result = try parseArgs(std.testing.allocator, &.{ "channel", "create", "design-review", "--description", "Auth redesign" });
     try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_create.name);
     try std.testing.expectEqualStrings("Auth redesign", result.ipc.args.channel_create.description.?);
     try std.testing.expectEqual(protocol.IpcAction.channel_create, result.ipc.action);
 }
 
 test "parseArgs: channel invite subcommand" {
-    const result = try parseArgs(&.{ "channel", "invite", "design-review", "agent-b" });
+    const result = try parseArgs(std.testing.allocator, &.{ "channel", "invite", "design-review", "agent-b" });
     try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_invite.channel);
     try std.testing.expectEqualStrings("agent-b", result.ipc.args.channel_invite.agent_id);
     try std.testing.expectEqual(protocol.IpcAction.channel_invite, result.ipc.action);
 }
 
 test "parseArgs: channel list subcommand" {
-    const result = try parseArgs(&.{ "channel", "list" });
+    const result = try parseArgs(std.testing.allocator, &.{ "channel", "list" });
     try std.testing.expectEqual(protocol.IpcAction.channel_list, result.ipc.action);
     try std.testing.expect(result.ipc.args == .channel_list);
 }
 
 test "parseArgs: send missing payload returns error" {
-    const result = parseArgs(&.{ "send", "agent-b" });
+    const result = parseArgs(std.testing.allocator, &.{ "send", "agent-b" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: recv without --wait" {
-    const result = try parseArgs(&.{"recv"});
+    const result = try parseArgs(std.testing.allocator, &.{"recv"});
     try std.testing.expect(!result.ipc.args.recv.wait);
 }
 
 test "parseArgs: recv with --wait" {
-    const result = try parseArgs(&.{ "recv", "--wait" });
+    const result = try parseArgs(std.testing.allocator, &.{ "recv", "--wait" });
     try std.testing.expect(result.ipc.args.recv.wait);
 }
 
 test "parseArgs: agents subcommand" {
-    const result = try parseArgs(&.{"agents"});
+    const result = try parseArgs(std.testing.allocator, &.{"agents"});
     try std.testing.expectEqual(protocol.IpcAction.agents, result.ipc.action);
 }
 
@@ -190,7 +193,7 @@ test "send envelope has correct source/target/payload fields" {
 }
 
 test "parseArgs: run subcommand with --id and -- child" {
-    const result = try parseArgs(&.{ "run", "--id", "my-agent", "--", "bash", "-l" });
+    const result = try parseArgs(std.testing.allocator, &.{ "run", "--id", "my-agent", "--", "bash", "-l" });
     try std.testing.expectEqualStrings("my-agent", result.run.agent_id);
     try std.testing.expectEqual(@as(usize, 2), result.run.child_argv.len);
     try std.testing.expectEqualStrings("bash", result.run.child_argv[0]);
@@ -198,22 +201,22 @@ test "parseArgs: run subcommand with --id and -- child" {
 }
 
 test "parseArgs: mcp-serve subcommand" {
-    const result = try parseArgs(&.{"mcp-serve"});
+    const result = try parseArgs(std.testing.allocator, &.{"mcp-serve"});
     try std.testing.expect(result == .mcp_serve);
 }
 
 test "parseArgs: run without --id returns error" {
-    const result = parseArgs(&.{ "run", "--", "bash" });
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--", "bash" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: run with --id but without -- returns error" {
-    const result = parseArgs(&.{ "run", "--id", "foo" });
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--id", "foo" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: run with --id and -- but no child command returns error" {
-    const result = parseArgs(&.{ "run", "--id", "foo", "--" });
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--id", "foo", "--" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
@@ -222,63 +225,63 @@ test "parseArgs: run with --id and -- but no child command returns error" {
 // ---------------------------------------------------------------------------
 
 test "parseArgs: register with --session flag" {
-    const result = try parseArgs(&.{ "register", "--tool", "claude", "--session", "s1" });
+    const result = try parseArgs(std.testing.allocator, &.{ "register", "--tool", "claude", "--session", "s1" });
     try std.testing.expectEqualStrings("claude", result.ipc.args.register.tool);
     try std.testing.expectEqualStrings("s1", result.ipc.args.register.session.?);
     try std.testing.expect(result.ipc.args.register.project == null);
 }
 
 test "parseArgs: register with all three flags" {
-    const result = try parseArgs(&.{ "register", "--tool", "codex", "--project", "/p", "--session", "s2" });
+    const result = try parseArgs(std.testing.allocator, &.{ "register", "--tool", "codex", "--project", "/p", "--session", "s2" });
     try std.testing.expectEqualStrings("codex", result.ipc.args.register.tool);
     try std.testing.expectEqualStrings("/p", result.ipc.args.register.project.?);
     try std.testing.expectEqualStrings("s2", result.ipc.args.register.session.?);
 }
 
 test "parseArgs: register --tool without value returns error" {
-    const result = parseArgs(&.{ "register", "--tool" });
+    const result = parseArgs(std.testing.allocator, &.{ "register", "--tool" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: channel leave subcommand" {
-    const result = try parseArgs(&.{ "channel", "leave", "design-review" });
+    const result = try parseArgs(std.testing.allocator, &.{ "channel", "leave", "design-review" });
     try std.testing.expectEqualStrings("design-review", result.ipc.args.channel_leave.channel);
     try std.testing.expectEqual(protocol.IpcAction.channel_leave, result.ipc.action);
 }
 
 test "parseArgs: channel create without --description" {
-    const result = try parseArgs(&.{ "channel", "create", "general" });
+    const result = try parseArgs(std.testing.allocator, &.{ "channel", "create", "general" });
     try std.testing.expectEqualStrings("general", result.ipc.args.channel_create.name);
     try std.testing.expect(result.ipc.args.channel_create.description == null);
 }
 
 test "parseArgs: channel unknown sub-action returns error" {
-    const result = parseArgs(&.{ "channel", "bogus" });
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "bogus" });
     try std.testing.expectError(ParseError.UnknownSubcommand, result);
 }
 
 test "parseArgs: channel missing sub-action returns error" {
-    const result = parseArgs(&.{"channel"});
+    const result = parseArgs(std.testing.allocator, &.{"channel"});
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: channel create missing name returns error" {
-    const result = parseArgs(&.{ "channel", "create" });
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "create" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: channel invite missing agent returns error" {
-    const result = parseArgs(&.{ "channel", "invite", "ch1" });
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "invite", "ch1" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: channel leave missing channel returns error" {
-    const result = parseArgs(&.{ "channel", "leave" });
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "leave" });
     try std.testing.expectError(ParseError.MissingArgument, result);
 }
 
 test "parseArgs: run with multi-word child command" {
-    const result = try parseArgs(&.{ "run", "--id", "a1", "--", "python", "-c", "print('hi')" });
+    const result = try parseArgs(std.testing.allocator, &.{ "run", "--id", "a1", "--", "python", "-c", "print('hi')" });
     try std.testing.expectEqualStrings("a1", result.run.agent_id);
     try std.testing.expectEqual(@as(usize, 3), result.run.child_argv.len);
     try std.testing.expectEqualStrings("python", result.run.child_argv[0]);
@@ -286,7 +289,7 @@ test "parseArgs: run with multi-word child command" {
 }
 
 test "parseArgs: send exact boundary (3 args)" {
-    const result = try parseArgs(&.{ "send", "tgt", "msg" });
+    const result = try parseArgs(std.testing.allocator, &.{ "send", "tgt", "msg" });
     try std.testing.expectEqualStrings("tgt", result.ipc.args.send.target);
     try std.testing.expectEqualStrings("msg", result.ipc.args.send.text);
 }
