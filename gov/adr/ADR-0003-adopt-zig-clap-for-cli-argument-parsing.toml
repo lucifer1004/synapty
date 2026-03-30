@@ -5,6 +5,7 @@ id = "ADR-0003"
 title = "Adopt zig-clap for CLI Argument Parsing"
 status = "proposed"
 date = "2026-03-30"
+refs = ["RFC-0001"]
 
 [content]
 context = "The CLI (src/cli/parse.zig) uses a hand-rolled argument parser with manual string matching via std.mem.eql(). This works but provides no help generation, no structured error messages, and requires per-flag boilerplate for every new subcommand. As the CLI grows (7 subcommands, 10+ flags), maintenance cost increases linearly. The Zig ecosystem has a mature, de-facto standard library: zig-clap (~1300 stars, explicit Zig 0.15.x support via v0.11.0)."
