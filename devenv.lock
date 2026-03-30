@@ -3,11 +3,11 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1774651920,
-        "narHash": "sha256-8EkBRRoF9h77YiE415tpbq/QWKL/gVW1qdHqBgzqnG0=",
+        "lastModified": 1774880920,
+        "narHash": "sha256-VPLBe2ES5agAANNZKDNaBQE/socnjBeEr2zloVcJHKk=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "c318a73811319ef5be55b9936c476a8d24928155",
+        "rev": "f333c713e692b687a9ed7cc38ea5738cac67d38a",
         "type": "github"
       },
       "original": {
@@ -41,11 +41,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1774626815,
-        "narHash": "sha256-aR45I9QQMghkWNfn4xXRoSIdZue/p5n4NK7+WzpkJ24=",
+        "lastModified": 1774703641,
+        "narHash": "sha256-4ghGCP70Yblbma9c6lGL6nTWCvNlBm+WihjIcozblFA=",
         "owner": "govctl-org",
         "repo": "govctl",
-        "rev": "88c2587f9b4770742d32021a8cba18d0287b31ff",
+        "rev": "3e6d101e67ce61f60febc08a713912d7e947dce7",
         "type": "github"
       },
       "original": {
