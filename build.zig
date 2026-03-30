@@ -125,6 +125,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/hub.zig"),
             .target = deploy_target,
             .optimize = deploy_optimize,
+            .link_libc = true,
             .imports = &.{
                 .{ .name = "protocol", .module = deploy_mods.protocol },
             },
