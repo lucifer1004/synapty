@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-30-001"
+title = "Migrate CLI argument parsing to zig-clap"
+status = "active"
+created = "2026-03-30"
+started = "2026-03-30"
+refs = ["ADR-0001"]
+
+[content]
+description = "Replace hand-rolled CLI argument parser (src/cli/parse.zig) with zig-clap v0.11.0. Motivation: structured help generation, consistent flag parsing, reduced maintenance burden. No behavior change — all existing subcommands and flags preserved."
+
+[[content.acceptance_criteria]]
+text = "strengthen CLI parse tests — cover all subcommands, flags, edge cases, error messages"
+status = "pending"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "zig-clap v0.11.0 dependency in build.zig.zon"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "replace manual parseArgs with zig-clap, all existing tests pass"
+status = "pending"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "auto-generated --help for all subcommands"
+status = "pending"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "pending"
+category = "chore"

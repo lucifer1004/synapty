@@ -1,0 +1,12 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0003"
+title = "Adopt zig-clap for CLI Argument Parsing"
+status = "proposed"
+date = "2026-03-30"
+
+[content]
+context = "The CLI (src/cli/parse.zig) uses a hand-rolled argument parser with manual string matching via std.mem.eql(). This works but provides no help generation, no structured error messages, and requires per-flag boilerplate for every new subcommand. As the CLI grows (7 subcommands, 10+ flags), maintenance cost increases linearly. The Zig ecosystem has a mature, de-facto standard library: zig-clap (~1300 stars, explicit Zig 0.15.x support via v0.11.0)."
+decision = "Adopt zig-clap v0.11.0 as the CLI argument parsing library. Replace the manual parser in src/cli/parse.zig with zig-clap declarative param strings. Each subcommand gets its own clap param spec. The existing Subcommand union type and command handler routing remain unchanged — only the parsing layer is swapped. zig-clap is a comptime-only dependency (compiled into the binary), preserving the zero external runtime deps constraint from ADR-0001."
+consequences = "Positive: auto-generated --help, structured error diagnostics, reduced boilerplate for new subcommands, community-standard tooling. Negative: adds a build dependency to track across Zig version upgrades. Alternatives considered: (1) keep manual parser — zero deps but growing burden, no help; (2) yazap — builder API, better subcommands but 6x smaller community; (3) cova — most features but still beta. Risk: zig-clap releases may lag Zig releases. Mitigation: pin exact version in build.zig.zon."
