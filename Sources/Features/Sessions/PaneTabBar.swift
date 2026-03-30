@@ -89,7 +89,9 @@ struct PaneTab: View {
                     .onSubmit { commitRename() }
                     .onExitCommand { editingPaneID = nil }
                     .onChange(of: isTextFieldFocused) { _, focused in
-                        if !focused { commitRename() }
+                        if !focused {
+                            Task { @MainActor in commitRename() }
+                        }
                     }
             } else {
                 Text(pane.label)

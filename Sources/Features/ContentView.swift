@@ -85,13 +85,15 @@ struct ContentView: View {
             showShortcuts = true
         }
         .onAppear {
-            hubManager.ensureRunning()
-            agentMonitor.startMonitoring()
-            tunnelManager.startHeartbeat()
             TunnelManager.shared = tunnelManager
             TerminalCoordinatorRef.instance = paneManager
-            if paneManager.sessions.isEmpty {
-                paneManager.addLocalSession()
+            Task { @MainActor in
+                hubManager.ensureRunning()
+                agentMonitor.startMonitoring()
+                tunnelManager.startHeartbeat()
+                if paneManager.sessions.isEmpty {
+                    paneManager.addLocalSession()
+                }
             }
         }
         .onDisappear {

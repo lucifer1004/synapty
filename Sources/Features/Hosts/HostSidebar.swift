@@ -62,7 +62,8 @@ struct HostSidebar: View {
             List(selection: Binding(
                 get: { paneManager.activeSessionID },
                 set: { id in
-                    if let id { paneManager.activeSessionID = id }
+                    guard let id else { return }
+                    Task { @MainActor in paneManager.activeSessionID = id }
                 }
             )) {
                 Section {
@@ -272,7 +273,9 @@ struct SessionRow: View {
                 .onSubmit { commitRename() }
                 .onExitCommand { editingSessionID = nil }
                 .onChange(of: isTextFieldFocused) { _, focused in
-                    if !focused { commitRename() }
+                    if !focused {
+                        Task { @MainActor in commitRename() }
+                    }
                 }
         } else {
             HStack(spacing: 4) {
