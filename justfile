@@ -85,9 +85,9 @@ package:
     devenv shell -- zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 \
         deploy-macos-aarch64 deploy-macos-x86_64
 
-    echo "==> Assembling DMG..."
-    rm -rf "$STAGE" "zig-out/package/${DMG_NAME}.dmg"
-    mkdir -p "$STAGE/deploy"
+    echo "==> Assembling DMG staging area..."
+    rm -rf "$STAGE" "zig-out/package/${DMG_NAME}.dmg" "zig-out/package/${DMG_NAME}-rw.dmg"
+    mkdir -p "$STAGE/.deploy"
 
     # Find the most recently built Synapty.app (sorted by modification time)
     APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/Synapty-*/Build/Products/Release \
@@ -99,19 +99,50 @@ package:
     cp -R "$APP_PATH" "$STAGE/"
     echo "    Synapty.app: $APP_PATH"
 
-    # Copy all deploy binaries
+    # Applications symlink for drag-to-install
+    ln -s /Applications "$STAGE/Applications"
+
+    # Copy all deploy binaries (hidden in .deploy so DMG window stays clean)
     for target in linux-aarch64 linux-x86_64 linux-riscv64 macos-aarch64 macos-x86_64; do
         if [ ! -f "zig-out/$target/synapty" ]; then
             echo "Error: zig-out/$target/synapty not found. Run deploy-all first." && exit 1
         fi
-        mkdir -p "$STAGE/deploy/$target"
-        cp "zig-out/$target/synapty" "$STAGE/deploy/$target/"
-        echo "    deploy/$target/synapty: $(ls -lh "zig-out/$target/synapty" | awk '{print $5}')"
+        mkdir -p "$STAGE/.deploy/$target"
+        cp "zig-out/$target/synapty" "$STAGE/.deploy/$target/"
+        echo "    .deploy/$target/synapty: $(ls -lh "zig-out/$target/synapty" | awk '{print $5}')"
     done
 
-    # Create the DMG
+    # Generate .icns from app icon for DMG volume icon
+    ICONSET=$(mktemp -d)/Synapty.iconset
+    mkdir -p "$ICONSET"
+    ICON_SRC="Sources/App/Assets.xcassets/AppIcon.appiconset"
+    cp "$ICON_SRC/icon_16x16.png"     "$ICONSET/icon_16x16.png"
+    cp "$ICON_SRC/icon_32x32.png"     "$ICONSET/icon_16x16@2x.png"
+    cp "$ICON_SRC/icon_32x32.png"     "$ICONSET/icon_32x32.png"
+    cp "$ICON_SRC/icon_64x64.png"     "$ICONSET/icon_32x32@2x.png"
+    cp "$ICON_SRC/icon_128x128.png"   "$ICONSET/icon_128x128.png"
+    cp "$ICON_SRC/icon_256x256.png"   "$ICONSET/icon_128x128@2x.png"
+    cp "$ICON_SRC/icon_256x256.png"   "$ICONSET/icon_256x256.png"
+    cp "$ICON_SRC/icon_512x512.png"   "$ICONSET/icon_256x256@2x.png"
+    cp "$ICON_SRC/icon_512x512.png"   "$ICONSET/icon_512x512.png"
+    cp "$ICON_SRC/icon_1024x1024.png" "$ICONSET/icon_512x512@2x.png"
+    iconutil -c icns "$ICONSET" -o "$STAGE/.VolumeIcon.icns"
+
+    # Create read-write DMG, configure installer layout, then compress
+    echo "==> Creating installer DMG..."
     hdiutil create -volname "$DMG_NAME" -srcfolder "$STAGE" \
-        -ov -format UDZO "zig-out/package/${DMG_NAME}.dmg"
+        -ov -format UDRW "zig-out/package/${DMG_NAME}-rw.dmg"
+
+    MOUNT_DIR=$(hdiutil attach "zig-out/package/${DMG_NAME}-rw.dmg" -readwrite \
+        | grep '/Volumes/' | awk -F'\t' '{print $NF}')
+
+    # Set volume icon
+    SetFile -a C "$MOUNT_DIR"
+
+    hdiutil detach "$MOUNT_DIR"
+    hdiutil convert "zig-out/package/${DMG_NAME}-rw.dmg" -format UDZO \
+        -o "zig-out/package/${DMG_NAME}.dmg"
+    rm -f "zig-out/package/${DMG_NAME}-rw.dmg"
     echo "==> Created: zig-out/package/${DMG_NAME}.dmg"
 
 # Clean build artifacts
