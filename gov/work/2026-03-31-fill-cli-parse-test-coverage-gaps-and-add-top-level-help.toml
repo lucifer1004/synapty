@@ -3,11 +3,32 @@
 [govctl]
 id = "WI-2026-03-31-001"
 title = "Fill CLI parse test coverage gaps and add top-level --help"
-status = "active"
+status = "done"
 created = "2026-03-31"
 started = "2026-03-31"
+completed = "2026-03-31"
 
 [content]
 description = """
 Describe the work to be done.
 What is the goal? What are the acceptance criteria?"""
+
+[[content.acceptance_criteria]]
+text = "--help for all subcommands including agents, mcp-serve, channel list"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "top-level --help support"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "dangling flag edge cases"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"
