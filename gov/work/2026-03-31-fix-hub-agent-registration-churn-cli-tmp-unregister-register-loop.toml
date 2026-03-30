@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-31-004"
+title = "Fix Hub agent registration churn — cli-tmp unregister/register loop"
+status = "queue"
+created = "2026-03-31"
+
+[content]
+description = "cli-tmp agents continuously unregister and re-register, likely triggered by heartbeat or reconnect logic. This creates noise in the agent status bar and wastes Hub processing. Need to investigate the IPC reconnect/heartbeat path to find the loop."
+
+[[content.acceptance_criteria]]
+text = "cli-tmp agents register once and remain stable (no churn)"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "identify and document root cause of the register/unregister loop"
+status = "pending"
+category = "fixed"

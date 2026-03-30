@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-31-003"
+title = "Fix SSH connection robustness — freeze, wrong session, interactive auth"
+status = "queue"
+created = "2026-03-31"
+
+[content]
+description = "Three related SSH/connection bugs: (1) Tab freezes after remote connection drops — no cleanup or reconnect handling. (2) Connecting to a remote host erroneously opens a local terminal session alongside the remote one. (3) Cannot handle interactive input during host connection (password prompts, host key confirmation). Also includes sidebar connection timer refresh being too slow."
+
+[[content.acceptance_criteria]]
+text = "tab recovers gracefully when remote connection drops (no freeze)"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connecting to remote host does not open spurious local session"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "interactive SSH auth (password, host key confirm) works"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "sidebar connection timer updates promptly"
+status = "pending"
+category = "fixed"
