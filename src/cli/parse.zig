@@ -43,6 +43,7 @@ fn parseRegister(allocator: Allocator, args: []const []const u8) !Subcommand {
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     const tool = res.args.tool orelse return ParseError.MissingArgument;
     return .{ .ipc = .{
         .action = .register,
@@ -63,6 +64,7 @@ fn parseSend(allocator: Allocator, args: []const []const u8) !Subcommand {
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     const target = res.positionals[0] orelse return ParseError.MissingArgument;
     const text = res.positionals[1] orelse return ParseError.MissingArgument;
     return .{ .ipc = .{
@@ -83,6 +85,7 @@ fn parseRecv(allocator: Allocator, args: []const []const u8) !Subcommand {
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     return .{ .ipc = .{
         .action = .recv,
         .args = .{ .recv = .{ .wait = res.args.wait != 0 } },
@@ -90,6 +93,12 @@ fn parseRecv(allocator: Allocator, args: []const []const u8) !Subcommand {
 }
 
 fn parseRun(allocator: Allocator, args: []const []const u8) !Subcommand {
+    // Check for --help before scanning for -- (so `run --help` works without --).
+    for (args) |arg| {
+        if (mem.eql(u8, arg, "--help") or mem.eql(u8, arg, "-h")) return ParseError.HelpRequested;
+        if (mem.eql(u8, arg, "--")) break;
+    }
+
     // Require explicit -- separator between flags and child command.
     var sep: ?usize = null;
     for (args, 0..) |arg, i| {
@@ -145,6 +154,7 @@ fn parseChannelCreate(allocator: Allocator, args: []const []const u8) !Subcomman
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     const name = res.positionals[0] orelse return ParseError.MissingArgument;
     return .{ .ipc = .{
         .action = .channel_create,
@@ -165,6 +175,7 @@ fn parseChannelInvite(allocator: Allocator, args: []const []const u8) !Subcomman
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     const channel = res.positionals[0] orelse return ParseError.MissingArgument;
     const agent_id = res.positionals[1] orelse return ParseError.MissingArgument;
     return .{ .ipc = .{
@@ -185,6 +196,7 @@ fn parseChannelLeave(allocator: Allocator, args: []const []const u8) !Subcommand
     }) catch return ParseError.MissingArgument;
     defer res.deinit();
 
+    if (res.args.help != 0) return ParseError.HelpRequested;
     const channel = res.positionals[0] orelse return ParseError.MissingArgument;
     return .{ .ipc = .{
         .action = .channel_leave,

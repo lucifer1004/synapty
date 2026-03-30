@@ -68,4 +68,5 @@ pub const ParseError = error{
     MissingSubcommand,
     UnknownSubcommand,
     MissingArgument,
+    HelpRequested,
 };

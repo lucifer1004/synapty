@@ -63,6 +63,9 @@ pub fn main() !void {
 
     const sub = parseArgs(allocator, arg_list.items) catch |err| {
         switch (err) {
+            ParseError.HelpRequested => {
+                std.process.exit(0);
+            },
             ParseError.MissingSubcommand => {
                 try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|mcp-serve> [args]\n");
             },
@@ -292,6 +295,35 @@ test "parseArgs: send exact boundary (3 args)" {
     const result = try parseArgs(std.testing.allocator, &.{ "send", "tgt", "msg" });
     try std.testing.expectEqualStrings("tgt", result.ipc.args.send.target);
     try std.testing.expectEqualStrings("msg", result.ipc.args.send.text);
+}
+
+// ---------------------------------------------------------------------------
+// --help tests [[WI-2026-03-30-001]]
+// ---------------------------------------------------------------------------
+
+test "parseArgs: register --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "register", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: send --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "send", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: recv --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "recv", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: run --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "run", "--help", "--", "bash" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
+}
+
+test "parseArgs: channel create --help returns HelpRequested" {
+    const result = parseArgs(std.testing.allocator, &.{ "channel", "create", "--help" });
+    try std.testing.expectError(ParseError.HelpRequested, result);
 }
 
 // Pull in tests from sub-modules.
