@@ -107,8 +107,11 @@ pub fn build(b: *std.Build) void {
     daemon_step.dependOn(&daemon_exe.step);
 
     // ---------------------------------------------------------------------------
-    // synapty CLI executable
+    // synapty CLI executable (uses zig-clap for arg parsing [[ADR-0003]])
     // ---------------------------------------------------------------------------
+
+    const clap_dep = b.dependency("clap", .{});
+    const clap_mod = clap_dep.module("clap");
 
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
@@ -119,6 +122,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "ipc", .module = mods.ipc },
             .{ .name = "run", .module = mods.run },
             .{ .name = "mcp", .module = mods.mcp },
+            .{ .name = "clap", .module = clap_mod },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -156,6 +160,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "ipc", .module = deploy_mods.ipc },
                 .{ .name = "run", .module = deploy_mods.run },
                 .{ .name = "mcp", .module = deploy_mods.mcp },
+                .{ .name = "clap", .module = clap_mod },
             },
         });
         const deploy_exe = b.addExecutable(.{
@@ -218,12 +223,13 @@ pub fn build(b: *std.Build) void {
         .{ .name = "hub", .module = hub_module },
     }, target, optimize);
 
-    // cli: protocol + ipc + run + mcp
+    // cli: protocol + ipc + run + mcp + clap
     addTestModule(b, test_step, "src/cli.zig", &.{
         .{ .name = "protocol", .module = mods.protocol },
         .{ .name = "ipc", .module = mods.ipc },
         .{ .name = "run", .module = mods.run },
         .{ .name = "mcp", .module = mods.mcp },
+        .{ .name = "clap", .module = clap_mod },
     }, target, optimize);
 }
 
