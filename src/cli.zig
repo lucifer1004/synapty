@@ -98,6 +98,16 @@ pub fn main(init: std.process.Init) !void {
         .mcp_serve => {
             try mcp.runMcp(allocator);
         },
+        .github => |g| {
+            try commands.runGithubLogin(allocator, g);
+        },
+        .task => |t| switch (t) {
+            .list => |a| try commands.runTaskList(allocator, a),
+            .claim => |a| try commands.runTaskClaim(allocator, a),
+            .update => |a| try commands.runTaskUpdate(allocator, a),
+            .comment => |a| try commands.runTaskComment(allocator, a),
+            .create => |a| try commands.runTaskCreate(allocator, a),
+        },
     }
 }
 

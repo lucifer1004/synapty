@@ -178,3 +178,131 @@ pub fn runAgents(allocator: Allocator) !void {
         try io_mod.stdoutWriteAll("(no response from hub)\n");
     }
 }
+
+// ---------------------------------------------------------------------------
+// github subcommand — RFC-0003 C-AUTH (login device only)
+// ---------------------------------------------------------------------------
+
+const github = @import("github");
+
+/// Prompt on stdin for a line of input (trimmed).
+fn promptLine(allocator: Allocator, prompt: []const u8) !?[]const u8 {
+    try io_mod.stdoutWriteAll(prompt);
+    try io_mod.stdoutWriteAll(": ");
+    var buf: [4096]u8 = undefined;
+    const n = sys.read(0, &buf) catch return null;
+    if (n == 0) return null;
+    const line = std.mem.trim(u8, buf[0..n], "\r\n");
+    if (line.len == 0) return null;
+    const d = try allocator.dupe(u8, line);
+    return @as(?[]const u8, d);
+}
+
+/// `synapty github login` — configure hub repo + store PAT in Keychain.
+pub fn runGithubLogin(allocator: Allocator, args: types.GithubArgs) !void {
+    const owner = args.owner orelse (try promptLine(allocator, "Hub repo owner (GitHub username/org)")) orelse {
+        try io_mod.stderrWriteAll("error: owner required\n");
+        std.process.exit(1);
+    };
+    const repo = args.repo orelse (try promptLine(allocator, "Hub repo name")) orelse {
+        try io_mod.stderrWriteAll("error: repo required\n");
+        std.process.exit(1);
+    };
+    const token = args.token orelse (try promptLine(allocator, "Fine-grained PAT (Issues read/write on the hub repo)")) orelse {
+        try io_mod.stderrWriteAll("error: token required\n");
+        std.process.exit(1);
+    };
+
+    // Verify credentials against the API before storing anything.
+    var config = github.Config{ .owner = owner, .repo = repo };
+    const api = github.Api{ .allocator = allocator, .owner = owner, .repo = repo, .token = token };
+    const check = api.request(.GET, "/rate_limit", null) catch {
+        try io_mod.stderrWriteAll("error: token verification failed — check the token scope and repo name\n");
+        std.process.exit(1);
+    };
+    allocator.free(check);
+
+    try config.save(allocator);
+    try github.storeToken(allocator, accountOf(allocator, owner, repo), token);
+    try io_mod.stdoutWriteAll("Saved. Hub repo: ");
+    try io_mod.stdoutWriteAll(owner);
+    try io_mod.stdoutWriteAll("/");
+    try io_mod.stdoutWriteAll(repo);
+    try io_mod.stdoutWriteAll("\n");
+}
+
+fn accountOf(allocator: Allocator, owner: []const u8, repo: []const u8) []const u8 {
+    return std.fmt.allocPrint(allocator, "{s}/{s}", .{ owner, repo }) catch "github";
+}
+
+// ---------------------------------------------------------------------------
+// task subcommand — RFC-0003 C-CLI-TOOLS
+// ---------------------------------------------------------------------------
+
+/// Send a tool_request envelope to the hub and print the tool_response.
+fn toolRoundtrip(allocator: Allocator, tool: []const u8, args_obj: json.ObjectMap) !void {
+    const now_ms = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds();
+    const source_id = try std.fmt.allocPrint(allocator, "{s}task-{d}", .{ transport.temp_agent_prefix, now_ms });
+    defer allocator.free(source_id);
+
+    const fd = try transport.connectAndRegister(allocator, source_id);
+    defer sys.close(fd);
+
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(allocator, "tool", .{ .string = tool });
+    try payload_obj.put(allocator, "args", .{ .object = args_obj });
+    const envelope = protocol.Envelope{
+        .@"type" = "tool_request",
+        .id = "task-0",
+        .source = source_id,
+        .target = "hub",
+        .payload = .{ .object = payload_obj },
+    };
+    const raw = try protocol.serializeEnvelope(allocator, envelope);
+    defer allocator.free(raw);
+    try sys.writeAll(fd, raw);
+    try sys.writeAll(fd, "\n");
+
+    var buf: [256 * 1024]u8 = undefined;
+    const line = (try ipc.IpcServer.readLine(fd, &buf)) orelse {
+        try io_mod.stdoutWriteAll("{\"ok\":false,\"error\":\"no response from hub\"}\n");
+        return;
+    };
+    try io_mod.stdoutWriteAll(line);
+    try io_mod.stdoutWriteAll("\n");
+}
+
+pub fn runTaskList(allocator: Allocator, args: types.TaskListArgs) !void {
+    var args_obj = json.ObjectMap.empty;
+    if (args.project) |p| try args_obj.put(allocator, "labels", .{ .string = p });
+    if (args.state) |st| try args_obj.put(allocator, "state", .{ .string = st });
+    try toolRoundtrip(allocator, "task.list", args_obj);
+}
+
+pub fn runTaskClaim(allocator: Allocator, args: types.TaskClaimArgs) !void {
+    var args_obj = json.ObjectMap.empty;
+    try args_obj.put(allocator, "number", .{ .integer = args.number });
+    try toolRoundtrip(allocator, "task.claim", args_obj);
+}
+
+pub fn runTaskUpdate(allocator: Allocator, args: types.TaskUpdateArgs) !void {
+    var args_obj = json.ObjectMap.empty;
+    try args_obj.put(allocator, "number", .{ .integer = args.number });
+    try args_obj.put(allocator, "status", .{ .string = args.status });
+    try toolRoundtrip(allocator, "task.update", args_obj);
+}
+
+pub fn runTaskComment(allocator: Allocator, args: types.TaskCommentArgs) !void {
+    var args_obj = json.ObjectMap.empty;
+    try args_obj.put(allocator, "number", .{ .integer = args.number });
+    try args_obj.put(allocator, "body", .{ .string = args.body });
+    try toolRoundtrip(allocator, "task.comment", args_obj);
+}
+
+pub fn runTaskCreate(allocator: Allocator, args: types.TaskCreateArgs) !void {
+    var args_obj = json.ObjectMap.empty;
+    try args_obj.put(allocator, "title", .{ .string = args.title });
+    if (args.project) |p| try args_obj.put(allocator, "project", .{ .string = p });
+    if (args.body) |b| try args_obj.put(allocator, "body", .{ .string = b });
+    try toolRoundtrip(allocator, "task.create", args_obj);
+}

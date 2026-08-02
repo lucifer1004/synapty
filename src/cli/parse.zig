@@ -25,7 +25,106 @@ pub fn parseArgs(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (mem.eql(u8, sub, "hub")) return parseHub(allocator, rest);
     if (mem.eql(u8, sub, "channel")) return parseChannel(allocator, rest);
     if (mem.eql(u8, sub, "mcp-serve")) return parseMcpServe(allocator, rest);
+    if (mem.eql(u8, sub, "github")) return parseGithub(allocator, rest);
+    if (mem.eql(u8, sub, "task")) return parseTask(allocator, rest);
 
+    return ParseError.UnknownSubcommand;
+}
+
+// ---------------------------------------------------------------------------
+// github subcommand (RFC-0003 C-AUTH)
+// ---------------------------------------------------------------------------
+
+fn parseGithub(allocator: Allocator, args: []const []const u8) !Subcommand {
+    if (args.len == 0) return ParseError.MissingSubcommand;
+    if (mem.eql(u8, args[0], "--help") or mem.eql(u8, args[0], "-h")) return ParseError.HelpRequested;
+    if (!mem.eql(u8, args[0], "login")) return ParseError.UnknownSubcommand;
+    const rest = args[1..];
+
+    const params = comptime clap.parseParamsComptime(
+        \\    --owner <str>  Hub repo owner (optional; prompts if omitted).
+        \\    --repo <str>   Hub repo name (optional; prompts if omitted).
+        \\    --token <str>  Fine-grained PAT (optional; prompts if omitted).
+        \\-h, --help        Display help and exit.
+        \\
+    );
+    var iter = clap.args.SliceIterator{ .args = rest };
+    var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+        .allocator = allocator,
+    }) catch return ParseError.MissingArgument;
+    defer res.deinit();
+
+    if (res.args.help != 0) return ParseError.HelpRequested;
+    return .{ .github = .{
+        .owner = res.args.owner,
+        .repo = res.args.repo,
+        .token = res.args.token,
+    } };
+}
+
+// ---------------------------------------------------------------------------
+// task subcommand (RFC-0003 C-CLI-TOOLS)
+// ---------------------------------------------------------------------------
+
+fn parseTask(allocator: Allocator, args: []const []const u8) !Subcommand {
+    if (args.len == 0) return ParseError.MissingSubcommand;
+    const action = args[0];
+    const rest = args[1..];
+    if (mem.eql(u8, action, "--help") or mem.eql(u8, action, "-h")) return ParseError.HelpRequested;
+
+    if (mem.eql(u8, action, "list")) {
+        const params = comptime clap.parseParamsComptime(
+            \\    --project <str>  Project label (p:<name>).
+            \\    --state <str>    Issue state filter (open|closed|all).
+            \\-h, --help          Display help and exit.
+            \\
+        );
+        var iter = clap.args.SliceIterator{ .args = rest };
+        var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+            .allocator = allocator,
+        }) catch return ParseError.MissingArgument;
+        defer res.deinit();
+        if (res.args.help != 0) return ParseError.HelpRequested;
+        return .{ .task = .{ .list = .{ .project = res.args.project, .state = res.args.state } } };
+    }
+    if (mem.eql(u8, action, "claim")) {
+        if (rest.len < 1) return ParseError.MissingArgument;
+        if (mem.eql(u8, rest[0], "--help") or mem.eql(u8, rest[0], "-h")) return ParseError.HelpRequested;
+        const number = std.fmt.parseInt(u32, rest[0], 10) catch return ParseError.MissingArgument;
+        return .{ .task = .{ .claim = .{ .number = number } } };
+    }
+    if (mem.eql(u8, action, "update")) {
+        if (rest.len < 2) return ParseError.MissingArgument;
+        const number = std.fmt.parseInt(u32, rest[0], 10) catch return ParseError.MissingArgument;
+        return .{ .task = .{ .update = .{ .number = number, .status = rest[1] } } };
+    }
+    if (mem.eql(u8, action, "comment")) {
+        if (rest.len < 2) return ParseError.MissingArgument;
+        const number = std.fmt.parseInt(u32, rest[0], 10) catch return ParseError.MissingArgument;
+        return .{ .task = .{ .comment = .{ .number = number, .body = rest[1] } } };
+    }
+    if (mem.eql(u8, action, "create")) {
+        if (rest.len < 1) return ParseError.MissingArgument;
+        if (mem.eql(u8, rest[0], "--help") or mem.eql(u8, rest[0], "-h")) return ParseError.HelpRequested;
+        const title = rest[0];
+        const params = comptime clap.parseParamsComptime(
+            \\    --project <str>  Project label (p:<name>).
+            \\    --body <str>     Issue body text.
+            \\-h, --help          Display help and exit.
+            \\
+        );
+        var iter = clap.args.SliceIterator{ .args = rest[1..] };
+        var res = clap.parseEx(clap.Help, &params, clap.parsers.default, &iter, .{
+            .allocator = allocator,
+        }) catch return ParseError.MissingArgument;
+        defer res.deinit();
+        if (res.args.help != 0) return ParseError.HelpRequested;
+        return .{ .task = .{ .create = .{
+            .title = title,
+            .project = res.args.project,
+            .body = res.args.body,
+        } } };
+    }
     return ParseError.UnknownSubcommand;
 }
 

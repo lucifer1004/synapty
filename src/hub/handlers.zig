@@ -357,6 +357,8 @@ pub fn dispatchEnvelope(state: *HubState, arena: Allocator, conn: *Connection, a
         handleChannelLeave(state, conn, arena, envelope)
     else if (mem.eql(u8, msg_type, "channel_msg"))
         handleChannelMsg(state, conn, arena, envelope)
+    else if (mem.eql(u8, msg_type, "tool_request"))
+        handleToolRequest(state, arena, conn, envelope)
     else {
         log.warn("unknown message type from {s}: {s}", .{ agent_id, msg_type });
         return;
@@ -403,3 +405,313 @@ pub fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, conn:
 
 /// Per-connection receive buffer size (64 KiB).
 pub const recv_buf_size = 64 * 1024;
+
+// ---------------------------------------------------------------------------
+// Tool requests — RFC-0003 task tools executed on the login device
+// ---------------------------------------------------------------------------
+
+const github = @import("github");
+
+/// Send a tool_response envelope.
+fn sendToolResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(arena, "ok", .{ .bool = ok });
+    if (data) |d| try payload_obj.put(arena, "data", d);
+    if (err_msg) |e| try payload_obj.put(arena, "error", .{ .string = e });
+    const resp = protocol.Envelope{
+        .@"type" = "tool_response",
+        .id = req_id,
+        .source = "hub",
+        .target = target,
+        .payload = .{ .object = payload_obj },
+    };
+    try conn.enqueueEnvelope(arena, resp);
+}
+
+/// Extract a string field from a JSON object.
+fn objGetString(obj: json.ObjectMap, key: []const u8) ?[]const u8 {
+    const v = obj.get(key) orelse return null;
+    return switch (v) {
+        .string => |s| s,
+        else => null,
+    };
+}
+
+/// Shrink a GitHub issue JSON into the compact task shape.
+fn compactIssue(arena: Allocator, issue: json.Value) !json.Value {
+    var out = json.ObjectMap.empty;
+    const obj = issue.object;
+    if (obj.get("number")) |n| try out.put(arena, "number", n);
+    if (objGetString(obj, "title")) |t| try out.put(arena, "title", .{ .string = t });
+    if (objGetString(obj, "state")) |st| try out.put(arena, "state", .{ .string = st });
+    if (objGetString(obj, "html_url")) |u| try out.put(arena, "url", .{ .string = u });
+
+    // labels: string array of label names.
+    if (obj.get("labels")) |labels| {
+        var arr = json.Array.init(arena);
+        switch (labels) {
+            .array => |arr_val| for (arr_val.items) |item| {
+                switch (item) {
+                    .object => |lo| if (objGetString(lo, "name")) |name|
+                        try arr.append(.{ .string = name }),
+                    else => {},
+                }
+            },
+            else => {},
+        }
+        try out.put(arena, "labels", .{ .array = arr });
+    }
+
+    // assignee: login string.
+    if (obj.get("assignee")) |a| {
+        switch (a) {
+            .object => |ao| if (objGetString(ao, "login")) |login|
+                try out.put(arena, "assignee", .{ .string = login }),
+            else => {},
+        }
+    }
+    return .{ .object = out };
+}
+
+/// Load config + token; returns null (with err_msg set) when not configured.
+fn loadBridge(arena: Allocator, err_msg: *?[]const u8) ?github.Api {
+    const config = github.Config.load(arena) catch {
+        err_msg.* = "github not configured: run `synapty github login` on the login device";
+        return null;
+    } orelse {
+        err_msg.* = "github not configured: run `synapty github login` on the login device";
+        return null;
+    };
+    const account = std.fmt.allocPrint(arena, "{s}/{s}", .{ config.owner, config.repo }) catch {
+        err_msg.* = "out of memory";
+        return null;
+    };
+    const token = github.loadToken(arena, account) catch {
+        err_msg.* = "github token unavailable in Keychain";
+        return null;
+    } orelse {
+        err_msg.* = "github token not found: run `synapty github login`";
+        return null;
+    };
+    return github.Api{ .allocator = arena, .owner = config.owner, .repo = config.repo, .token = token };
+}
+
+/// Replace state labels (s:*) on an issue with the given one.
+fn updateStateLabels(arena: Allocator, api: *const github.Api, number: u32, new_state_label: []const u8, close: bool) ![]const u8 {
+    // Fetch current issue to preserve non-state labels.
+    const path = try std.fmt.allocPrint(arena, "/repos/{s}/{s}/issues/{d}", .{ api.owner, api.repo, number });
+    defer arena.free(path);
+    const body = try api.request(.GET, path, null);
+    const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
+    const obj = parsed.value.object;
+
+    var labels = std.ArrayList([]const u8).empty;
+    if (obj.get("labels")) |labels_val| {
+        switch (labels_val) {
+            .array => |arr_val| for (arr_val.items) |item| {
+                switch (item) {
+                    .object => |lo| if (objGetString(lo, "name")) |name| {
+                        if (!mem.startsWith(u8, name, "s:")) {
+                            try labels.append(arena, name);
+                        }
+                    },
+                    else => {},
+                }
+            },
+            else => {},
+        }
+    }
+    try labels.append(arena, new_state_label);
+
+    const state: ?[]const u8 = if (close) "closed" else "open";
+    return api.updateIssue(number, state, labels.items, null);
+}
+
+/// task.list — compact issue list filtered by project/state.
+fn handleTaskList(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
+    const labels = objGetString(args, "labels");
+    const state = objGetString(args, "state") orelse "open";
+    var err_msg: ?[]const u8 = null;
+    const api = loadBridge(arena, &err_msg) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
+        return;
+    };
+    const body = api.listIssues(labels, state) catch {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "github api error");
+        return;
+    };
+    const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
+    var out = json.Array.init(arena);
+    switch (parsed.value) {
+        .array => |arr_val| for (arr_val.items) |item| {
+            try out.append(try compactIssue(arena, item));
+        },
+        else => {},
+    }
+    try sendToolResponse(arena, conn, req_id, source, true, .{ .array = out }, null);
+}
+
+/// task.claim — s:todo -> s:doing, self-assign.
+fn handleTaskClaim(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
+    const number_val = args.get("number") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
+        return;
+    };
+    const number: u32 = switch (number_val) {
+        .integer => |i| @intCast(i),
+        .float => |f| @intCast(@as(i64, @intFromFloat(f))),
+        else => {
+            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
+            return;
+        },
+    };
+    var err_msg: ?[]const u8 = null;
+    const api = loadBridge(arena, &err_msg) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
+        return;
+    };
+    const labels: []const []const u8 = &.{"s:doing"};
+    const body = api.updateIssue(number, null, labels, source) catch {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (claim)");
+        return;
+    };
+    const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
+    try sendToolResponse(arena, conn, req_id, source, true, try compactIssue(arena, parsed.value), null);
+}
+
+/// task.update — status transitions per C-ISSUE-STATES.
+fn handleTaskUpdate(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
+    const number_val = args.get("number") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
+        return;
+    };
+    const number: u32 = switch (number_val) {
+        .integer => |i| @intCast(i),
+        else => {
+            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
+            return;
+        },
+    };
+    const status = objGetString(args, "status") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing status (todo|doing|done)");
+        return;
+    };
+    var err_msg: ?[]const u8 = null;
+    const api = loadBridge(arena, &err_msg) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
+        return;
+    };
+    const label = if (mem.eql(u8, status, "doing"))
+        "s:doing"
+    else if (mem.eql(u8, status, "done"))
+        "s:done"
+    else
+        "s:todo";
+    const close = mem.eql(u8, status, "done");
+    const body = updateStateLabels(arena, &api, number, label, close) catch {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (update)");
+        return;
+    };
+    const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
+    try sendToolResponse(arena, conn, req_id, source, true, try compactIssue(arena, parsed.value), null);
+}
+
+/// task.comment — append a comment.
+fn handleTaskComment(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
+    const number_val = args.get("number") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
+        return;
+    };
+    const number: u32 = switch (number_val) {
+        .integer => |i| @intCast(i),
+        else => {
+            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
+            return;
+        },
+    };
+    const body_text = objGetString(args, "body") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing body");
+        return;
+    };
+    var err_msg: ?[]const u8 = null;
+    const api = loadBridge(arena, &err_msg) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
+        return;
+    };
+    const resp_body = api.addComment(number, body_text) catch {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (comment)");
+        return;
+    };
+    const parsed = try json.parseFromSlice(json.Value, arena, resp_body, .{ .allocate = .alloc_always });
+    const id: ?json.Value = if (parsed.value == .object) parsed.value.object.get("id") else null;
+    try sendToolResponse(arena, conn, req_id, source, true, id, null);
+}
+
+/// task.create — file a new issue.
+fn handleTaskCreate(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
+    const title = objGetString(args, "title") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing title");
+        return;
+    };
+    const body_text = objGetString(args, "body");
+    const project = objGetString(args, "project") orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "missing project (p:<name>)");
+        return;
+    };
+    var err_msg: ?[]const u8 = null;
+    const api = loadBridge(arena, &err_msg) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
+        return;
+    };
+    const labels: []const []const u8 = &.{ project, "s:todo" };
+    const body = api.createIssue(title, body_text, labels) catch {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (create)");
+        return;
+    };
+    const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
+    try sendToolResponse(arena, conn, req_id, source, true, try compactIssue(arena, parsed.value), null);
+}
+
+/// Dispatcher for tool_request envelopes.
+fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, envelope: protocol.Envelope) !void {
+    _ = state;
+    const req_id = envelope.id;
+    const source = envelope.source;
+    const tool = blk: {
+        switch (envelope.payload) {
+            .object => |obj| {
+                const t = objGetString(obj, "tool") orelse {
+                    try sendToolResponse(arena, conn, req_id, source, false, null, "missing tool name");
+                    return;
+                };
+                break :blk t;
+            },
+            else => {
+                try sendToolResponse(arena, conn, req_id, source, false, null, "payload must be an object");
+                return;
+            },
+        }
+    };
+    const args: json.ObjectMap = switch (envelope.payload) {
+        .object => |obj| if (obj.get("args")) |a| switch (a) {
+            .object => |ao| ao,
+            else => json.ObjectMap.empty,
+        } else json.ObjectMap.empty,
+        else => json.ObjectMap.empty,
+    };
+
+    if (mem.eql(u8, tool, "task.list"))
+        return handleTaskList(arena, conn, req_id, source, args)
+    else if (mem.eql(u8, tool, "task.claim"))
+        return handleTaskClaim(arena, conn, req_id, source, args)
+    else if (mem.eql(u8, tool, "task.update"))
+        return handleTaskUpdate(arena, conn, req_id, source, args)
+    else if (mem.eql(u8, tool, "task.comment"))
+        return handleTaskComment(arena, conn, req_id, source, args)
+    else if (mem.eql(u8, tool, "task.create"))
+        return handleTaskCreate(arena, conn, req_id, source, args)
+    else {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "unknown tool");
+        return;
+    }
+}

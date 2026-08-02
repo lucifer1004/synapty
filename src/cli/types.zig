@@ -28,6 +28,49 @@ pub const Subcommand = union(enum) {
     run: RunArgs,
     hub: HubArgs,
     mcp_serve,
+    github: GithubArgs,
+    task: TaskArgs,
+};
+
+/// `synapty github login` — configure hub repo + store PAT (C-AUTH).
+pub const GithubArgs = struct {
+    owner: ?[]const u8 = null,
+    repo: ?[]const u8 = null,
+    token: ?[]const u8 = null,
+};
+
+/// `synapty task ...` — task tools per RFC-0003 C-CLI-TOOLS.
+pub const TaskArgs = union(enum) {
+    list: TaskListArgs,
+    claim: TaskClaimArgs,
+    update: TaskUpdateArgs,
+    comment: TaskCommentArgs,
+    create: TaskCreateArgs,
+};
+
+pub const TaskListArgs = struct {
+    project: ?[]const u8 = null,
+    state: ?[]const u8 = null,
+};
+
+pub const TaskClaimArgs = struct {
+    number: u32,
+};
+
+pub const TaskUpdateArgs = struct {
+    number: u32,
+    status: []const u8,
+};
+
+pub const TaskCommentArgs = struct {
+    number: u32,
+    body: []const u8,
+};
+
+pub const TaskCreateArgs = struct {
+    title: []const u8,
+    project: ?[]const u8 = null,
+    body: ?[]const u8 = null,
 };
 
 /// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].

@@ -10,6 +10,8 @@ const ModuleSet = struct {
     io: *std.Build.Module,
     /// POSIX socket/fd bindings (replaces removed std.net).
     sys: *std.Build.Module,
+    /// GitHub REST bridge (RFC-0003).
+    github: *std.Build.Module,
 };
 
 /// Create the full set of shared modules for a given target and optimize level.
@@ -32,6 +34,16 @@ fn createModuleSet(
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+    });
+    const github = b.createModule(.{
+        .root_source_file = b.path("src/github.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "io", .module = io },
+            .{ .name = "sys", .module = sys },
+        },
     });
     const protocol = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
@@ -73,7 +85,7 @@ fn createModuleSet(
             .{ .name = "sys", .module = sys },
         },
     });
-    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp, .io = io, .sys = sys };
+    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp, .io = io, .sys = sys, .github = github };
 }
 
 pub fn build(b: *std.Build) void {
@@ -106,6 +118,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
+            .{ .name = "github", .module = mods.github },
         },
     });
 
@@ -130,6 +143,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "clap", .module = clap_mod },
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
+            .{ .name = "github", .module = mods.github },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -182,6 +196,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "clap", .module = clap_mod },
                 .{ .name = "io", .module = deploy_mods.io },
                 .{ .name = "sys", .module = deploy_mods.sys },
+                .{ .name = "github", .module = deploy_mods.github },
             },
         });
         const deploy_exe = b.addExecutable(.{
@@ -205,6 +220,12 @@ pub fn build(b: *std.Build) void {
 
     // protocol: no imports
     addTestModule(b, test_step, "src/protocol.zig", &.{}, target, optimize);
+
+    // github: io + sys
+    addTestModule(b, test_step, "src/github.zig", &.{
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "sys", .module = mods.sys },
+    }, target, optimize);
 
     // ipc: io + sys
     addTestModule(b, test_step, "src/ipc.zig", &.{
@@ -245,6 +266,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
+            .{ .name = "github", .module = mods.github },
         },
     });
     addTestModule(b, test_step, "src/e2e_test.zig", &.{
@@ -266,6 +288,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "clap", .module = clap_mod },
         .{ .name = "io", .module = mods.io },
         .{ .name = "sys", .module = mods.sys },
+        .{ .name = "github", .module = mods.github },
     }, target, optimize);
 }
 
