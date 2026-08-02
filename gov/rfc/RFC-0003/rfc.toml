@@ -1,0 +1,83 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0003"
+title = "GitHub Issues as the Collaboration Center — Event/State/Artifact Model"
+version = "0.1.0"
+status = "normative"
+phase = "spec"
+owners = ["@lucifer1004"]
+created = "2026-08-05"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Motivation"
+clauses = [
+    "clauses/C-DIALOGUE-LIMIT.toml",
+    "clauses/C-PLATFORM-NATIVE.toml",
+]
+
+[[sections]]
+title = "Collaboration Model"
+clauses = [
+    "clauses/C-HUB-REPO.toml",
+    "clauses/C-LABEL-GROUPING.toml",
+    "clauses/C-ISSUE-STATES.toml",
+]
+
+[[sections]]
+title = "Interface"
+clauses = [
+    "clauses/C-AUTH.toml",
+    "clauses/C-CLI-TOOLS.toml",
+    "clauses/C-SKILLS.toml",
+    "clauses/C-EVENTS.toml",
+]
+
+[[sections]]
+title = "UI/UX"
+clauses = ["clauses/C-UI.toml"]
+
+[[sections]]
+title = "Architecture Impact"
+clauses = [
+    "clauses/C-A2A-REDUCTION.toml",
+    "clauses/C-HUB-ROLE.toml",
+]
+
+[[sections]]
+title = "Non-Goals"
+clauses = ["clauses/C-NON-GOALS.toml"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-05"
+notes = "Initial draft — collaboration model pivots from agent dialogue to GitHub Issues as the shared task center"
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-05"
+notes = "Promoted to normative; added authentication clause (fine-grained PAT + Keychain)"
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-08-05"
+notes = "Request-driven bridge replaces polling: login device hosts the GitHub bridge; remote agents' tool requests route through the hub to it"
+
+[[changelog]]
+version = "0.4.0"
+date = "2026-08-05"
+notes = "Added C-INSTALL: first-run onboarding (github login + mcp install auto-detect/write agent platform configs)"
+
+[[changelog]]
+version = "0.5.0"
+date = "2026-08-05"
+notes = "CLI over MCP: synapty task subcommands are the agent interface (C-CLI-TOOLS); onboarding is skills documents (C-SKILLS); mcp-serve demoted to deprecated compat layer"
+
+[[changelog]]
+version = "0.6.0"
+date = "2026-08-05"
+notes = "Added C-UI: GUI redesign around the task center (activity log, project task badges, task view, GitHub settings)"

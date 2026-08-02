@@ -1,0 +1,36 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EVENTS"
+title = "Request-Driven Bridge — No Polling"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+There is no polling. GitHub access is request-driven and single-homed:
+
+- The device running Synapty (the "login device") holds the credential and
+  hosts the GitHub bridge (an embedded hub service).
+- Any agent — local or on a remote device — invokes task tools through MCP.
+  Its request is routed by the hub (over the existing SSH reverse tunnel for
+  remote agents) to the login device's GitHub bridge, which executes the
+  GitHub API call and returns the result through the same path.
+- Agents on other devices need no GitHub configuration at all; they only need
+  a hub connection, which they already have.
+
+Consequences:
+
+- GitHub API quota is consumed only by real requests (no poll tax).
+- Latency is request/response, not poll-interval-bound.
+- Credentials never leave the login device.
+- The GUI status bar's activity view is driven by the hub's tool-request log
+  (who listed/claimed/updated which issue), not by a polled repo snapshot.
+- Webhooks are unnecessary in V1 for the same reason: the bridge is invoked
+  on demand, so there is no external change stream to watch.
+
+A pull-to-refresh action in the GUI ("Sync now") performs an on-demand issue
+list fetch for the visible projects — still a request, never a background
+poll.
+"""

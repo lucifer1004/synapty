@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-006"
+title = "UI/UX redesign for task-center model — activity log, project task badges, task view, GitHub settings"
+status = "queue"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] C-UI.
+
+Acceptance criteria:
+- MessageLogView reworked into an activity log (tool-request/issue-change
+  stream from the hub)
+- AgentStatusBar shows per-project task badges (todo/doing/done counts)
+  and GitHub bridge state; agent rows show held issues
+- Task view: lightweight issue list grouped by project, filterable by
+  state; clicking an issue opens it on GitHub (no in-app detail panel)
+- Settings gains "Connect GitHub" onboarding
+- terminal pane surface unchanged
+"""

@@ -1,0 +1,34 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-UI"
+title = "UI/UX — Task Center, Not Chat"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The GUI is redesigned around the task-center model. The terminal pane
+surface (SplitContentView/TerminalSurface/PaneTabBar) stays as the core;
+everything that framed the chat model is reworked:
+
+Replaced:
+- MessageLogView (A2A chat history) -> Activity log: hub tool-request and
+  issue-change stream (who claimed/updated/commented which issue, when).
+- AgentStatusBar (agents + message counts) -> per-project task badges
+  (p:<project> with todo/doing/done counts) + GitHub bridge connection
+  state; agent rows show the issue they currently hold.
+- HubStatusView -> hub + bridge status (connected, login state).
+
+Added:
+- Task view: hub-repo issue list grouped by project label, filterable by
+  state; depth (full issue detail/comments vs. lightweight read-only list)
+  is a design decision to be settled during implementation.
+- Settings: "Connect GitHub" (repo + token onboarding per C-AUTH/C-SKILLS)
+  and optional skills install.
+
+Kept: host sidebar (remote agent deployment), keyboard shortcuts, session
+tree. Visual style follows the existing macOS-native look; no redesign of
+the terminal rendering itself.
+"""

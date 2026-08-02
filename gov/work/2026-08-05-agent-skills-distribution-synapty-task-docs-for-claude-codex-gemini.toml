@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-005"
+title = "Agent skills distribution — synapty task docs for claude/codex/gemini"
+status = "queue"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] C-SKILLS.
+
+Acceptance criteria:
+- canonical skill doc at configs/skills/synapty-task/SKILL.md teaching the
+  synapty task CLI (when to use each subcommand, output contract)
+- per-platform mirrors: claude skills, codex AGENTS.md, gemini
+- synapty skills install copies to detected platform locations (idempotent)
+- deprecated MCP templates in configs/ marked as such
+- GUI settings has "Connect GitHub" button; skills install is optional
+"""

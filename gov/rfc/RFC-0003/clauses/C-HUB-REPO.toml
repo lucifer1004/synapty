@@ -1,0 +1,29 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HUB-REPO"
+title = "Hub Repo — a Single Private Repository as the Interaction Center"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+V1 of the new model uses exactly one private GitHub repository as the
+interaction center ("hub repo"). All agent collaboration artifacts — tasks,
+status updates, comments, handoffs — live there as issues.
+
+Rationale: one repo means one authentication scope (a single fine-grained
+personal access token limited to that repo), one event source to watch, and
+no multi-repository abstraction in V1.
+
+The hub repo is user configuration, not project code: each Synapty user
+points their installation at their own private repo. Configuration is
+captured during first-run setup (`synapty github login` prompts for owner/
+name alongside the token) and persisted in the user config file
+(`~/.config/synapty/config.toml`); the GUI settings view can edit it later.
+No repository is hardcoded anywhere.
+
+Multi-platform (GitLab/JIRA) support and multi-repo federation are explicitly
+out of scope for V1 (see Non-Goals).
+"""

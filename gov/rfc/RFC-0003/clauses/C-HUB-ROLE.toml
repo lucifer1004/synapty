@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HUB-ROLE"
+title = "Hub Role — Connection Registry and Event Aggregator"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The embedded hub is re-purposed:
+
+1. Connection registry — agents register/unregister as today; the routing
+   table maps agent id -> pane/connection for supervision purposes.
+2. Issue-state aggregator — the hub owns the polled view of the hub repo
+   (per-project task counts, per-agent assignments) and pushes updates to the
+   GUI status bar.
+3. Terminal-event bridge endpoint — (V1.5) OSC sequences emitted by agents in
+   panes are translated by the bridge into GitHub actions (update issue,
+   comment). This reuses RFC-0001's OSC bridging direction, with the platform
+   as the target instead of a message bus.
+
+The hub no longer forwards agent-to-agent messages as a first-class feature.
+"""

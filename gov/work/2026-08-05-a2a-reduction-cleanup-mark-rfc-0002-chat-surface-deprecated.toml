@@ -1,0 +1,15 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-004"
+title = "A2A reduction cleanup — mark RFC-0002 chat surface deprecated"
+status = "queue"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] (A2A reduction cleanup — mark RFC-0002 chat surface deprecated).
+
+Acceptance criteria:
+- TBD — detailed in the work item when started
+"""

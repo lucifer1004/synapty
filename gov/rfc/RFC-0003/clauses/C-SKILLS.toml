@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SKILLS"
+title = "Skills — Teaching Agents the CLI"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Agents learn the task CLI through skills documents, not platform MCP
+configuration. This is the ADR-0001 deliverable #6 ("Agent Skills") restored
+as the primary integration surface.
+
+- The canonical skill lives in the repository at
+  `configs/skills/synapty-task/` (SKILL.md) and is mirrored per platform:
+  Claude Code skills (`~/.claude/skills/`), Codex AGENTS.md conventions,
+  Gemini CLI equivalents.
+- `synapty skills install` copies the skill files to the detected
+  platforms' standard locations (idempotent); manual copy is equally
+  supported — the skill is just a markdown document.
+- `synapty github login` remains the only credential step and runs once on
+  the login device; everything else is configuration-free.
+
+The MCP config templates in `configs/` are deprecated and no longer part of
+the onboarding path.
+"""

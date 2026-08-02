@@ -1,0 +1,40 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CLI-TOOLS"
+title = "CLI Tools — synapty task Subcommands as the Agent Interface"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The agent interface is the `synapty task` command group — no MCP server
+required. Task operations are low-frequency, on-demand, JSON-in/JSON-out
+calls; a CLI fits them better than a long-lived protocol server (no config
+step, no resident tool schemas in the agent's context, trivially debuggable
+in the terminal).
+
+Subcommands:
+
+- `synapty task list [--project <p:label>]` — list issues with state.
+- `synapty task claim <issue>` — transition `s:todo` -> `s:doing`
+  (self-assign).
+- `synapty task update <issue> <status>` — transition per C-ISSUE-STATES.
+- `synapty task comment <issue> <body>` — append a comment.
+- `synapty task create <title> [--project <p:label>] [--body <text>]` —
+  file a new issue, initial state `s:todo`.
+
+Output contract: success = JSON on stdout, exit 0; failure = human-readable
+error on stderr, non-zero exit. Commands are composable with `jq` and safe
+for agent invocation.
+
+Connection resolution: inside a Synapty pane, SYNAPTY_SOCK routes the
+request to the hub via the existing run-server IPC; outside a pane, the
+CLI falls back to a direct hub TCP connection (existing transport.zig
+behavior). Remote devices need no installation step: the deployed binary
+speaks the same protocol over the reverse tunnel (C-EVENTS).
+
+The `synapty mcp-serve` command is retained as a deprecated compatibility
+layer and is no longer the primary path.
+"""
