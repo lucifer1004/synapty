@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_mod = @import("io");
 const mem = std.mem;
 const run = @import("run");
 const Allocator = mem.Allocator;
@@ -80,36 +81,32 @@ pub fn parseArgs(args: []const []const u8) ParseError!DaemonArgs {
 // Entry point
 // ---------------------------------------------------------------------------
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    io_mod.install(init.io);
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const stderr = std.fs.File.stderr();
-
     var arg_list = std.ArrayList([]const u8).empty;
     defer arg_list.deinit(allocator);
-
-    var args_iter = try std.process.argsWithAllocator(allocator);
-    defer args_iter.deinit();
-    _ = args_iter.next(); // skip program name
-    while (args_iter.next()) |arg| {
+    const argv = try init.minimal.args.toSlice(allocator);
+    for (argv[1..]) |arg| {
         try arg_list.append(allocator, arg);
     }
 
     const daemon_args = parseArgs(arg_list.items) catch |err| {
         switch (err) {
             ParseError.MissingId => {
-                try stderr.writeAll("error: missing --id <agent-id>\n");
+                try io_mod.stderrWriteAll("error: missing --id <agent-id>\n");
             },
             ParseError.MissingHub => {
-                try stderr.writeAll("error: missing --hub <host:port>\n");
+                try io_mod.stderrWriteAll("error: missing --hub <host:port>\n");
             },
             ParseError.InvalidHubFormat => {
-                try stderr.writeAll("error: --hub must be in <host:port> format\n");
+                try io_mod.stderrWriteAll("error: --hub must be in <host:port> format\n");
             },
             ParseError.MissingChildCommand => {
-                try stderr.writeAll("error: missing -- <command> after arguments\n");
+                try io_mod.stderrWriteAll("error: missing -- <command> after arguments\n");
             },
         }
         std.process.exit(1);

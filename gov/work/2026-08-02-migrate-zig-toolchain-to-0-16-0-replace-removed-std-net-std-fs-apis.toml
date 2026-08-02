@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-02-001"
+title = "Migrate Zig toolchain to 0.16.0 (replace removed std.net/std.fs APIs)"
+status = "active"
+created = "2026-08-02"
+started = "2026-08-02"
+
+[content]
+description = """
+The Nix-based devenv toolchain was removed (Nix uninstalled from the machine) and
+the pinned zig 0.15.2 cannot link macOS binaries against the Xcode 26.5 SDK
+(undefined libc symbols with -platform_version 26.5). Zig 0.16.0 (Homebrew)
+links correctly, so the project migrates to it.
+
+Zig 0.16 removed std.net (networking moved to the async std.Io abstraction,
+which does not support unix sockets) and std.fs.File; std.posix lost most
+socket primitives. Synapty's synchronous, thread-per-connection design now uses:
+- src/sys.zig — thin std.posix.system (libc) bindings for TCP/unix sockets,
+  sockaddr structures, fd I/O (the officially sanctioned "go lower" path)
+- src/io.zig — process-wide std.Io instance (installed from
+  std.process.Init in main; std.testing.io in tests)
+- std.Io.Mutex / std.Io.Condition / std.Io.Timestamp for locks and time
+- zig-clap 0.11.0 -> 0.12.0 (first version supporting zig 0.16.0)
+- macOS libproc access via direct extern bindings (translate-c cannot handle
+  mach_msg types pulled in by libproc.h)
+- All modules link libc so std.posix.system is std.c uniformly
+  (musl deploy targets link zig's bundled libc)
+
+The ghostty submodule was also updated to upstream main (now requires zig 0.16.0)
+and GhosttyKit.xcframework rebuilt. The GUI HubManager was fixed to launch the
+unified binary's `hub` subcommand ([[ADR-0004]] leftover).
+
+Acceptance criteria:
+- zig build (native + all 5 deploy targets) passes
+- zig build test all green
+- GUI still builds with updated GhosttyKit
+- docs/justfile updated for Homebrew toolchain
+- regression check of CLI (hub subcommand, IPC)
+"""

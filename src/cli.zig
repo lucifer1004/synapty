@@ -1,5 +1,5 @@
 const std = @import("std");
-const net = std.net;
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const protocol = @import("protocol");
@@ -45,21 +45,17 @@ pub const parseArgs = @import("cli/parse.zig").parseArgs;
 // Entry point
 // ---------------------------------------------------------------------------
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    io_mod.install(init.io);
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const stderr = std.fs.File.stderr();
-
     // Collect args, skipping argv[0] (program name).
     var arg_list = std.ArrayList([]const u8).empty;
     defer arg_list.deinit(allocator);
-
-    var args_iter = try std.process.argsWithAllocator(allocator);
-    defer args_iter.deinit();
-    _ = args_iter.next(); // skip program name
-    while (args_iter.next()) |arg| {
+    const argv = try init.minimal.args.toSlice(allocator);
+    for (argv[1..]) |arg| {
         try arg_list.append(allocator, arg);
     }
 
@@ -69,13 +65,13 @@ pub fn main() !void {
                 std.process.exit(0);
             },
             ParseError.MissingSubcommand => {
-                try stderr.writeAll("usage: synapty <register|send|recv|agents|channel|run|hub|mcp-serve> [args]\n");
+                try io_mod.stderrWriteAll("usage: synapty <register|send|recv|agents|channel|run|hub|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
-                try stderr.writeAll("error: unknown subcommand\n");
+                try io_mod.stderrWriteAll("error: unknown subcommand\n");
             },
             ParseError.MissingArgument => {
-                try stderr.writeAll("error: missing required argument\n");
+                try io_mod.stderrWriteAll("error: missing required argument\n");
             },
         }
         std.process.exit(1);

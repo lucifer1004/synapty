@@ -1,5 +1,6 @@
 const std = @import("std");
-const net = std.net;
+const sys = @import("sys");
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const protocol = @import("protocol");
@@ -22,7 +23,7 @@ fn startHub() !TestHub {
     const allocator = std.heap.page_allocator;
     const server = try allocator.create(hub.HubServer);
     server.* = try hub.HubServer.initWithAddress("127.0.0.1", 0);
-    const port = server.listener.listen_address.getPort();
+    const port = server.bound_port;
     try server.startBackground();
     return .{ .server = server, .port = port };
 }
@@ -36,8 +37,8 @@ fn stopHub(h: TestHub) void {
 /// Poll until an agent appears in the Hub's routing table (or timeout).
 fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
     const alloc = std.heap.page_allocator;
-    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
-    while (std.time.milliTimestamp() < deadline) {
+    const deadline = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() + @as(i64, @intCast(timeout_ms));
+    while (std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() < deadline) {
         const agents = server.registeredAgents(alloc) catch return false;
         defer {
             for (agents) |id| alloc.free(id);
@@ -46,7 +47,7 @@ fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u
         for (agents) |id| {
             if (mem.eql(u8, id, agent_id)) return true;
         }
-        std.Thread.sleep(2 * std.time.ns_per_ms);
+        io_mod.get().sleep(std.Io.Duration.fromMilliseconds(2), .awake) catch {};
     }
     return false;
 }
@@ -54,8 +55,8 @@ fn waitForRegistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u
 /// Poll until an agent is NOT in the Hub's routing table (or timeout).
 fn waitForUnregistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms: u64) bool {
     const alloc = std.heap.page_allocator;
-    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
-    while (std.time.milliTimestamp() < deadline) {
+    const deadline = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() + @as(i64, @intCast(timeout_ms));
+    while (std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() < deadline) {
         const agents = server.registeredAgents(alloc) catch return true;
         defer {
             for (agents) |id| alloc.free(id);
@@ -66,46 +67,48 @@ fn waitForUnregistered(server: *hub.HubServer, agent_id: []const u8, timeout_ms:
             if (mem.eql(u8, id, agent_id)) found = true;
         }
         if (!found) return true;
-        std.Thread.sleep(2 * std.time.ns_per_ms);
+        io_mod.get().sleep(std.Io.Duration.fromMilliseconds(2), .awake) catch {};
     }
     return false;
 }
 
 /// Connect to Hub and send a register envelope. Returns the connected stream.
-fn connectAndRegister(allocator: Allocator, port: u16, agent_id: []const u8) !net.Stream {
-    const address = try net.Address.parseIp4("127.0.0.1", port);
-    const stream = try net.tcpConnectToAddress(address);
-    errdefer stream.close();
+fn connectAndRegister(allocator: Allocator, port: u16, agent_id: []const u8) !sys.fd_t {
+    const stream = try connectTcp(port);
+    errdefer sys.close(stream);
 
     const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
     const raw = try protocol.serializeEnvelope(allocator, reg);
     defer allocator.free(raw);
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
+    try sys.writeAll(stream, raw);
+    try sys.writeAll(stream, "\n");
     return stream;
+}
+
+/// Open a TCP connection to the test Hub on 127.0.0.1:port.
+fn connectTcp(port: u16) !sys.fd_t {
+    const fd = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+    errdefer sys.close(fd);
+    const addr4 = std.Io.net.Ip4Address.loopback(port);
+    const sa = sys.sockaddr_in.init(@bitCast(addr4.bytes), port);
+    try sys.connect(fd, &sa, @sizeOf(sys.sockaddr_in));
+    return fd;
 }
 
 /// Read a complete newline-terminated line from a stream with timeout.
 /// Returns the line (without \n) or null on timeout.
-fn readLine(stream: net.Stream, buf: []u8, timeout_ms: u64) ?[]const u8 {
-    const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+fn readLine(stream: sys.fd_t, buf: []u8, timeout_ms: u64) ?[]const u8 {
+    const io = io_mod.get();
+    const deadline = std.Io.Timestamp.now(io, .real).toMilliseconds() + @as(i64, @intCast(timeout_ms));
     var filled: usize = 0;
     // Set non-blocking for poll-style reads.
-    const fd = stream.handle;
-    var flags = std.posix.fcntl(fd, std.posix.F.GETFL, 0) catch return null;
-    flags |= 1 << @bitOffsetOf(std.posix.O, "NONBLOCK");
-    _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags) catch return null;
-    defer {
-        // Restore blocking mode.
-        flags &= ~@as(u32, 1 << @bitOffsetOf(std.posix.O, "NONBLOCK"));
-        _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags) catch {};
-    }
+    sys.setNonblocking(stream) catch return null;
 
-    while (std.time.milliTimestamp() < deadline) {
+    while (std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() < deadline) {
         if (filled >= buf.len) return null;
-        const n = stream.read(buf[filled..]) catch |err| switch (err) {
+        const n = sys.read(stream, buf[filled..]) catch |err| switch (err) {
             error.WouldBlock => {
-                std.Thread.sleep(1 * std.time.ns_per_ms);
+                io_mod.get().sleep(std.Io.Duration.fromMilliseconds(1), .awake) catch {};
                 continue;
             },
             else => return null,
@@ -113,7 +116,7 @@ fn readLine(stream: net.Stream, buf: []u8, timeout_ms: u64) ?[]const u8 {
         if (n == 0) return null;
         filled += n;
         if (mem.indexOfScalar(u8, buf[0..filled], '\n')) |nl| {
-            return mem.trimRight(u8, buf[0..nl], "\r ");
+            return mem.trimEnd(u8, buf[0..nl], "\r ");
         }
     }
     return null;
@@ -167,7 +170,7 @@ test "e2e: register handshake — agent appears in registered list" {
     defer stopHub(h);
 
     const stream = try connectAndRegister(alloc, h.port, "agent-e2e-reg");
-    defer stream.close();
+    defer sys.close(stream);
 
     try std.testing.expect(waitForRegistered(h.server, "agent-e2e-reg", 2000));
 }
@@ -181,14 +184,14 @@ test "e2e: DM routing — message delivered to target agent" {
     defer stopHub(h);
 
     const stream_a = try connectAndRegister(alloc, h.port, "alice");
-    defer stream_a.close();
+    defer sys.close(stream_a);
     const stream_b = try connectAndRegister(alloc, h.port, "bob");
-    defer stream_b.close();
+    defer sys.close(stream_b);
     try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
     // Alice sends a DM to Bob.
-    var payload_obj = json.ObjectMap.init(alloc);
-    try payload_obj.put("text", .{ .string = "hello bob" });
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(alloc, "text", .{ .string = "hello bob" });
     const raw = try protocol.serializeEnvelope(alloc, .{
         .@"type" = "dm",
         .id = "dm-1",
@@ -196,8 +199,8 @@ test "e2e: DM routing — message delivered to target agent" {
         .target = "bob",
         .payload = .{ .object = payload_obj },
     });
-    try stream_a.writeAll(raw);
-    try stream_a.writeAll("\n");
+    try sys.writeAll(stream_a, raw);
+    try sys.writeAll(stream_a, "\n");
 
     // Bob should receive the DM.
     var bob_buf: [8192]u8 = undefined;
@@ -222,11 +225,11 @@ test "e2e: DM to unknown agent returns error response" {
     defer stopHub(h);
 
     const stream = try connectAndRegister(alloc, h.port, "sender");
-    defer stream.close();
+    defer sys.close(stream);
     try std.testing.expect(waitForRegistered(h.server, "sender", 2000));
 
-    var payload_obj = json.ObjectMap.init(alloc);
-    try payload_obj.put("text", .{ .string = "anyone there?" });
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(alloc, "text", .{ .string = "anyone there?" });
     const raw = try protocol.serializeEnvelope(alloc, .{
         .@"type" = "dm",
         .id = "dm-miss",
@@ -234,8 +237,8 @@ test "e2e: DM to unknown agent returns error response" {
         .target = "ghost",
         .payload = .{ .object = payload_obj },
     });
-    try stream.writeAll(raw);
-    try stream.writeAll("\n");
+    try sys.writeAll(stream, raw);
+    try sys.writeAll(stream, "\n");
 
     var buf: [8192]u8 = undefined;
     const line = readLine(stream, &buf, 2000);
@@ -255,7 +258,7 @@ test "e2e: disconnect cleanup — agent removed from routing" {
     const stream = try connectAndRegister(alloc, h.port, "ephemeral");
     try std.testing.expect(waitForRegistered(h.server, "ephemeral", 2000));
 
-    stream.close();
+    sys.close(stream);
     try std.testing.expect(waitForUnregistered(h.server, "ephemeral", 2000));
 }
 
@@ -269,18 +272,18 @@ test "e2e: channel create + send fan-out to members" {
 
     // Register three agents.
     const stream_a = try connectAndRegister(alloc, h.port, "ch-alice");
-    defer stream_a.close();
+    defer sys.close(stream_a);
     const stream_b = try connectAndRegister(alloc, h.port, "ch-bob");
-    defer stream_b.close();
+    defer sys.close(stream_b);
     const stream_c = try connectAndRegister(alloc, h.port, "ch-carol");
-    defer stream_c.close();
+    defer sys.close(stream_c);
     try std.testing.expect(waitForRegistered(h.server, "ch-carol", 2000));
 
     // Alice creates a channel.
     {
-        var p = json.ObjectMap.init(alloc);
-        try p.put("name", .{ .string = "test-chan" });
-        try p.put("description", .{ .string = "e2e test" });
+        var p = json.ObjectMap.empty;
+        try p.put(alloc, "name", .{ .string = "test-chan" });
+        try p.put(alloc, "description", .{ .string = "e2e test" });
         const env = protocol.Envelope{
             .@"type" = "channel_create",
             .id = "cc-1",
@@ -290,8 +293,8 @@ test "e2e: channel create + send fan-out to members" {
         };
         const raw = try protocol.serializeEnvelope(alloc, env);
 
-        try stream_a.writeAll(raw);
-        try stream_a.writeAll("\n");
+        try sys.writeAll(stream_a, raw);
+        try sys.writeAll(stream_a, "\n");
         // Read success response.
         var buf: [8192]u8 = undefined;
         const resp = readLine(stream_a, &buf, 2000);
@@ -301,9 +304,9 @@ test "e2e: channel create + send fan-out to members" {
 
     // Alice invites Bob and Carol.
     inline for (.{ "ch-bob", "ch-carol" }) |invitee| {
-        var p = json.ObjectMap.init(alloc);
-        try p.put("channel", .{ .string = "test-chan" });
-        try p.put("agent_id", .{ .string = invitee });
+        var p = json.ObjectMap.empty;
+        try p.put(alloc, "channel", .{ .string = "test-chan" });
+        try p.put(alloc, "agent_id", .{ .string = invitee });
         const env = protocol.Envelope{
             .@"type" = "channel_invite",
             .id = "ci-" ++ invitee,
@@ -313,8 +316,8 @@ test "e2e: channel create + send fan-out to members" {
         };
         const raw = try protocol.serializeEnvelope(alloc, env);
 
-        try stream_a.writeAll(raw);
-        try stream_a.writeAll("\n");
+        try sys.writeAll(stream_a, raw);
+        try sys.writeAll(stream_a, "\n");
         // Verify invite response has ok=true.
         var buf: [8192]u8 = undefined;
         const invite_resp = readLine(stream_a, &buf, 2000);
@@ -331,8 +334,8 @@ test "e2e: channel create + send fan-out to members" {
 
     // Alice sends a channel message.
     {
-        var p = json.ObjectMap.init(alloc);
-        try p.put("text", .{ .string = "hello channel" });
+        var p = json.ObjectMap.empty;
+        try p.put(alloc, "text", .{ .string = "hello channel" });
         const env = protocol.Envelope{
             .@"type" = "channel_msg",
             .id = "cm-1",
@@ -342,8 +345,8 @@ test "e2e: channel create + send fan-out to members" {
         };
         const raw = try protocol.serializeEnvelope(alloc, env);
 
-        try stream_a.writeAll(raw);
-        try stream_a.writeAll("\n");
+        try sys.writeAll(stream_a, raw);
+        try sys.writeAll(stream_a, "\n");
 
         // Bob and Carol should each receive the fan-out.
         var bob_buf: [8192]u8 = undefined;
@@ -374,7 +377,7 @@ test "e2e: RunServer IPC send through daemon to Hub delivers to target" {
 
     // Connect "bob" as a raw TCP agent to the Hub.
     const bob_stream = try connectAndRegister(alloc, h.port, "bob");
-    defer bob_stream.close();
+    defer sys.close(bob_stream);
     try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
     // Start a RunServer for "alice" connected to the same Hub.
@@ -447,11 +450,11 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
 
     // Connect "bob" as raw TCP and send a DM to alice.
     const bob_stream = try connectAndRegister(alloc, h.port, "bob");
-    defer bob_stream.close();
+    defer sys.close(bob_stream);
     try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
-    var payload_obj = json.ObjectMap.init(alloc);
-    try payload_obj.put("text", .{ .string = "msg for alice" });
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(alloc, "text", .{ .string = "msg for alice" });
     const raw = try protocol.serializeEnvelope(alloc, .{
         .@"type" = "dm",
         .id = "dm-to-alice",
@@ -459,17 +462,17 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
         .target = "alice",
         .payload = .{ .object = payload_obj },
     });
-    try bob_stream.writeAll(raw);
-    try bob_stream.writeAll("\n");
+    try sys.writeAll(bob_stream, raw);
+    try sys.writeAll(bob_stream, "\n");
 
     // Poll IPC recv until the message appears (no fixed sleep).
     {
-        const deadline = std.time.milliTimestamp() + 2000;
+        const deadline = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() + 2000;
         var found = false;
         // Per-retry arena — reset each iteration so parse allocations don't accumulate.
         var retry_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer retry_arena.deinit();
-        while (std.time.milliTimestamp() < deadline) {
+        while (std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds() < deadline) {
             _ = retry_arena.reset(.retain_capacity);
             const retry_alloc = retry_arena.allocator();
             // Scoped block ensures IPC client is closed each iteration.
@@ -511,7 +514,7 @@ test "e2e: RunServer IPC recv retrieves messages sent to daemon agent" {
                     if (found) break;
                 }
             }
-            std.Thread.sleep(5 * std.time.ns_per_ms);
+            io_mod.get().sleep(std.Io.Duration.fromMilliseconds(5), .awake) catch {};
         }
         try std.testing.expect(found);
     }
@@ -600,7 +603,7 @@ test "e2e: RunServer IPC channel create and send through daemon" {
 
     // Connect "bob" as raw TCP.
     const bob_stream = try connectAndRegister(alloc, h.port, "bob");
-    defer bob_stream.close();
+    defer sys.close(bob_stream);
     try std.testing.expect(waitForRegistered(h.server, "bob", 2000));
 
     // Alice creates a channel via IPC.

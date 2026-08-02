@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const protocol = @import("protocol");
@@ -14,12 +15,12 @@ const log = std.log.scoped(.hub);
 /// Protected by a mutex for thread-safe access.
 pub const RoutingTable = struct {
     map: std.StringHashMap(*Connection),
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
 
     pub fn init(allocator: Allocator) RoutingTable {
         return .{
             .map = std.StringHashMap(*Connection).init(allocator),
-            .mutex = .{},
+            .mutex = .init,
         };
     }
 
@@ -28,15 +29,15 @@ pub const RoutingTable = struct {
     }
 
     pub fn register(self: *RoutingTable, agent_id: []const u8, conn: *Connection) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         try self.map.put(agent_id, conn);
         log.info("registered agent: {s}", .{agent_id});
     }
 
     pub fn unregister(self: *RoutingTable, agent_id: []const u8) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         _ = self.map.remove(agent_id);
         log.info("unregistered agent: {s}", .{agent_id});
     }
@@ -50,8 +51,8 @@ pub const RoutingTable = struct {
     /// Safe against concurrent unregister — the routing table mutex serializes
     /// retain vs unregister, so the pointer is guaranteed alive until release.
     pub fn lookupAndRetain(self: *RoutingTable, agent_id: []const u8) ?*Connection {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const conn = self.map.get(agent_id) orelse return null;
         conn.retain();
         return conn;
@@ -60,8 +61,8 @@ pub const RoutingTable = struct {
     /// Return a heap-allocated slice of duped agent ID strings.
     /// Caller owns both the slice and each string — free strings first, then slice.
     pub fn agentIds(self: *RoutingTable, allocator: Allocator) ![][]const u8 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const count = self.map.count();
         const slice = try allocator.alloc([]const u8, count);
         var i: usize = 0;
@@ -89,13 +90,13 @@ pub const AgentInfo = struct {
 
 pub const AgentRegistry = struct {
     map: std.StringHashMap(AgentInfo),
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) AgentRegistry {
         return .{
             .map = std.StringHashMap(AgentInfo).init(allocator),
-            .mutex = .{},
+            .mutex = .init,
             .allocator = allocator,
         };
     }
@@ -111,8 +112,8 @@ pub const AgentRegistry = struct {
 
     /// Dupe key and info strings into owned storage, replacing any previous entry.
     pub fn update(self: *AgentRegistry, agent_id: []const u8, info: AgentInfo) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const owned_key = try self.allocator.dupe(u8, agent_id);
         errdefer self.allocator.free(owned_key);
         const owned = AgentInfo{
@@ -134,8 +135,8 @@ pub const AgentRegistry = struct {
     }
 
     pub fn remove(self: *AgentRegistry, agent_id: []const u8) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         if (self.map.fetchRemove(agent_id)) |kv| {
             self.allocator.free(kv.key);
             self.freeInfo(kv.value);
@@ -145,8 +146,8 @@ pub const AgentRegistry = struct {
     /// Return a snapshot of agent info with duped strings (caller-owned).
     /// Safe to use after the mutex is released — no borrowed pointers.
     pub fn get(self: *AgentRegistry, agent_id: []const u8, alloc: Allocator) ?AgentInfo {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const info = self.map.get(agent_id) orelse return null;
         return AgentInfo{
             .tool = if (info.tool) |t| alloc.dupe(u8, t) catch null else null,
@@ -176,13 +177,13 @@ pub const Channel = struct {
 
 pub const ChannelRegistry = struct {
     map: std.StringHashMap(Channel),
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) ChannelRegistry {
         return .{
             .map = std.StringHashMap(Channel).init(allocator),
-            .mutex = .{},
+            .mutex = .init,
             .allocator = allocator,
         };
     }
@@ -196,8 +197,8 @@ pub const ChannelRegistry = struct {
     }
 
     pub fn create(self: *ChannelRegistry, name: []const u8, description: []const u8, creator: []const u8) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         if (self.map.contains(name)) return error.ChannelExists;
         // Dupe all strings — channel data outlives the creating connection.
         const owned_name = try self.allocator.dupe(u8, name);
@@ -215,14 +216,14 @@ pub const ChannelRegistry = struct {
             .description = owned_desc,
             .members = members,
             .created_by = owned_creator,
-            .created_at = std.time.timestamp(),
+            .created_at = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
         });
         log.info("channel created: {s} by {s}", .{ name, creator });
     }
 
     pub fn addMember(self: *ChannelRegistry, name: []const u8, agent_id: []const u8) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const ch = self.map.getPtr(name) orelse return error.ChannelNotFound;
         const owned_id = try self.allocator.dupe(u8, agent_id);
         errdefer self.allocator.free(owned_id);
@@ -230,8 +231,8 @@ pub const ChannelRegistry = struct {
     }
 
     pub fn removeMember(self: *ChannelRegistry, name: []const u8, agent_id: []const u8) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const ch = self.map.getPtr(name) orelse return error.ChannelNotFound;
         if (ch.members.fetchRemove(agent_id)) |kv| {
             self.allocator.free(kv.key);
@@ -259,16 +260,16 @@ pub const ChannelRegistry = struct {
     }
 
     pub fn isMember(self: *ChannelRegistry, name: []const u8, agent_id: []const u8) bool {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const ch = self.map.get(name) orelse return false;
         return ch.members.contains(agent_id);
     }
 
     /// Return duped member ID strings. Caller owns both slice and each string.
     pub fn getMembers(self: *ChannelRegistry, name: []const u8, allocator: Allocator) ![][]const u8 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const ch = self.map.get(name) orelse return error.ChannelNotFound;
         const count = ch.members.count();
         const slice = try allocator.alloc([]const u8, count);
@@ -286,8 +287,8 @@ pub const ChannelRegistry = struct {
 
     /// Remove an agent from all channels, returning channel names it was in.
     pub fn removeFromAll(self: *ChannelRegistry, agent_id: []const u8, allocator: Allocator) ![][]const u8 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         var affected = std.ArrayList([]const u8).empty;
         var it = self.map.iterator();
         while (it.next()) |entry| {
@@ -312,8 +313,8 @@ pub const ChannelRegistry = struct {
 
     /// List channels an agent is a member of. Returns duped channel names.
     pub fn channelsFor(self: *ChannelRegistry, agent_id: []const u8, allocator: Allocator) ![][]const u8 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         var result = std.ArrayList([]const u8).empty;
         var it = self.map.iterator();
         while (it.next()) |entry| {
@@ -339,13 +340,13 @@ pub const LogEntry = struct {
 
 pub const MessageLog = struct {
     entries: std.ArrayList(LogEntry),
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
     max_entries: usize,
 
     pub fn init(max_entries: usize) MessageLog {
         return .{
             .entries = std.ArrayList(LogEntry).empty,
-            .mutex = .{},
+            .mutex = .init,
             .max_entries = max_entries,
         };
     }
@@ -366,8 +367,8 @@ pub const MessageLog = struct {
 
     /// Append a log entry, duping all strings so the entry outlives the caller's arena.
     pub fn append(self: *MessageLog, allocator: Allocator, entry: LogEntry) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         const owned = LogEntry{
             .from = try allocator.dupe(u8, entry.from),
             .to = try allocator.dupe(u8, entry.to),
@@ -398,7 +399,7 @@ pub const HubState = struct {
     /// Connections outlive their reader/writer threads to prevent use-after-free
     /// when a cross-agent enqueue races with disconnect cleanup.
     all_connections: std.ArrayList(*Connection),
-    all_connections_mutex: std.Thread.Mutex,
+    all_connections_mutex: std.Io.Mutex,
 
     pub fn init(allocator: Allocator) HubState {
         return .{
@@ -408,7 +409,7 @@ pub const HubState = struct {
             .message_log = MessageLog.init(10_000),
             .allocator = allocator,
             .all_connections = std.ArrayList(*Connection).empty,
-            .all_connections_mutex = .{},
+            .all_connections_mutex = .init,
         };
     }
 

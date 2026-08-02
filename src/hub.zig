@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_mod = @import("io");
 const json = std.json;
 const protocol = @import("protocol");
 
@@ -23,6 +24,7 @@ comptime {
 // ---------------------------------------------------------------------------
 
 pub fn main() !void {
+    io_mod.install(io_mod.get()); // standalone entry: default testing-style Io is not available; install a thread-safe instance
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
@@ -41,8 +43,7 @@ test "HubServer.init succeeds and listener is bound" {
     defer server.deinit();
 
     // Verify the listener is bound by checking its address port is non-zero.
-    const addr = server.listener.listen_address;
-    try std.testing.expect(addr.getPort() != 0);
+    try std.testing.expect(server.bound_port != 0);
 }
 
 test "HubServer.registeredAgents returns empty list initially" {
@@ -70,8 +71,8 @@ test "list_agents response envelope fields" {
         try arr.append(.{ .string = id });
     }
 
-    var obj = std.json.ObjectMap.init(alloc);
-    try obj.put("agents", .{ .array = arr });
+    var obj = std.json.ObjectMap.empty;
+    try obj.put(alloc, "agents", .{ .array = arr });
 
     const resp_envelope = protocol.Envelope{
         .@"type" = "response",

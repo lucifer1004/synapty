@@ -16,9 +16,9 @@ Native macOS GUI application — a graphical terminal multiplexer with built-in 
 **V1 defers:** L2 full orchestration cockpit, L3 terminal introspection (2D DOM export to agents), OSC-to-A2A bridging, WebSocket framing, capability-based discovery, failure tolerance, encryption, cross-platform (Linux/Windows).
 
 ## Technology Stack
-- **Language:** Zig 0.15.x (core engine, daemon, CLI, protocol) + Swift (macOS GUI layer)
+- **Language:** Zig 0.16.x (core engine, daemon, CLI, protocol) + Swift (macOS GUI layer)
 - **VT Engine:** libghostty via GhosttyKit xcframework — used in V1 for terminal pane rendering. Build: `cd ghostty && zig build -Demit-xcframework=true -Dxcframework-target=universal -Doptimize=ReleaseFast`
-- **Network:** Raw TCP with JSON envelopes (V1). WebSocket upgrade is V2.
+- **Network:** Raw TCP with JSON envelopes (V1) via a thin POSIX wrapper (`src/sys.zig`) — Zig 0.16 removed `std.net` and `std.Io.net` does not support unix sockets, so Synapty uses `std.posix.system` directly (see src/sys.zig header comment). WebSocket upgrade is V2.
 - **GUI:** macOS native (Metal rendering). Swift + Xcode project linked to GhosttyKit xcframework via C bridging header.
 - **Dependencies:** Zero external runtime deps beyond libghostty. Zig std library + Ghostty submodule.
 
@@ -32,24 +32,26 @@ Native macOS GUI application — a graphical terminal multiplexer with built-in 
 - Tasks can be tough but you should never over-simplify or evade problems. You should find root cause and fix.
 
 ## Dev Environment
-Managed by `devenv` (Nix-based). Provides: Zig 0.15.x, jj, govctl.
+Zig is installed via Homebrew (`brew install zig`, 0.16.x). `jj` and `just` are also available via Homebrew; `govctl` via Cargo.
 ```sh
-devenv shell           # enter dev environment with all tools pinned
+just build             # zig build (all Zig executables)
+just test              # zig build test
 ```
-Prerequisites not managed by devenv: Xcode (install from App Store).
+Prerequisites: Xcode (install from the App Store) is required for macOS SDK headers/linking and GUI builds.
+Note: the legacy Nix-based `devenv` setup is no longer used (Nix was removed from this machine); the stale `.devenv/` directory and `devenv.yaml`/`devenv.nix` remain only as historical references.
 
 ## Build
 ```sh
-# Zig core (daemon, CLI, protocol)
-zig build              # build all Zig executables
-zig build daemon       # build synapty-daemon only
+# Zig core — single unified binary [[ADR-0004]]: hub/daemon/CLI subcommands
+zig build              # build the synapty binary
 zig build test         # run all tests
+zig build deploy-all   # cross-compile deploy targets (linux musl + macOS)
 
 # GhosttyKit xcframework (from Ghostty submodule)
 cd ghostty && zig build -Demit-xcframework=true -Dxcframework-target=universal -Doptimize=ReleaseFast
 
 # macOS GUI app (Xcode)
-xcodebuild -project Synapty.xcodeproj -scheme Synapty -configuration Debug build
+just app               # xcodegen + xcodebuild (Debug)
 ```
 
 ## Project Structure

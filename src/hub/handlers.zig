@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const protocol = @import("protocol");
@@ -15,10 +16,10 @@ const log = std.log.scoped(.hub);
 
 /// Send a response envelope by enqueueing it into the sender's Connection.
 pub fn sendResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
-    var payload_obj = json.ObjectMap.init(arena);
-    try payload_obj.put("ok", .{ .bool = ok });
-    if (data) |d| try payload_obj.put("data", d);
-    if (err_msg) |e| try payload_obj.put("error", .{ .string = e });
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(arena, "ok", .{ .bool = ok });
+    if (data) |d| try payload_obj.put(arena, "data", d);
+    if (err_msg) |e| try payload_obj.put(arena, "error", .{ .string = e });
 
     const resp = protocol.Envelope{
         .@"type" = "response",
@@ -39,18 +40,18 @@ pub fn handleListAgents(state: *HubState, arena: Allocator, conn: *Connection, r
 
     var arr = json.Array.init(arena);
     for (agent_ids) |id| {
-        var agent_obj = json.ObjectMap.init(arena);
-        try agent_obj.put("id", .{ .string = id });
+        var agent_obj = json.ObjectMap.empty;
+        try agent_obj.put(arena, "id", .{ .string = id });
         const info = state.agent_registry.get(id, arena);
-        try agent_obj.put("tool", .{ .string = if (info) |i| i.tool orelse "-" else "-" });
-        try agent_obj.put("project", .{ .string = if (info) |i| i.project orelse "-" else "-" });
-        try agent_obj.put("session", .{ .string = if (info) |i| i.session orelse "-" else "-" });
+        try agent_obj.put(arena, "tool", .{ .string = if (info) |i| i.tool orelse "-" else "-" });
+        try agent_obj.put(arena, "project", .{ .string = if (info) |i| i.project orelse "-" else "-" });
+        try agent_obj.put(arena, "session", .{ .string = if (info) |i| i.session orelse "-" else "-" });
         try arr.append(.{ .object = agent_obj });
     }
 
-    var data_obj = json.ObjectMap.init(arena);
-    try data_obj.put("ok", .{ .bool = true });
-    try data_obj.put("agents", .{ .array = arr });
+    var data_obj = json.ObjectMap.empty;
+    try data_obj.put(arena, "ok", .{ .bool = true });
+    try data_obj.put(arena, "agents", .{ .array = arr });
 
     const resp = protocol.Envelope{
         .@"type" = "response",
@@ -107,7 +108,7 @@ pub fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope:
         .to = target,
         .channel = null,
         .text = text,
-        .ts = std.time.timestamp(),
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
     }) catch {};
 
     // Route to target — lookupAndRetain ensures pointer is alive until release.
@@ -193,10 +194,10 @@ pub fn handleChannelInvite(state: *HubState, conn: *Connection, arena: Allocator
     // Notify invited agent.
     if (state.routing_table.lookupAndRetain(agent_id)) |ic| {
         defer ic.release();
-        var evt_payload = json.ObjectMap.init(arena);
-        try evt_payload.put("channel", .{ .string = ch_name });
-        try evt_payload.put("event", .{ .string = "invited" });
-        try evt_payload.put("by", .{ .string = envelope.source });
+        var evt_payload = json.ObjectMap.empty;
+        try evt_payload.put(arena, "channel", .{ .string = ch_name });
+        try evt_payload.put(arena, "event", .{ .string = "invited" });
+        try evt_payload.put(arena, "by", .{ .string = envelope.source });
         ic.enqueueEnvelope(arena, .{
             .@"type" = "channel_event",
             .id = "evt-0",
@@ -233,10 +234,10 @@ pub fn handleChannelLeave(state: *HubState, conn: *Connection, arena: Allocator,
     for (members) |mid| {
         if (state.routing_table.lookupAndRetain(mid)) |member_conn| {
             defer member_conn.release();
-            var evt_payload = json.ObjectMap.init(arena);
-            try evt_payload.put("channel", .{ .string = ch_name });
-            try evt_payload.put("event", .{ .string = "left" });
-            try evt_payload.put("agent_id", .{ .string = envelope.source });
+            var evt_payload = json.ObjectMap.empty;
+            try evt_payload.put(arena, "channel", .{ .string = ch_name });
+            try evt_payload.put(arena, "event", .{ .string = "left" });
+            try evt_payload.put(arena, "agent_id", .{ .string = envelope.source });
             member_conn.enqueueEnvelope(arena, .{
                 .@"type" = "channel_event",
                 .id = "evt-0",
@@ -284,7 +285,7 @@ pub fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, e
         .to = target,
         .channel = ch_name,
         .text = text,
-        .ts = std.time.timestamp(),
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
     }) catch {};
 
     // Fan-out to connected members except sender.
@@ -314,14 +315,14 @@ pub fn handleListChannels(state: *HubState, conn: *Connection, arena: Allocator,
 
     var arr = json.Array.init(arena);
     for (channels) |ch_name| {
-        var ch_obj = json.ObjectMap.init(arena);
-        try ch_obj.put("name", .{ .string = ch_name });
+        var ch_obj = json.ObjectMap.empty;
+        try ch_obj.put(arena, "name", .{ .string = ch_name });
         try arr.append(.{ .object = ch_obj });
     }
 
-    var data_obj = json.ObjectMap.init(arena);
-    try data_obj.put("ok", .{ .bool = true });
-    try data_obj.put("channels", .{ .array = arr });
+    var data_obj = json.ObjectMap.empty;
+    try data_obj.put(arena, "ok", .{ .bool = true });
+    try data_obj.put(arena, "channels", .{ .array = arr });
 
     const resp = protocol.Envelope{
         .@"type" = "response",
@@ -366,7 +367,7 @@ pub fn dispatchEnvelope(state: *HubState, arena: Allocator, conn: *Connection, a
         // while a response was being written — expected during concurrent
         // shutdown, not a bug.
         switch (err) {
-            error.BrokenPipe, error.ConnectionResetByPeer, error.NotOpenForWriting, error.ConnectionClosed => {},
+            error.BrokenPipe, error.ConnectionResetByPeer, error.ConnectionClosed => {},
             else => log.warn("{s} handler failed for {s}: {any}", .{ msg_type, agent_id, err }),
         }
     };
@@ -378,7 +379,7 @@ pub fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, conn:
     var start: usize = 0;
     while (mem.indexOfScalar(u8, line_buf[start..filled.*], '\n')) |rel| {
         const end = start + rel;
-        const raw = mem.trimRight(u8, line_buf[start..end], "\r ");
+        const raw = mem.trimEnd(u8, line_buf[start..end], "\r ");
         start = end + 1;
         if (raw.len == 0) continue;
 

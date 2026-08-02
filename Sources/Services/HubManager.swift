@@ -1,9 +1,9 @@
 import Foundation
 import AppKit
 
-/// Manages the synapty-hub subprocess lifecycle.
-/// Auto-detects existing Hub at launch, starts one if needed,
-/// captures logs, and monitors health.
+/// Manages the Hub subprocess lifecycle (the unified `synapty hub`
+/// subcommand per [[ADR-0004]]). Auto-detects an existing Hub at launch,
+/// starts one if needed, captures logs, and monitors health.
 @MainActor final class HubManager: ObservableObject {
 
     enum HubStatus: Equatable {
@@ -38,11 +38,11 @@ import AppKit
 
     private func hubBinaryPath() -> String? {
         // Bundled in .app
-        if let bundled = Bundle.main.path(forResource: "synapty-hub", ofType: nil) {
+        if let bundled = Bundle.main.path(forResource: "synapty", ofType: nil) {
             return bundled
         }
         // Dev fallback
-        let devPath = "zig-out/bin/synapty-hub"
+        let devPath = "zig-out/bin/synapty"
         if FileManager.default.fileExists(atPath: devPath) {
             return devPath
         }
@@ -87,8 +87,8 @@ import AppKit
 
     func launchHub() {
         guard let binary = hubBinaryPath() else {
-            status = .failed("synapty-hub binary not found")
-            appendLog("Error: synapty-hub binary not found")
+            status = .failed("synapty binary not found")
+            appendLog("Error: synapty binary not found")
             return
         }
 
@@ -97,7 +97,9 @@ import AppKit
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binary)
+        // Hub runs as the `hub` subcommand of the unified binary ([[ADR-0004]]).
         // Hub currently uses hardcoded port 9000. Future: pass --port flag.
+        proc.arguments = ["hub"]
 
         let pipe = Pipe()
         proc.standardOutput = pipe

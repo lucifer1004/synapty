@@ -5,21 +5,21 @@ default: build
 
 # Build all Zig executables (hub, daemon, cli)
 build:
-    devenv shell -- zig build
+    zig build
 
 # Build individual targets
 hub:
-    devenv shell -- zig build hub
+    zig build hub
 
 daemon:
-    devenv shell -- zig build daemon
+    zig build daemon
 
 cli:
-    devenv shell -- zig build cli
+    zig build cli
 
 # Run all Zig tests
 test:
-    devenv shell -- zig build test
+    zig build test
 
 # Build GhosttyKit xcframework from submodule
 ghosttykit:
@@ -50,25 +50,29 @@ all: build ghosttykit app
 
 # Governance
 gov-check:
-    devenv shell -- govctl check
+    govctl check
 
 gov-render:
-    devenv shell -- govctl render
+    govctl render
 
 gov-status:
-    devenv shell -- govctl status
+    govctl status
 
-# Enter dev environment
+# Enter dev environment (legacy Nix devenv — no longer maintained)
 dev:
     devenv shell
 
 # Cross-compile all deploy targets
 deploy-all:
-    devenv shell -- zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 deploy-macos-aarch64 deploy-macos-x86_64
+    zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 deploy-macos-aarch64 deploy-macos-x86_64
+
+# Build and test with the Homebrew zig toolchain
+check:
+    zig build
+    zig build test
 
 # Package a universal macOS installer DMG with the GUI app and all deploy targets.
-# xcodebuild runs natively (not through devenv) to avoid Nix linker conflicts.
-# Zig cross-compile runs natively too (zig must be on PATH or use `devenv shell -- just deploy-all` first).
+# xcodebuild runs natively. Zig cross-compile runs natively too (zig on PATH).
 package:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -81,8 +85,8 @@ package:
     xcodebuild -project Synapty.xcodeproj -scheme Synapty -configuration Release \
         -destination 'platform=macOS' build
 
-    echo "==> Cross-compiling deploy targets (via devenv for Nix zig)..."
-    devenv shell -- zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 \
+    echo "==> Cross-compiling deploy targets..."
+    zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 \
         deploy-macos-aarch64 deploy-macos-x86_64
 
     echo "==> Assembling DMG staging area..."

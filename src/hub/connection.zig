@@ -1,47 +1,48 @@
 const std = @import("std");
-const net = std.net;
+const sys = @import("sys");
+const io_mod = @import("io");
 const mem = std.mem;
 const protocol = @import("protocol");
 const Allocator = mem.Allocator;
 
 // ---------------------------------------------------------------------------
-// Connection — owns stream + outbound queue with dedicated writer thread
+// Connection — owns fd + outbound queue with dedicated writer thread
 // ---------------------------------------------------------------------------
 
 pub const Connection = struct {
-    stream: net.Stream,
+    fd: sys.fd_t,
     allocator: Allocator,
     /// Opaque context pointer passed to release_fn on final release.
     release_ctx: *anyopaque,
     /// Called on final release (ref_count hits 0) to remove from tracking,
-    /// close the stream, and free the Connection. Decouples Connection from
+    /// close the fd, and free the Connection. Decouples Connection from
     /// HubState internals — no raw pointer to the connection list.
     release_fn: *const fn (*anyopaque, *Connection) void,
     outbound: std.ArrayListUnmanaged([]const u8),
-    mutex: std.Thread.Mutex,
-    cond: std.Thread.Condition,
+    mutex: std.Io.Mutex,
+    cond: std.Io.Condition,
     closed: bool,
-    stream_closed: bool,
+    fd_closed: bool,
     /// Atomic reference count. Starts at 1 (reader thread owns).
     /// Cross-agent lookups retain temporarily; release frees when count hits 0.
     ref_count: std.atomic.Value(u32),
 
     pub fn init(
         allocator: Allocator,
-        stream: net.Stream,
+        fd: sys.fd_t,
         release_ctx: *anyopaque,
         release_fn: *const fn (*anyopaque, *Connection) void,
     ) Connection {
         return .{
-            .stream = stream,
+            .fd = fd,
             .allocator = allocator,
             .release_ctx = release_ctx,
             .release_fn = release_fn,
             .outbound = .empty,
-            .mutex = .{},
-            .cond = .{},
+            .mutex = .init,
+            .cond = .init,
             .closed = false,
-            .stream_closed = false,
+            .fd_closed = false,
             .ref_count = std.atomic.Value(u32).init(1),
         };
     }
@@ -49,14 +50,14 @@ pub const Connection = struct {
     pub fn deinit(self: *Connection) void {
         for (self.outbound.items) |item| self.allocator.free(item);
         self.outbound.deinit(self.allocator);
-        if (!self.stream_closed) self.stream.close();
+        if (!self.fd_closed) sys.close(self.fd);
     }
 
-    /// Close the stream (e.g. on spawn failure). Prevents double-close in deinit.
+    /// Close the fd (e.g. on spawn failure). Prevents double-close in deinit.
     pub fn closeStream(self: *Connection) void {
-        if (!self.stream_closed) {
-            self.stream.close();
-            self.stream_closed = true;
+        if (!self.fd_closed) {
+            sys.close(self.fd);
+            self.fd_closed = true;
         }
     }
 
@@ -66,7 +67,7 @@ pub const Connection = struct {
     }
 
     /// Decrement reference count. When it hits 0, invoke release_fn which
-    /// removes from tracking, closes the stream, and frees the Connection.
+    /// removes from tracking, closes the fd, and frees the Connection.
     pub fn release(self: *Connection) void {
         if (self.ref_count.fetchSub(1, .acq_rel) == 1) {
             self.release_fn(self.release_ctx, self);
@@ -77,9 +78,10 @@ pub const Connection = struct {
     /// Duplicates data into owned storage.
     /// Returns error.ConnectionClosed if the connection is already closing.
     pub fn enqueue(self: *Connection, data: []const u8) error{ ConnectionClosed, OutOfMemory }!void {
+        const io = io_mod.get();
         const copy = try self.allocator.dupe(u8, data);
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io) catch unreachable;
+        defer self.mutex.unlock(io);
         if (self.closed) {
             self.allocator.free(copy);
             return error.ConnectionClosed;
@@ -88,7 +90,7 @@ pub const Connection = struct {
             self.allocator.free(copy);
             return err;
         };
-        self.cond.signal();
+        self.cond.signal(io);
     }
 
     /// Serialize envelope, append newline, and enqueue atomically.
@@ -103,10 +105,11 @@ pub const Connection = struct {
 
     /// Signal the writer thread to drain and stop.
     pub fn shutdown(self: *Connection) void {
-        self.mutex.lock();
+        const io = io_mod.get();
+        self.mutex.lock(io) catch unreachable;
         self.closed = true;
-        self.cond.signal();
-        self.mutex.unlock();
+        self.cond.signal(io);
+        self.mutex.unlock(io);
     }
 };
 
@@ -114,13 +117,14 @@ pub const Connection = struct {
 /// Poisons the connection (closed=true) under the mutex at every exit point
 /// so enqueue() never accepts a message after the writer has decided to stop.
 pub fn writerThread(conn: *Connection) void {
+    const io = io_mod.get();
     while (true) {
         var batch: [][]const u8 = &.{};
         {
-            conn.mutex.lock();
-            defer conn.mutex.unlock();
+            conn.mutex.lock(io) catch unreachable;
+            defer conn.mutex.unlock(io);
             while (conn.outbound.items.len == 0 and !conn.closed) {
-                conn.cond.wait(&conn.mutex);
+                conn.cond.wait(io, &conn.mutex) catch unreachable;
             }
             if (conn.closed and conn.outbound.items.len == 0) break;
             batch = conn.outbound.toOwnedSlice(conn.allocator) catch {
@@ -132,7 +136,7 @@ pub fn writerThread(conn: *Connection) void {
         var write_failed = false;
         for (batch) |item| {
             if (!write_failed) {
-                conn.stream.writeAll(item) catch {
+                sys.writeAll(conn.fd, item) catch {
                     write_failed = true;
                 };
             }
@@ -141,9 +145,9 @@ pub fn writerThread(conn: *Connection) void {
         conn.allocator.free(batch);
         if (write_failed) {
             // Poison under lock so no new enqueues are accepted.
-            conn.mutex.lock();
+            conn.mutex.lock(io) catch unreachable;
             conn.closed = true;
-            conn.mutex.unlock();
+            conn.mutex.unlock(io);
             break;
         }
     }

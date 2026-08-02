@@ -28,3 +28,8 @@ devenv.local.yaml
 
 # pre-commit
 .pre-commit-config.yaml
+
+# Zig caches (all variants)
+.zig-cache*/
+.zig-global-cache*/
+zig-pkg/

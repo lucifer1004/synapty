@@ -6,43 +6,74 @@ const ModuleSet = struct {
     ipc: *std.Build.Module,
     run: *std.Build.Module,
     mcp: *std.Build.Module,
+    /// Process-wide Io instance (Zig 0.16).
+    io: *std.Build.Module,
+    /// POSIX socket/fd bindings (replaces removed std.net).
+    sys: *std.Build.Module,
 };
 
 /// Create the full set of shared modules for a given target and optimize level.
+/// All modules link libc: macOS requires it for the posix socket layer
+/// (std.posix.system = std.c), and Linux/musl deploy targets link zig's
+/// bundled libc, keeping the socket API uniform ([[ADR-0004]]).
 fn createModuleSet(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) ModuleSet {
+    const io = b.createModule(.{
+        .root_source_file = b.path("src/io.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    const sys = b.createModule(.{
+        .root_source_file = b.path("src/sys.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
     const protocol = b.createModule(.{
         .root_source_file = b.path("src/protocol.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
     const ipc = b.createModule(.{
         .root_source_file = b.path("src/ipc.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "io", .module = io },
+            .{ .name = "sys", .module = sys },
+        },
     });
     const run = b.createModule(.{
         .root_source_file = b.path("src/run.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{ .name = "protocol", .module = protocol },
             .{ .name = "ipc", .module = ipc },
+            .{ .name = "io", .module = io },
+            .{ .name = "sys", .module = sys },
         },
     });
     const mcp = b.createModule(.{
         .root_source_file = b.path("src/mcp.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{ .name = "protocol", .module = protocol },
             .{ .name = "ipc", .module = ipc },
+            .{ .name = "io", .module = io },
+            .{ .name = "sys", .module = sys },
         },
     });
-    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp };
+    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp, .io = io, .sys = sys };
 }
 
 pub fn build(b: *std.Build) void {
@@ -70,8 +101,11 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/hub.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "io", .module = mods.io },
+            .{ .name = "sys", .module = mods.sys },
         },
     });
 
@@ -86,6 +120,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/cli.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "ipc", .module = mods.ipc },
@@ -93,6 +128,8 @@ pub fn build(b: *std.Build) void {
             .{ .name = "mcp", .module = mods.mcp },
             .{ .name = "hub", .module = hub_mod },
             .{ .name = "clap", .module = clap_mod },
+            .{ .name = "io", .module = mods.io },
+            .{ .name = "sys", .module = mods.sys },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -128,6 +165,8 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
             .imports = &.{
                 .{ .name = "protocol", .module = deploy_mods.protocol },
+                .{ .name = "io", .module = deploy_mods.io },
+                .{ .name = "sys", .module = deploy_mods.sys },
             },
         });
         const deploy_cli_mod = b.createModule(.{
@@ -141,6 +180,8 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "mcp", .module = deploy_mods.mcp },
                 .{ .name = "hub", .module = deploy_hub_mod },
                 .{ .name = "clap", .module = clap_mod },
+                .{ .name = "io", .module = deploy_mods.io },
+                .{ .name = "sys", .module = deploy_mods.sys },
             },
         });
         const deploy_exe = b.addExecutable(.{
@@ -162,21 +203,35 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run all unit tests");
 
-    // Standalone module tests (no imports)
-    inline for (.{ "protocol", "ipc" }) |name| {
-        addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{}, target, optimize);
-    }
+    // protocol: no imports
+    addTestModule(b, test_step, "src/protocol.zig", &.{}, target, optimize);
 
-    // hub: protocol
-    addTestModule(b, test_step, "src/hub.zig", &.{
-        .{ .name = "protocol", .module = mods.protocol },
+    // ipc: io + sys
+    addTestModule(b, test_step, "src/ipc.zig", &.{
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "sys", .module = mods.sys },
     }, target, optimize);
 
-    // run and mcp: protocol + ipc
+    // hub: protocol + io + sys
+    addTestModule(b, test_step, "src/hub.zig", &.{
+        .{ .name = "protocol", .module = mods.protocol },
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "sys", .module = mods.sys },
+    }, target, optimize);
+
+    // daemon: io + run
+    addTestModule(b, test_step, "src/daemon.zig", &.{
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "run", .module = mods.run },
+    }, target, optimize);
+
+    // run and mcp: protocol + ipc + io + sys
     inline for (.{ "run", "mcp" }) |name| {
         addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "ipc", .module = mods.ipc },
+            .{ .name = "io", .module = mods.io },
+            .{ .name = "sys", .module = mods.sys },
         }, target, optimize);
     }
 
@@ -185,8 +240,11 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/hub.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{ .name = "protocol", .module = mods.protocol },
+            .{ .name = "io", .module = mods.io },
+            .{ .name = "sys", .module = mods.sys },
         },
     });
     addTestModule(b, test_step, "src/e2e_test.zig", &.{
@@ -194,6 +252,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "ipc", .module = mods.ipc },
         .{ .name = "run", .module = mods.run },
         .{ .name = "hub", .module = hub_module },
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "sys", .module = mods.sys },
     }, target, optimize);
 
     // cli: protocol + ipc + run + mcp + hub + clap
@@ -204,6 +264,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "mcp", .module = mods.mcp },
         .{ .name = "hub", .module = hub_mod },
         .{ .name = "clap", .module = clap_mod },
+        .{ .name = "io", .module = mods.io },
+        .{ .name = "sys", .module = mods.sys },
     }, target, optimize);
 }
 
@@ -225,6 +287,7 @@ fn addTestModule(
         .root_source_file = b.path(root),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = imports,
     });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = mod })).step);

@@ -1,4 +1,6 @@
 const std = @import("std");
+const sys = @import("sys");
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const builtin = @import("builtin");
@@ -20,7 +22,7 @@ pub const McpServer = struct {
     /// 1. SYNAPTY_SOCK env var (set by `synapty run`)
     /// 2. Process-tree walk: check /tmp/synapty-<ancestor-pid>.sock
     pub fn init(allocator: Allocator) McpServer {
-        const sock = std.posix.getenv("SYNAPTY_SOCK") orelse discoverSocket(allocator);
+        const sock = sys.getenv("SYNAPTY_SOCK") orelse discoverSocket(allocator);
         if (sock) |s| {
             log.info("using IPC socket: {s}", .{s});
         } else {
@@ -34,15 +36,15 @@ pub const McpServer = struct {
 
     /// Main I/O loop: read stdin line by line, dispatch, write stdout.
     pub fn run(self: *McpServer) !void {
-        const stdin = std.fs.File.stdin();
-        const stdout = std.fs.File.stdout();
+        const stdout = std.Io.File.stdout();
+        const io = io_mod.get();
 
         var buf: [64 * 1024]u8 = undefined;
         var filled: usize = 0;
 
         while (true) {
-            // Read more bytes into the buffer.
-            const n = try stdin.read(buf[filled..]);
+            // Read more bytes into the buffer (stdin is fd 0).
+            const n = try sys.read(0, buf[filled..]);
             if (n == 0) break; // EOF
             filled += n;
 
@@ -61,8 +63,8 @@ pub const McpServer = struct {
                 };
                 if (resp) |r| {
                     defer self.allocator.free(r);
-                    try stdout.writeAll(r);
-                    try stdout.writeAll("\n");
+                    try stdout.writeStreamingAll(io, r);
+                    try stdout.writeStreamingAll(io, "\n");
                 }
             }
 
@@ -402,15 +404,44 @@ fn getParentPid(pid: i32) ?i32 {
 }
 
 // -- macOS: use proc_pidinfo(PROC_PIDTBSDINFO) from libproc ----------------
+// Direct extern bindings (no @cImport) — zig 0.16's translate-c cannot
+// instantiate the mach_msg_* types pulled in by libproc.h.
 
-const darwin = if (builtin.os.tag == .macos) @cImport({
-    @cInclude("libproc.h");
-    @cInclude("sys/proc_info.h");
-}) else struct {};
+const darwin = if (builtin.os.tag == .macos) struct {
+    pub const PROC_PIDTBSDINFO: c_int = 3;
+
+    /// struct proc_bsdinfo from <sys/proc_info.h>.
+    pub const proc_bsdinfo = extern struct {
+        pbi_flags: u32,
+        pbi_status: u32,
+        pbi_xstatus: u32,
+        pbi_pid: u32,
+        pbi_ppid: u32,
+        pbi_uid: u32,
+        pbi_gid: u32,
+        pbi_ruid: u32,
+        pbi_rgid: u32,
+        pbi_svuid: u32,
+        pbi_svgid: u32,
+        rfu_1: u32,
+        pbi_comm: [16]u8, // MAXCOMLEN
+        pbi_name: [32]u8, // 2 * MAXCOMLEN
+        pbi_nfiles: u32,
+        pbi_pgid: u32,
+        pbi_pjobc: u32,
+        e_tdev: u32,
+        e_tpgid: u32,
+        pbi_nice: i32,
+        pbi_start_tvsec: u64,
+        pbi_start_tvusec: u64,
+    };
+
+    pub extern "c" fn proc_pidinfo(pid: c_int, flavor: c_int, arg: u64, buffer: *anyopaque, buffersize: c_int) c_int;
+} else struct {};
 
 fn getParentPidDarwin(pid: i32) ?i32 {
-    var info: darwin.struct_proc_bsdinfo = undefined;
-    const size: c_int = @intCast(@sizeOf(darwin.struct_proc_bsdinfo));
+    var info: darwin.proc_bsdinfo = undefined;
+    const size: c_int = @intCast(@sizeOf(darwin.proc_bsdinfo));
     const ret = darwin.proc_pidinfo(pid, darwin.PROC_PIDTBSDINFO, 0, &info, size);
     if (ret < size) return null;
 
@@ -426,11 +457,11 @@ fn getParentPidLinux(pid: i32) ?i32 {
     var path_buf: [32]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buf, "/proc/{d}/stat", .{pid}) catch return null;
 
-    var file = std.fs.cwd().openFile(path, .{}) catch return null;
-    defer file.close();
+    const file = std.Io.Dir.cwd().openFile(io_mod.get(), path, .{}) catch return null;
+    defer file.close(io_mod.get());
 
     var stat_buf: [512]u8 = undefined;
-    const n = file.read(&stat_buf) catch return null;
+    const n = sys.read(file.handle, &stat_buf) catch return null;
     if (n == 0) return null;
 
     const data = stat_buf[0..n];
@@ -533,7 +564,7 @@ test "handleRequest: tools/call synapty_send builds correct IPC request" {
     // socket server that echoes back a canned IPC response.
     const allocator = std.testing.allocator;
     const sock_path = "/tmp/synapty-mcp-test-send.sock";
-    std.posix.unlink(sock_path) catch {};
+    sys.unlink(sock_path);
 
     var server = try ipc.IpcServer.init(sock_path);
     defer server.deinit();
@@ -543,7 +574,7 @@ test "handleRequest: tools/call synapty_send builds correct IPC request" {
     const thread = try Thread.spawn(.{}, struct {
         fn serve(srv: *ipc.IpcServer, alloc: Allocator) !void {
             const conn = try srv.accept();
-            defer conn.close();
+            defer sys.close(conn);
             var buf: [4096]u8 = undefined;
             const line = (try ipc.IpcServer.readLine(conn, &buf)) orelse return;
             // Verify the IPC request
@@ -573,7 +604,7 @@ test "handleRequest: tools/call synapty_send builds correct IPC request" {
 test "handleRequest: tools/call synapty_recv builds correct IPC request" {
     const allocator = std.testing.allocator;
     const sock_path = "/tmp/synapty-mcp-test-recv.sock";
-    std.posix.unlink(sock_path) catch {};
+    sys.unlink(sock_path);
 
     var server = try ipc.IpcServer.init(sock_path);
     defer server.deinit();
@@ -582,7 +613,7 @@ test "handleRequest: tools/call synapty_recv builds correct IPC request" {
     const thread = try Thread.spawn(.{}, struct {
         fn serve(srv: *ipc.IpcServer, alloc: Allocator) !void {
             const conn = try srv.accept();
-            defer conn.close();
+            defer sys.close(conn);
             var buf: [4096]u8 = undefined;
             const line = (try ipc.IpcServer.readLine(conn, &buf)) orelse return;
             var parsed = try protocol.parseIpcRequest(alloc, line);
@@ -607,7 +638,7 @@ test "handleRequest: tools/call synapty_recv builds correct IPC request" {
 test "handleRequest: tools/call synapty_agents builds correct IPC request" {
     const allocator = std.testing.allocator;
     const sock_path = "/tmp/synapty-mcp-test-agents.sock";
-    std.posix.unlink(sock_path) catch {};
+    sys.unlink(sock_path);
 
     var server = try ipc.IpcServer.init(sock_path);
     defer server.deinit();
@@ -616,7 +647,7 @@ test "handleRequest: tools/call synapty_agents builds correct IPC request" {
     const thread = try Thread.spawn(.{}, struct {
         fn serve(srv: *ipc.IpcServer, alloc: Allocator) !void {
             const conn = try srv.accept();
-            defer conn.close();
+            defer sys.close(conn);
             var buf: [4096]u8 = undefined;
             const line = (try ipc.IpcServer.readLine(conn, &buf)) orelse return;
             var parsed = try protocol.parseIpcRequest(alloc, line);

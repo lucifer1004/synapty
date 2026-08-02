@@ -1,4 +1,5 @@
 const std = @import("std");
+const sys = @import("sys");
 const mem = std.mem;
 const log = std.log.scoped(.hub);
 const protocol = @import("protocol");
@@ -25,7 +26,7 @@ pub const ReaderArgs = struct {
 pub fn readerThread(args: ReaderArgs) void {
     const state = args.state;
     const conn = args.conn;
-    const stream = conn.stream;
+    const fd = conn.fd;
     // Release the reader's reference when done. If no cross-agent enqueue is
     // in flight, this frees the Connection. Otherwise the last release() frees.
     defer conn.release();
@@ -50,7 +51,7 @@ pub fn readerThread(args: ReaderArgs) void {
                 log.err("initial message exceeds buffer", .{});
                 return;
             }
-            const n = stream.read(line_buf[filled..]) catch |err| {
+            const n = sys.read(fd, line_buf[filled..]) catch |err| {
                 log.err("read error on initial message: {any}", .{err});
                 return;
             };
@@ -59,7 +60,7 @@ pub fn readerThread(args: ReaderArgs) void {
 
             // Check for a complete first line.
             if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
-                const first_line = mem.trimRight(u8, line_buf[0..nl], "\r ");
+                const first_line = mem.trimEnd(u8, line_buf[0..nl], "\r ");
                 if (first_line.len == 0) return;
 
                 // Parse with conn_arena so agent_id survives the connection.
@@ -118,9 +119,9 @@ pub fn readerThread(args: ReaderArgs) void {
             log.err("message from {s} exceeds buffer", .{agent_id});
             break;
         }
-        const n = stream.read(line_buf[filled..]) catch |err| {
+        const n = sys.read(fd, line_buf[filled..]) catch |err| {
             switch (err) {
-                error.ConnectionResetByPeer, error.BrokenPipe => {},
+                error.ConnectionResetByPeer => {},
                 else => log.warn("read error from {s}: {any}", .{ agent_id, err }),
             }
             break;

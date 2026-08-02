@@ -1,5 +1,6 @@
 const std = @import("std");
-const net = std.net;
+const sys = @import("sys");
+const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
 const posix = std.posix;
@@ -13,13 +14,13 @@ const log = std.log.scoped(.run);
 // ---------------------------------------------------------------------------
 
 pub const MessageQueue = struct {
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
     messages: std.ArrayList([]const u8),
     allocator: Allocator,
 
     pub fn init(allocator: Allocator) MessageQueue {
         return .{
-            .mutex = .{},
+            .mutex = .init,
             .messages = std.ArrayList([]const u8).empty,
             .allocator = allocator,
         };
@@ -36,8 +37,8 @@ pub const MessageQueue = struct {
     pub fn push(self: *MessageQueue, msg: []const u8) !void {
         const copy = try self.allocator.dupe(u8, msg);
         errdefer self.allocator.free(copy);
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
         try self.messages.append(self.allocator, copy);
     }
 
@@ -45,8 +46,8 @@ pub const MessageQueue = struct {
     /// Caller owns both the outer slice and each inner string — free each with
     /// allocator.free(item) then allocator.free(slice).
     pub fn drain(self: *MessageQueue, allocator: Allocator) ![][]const u8 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
 
         const count = self.messages.items.len;
         if (count == 0) {
@@ -70,16 +71,16 @@ pub const MessageQueue = struct {
 pub const RunServer = struct {
     allocator: Allocator,
     agent_id: []const u8,
-    hub_stream: net.Stream,
+    hub_fd: sys.fd_t,
     ipc_server: ipc.IpcServer,
     socket_path: []const u8,
     message_queue: MessageQueue,
     running: bool,
     /// Serializes writes to hub_stream (hubReaderThread is the sole reader).
-    hub_write_mutex: std.Thread.Mutex,
+    hub_write_mutex: std.Io.Mutex,
     /// Protects pending_responses — the response mailbox between hubReaderThread
     /// and IPC handlers that need a Hub response.
-    response_mutex: std.Thread.Mutex,
+    response_mutex: std.Io.Mutex,
     pending_responses: std.ArrayList([]const u8),
     /// Monotonic counter for unique envelope IDs (prevents stale-response misrouting).
     next_request_id: u32,
@@ -100,19 +101,24 @@ pub const RunServer = struct {
         errdefer allocator.free(socket_path);
 
         // Remove any stale socket from a prior run.
-        posix.unlink(socket_path) catch {};
+        sys.unlink(socket_path);
 
         // Connect to Hub.
-        const address = try net.Address.parseIp4(hub_addr, hub_port);
-        const hub_stream = try net.tcpConnectToAddress(address);
-        errdefer hub_stream.close();
+        const hub_fd = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+        errdefer sys.close(hub_fd);
+        const addr4 = std.Io.net.Ip4Address.parse(hub_addr, hub_port) catch {
+            sys.close(hub_fd);
+            return error.InvalidHubAddress;
+        };
+        const sa = sys.sockaddr_in.init(@bitCast(addr4.bytes), hub_port);
+        try sys.connect(hub_fd, &sa, @sizeOf(sys.sockaddr_in));
 
         // Send register envelope (newline-terminated for Hub's line framing).
         const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
         const reg_raw = try protocol.serializeEnvelope(allocator, reg);
         defer allocator.free(reg_raw);
-        try hub_stream.writeAll(reg_raw);
-        try hub_stream.writeAll("\n");
+        try sys.writeAll(hub_fd, reg_raw);
+        try sys.writeAll(hub_fd, "\n");
 
         // Bind IPC unix socket.
         const ipc_server = try ipc.IpcServer.init(socket_path);
@@ -124,13 +130,13 @@ pub const RunServer = struct {
         return RunServer{
             .allocator = allocator,
             .agent_id = agent_id,
-            .hub_stream = hub_stream,
+            .hub_fd = hub_fd,
             .ipc_server = ipc_server,
             .socket_path = socket_path,
             .message_queue = MessageQueue.init(allocator),
             .running = false,
-            .hub_write_mutex = .{},
-            .response_mutex = .{},
+            .hub_write_mutex = .init,
+            .response_mutex = .init,
             .pending_responses = std.ArrayList([]const u8).empty,
             .next_request_id = 0,
         };
@@ -139,7 +145,7 @@ pub const RunServer = struct {
     pub fn deinit(self: *RunServer) void {
         for (self.pending_responses.items) |r| self.allocator.free(r);
         self.pending_responses.deinit(self.allocator);
-        self.hub_stream.close();
+        sys.close(self.hub_fd);
         self.ipc_server.deinit();
         self.message_queue.deinit();
         self.allocator.free(self.socket_path);
@@ -149,13 +155,8 @@ pub const RunServer = struct {
     pub fn run(self: *RunServer, child_argv: []const []const u8) !void {
         self.running = true;
 
-        var child = std.process.Child.init(child_argv, self.allocator);
-        child.stdin_behavior = .Inherit;
-        child.stdout_behavior = .Inherit;
-        child.stderr_behavior = .Inherit;
-
         // Build env map inheriting current env then adding our vars.
-        var env_map = try std.process.getEnvMap(self.allocator);
+        var env_map = try buildEnvMap(self.allocator);
         defer env_map.deinit();
         try env_map.put("SYNAPTY_AGENT_ID", self.agent_id);
         try env_map.put("SYNAPTY_SOCK", self.socket_path);
@@ -164,8 +165,10 @@ pub const RunServer = struct {
         // processes (e.g. MCP servers) can find `synapty`.
         // Works for all deployments: dev (zig-out/bin/), bundled (.app/Resources/),
         // and remote (~/.synapty/bin/).
-        var self_exe_buf: [std.fs.max_path_bytes]u8 = undefined;
-        if (std.fs.selfExePath(&self_exe_buf)) |self_exe| {
+        var self_exe_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+        const self_exe_n = std.process.executablePath(io_mod.get(), &self_exe_buf) catch 0;
+        if (self_exe_n > 0) {
+            const self_exe = self_exe_buf[0..self_exe_n];
             if (std.fs.path.dirnamePosix(self_exe)) |exe_dir| {
                 if (env_map.get("PATH")) |existing_path| {
                     const new_path = try std.fmt.allocPrint(self.allocator, "{s}:{s}", .{ exe_dir, existing_path });
@@ -175,10 +178,15 @@ pub const RunServer = struct {
                     try env_map.put("PATH", exe_dir);
                 }
             }
-        } else |_| {}
-        child.env_map = &env_map;
+        }
 
-        try child.spawn();
+        var child = try std.process.spawn(io_mod.get(), .{
+            .argv = child_argv,
+            .stdin = .inherit,
+            .stdout = .inherit,
+            .stderr = .inherit,
+            .environ_map = &env_map,
+        });
 
         // Spawn hub reader thread.
         const hub_thread = try std.Thread.spawn(.{}, hubReaderThread, .{self});
@@ -187,18 +195,18 @@ pub const RunServer = struct {
         const ipc_thread = try std.Thread.spawn(.{}, ipcServerThread, .{self});
 
         // Wait for child to exit.
-        _ = try child.wait();
+        _ = try std.process.Child.wait(&child, io_mod.get());
 
         // Signal threads to stop.
         @atomicStore(bool, &self.running, false, .release);
 
         // Unblock hubReaderThread: shutdown causes read() to return 0/error.
-        posix.shutdown(self.hub_stream.handle, .both) catch {};
+        sys.shutdown(self.hub_fd, sys.SHUT.RDWR);
 
         // Unblock ipcServerThread: dummy connection causes accept() to return.
-        if (net.connectUnixSocket(self.socket_path)) |dummy| {
-            dummy.close();
-        } else |_| {}
+        if (connectUnixDummy(self.socket_path)) |fd| {
+            sys.close(fd);
+        }
 
         hub_thread.join();
         ipc_thread.join();
@@ -218,14 +226,47 @@ pub const RunServer = struct {
     /// Signal threads to stop and join them.
     pub fn stopThreads(self: *RunServer, threads: ThreadHandles) void {
         @atomicStore(bool, &self.running, false, .release);
-        posix.shutdown(self.hub_stream.handle, .both) catch {};
-        if (net.connectUnixSocket(self.socket_path)) |dummy| {
-            dummy.close();
-        } else |_| {}
+        sys.shutdown(self.hub_fd, sys.SHUT.RDWR);
+        if (connectUnixDummy(self.socket_path)) |fd| {
+            sys.close(fd);
+        }
         threads.hub.join();
         threads.ipc.join();
     }
 };
+
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Connect a dummy unix-socket client to unblock the IPC accept loop.
+/// Returns the fd, or null on failure.
+fn connectUnixDummy(socket_path: []const u8) ?sys.fd_t {
+    const fd = sys.socket(sys.AF.UNIX, sys.SOCK.STREAM, 0) catch return null;
+    const addr = sys.sockaddr_un.init(socket_path) orelse {
+        sys.close(fd);
+        return null;
+    };
+    sys.connect(fd, &addr, addr.len()) catch {
+        sys.close(fd);
+        return null;
+    };
+    return fd;
+}
+
+/// Build an env map inheriting the current process environment (libc environ).
+fn buildEnvMap(allocator: Allocator) !std.process.Environ.Map {
+    var env_map = std.process.Environ.Map.init(allocator);
+    // Count entries up to the null sentinel.
+    var count: usize = 0;
+    while (std.c.environ[count]) |_| : (count += 1) {}
+    const block: std.process.Environ.PosixBlock = .{
+        .slice = @ptrCast(std.c.environ[0..count :null]),
+    };
+    try env_map.putPosixBlock(block.view());
+    return env_map;
+}
 
 // ---------------------------------------------------------------------------
 // Thread functions
@@ -247,7 +288,7 @@ fn hubReaderThread(srv: *RunServer) void {
             log.err("hub message exceeds buffer", .{});
             break;
         }
-        const n = srv.hub_stream.read(line_buf[filled..]) catch break;
+        const n = sys.read(srv.hub_fd, line_buf[filled..]) catch break;
         if (n == 0) break;
         filled += n;
 
@@ -255,7 +296,7 @@ fn hubReaderThread(srv: *RunServer) void {
         var start: usize = 0;
         while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
             const end = start + rel;
-            const line = mem.trimRight(u8, line_buf[start..end], "\r ");
+            const line = mem.trimEnd(u8, line_buf[start..end], "\r ");
             start = end + 1;
             if (line.len == 0) continue;
 
@@ -270,11 +311,11 @@ fn hubReaderThread(srv: *RunServer) void {
 
             if (is_response) {
                 const copy = srv.allocator.dupe(u8, line) catch continue;
-                srv.response_mutex.lock();
+                srv.response_mutex.lock(io_mod.get()) catch unreachable;
                 srv.pending_responses.append(srv.allocator, copy) catch {
                     srv.allocator.free(copy);
                 };
-                srv.response_mutex.unlock();
+                srv.response_mutex.unlock(io_mod.get());
             } else {
                 srv.message_queue.push(line) catch |err| {
                     log.err("message_queue.push failed: {any}", .{err});
@@ -301,7 +342,7 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
 
     var attempts: usize = 0;
     while (attempts < 1000) : (attempts += 1) {
-        srv.response_mutex.lock();
+        srv.response_mutex.lock(io_mod.get()) catch unreachable;
         // Scan the queue for a matching response; discard stale ones.
         var found: ?[]const u8 = null;
         while (srv.pending_responses.items.len > 0) {
@@ -315,9 +356,9 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
                 srv.allocator.free(srv.pending_responses.orderedRemove(0));
             }
         }
-        srv.response_mutex.unlock();
+        srv.response_mutex.unlock(io_mod.get());
         if (found) |f| return f;
-        std.Thread.sleep(1 * std.time.ns_per_ms);
+        io_mod.get().sleep(std.Io.Duration.fromMilliseconds(1), .awake) catch {};
     }
     return null;
 }
@@ -325,10 +366,10 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
 /// Write a newline-terminated message to the hub under mutex.
 /// Mutex is always released even if write fails (via defer).
 fn writeToHub(srv: *RunServer, data: []const u8) !void {
-    srv.hub_write_mutex.lock();
-    defer srv.hub_write_mutex.unlock();
-    try srv.hub_stream.writeAll(data);
-    try srv.hub_stream.writeAll("\n");
+    srv.hub_write_mutex.lock(io_mod.get()) catch unreachable;
+    defer srv.hub_write_mutex.unlock(io_mod.get());
+    try sys.writeAll(srv.hub_fd, data);
+    try sys.writeAll(srv.hub_fd, "\n");
 }
 
 /// Generate a unique request ID for envelope correlation.
@@ -345,21 +386,21 @@ fn parseHubOk(response: []const u8) bool {
 
 fn ipcServerThread(srv: *RunServer) void {
     while (@atomicLoad(bool, &srv.running, .acquire)) {
-        const client_stream = srv.ipc_server.accept() catch |err| {
+        const client_fd = srv.ipc_server.accept() catch |err| {
             if (!@atomicLoad(bool, &srv.running, .acquire)) break;
             log.err("ipc accept error: {any}", .{err});
             continue;
         };
-        defer client_stream.close();
-        handleIpcConnection(srv, client_stream) catch |err| {
+        defer sys.close(client_fd);
+        handleIpcConnection(srv, client_fd) catch |err| {
             log.err("ipc connection error: {any}", .{err});
         };
     }
 }
 
-fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
+fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
     var buf: [64 * 1024]u8 = undefined;
-    const line = try ipc.IpcServer.readLine(client_stream, &buf) orelse return;
+    const line = try ipc.IpcServer.readLine(client_fd, &buf) orelse return;
 
     var arena = std.heap.ArenaAllocator.init(srv.allocator);
     defer arena.deinit();
@@ -368,7 +409,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
     var req_parsed = protocol.parseIpcRequest(alloc, line) catch {
         const resp = protocol.IpcResponse{ .success = false, .error_msg = "invalid request" };
         const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-        try ipc.IpcServer.writeLine(client_stream, resp_raw);
+        try ipc.IpcServer.writeLine(client_fd, resp_raw);
         return;
     };
     defer req_parsed.deinit();
@@ -380,7 +421,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
             const target = req.target orelse {
                 const resp = protocol.IpcResponse{ .success = false, .error_msg = "missing target" };
                 const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-                try ipc.IpcServer.writeLine(client_stream, resp_raw);
+                try ipc.IpcServer.writeLine(client_fd, resp_raw);
                 return;
             };
             const text_str = req.text orelse "";
@@ -391,8 +432,8 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 "dm";
             var id_buf: [32]u8 = undefined;
             const req_id = nextRequestId(srv, &id_buf);
-            var payload_obj = json.ObjectMap.init(alloc);
-            try payload_obj.put("text", .{ .string = text_str });
+            var payload_obj = json.ObjectMap.empty;
+            try payload_obj.put(alloc, "text", .{ .string = text_str });
             const envelope = protocol.Envelope{
                 .@"type" = envelope_type,
                 .id = req_id,
@@ -412,7 +453,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
             };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+            try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
         .recv => {
             const msgs = try srv.message_queue.drain(alloc);
@@ -425,7 +466,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
             const data_raw = try json.Stringify.valueAlloc(alloc, arr_val, .{});
             const resp = protocol.IpcResponse{ .success = true, .data = data_raw };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+            try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
         .agents => {
             var id_buf: [32]u8 = undefined;
@@ -448,15 +489,15 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 .error_msg = if (!success) "hub timeout" else null,
             };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+            try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
         .register => {
             var id_buf: [32]u8 = undefined;
             const req_id = nextRequestId(srv, &id_buf);
-            var payload_obj = json.ObjectMap.init(alloc);
-            if (req.tool) |t| try payload_obj.put("tool", .{ .string = t });
-            if (req.project) |p| try payload_obj.put("project", .{ .string = p });
-            if (req.session) |s| try payload_obj.put("session", .{ .string = s });
+            var payload_obj = json.ObjectMap.empty;
+            if (req.tool) |t| try payload_obj.put(alloc, "tool", .{ .string = t });
+            if (req.project) |p| try payload_obj.put(alloc, "project", .{ .string = p });
+            if (req.session) |s| try payload_obj.put(alloc, "session", .{ .string = s });
             const envelope = protocol.Envelope{
                 .@"type" = "agent_update",
                 .id = req_id,
@@ -476,7 +517,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
             };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+            try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
         .channel_create, .channel_invite, .channel_leave, .channel_list => {
             var id_buf: [32]u8 = undefined;
@@ -488,11 +529,11 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 .channel_list => "list_channels",
                 else => unreachable,
             };
-            var payload_obj = json.ObjectMap.init(alloc);
-            if (req.channel) |ch| try payload_obj.put("channel", .{ .string = ch });
-            if (req.agent_id) |aid| try payload_obj.put("agent_id", .{ .string = aid });
-            if (req.description) |d| try payload_obj.put("description", .{ .string = d });
-            if (req.channel) |name| try payload_obj.put("name", .{ .string = name });
+            var payload_obj = json.ObjectMap.empty;
+            if (req.channel) |ch| try payload_obj.put(alloc, "channel", .{ .string = ch });
+            if (req.agent_id) |aid| try payload_obj.put(alloc, "agent_id", .{ .string = aid });
+            if (req.description) |d| try payload_obj.put(alloc, "description", .{ .string = d });
+            if (req.channel) |name| try payload_obj.put(alloc, "name", .{ .string = name });
             const envelope = protocol.Envelope{
                 .@"type" = msg_type,
                 .id = req_id,
@@ -511,7 +552,7 @@ fn handleIpcConnection(srv: *RunServer, client_stream: net.Stream) !void {
                 .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
             };
             const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_stream, resp_raw);
+            try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
     }
 }
