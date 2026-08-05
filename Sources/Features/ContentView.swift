@@ -191,20 +191,25 @@ struct ContentView: View {
                     PaneTabBar(paneManager: paneManager, session: session)
                 }
 
-                if let session = paneManager.activeSession, session.panes.isEmpty {
-                    // Remote placeholder while the tunnel is being
-                    // established, or a failed connection: show a status
-                    // view instead of a terminal (no ghostty surface —
-                    // a nil-command surface would spawn a local shell,
-                    // WI-2026-03-31-003).
-                    SessionPlaceholderView(session: session)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+                // Both the terminal surfaces and the placeholder stay in the
+                // view tree; switching between them uses opacity, never
+                // removal. Removing AllPanesSplitView (e.g. when the active
+                // session is a connecting placeholder) would deinit every
+                // ghostty surface — killing PTY children and clearing
+                // sessions (recurring bug).
+                ZStack {
                     AllPanesSplitView(
                         paneManager: paneManager,
                         ghosttyApp: ghosttyApp
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(showPlaceholder ? 0 : 1)
+                    .allowsHitTesting(!showPlaceholder)
+
+                    if showPlaceholder {
+                        SessionPlaceholderView(session: placeholderSession)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
             } else {
                 VStack(spacing: DS.Space.sm) {
@@ -225,6 +230,21 @@ struct ContentView: View {
                 taskMonitor: taskMonitor
             )
         }
+    }
+
+    /// True when the active session is a connecting placeholder (no panes).
+    private var showPlaceholder: Bool {
+        guard let session = paneManager.activeSession else { return false }
+        return session.panes.isEmpty
+    }
+
+    /// The placeholder session (active session when it has no panes).
+    private var placeholderSession: TerminalPaneManager.Session {
+        paneManager.activeSession ?? TerminalPaneManager.Session(
+            label: "Local",
+            hostEntry: nil,
+            state: .connecting
+        )
     }
 
     // MARK: - Page buttons
