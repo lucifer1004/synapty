@@ -3,8 +3,9 @@
 [govctl]
 id = "WI-2026-03-31-006"
 title = "Fix keyboard input passthrough — Ctrl in Zellij, tab switching, Cmd+F search"
-status = "queue"
+status = "active"
 created = "2026-03-31"
+started = "2026-08-05"
 
 [content]
 description = "Three keyboard/input issues: (1) Ctrl keybindings are intercepted by the app when running Zellij inside a pane — Ctrl sequences must pass through to the inner terminal multiplexer. (2) Cmd+Shift+[ / ] for tab switching does not work when terminal pane is focused — key event not reaching the app responder chain. (3) No Cmd+F find-in-scrollback feature."
