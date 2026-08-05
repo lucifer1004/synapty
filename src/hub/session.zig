@@ -44,8 +44,8 @@ pub fn readerThread(args: ReaderArgs) void {
     var line_buf: [recv_buf_size]u8 = undefined;
     var filled: usize = 0;
 
-    // Read until we have at least one complete line (the register envelope).
-    const agent_id = blk: {
+    // Read until we have at least one complete line.
+    const parsed_init = blk: {
         while (true) {
             if (filled >= line_buf.len) {
                 log.err("initial message exceeds buffer", .{});
@@ -64,14 +64,10 @@ pub fn readerThread(args: ReaderArgs) void {
                 if (first_line.len == 0) return;
 
                 // Parse with conn_arena so agent_id survives the connection.
-                const parsed_init = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
+                const parsed = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
                     log.err("failed to parse initial envelope: {any}", .{err});
                     return;
                 };
-                if (!mem.eql(u8, parsed_init.value.@"type", "register")) {
-                    log.err("expected register, got: {s}", .{parsed_init.value.@"type"});
-                    return;
-                }
                 // Shift consumed bytes out of line_buf.
                 const consumed = nl + 1;
                 const remaining = filled - consumed;
@@ -79,10 +75,33 @@ pub fn readerThread(args: ReaderArgs) void {
                     mem.copyForwards(u8, line_buf[0..remaining], line_buf[consumed..filled]);
                 }
                 filled = remaining;
-                break :blk parsed_init.value.source;
+                break :blk parsed;
             }
         }
     };
+
+    if (mem.eql(u8, parsed_init.value.@"type", "tool_request") or
+        mem.eql(u8, parsed_init.value.@"type", "list_agents"))
+    {
+        // Anonymous request connection (RFC-0003 C-CLI-TOOLS): no
+        // registration, no routing-table churn. Dispatch the first line
+        // (already consumed from line_buf), then any buffered remainder,
+        // respond, and close. Fixes WI-2026-03-31-004 (cli-tmp churn).
+        const writer = std.Thread.spawn(.{}, writerThread, .{conn}) catch return;
+        defer {
+            conn.shutdown();
+            writer.join();
+        }
+        handlers.dispatchEnvelope(state, msg_arena.allocator(), conn, parsed_init.value.source, parsed_init.value);
+        handlers.processLines(state, &msg_arena, conn, parsed_init.value.source, &line_buf, &filled);
+        return;
+    }
+
+    if (!mem.eql(u8, parsed_init.value.@"type", "register")) {
+        log.err("expected register or tool_request, got: {s}", .{parsed_init.value.@"type"});
+        return;
+    }
+    const agent_id = parsed_init.value.source;
 
     // Connection was pre-created by the accept loop and registered in
     // HubState.all_connections, ensuring deinit can shutdown its stream.

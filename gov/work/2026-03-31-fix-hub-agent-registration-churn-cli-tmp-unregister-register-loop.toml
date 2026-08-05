@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-03-31-004"
 title = "Fix Hub agent registration churn — cli-tmp unregister/register loop"
-status = "queue"
+status = "done"
 created = "2026-03-31"
 
 [content]
@@ -11,10 +11,10 @@ description = "cli-tmp agents continuously unregister and re-register, likely tr
 
 [[content.acceptance_criteria]]
 text = "cli-tmp agents register once and remain stable (no churn)"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "identify and document root cause of the register/unregister loop"
-status = "pending"
+status = "done"
 category = "fixed"

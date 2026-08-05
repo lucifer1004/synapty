@@ -152,7 +152,9 @@ pub fn runAgents(allocator: Allocator) !void {
     const source_id = try std.fmt.allocPrint(allocator, "{s}agents-{d}", .{ transport.temp_agent_prefix, now_ms });
     defer allocator.free(source_id);
 
-    const fd = try transport.connectAndRegister(allocator, source_id);
+    // Anonymous query connection — no register envelope, so no temporary
+    // agent churn in the hub routing table (WI-2026-03-31-004).
+    const fd = try transport.connectToHub(transport.hub_addr, transport.hub_port);
     defer sys.close(fd);
 
     // Send a list_agents request envelope.
@@ -257,12 +259,14 @@ fn accountOf(allocator: Allocator, owner: []const u8, repo: []const u8) []const 
 // ---------------------------------------------------------------------------
 
 /// Send a tool_request envelope to the hub and print the tool_response.
+/// Uses an anonymous connection — no register envelope, so no temporary
+/// agent appears in the hub's routing table (WI-2026-03-31-004).
 fn toolRoundtrip(allocator: Allocator, tool: []const u8, args_obj: json.ObjectMap) !void {
     const now_ms = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds();
     const source_id = try std.fmt.allocPrint(allocator, "{s}task-{d}", .{ transport.temp_agent_prefix, now_ms });
     defer allocator.free(source_id);
 
-    const fd = try transport.connectAndRegister(allocator, source_id);
+    const fd = try transport.connectToHub(transport.hub_addr, transport.hub_port);
     defer sys.close(fd);
 
     var payload_obj = json.ObjectMap.empty;
