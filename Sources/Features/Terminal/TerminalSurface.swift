@@ -199,8 +199,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 }
                 return true
             case "=":
-                // Cmd+= → increase font size (WI-2026-03-31-005)
-                _ = "increase_font_size".withCString { ptr in
+                // Cmd+= → increase font size (WI-2026-03-31-005).
+                // Ghostty actions increase_font_size/decrease_font_size take a
+                // required f32 parameter (e.g. ":1"); without it Action.parse
+                // fails and the binding silently does nothing.
+                _ = "increase_font_size:1".withCString { ptr in
                     ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                 }
                 return true
@@ -232,8 +235,9 @@ class GhosttyNSView: NSView, NSTextInputClient {
                     DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical) }
                     return true
                 }
-                // Cmd+- → decrease font size (WI-2026-03-31-005)
-                _ = "decrease_font_size".withCString { ptr in
+                // Cmd+- → decrease font size (WI-2026-03-31-005); f32 param
+                // required (see "=" above).
+                _ = "decrease_font_size:1".withCString { ptr in
                     ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                 }
                 return true

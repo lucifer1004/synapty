@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var showShortcuts = false
     @State private var showActivityLog = false
     @State private var showTaskList = false
+    @State private var showFindBar = false
+    @State private var findText = ""
 
     var body: some View {
         NavigationSplitView {
@@ -129,20 +131,47 @@ struct ContentView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .synaptyFontIncrease).merge(
                 with: NotificationCenter.default.publisher(for: .synaptyFontDecrease),
-                NotificationCenter.default.publisher(for: .synaptyFontReset),
-                NotificationCenter.default.publisher(for: .synaptyFind)
+                NotificationCenter.default.publisher(for: .synaptyFontReset)
             )
         ) { note in
             guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
             let action: String
             switch note.name {
-            case .synaptyFontIncrease: action = "increase_font_size"
-            case .synaptyFontDecrease: action = "decrease_font_size"
-            case .synaptyFontReset: action = "reset_font_size"
-            default: action = "start_search"
+            case .synaptyFontIncrease: action = "increase_font_size:1"
+            case .synaptyFontDecrease: action = "decrease_font_size:1"
+            default: action = "reset_font_size"
             }
             action.withCString { ptr in
                 ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyFind)) { _ in
+            // Cmd+F (or the View ▸ Find menu): show the find bar overlay.
+            // Ghostty's core search is driven via the "search:<needle>"
+            // binding action from the bar (WI-2026-03-31-006).
+            showFindBar = true
+        }
+        .overlay(alignment: .top) {
+            if showFindBar {
+                FindBarView(
+                    text: $findText,
+                    onTextChange: { needle in
+                        guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+                        let action = "search:\(needle)"
+                        action.withCString { ptr in
+                            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                        }
+                    },
+                    onClose: {
+                        guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+                        _ = "end_search".withCString { ptr in
+                            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                        }
+                        showFindBar = false
+                        findText = ""
+                    }
+                )
+                .padding(.top, 8)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyShowShortcuts)) { _ in

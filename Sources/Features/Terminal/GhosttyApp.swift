@@ -74,8 +74,18 @@ import AppKit
             }
         }
         runtime.action_cb = { app, target, action in
-            // Minimal action handler — just handle close surface for now
-            return false
+            // Forward search actions to the UI layer. Ghostty's core performs
+            // the actual search; the embedder is responsible for the find bar
+            // UI (start_search → show bar, search:<needle> drives results).
+            // WI-2026-03-31-006 (Cmd+F find-in-scrollback).
+            switch action.tag {
+            case GHOSTTY_ACTION_START_SEARCH:
+                guard target.tag == GHOSTTY_TARGET_SURFACE else { return false }
+                NotificationCenter.default.post(name: .synaptyFind, object: nil)
+                return true
+            default:
+                return false
+            }
         }
         runtime.close_surface_cb = { userdata, _ in
             // userdata is per-surface: a pointer to UUID (the leaf ID).
