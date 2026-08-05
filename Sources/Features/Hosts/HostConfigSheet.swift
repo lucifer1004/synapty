@@ -4,7 +4,6 @@ import SwiftUI
 enum HostsPane: Hashable {
     case hosts
     case identities
-    case settings
 }
 
 /// Host management page — Termius-style host management:
@@ -13,7 +12,6 @@ enum HostsPane: Hashable {
 struct HostConfigSheet: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var tunnelManager: TunnelManager
-    @ObservedObject var settings: SynaptySettings
 
     /// Currently selected group (nil = All).
     @State private var selectedGroupID: UUID?
@@ -54,11 +52,10 @@ struct HostConfigSheet: View {
             .padding(.vertical, DS.Space.lg)
             Divider()
 
-            // Sub-navigation: Hosts | Identities | Settings
+            // Sub-navigation: Hosts | Identities
             HStack(spacing: DS.Space.sm) {
                 paneChip(.hosts, title: "Hosts", icon: "server.rack")
                 paneChip(.identities, title: "Identities", icon: "key")
-                paneChip(.settings, title: "Settings", icon: "gearshape")
                 Spacer()
                 if pane == .hosts {
                     Text("\(hostStore.hosts.count) hosts · \(hostStore.groups.count) groups")
@@ -76,7 +73,6 @@ struct HostConfigSheet: View {
             switch pane {
             case .hosts: hostsPane
             case .identities: identitiesPane
-            case .settings: settingsPane
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -376,48 +372,6 @@ struct HostConfigSheet: View {
             }
             .padding(DS.Space.lg)
         }
-    }
-
-    // MARK: - Settings pane
-
-    private var settingsPane: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DS.Space.xl) {
-                // Terminal theme
-                VStack(alignment: .leading, spacing: DS.Space.md) {
-                    DSSectionLabel(text: "Terminal Theme")
-                    Text("Applies to all terminal panes. Picked from Ghostty's built-in themes (590+). Changes take effect on new panes.")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textTertiary)
-
-                    Picker("Theme", selection: themeBinding) {
-                        Text("Ghostty Default").tag(String?.none)
-                        ForEach(SynaptySettings.builtinThemeNames(), id: \.self) { name in
-                            Text(name).tag(String?.some(name))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 380)
-                }
-
-                // Note about the config fragment
-                VStack(alignment: .leading, spacing: DS.Space.xs) {
-                    DSSectionLabel(text: "Config")
-                    Text("Managed settings are written to ~/.config/synapty/ghostty.conf (scroll-to-bottom, theme). Your personal Ghostty config is untouched.")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textTertiary)
-                }
-            }
-            .padding(DS.Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var themeBinding: Binding<String?> {
-        Binding(
-            get: { settings.themeName },
-            set: { settings.themeName = $0 }
-        )
     }
 
     // MARK: - Pane chips

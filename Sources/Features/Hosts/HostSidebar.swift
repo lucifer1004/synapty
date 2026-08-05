@@ -16,6 +16,8 @@ struct HostSidebar: View {
     var onNewLocalPane: (() -> Void)?
     /// Called when the user taps the agent sub-row to focus its pane.
     var onAgentTap: ((AgentInfo) -> Void)?
+    /// Called when the user selects a session in the list (switch to terminal page).
+    var onSessionSelect: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,7 +62,12 @@ struct HostSidebar: View {
                 get: { paneManager.activeSessionID },
                 set: { id in
                     guard let id else { return }
-                    Task { @MainActor in paneManager.activeSessionID = id }
+                    Task { @MainActor in
+                        paneManager.activeSessionID = id
+                        // Selecting a session from the sidebar always returns
+                        // to the terminal workspace.
+                        onSessionSelect?()
+                    }
                 }
             )) {
                 Section {

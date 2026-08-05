@@ -9,6 +9,7 @@ enum AppPage: Hashable {
     case tasks
     case activity
     case hub
+    case settings
 }
 
 struct ContentView: View {
@@ -48,6 +49,9 @@ struct ContentView: View {
                         paneManager?.activeSessionID = session.id
                     }
                     agentMonitor?.clearAttention(agent.id)
+                },
+                onSessionSelect: {
+                    page = .terminal
                 }
             )
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
@@ -56,22 +60,29 @@ struct ContentView: View {
             case .terminal:
                 terminalPage
             case .hosts:
-                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, settings: settings)
+                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
             case .tasks:
                 TaskListView(taskMonitor: taskMonitor)
             case .activity:
                 ActivityLogView(taskMonitor: taskMonitor)
             case .hub:
                 HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
+            case .settings:
+                SettingsPage(settings: settings)
             }
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 // Page switcher — icon-only, management surfaces are full pages.
+                // Terminal is first so you can always get back to the workspace.
+                pageButton(.terminal, icon: "terminal", help: "Terminal workspace (⌘1)")
+                Divider()
                 pageButton(.hosts, icon: "server.rack", help: "Host management")
                 pageButton(.tasks, icon: "checklist", help: "Hub-repo task list")
                 pageButton(.activity, icon: "tray.full", help: "Tool-request activity log")
                 pageButton(.hub, icon: "dot.radiowaves.left.and.right", help: "Hub status")
+                Spacer()
+                pageButton(.settings, icon: "gearshape", help: "Settings")
             }
         }
         .sheet(isPresented: $showShortcuts) {
