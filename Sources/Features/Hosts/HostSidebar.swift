@@ -24,46 +24,28 @@ struct HostSidebar: View {
     /// Called when the user selects a session in the list (switch to terminal page).
     var onSessionSelect: (() -> Void)?
 
-    /// Navigation groups: (section title, items).
-    private static let navGroups: [(title: String, items: [(page: AppPage, icon: String, label: String)])] = [
-        ("Workspace", [
-            (.terminal, "terminal", "Terminal"),
-        ]),
-        ("Infrastructure", [
-            (.hosts, "server.rack", "Hosts"),
-        ]),
-        ("Collaboration", [
-            (.tasks, "checklist", "Tasks"),
-            (.activity, "tray.full", "Activity"),
-        ]),
-        ("System", [
-            (.hub, "dot.radiowaves.left.and.right", "Hub"),
-            (.settings, "gearshape", "Settings"),
-        ]),
+    /// Navigation items, in display order. Icon-only rail (Termius style):
+    /// no section headers, no text labels — compact and scroll-free.
+    private static let navItems: [(page: AppPage, icon: String, label: String)] = [
+        (.terminal, "terminal", "Terminal"),
+        (.hosts, "server.rack", "Hosts"),
+        (.tasks, "checklist", "Tasks"),
+        (.activity, "tray.full", "Activity"),
+        (.hub, "dot.radiowaves.left.and.right", "Hub"),
+        (.settings, "gearshape", "Settings"),
     ]
 
     var body: some View {
         VStack(spacing: 0) {
-            // Layered navigation — the single source of page switching.
-            List(selection: $page) {
-                ForEach(Self.navGroups, id: \.title) { group in
-                    Section {
-                        ForEach(group.items, id: \.page) { item in
-                            Label(item.label, systemImage: item.icon)
-                                .font(DS.Typography.detailStrong)
-                                .tag(item.page)
-                        }
-                    } header: {
-                        Text(group.title.uppercased())
-                            .font(DS.Typography.monoCaption)
-                            .foregroundStyle(DS.textTertiary)
-                            .kerning(0.6)
-                    }
+            // Icon navigation rail — single row, tooltips only.
+            HStack(spacing: DS.Space.xs) {
+                ForEach(Self.navItems, id: \.page) { item in
+                    navButton(item)
                 }
+                Spacer(minLength: 0)
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .frame(height: 190)
+            .padding(.horizontal, DS.Space.md)
+            .padding(.vertical, DS.Space.sm)
 
             Divider()
 
@@ -71,6 +53,25 @@ struct HostSidebar: View {
             sessionsSection
         }
         .background(DS.sidebar)
+    }
+
+    private func navButton(_ item: (page: AppPage, icon: String, label: String)) -> some View {
+        let isActive = page == item.page
+        return Button {
+            page = item.page
+        } label: {
+            Image(systemName: item.icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+                .frame(width: 26, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .fill(isActive ? DS.accentSoft : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(item.label)
     }
 
     /// The sessions list with the "+" new-session action.
@@ -169,9 +170,6 @@ struct HostSidebar: View {
                             }
                         }
                     }
-                } header: {
-                    DSSectionLabel(text: "Sessions", count: paneManager.sessions.isEmpty ? nil : paneManager.sessions.count)
-                        .padding(.top, DS.Space.md)
                 }
             }
             .listStyle(.sidebar)
