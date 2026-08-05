@@ -3,9 +3,10 @@
 [govctl]
 id = "WI-2026-03-31-005"
 title = "Fix terminal scroll reset and add font zoom"
-status = "active"
+status = "done"
 created = "2026-03-31"
 started = "2026-08-05"
+completed = "2026-08-05"
 
 [content]
 description = "Two terminal rendering issues: (1) Scroll position resets unexpectedly — not only on tab switch, need to find the root cause trigger. This is high priority as it disrupts Claude Code workflows. (2) No Cmd+/- font zoom support — standard macOS terminal feature."
@@ -13,15 +14,15 @@ notes = ["Scroll reset is NOT limited to tab switching — do not assume tab swi
 
 [[content.acceptance_criteria]]
 text = "identify root cause of scroll position reset (not just tab switch)"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "scroll position preserved across all UI interactions"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "Cmd+/- font zoom support"
-status = "pending"
+status = "done"
 category = "added"

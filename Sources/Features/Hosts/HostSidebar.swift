@@ -20,24 +20,52 @@ struct HostSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with gear and plus buttons
-            HStack {
+            // Brand header — app identity + actions
+            HStack(spacing: DS.Space.sm) {
+                // Brand mark: synapse glyph in an accent tile
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .fill(DS.accent)
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                    )
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Synapty")
+                        .font(DS.Typography.titleLarge)
+                    Text("Agent Workbench")
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textTertiary)
+                }
+
+                Spacer(minLength: DS.Space.sm)
+
+                // Configuration
                 Button {
                     showHostConfig = true
                 } label: {
                     Image(systemName: "gearshape")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DS.textSecondary)
+                        .frame(width: 24, height: 24)
+                        .background(DS.hover, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .help("Host Configuration")
 
-                Spacer()
-
+                // New session
                 Button {
                     showHostPicker = true
                 } label: {
                     Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(DS.accent, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .help("New Session")
                 .popover(isPresented: $showHostPicker, arrowEdge: .bottom) {
                     HostPickerPopover(
@@ -54,8 +82,8 @@ struct HostSidebar: View {
                     )
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.vertical, DS.Space.lg)
 
             Divider()
 
@@ -68,9 +96,20 @@ struct HostSidebar: View {
             )) {
                 Section {
                     if paneManager.sessions.isEmpty {
-                        Text("No active sessions")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
+                        VStack(spacing: DS.Space.sm) {
+                            Image(systemName: "terminal")
+                                .font(.system(size: 20))
+                                .foregroundStyle(DS.textTertiary)
+                            Text("No active sessions")
+                                .font(DS.Typography.detail)
+                                .foregroundStyle(DS.textSecondary)
+                            Text("Press + to start a local or remote session")
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.textTertiary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DS.Space.xxl)
                     } else {
                         ForEach(paneManager.sessions) { session in
                             let agent = agentMonitor.agents.first(where: { $0.id == session.agentID })
@@ -95,13 +134,12 @@ struct HostSidebar: View {
                         }
                     }
                 } header: {
-                    Text("Sessions")
-                        .font(.system(size: 10, weight: .semibold))
-                        .textCase(.uppercase)
-                        .foregroundColor(.secondary)
+                    DSSectionLabel(text: "Sessions", count: paneManager.sessions.isEmpty ? nil : paneManager.sessions.count)
+                        .padding(.top, DS.Space.md)
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(.return) {
@@ -111,6 +149,7 @@ struct HostSidebar: View {
                 return .handled
             }
         }
+        .background(DS.sidebar)
         .sheet(isPresented: $showHostConfig) {
             HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, isPresented: $showHostConfig)
         }
@@ -130,6 +169,7 @@ struct SessionRow: View {
     @State private var editText = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var now = Date()
+    @State private var isHovered = false
 
     private let timer = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
@@ -179,92 +219,93 @@ struct SessionRow: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    private var statusColor: Color {
+        switch session.state {
+        case .connecting: return DS.warning
+        case .connected: return session.isLocal ? DS.success : DS.info
+        case .failed: return DS.danger
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            // Status dot — vertically centered with label
-            statusDot
-                .padding(.top, 4)
+        HStack(alignment: .top, spacing: DS.Space.sm) {
+            // Status dot
+            DSStatusDot(
+                color: statusColor,
+                size: 8,
+                pulsing: session.state == .connecting
+            )
+            .padding(.top, 5)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 // Primary row: label + duration
-                HStack(spacing: 0) {
+                HStack(spacing: DS.Space.xs) {
                     labelView
-                    Spacer(minLength: 6)
                     if case .connecting = session.state {
-                        EmptyView()
-                    } else if case .failed = session.state {
-                        EmptyView()
-                    } else {
+                        Text("connecting")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.textTertiary)
+                    }
+                    Spacer(minLength: DS.Space.xs)
+                    if case .connected = session.state {
                         Text(durationString(from: session.createdAt))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textTertiary)
                     }
                 }
 
                 // Host address — remote sessions only
                 if let addr = hostAddress {
                     Text(addr)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textSecondary)
                         .lineLimit(1)
                 }
 
                 // Count summary — only when there is something notable
                 if let summary = countSummary {
                     Text(summary)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
                 }
 
                 // Error message
                 if case .failed(let msg) = session.state {
                     Text(msg)
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
+                        .font(DS.Typography.caption)
+                        .foregroundColor(DS.danger)
                         .lineLimit(2)
                 }
 
                 // Agent sub-row — only when an agent is registered
                 if let agent {
                     AgentSubRow(agent: agent, needsAttention: agentNeedsAttention)
-                        .padding(.top, 4)
+                        .padding(.top, DS.Space.xs)
                 }
             }
         }
-        .padding(.vertical, 3)
-        .opacity(session.state == .connecting ? 0.6 : 1.0)
+        .padding(.vertical, DS.Space.sm)
+        .padding(.horizontal, DS.Space.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(isHovered ? DS.hover : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in isHovered = hovering }
+        .opacity(session.state == .connecting ? 0.7 : 1.0)
         .onReceive(timer) { date in now = date }
     }
 
     // MARK: - Subviews
 
     @ViewBuilder
-    private var statusDot: some View {
-        switch session.state {
-        case .connecting:
-            Circle()
-                .fill(.yellow)
-                .frame(width: 8, height: 8)
-                .modifier(PulseAnimation())
-        case .connected:
-            Circle()
-                .fill(session.isLocal ? .green : .blue)
-                .frame(width: 8, height: 8)
-        case .failed:
-            Circle()
-                .fill(.red)
-                .frame(width: 8, height: 8)
-        }
-    }
-
-    @ViewBuilder
     private var labelView: some View {
         if isEditing {
             TextField("Name", text: $editText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
+                .font(DS.Typography.title)
                 .focused($isTextFieldFocused)
                 .onAppear {
                     editText = session.label
@@ -278,16 +319,9 @@ struct SessionRow: View {
                     }
                 }
         } else {
-            HStack(spacing: 4) {
-                Text(session.label)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                if case .connecting = session.state {
-                    Text("connecting")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text(session.label)
+                .font(DS.Typography.title)
+                .lineLimit(1)
         }
     }
 }
@@ -302,58 +336,54 @@ struct AgentSubRow: View {
     let needsAttention: Bool
 
     private var ruleColor: Color {
-        needsAttention ? .orange : agent.tool.accentColor
+        needsAttention ? DS.warning : agent.tool.accentColor
     }
 
     private var iconColor: Color {
-        needsAttention ? .orange : agent.tool.accentColor
+        needsAttention ? DS.warning : agent.tool.accentColor
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             // Accent rule
-            Rectangle()
+            RoundedRectangle(cornerRadius: 1)
                 .fill(ruleColor)
-                .frame(width: 2)
-                .cornerRadius(1)
+                .frame(width: 2.5)
 
-            HStack(alignment: .center, spacing: 5) {
+            HStack(alignment: .center, spacing: DS.Space.sm) {
                 Image(systemName: agent.tool.sfSymbol)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(iconColor)
                     .frame(width: 14, alignment: .center)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: DS.Space.xs) {
                         Text(agent.tool.displayName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.detailStrong)
+                            .foregroundStyle(DS.textPrimary)
 
-                        Spacer(minLength: 4)
+                        Spacer(minLength: DS.Space.xs)
 
                         if needsAttention {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 5, height: 5)
-                                .modifier(PulseAnimation())
+                            DSStatusDot(color: DS.warning, size: 5, pulsing: true)
                         }
                     }
 
                     if agent.session != "-" {
                         Text(agent.session)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.textSecondary)
                             .lineLimit(1)
                     } else if agent.project != "-" {
                         Text(agent.project)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.textSecondary)
                             .lineLimit(1)
                     }
                 }
             }
-            .padding(.leading, 6)
-            .padding(.vertical, 3)
+            .padding(.leading, DS.Space.sm)
+            .padding(.vertical, DS.Space.xs)
         }
     }
 }
@@ -368,64 +398,77 @@ struct HostPickerPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("New Session")
-                .font(.headline)
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(DS.accent)
+                Text("New Session")
+                    .font(DS.Typography.titleLarge)
+            }
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.top, DS.Space.lg)
+            .padding(.bottom, DS.Space.md)
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.xxs) {
+                    // Local option — accent treatment
                     Button {
                         onSelectLocal()
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.md) {
                             Image(systemName: "terminal")
-                                .frame(width: 16)
-                            Text("Local")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(DS.accent)
+                                .frame(width: 18)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Local")
+                                    .font(DS.Typography.bodyStrong)
+                                Text("Terminal on this machine")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.textSecondary)
+                            }
+                            Spacer()
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, DS.Space.lg)
+                        .padding(.vertical, DS.Space.sm)
+                        .background(DS.accentSoft, in: RoundedRectangle(cornerRadius: DS.Radius.md))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
 
                     if !hostStore.hosts.isEmpty {
                         Divider()
-                            .padding(.vertical, 4)
+                            .padding(.vertical, DS.Space.sm)
 
                         ForEach(hostStore.hosts) { host in
                             Button {
                                 onSelectHost(host)
                             } label: {
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(Color(tunnelManager.status(for: host).color))
-                                        .frame(width: 8, height: 8)
+                                HStack(spacing: DS.Space.md) {
+                                    DSStatusDot(color: Color(tunnelManager.status(for: host).color), size: 8)
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(host.label)
-                                            .font(.body)
+                                            .font(DS.Typography.bodyStrong)
                                         Text("\(host.username)@\(host.address)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .font(DS.Typography.monoCaption)
+                                            .foregroundStyle(DS.textSecondary)
                                     }
+                                    Spacer()
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
+                                .padding(.horizontal, DS.Space.lg)
+                                .padding(.vertical, DS.Space.sm)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, DS.Space.md)
             }
             .frame(maxHeight: 300)
         }
-        .frame(width: 220)
+        .frame(width: 250)
     }
 }
