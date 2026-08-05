@@ -17,6 +17,22 @@ import AppKit
     /// once and rendered in one frame.
     private var tickScheduled = false
 
+    /// Write the Synapty ghostty config fragment if missing and load it
+    /// (loaded after default files, so it overrides them).
+    private func loadSynaptyConfig(_ cfg: ghostty_config_t) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let dir = "\(home)/.config/synapty"
+        let path = "\(dir)/ghostty.conf"
+        if !FileManager.default.fileExists(atPath: path) {
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let fragment = "scroll-to-bottom = no-keystroke,no-output\n"
+            try? fragment.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+        path.withCString { cStr in
+            ghostty_config_load_file(cfg, cStr)
+        }
+    }
+
     init() {
         GhosttyApp.shared = self
 
@@ -34,6 +50,11 @@ import AppKit
         }
         config = cfg
         ghostty_config_load_default_files(cfg)
+        // Synapty-managed overrides (WI-2026-03-31-005): never force the
+        // scroll position back to the bottom on keystroke/output — agents
+        // produce output while the user is reading history, and snapping
+        // back to bottom reads as "scroll reset".
+        loadSynaptyConfig(cfg)
         ghostty_config_finalize(cfg)
 
         // Build runtime config with callbacks
