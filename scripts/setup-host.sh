@@ -133,8 +133,10 @@ fi
 # Remote shells (zsh + powerlevel10k etc.) misbehave when the TERM entry
 # (xterm-ghostty) is missing on the server: backspace outputs a space
 # instead of deleting. The bundled file is a COMPILED terminfo entry, so
-# we copy it straight into the user's terminfo db (~/.terminfo/78/…) —
-# no tic needed on the remote.
+# we copy it into the user's terminfo db in BOTH common layouts
+# (~/.terminfo/78/… hash and ~/.terminfo/x/… first-letter) — different
+# ncurses builds look in different places. connect.sh additionally falls
+# back to TERM=xterm-256color when nothing resolves, so this is best-effort.
 echo "Deploying ghostty terminfo to remote..."
 TERMINFO_SRC=""
 for candidate in \
@@ -148,13 +150,15 @@ for candidate in \
 done
 
 if [ -n "$TERMINFO_SRC" ]; then
-    ssh $SSH_CMD $SSH_FLAGS "$DEST" "mkdir -p .terminfo/78 .synapty"
+    ssh $SSH_CMD $SSH_FLAGS "$DEST" "mkdir -p .terminfo/78 .terminfo/x .synapty"
     if $CM_ACTIVE; then
         scp $SCP_FLAGS -o "ControlPath=$SOCKET" -o ControlMaster=auto "$TERMINFO_SRC" "$DEST":.terminfo/78/xterm-ghostty
+        scp $SCP_FLAGS -o "ControlPath=$SOCKET" -o ControlMaster=auto "$TERMINFO_SRC" "$DEST":.terminfo/x/xterm-ghostty
     else
         scp $SCP_FLAGS "$TERMINFO_SRC" "$DEST":.terminfo/78/xterm-ghostty
+        scp $SCP_FLAGS "$TERMINFO_SRC" "$DEST":.terminfo/x/xterm-ghostty
     fi
-    ssh $SSH_CMD $SSH_FLAGS "$DEST" "test -f .terminfo/78/xterm-ghostty && echo 'terminfo installed (~/.terminfo/78/xterm-ghostty)'"
+    ssh $SSH_CMD $SSH_FLAGS "$DEST" "test -f .terminfo/78/xterm-ghostty && test -f .terminfo/x/xterm-ghostty && echo 'terminfo installed (~/.terminfo/{78,x}/xterm-ghostty)'"
 else
     echo "Warning: xterm-ghostty terminfo source not found locally; skipping deploy."
 fi

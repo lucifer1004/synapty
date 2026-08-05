@@ -56,12 +56,20 @@ done
 
 SOCKET="$HOME/.synapty/sockets/${USER}@${HOST}:${PORT}"
 
+# Remote shell preamble: if the remote host cannot resolve the ghostty
+# terminfo entry (xterm-ghostty), fall back to xterm-256color which every
+# ncurses install has. Without a resolvable TERM entry, shells (zsh +
+# powerlevel10k etc.) mis-encode backspace/delete — the classic "backspace
+# prints a space" bug (ghostty#5818). Detection is cheap and runs once per
+# connection.
+REMOTE_PREAMBLE='if infocmp -x xterm-ghostty >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi; exec'
+
 # Check if ControlMaster is active; if not, fall back to direct connection with tunnel
 if ssh -S "$SOCKET" -O check "$DEST" 2>/dev/null; then
     echo "Using existing tunnel (ControlMaster)..."
     # Forwardings are already established on the master; do not re-add them.
     exec ssh -t -S "$SOCKET" $SSH_FLAGS "$DEST" \
-        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
+        "$REMOTE_PREAMBLE .synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 else
     echo "No ControlMaster found. Connecting with new tunnel..."
     # macOS ships bash 3.2: expanding an empty array under `set -u`
@@ -69,5 +77,5 @@ else
     # ${var[@]+...} guard so an empty array expands to nothing.
     exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
         ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"} $SSH_FLAGS "$DEST" \
-        ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
+        "$REMOTE_PREAMBLE .synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 fi
