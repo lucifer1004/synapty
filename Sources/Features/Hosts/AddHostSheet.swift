@@ -1,18 +1,25 @@
 import SwiftUI
 
-/// Sheet for adding or editing a host entry.
+/// Sheet for adding or editing a host entry — Termius-style: group
+/// membership, tags, and reusable credentials (Identity) or inline fields.
 struct AddHostSheet: View {
     @ObservedObject var hostStore: HostStore
+    @ObservedObject var tunnelManager: TunnelManager
     @Binding var isPresented: Bool
 
     /// If set, we're editing an existing host; otherwise adding a new one.
     var editingHost: HostEntry?
+    /// Preselected group when creating from within a group.
+    var presetGroupID: UUID?
 
     @State private var label = ""
     @State private var address = ""
     @State private var portText = "22"
     @State private var username = ""
     @State private var sshKeyPath = ""
+    @State private var groupID: UUID?
+    @State private var identityID: UUID?
+    @State private var tagsText = ""
     @State private var showFilePicker = false
 
     private var isEditing: Bool { editingHost != nil }
@@ -21,7 +28,7 @@ struct AddHostSheet: View {
     private var canSave: Bool {
         !label.trimmingCharacters(in: .whitespaces).isEmpty &&
         !address.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !username.trimmingCharacters(in: .whitespaces).isEmpty
+        (!username.trimmingCharacters(in: .whitespaces).isEmpty || identityID != nil)
     }
 
     var body: some View {
@@ -34,20 +41,90 @@ struct AddHostSheet: View {
 
             Divider()
 
-            Form {
-                TextField("Label", text: $label)
-                TextField("Address", text: $address)
-                TextField("Port", text: $portText)
-                TextField("Username", text: $username)
-                HStack {
-                    TextField("SSH Key Path (optional)", text: $sshKeyPath)
-                    Button("Browse\u{2026}") {
-                        showFilePicker = true
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.xl) {
+                    // Connection
+                    formSection("Connection") {
+                        TextField("Label", text: $label)
+                        TextField("Address", text: $address)
+                        TextField("Port", text: $portText)
+                        TextField("Username (optional)", text: $username)
+                    }
+
+                    // Group
+                    formSection("Group") {
+                        Picker("Group", selection: $groupID) {
+                            Text("Ungrouped").tag(Optional<UUID>.none)
+                            ForEach(hostStore.groups) { group in
+                                Text(hostStore.groupPath(for: group.id).joined(separator: " / "))
+                                    .tag(Optional(group.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    // Credentials
+                    formSection("Credentials") {
+                        Picker("Identity", selection: $identityID) {
+                            Text("Inline (below)").tag(Optional<UUID>.none)
+                            ForEach(hostStore.identities) { identity in
+                                Text(identity.label).tag(Optional(identity.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if identityID == nil {
+                            HStack {
+                                TextField("SSH Key Path (optional)", text: $sshKeyPath)
+                                Button("Browse\u{2026}") {
+                                    showFilePicker = true
+                                }
+                            }
+                        } else {
+                            // Show the identity's resolved key for reference.
+                            if let id = identityID,
+                               let identity = hostStore.identities.first(where: { $0.id == id }),
+                               let key = identity.sshKeyPath {
+                                Text("Key: \(key)")
+                                    .font(DS.Typography.monoCaption)
+                                    .foregroundStyle(DS.textSecondary)
+                            }
+                        }
+                    }
+
+                    // Tags
+                    formSection("Tags") {
+                        TextField("prod, gpu, ubuntu…", text: $tagsText)
+                            .font(DS.Typography.detail)
+                        if !hostStore.allTags.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: DS.Space.xs) {
+                                    ForEach(hostStore.allTags, id: \.self) { tag in
+                                        let selectedTags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                                        let isSelected = selectedTags.contains(tag)
+                                        Button {
+                                            if isSelected {
+                                                tagsText = selectedTags.filter { $0 != tag }.joined(separator: ", ")
+                                            } else {
+                                                tagsText = tagsText.isEmpty ? tag : "\(tagsText), \(tag)"
+                                            }
+                                        } label: {
+                                            Text(tag)
+                                                .font(DS.Typography.captionStrong)
+                                                .foregroundStyle(isSelected ? DS.accent : DS.textSecondary)
+                                                .padding(.horizontal, DS.Space.sm)
+                                                .padding(.vertical, 2)
+                                                .background(isSelected ? DS.accentSoft : DS.hover, in: Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                .padding(DS.Space.xl)
             }
-            .formStyle(.grouped)
-            .padding(.vertical, DS.Space.sm)
 
             Divider()
 
@@ -59,24 +136,7 @@ struct AddHostSheet: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button(isEditing ? "Save" : "Add") {
-                    if var existing = editingHost {
-                        existing.label = label.trimmingCharacters(in: .whitespaces)
-                        existing.address = address.trimmingCharacters(in: .whitespaces)
-                        existing.port = port
-                        existing.username = username.trimmingCharacters(in: .whitespaces)
-                        existing.sshKeyPath = sshKeyPath.isEmpty ? nil : sshKeyPath
-                        hostStore.updateHost(existing)
-                    } else {
-                        let entry = HostEntry(
-                            label: label.trimmingCharacters(in: .whitespaces),
-                            address: address.trimmingCharacters(in: .whitespaces),
-                            port: port,
-                            username: username.trimmingCharacters(in: .whitespaces),
-                            sshKeyPath: sshKeyPath.isEmpty ? nil : sshKeyPath
-                        )
-                        hostStore.addHost(entry)
-                    }
-                    isPresented = false
+                    save()
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSave)
@@ -85,7 +145,7 @@ struct AddHostSheet: View {
             }
             .padding(DS.Space.lg)
         }
-        .frame(width: 420)
+        .frame(width: 440, height: 560)
         .background(DS.background)
         .onAppear {
             if let host = editingHost {
@@ -94,6 +154,11 @@ struct AddHostSheet: View {
                 portText = "\(host.port)"
                 username = host.username
                 sshKeyPath = host.sshKeyPath ?? ""
+                groupID = host.groupID
+                identityID = host.identityID
+                tagsText = host.tags.joined(separator: ", ")
+            } else if let presetGroupID {
+                groupID = presetGroupID
             }
         }
         .fileImporter(
@@ -105,5 +170,52 @@ struct AddHostSheet: View {
                 sshKeyPath = url.path
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    private func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.md) {
+            DSSectionLabel(text: title)
+            content()
+                .font(DS.Typography.body)
+        }
+    }
+
+    private var parsedTags: [String] {
+        tagsText.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func save() {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespaces)
+        let trimmedAddress = address.trimmingCharacters(in: .whitespaces)
+        let trimmedUsername = username.trimmingCharacters(in: .whitespaces)
+
+        if var existing = editingHost {
+            existing.label = trimmedLabel
+            existing.address = trimmedAddress
+            existing.port = port
+            existing.username = trimmedUsername
+            existing.sshKeyPath = sshKeyPath.isEmpty ? nil : sshKeyPath
+            existing.groupID = groupID
+            existing.identityID = identityID
+            existing.tags = parsedTags
+            hostStore.updateHost(existing)
+        } else {
+            let entry = HostEntry(
+                label: trimmedLabel,
+                address: trimmedAddress,
+                port: port,
+                username: trimmedUsername,
+                sshKeyPath: sshKeyPath.isEmpty ? nil : sshKeyPath,
+                groupID: groupID,
+                tags: parsedTags,
+                identityID: identityID
+            )
+            hostStore.addHost(entry)
+        }
+        isPresented = false
     }
 }
