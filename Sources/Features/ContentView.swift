@@ -157,6 +157,9 @@ struct ContentView: View {
         .onAppear {
             TunnelManager.shared = tunnelManager
             tunnelManager.hostStore = hostStore
+            // Apply configured ports before the hub starts / tunnels connect.
+            hubManager.port = settings.hubPort
+            tunnelManager.tunnelPort = settings.tunnelPort
             TerminalCoordinatorRef.instance = paneManager
             Task { @MainActor in
                 hubManager.ensureRunning()
