@@ -175,6 +175,10 @@ import Foundation
     /// Update a connecting session to connected with the actual command and agent ID.
     /// The session's UUID is preserved (in-place mutation) so any references
     /// to the placeholder session stay valid.
+    /// NOTE: this does NOT switch the active session — the user may be
+    /// working in another session while this one finishes connecting, and
+    /// stealing focus would be jarring. The placeholder was already made
+    /// active when the user initiated the connection.
     func connectSession(id: UUID, command: String, agentID: String?) {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[idx].agentID = agentID
@@ -186,7 +190,6 @@ import Foundation
             sessions[idx].panes = [pane]
             sessions[idx].activePaneID = pane.id
         }
-        activeSessionID = sessions[idx].id
     }
 
     /// Mark a connecting session as failed.

@@ -95,6 +95,44 @@ struct SettingsPage: View {
                             .foregroundStyle(DS.textSecondary)
                     }
                 }
+
+                // Fallback fonts for codepoints missing from the primary
+                // (unicode symbols, Nerd Font icons, etc.).
+                VStack(alignment: .leading, spacing: DS.Space.sm) {
+                    DSSectionLabel(text: "Fallback Fonts")
+                    ForEach(settings.fontFallbackFamilies, id: \.self) { family in
+                        HStack(spacing: DS.Space.sm) {
+                            Image(systemName: "textformat")
+                                .font(.system(size: 10))
+                                .foregroundStyle(DS.textTertiary)
+                            Text(family)
+                                .font(DS.Typography.detail)
+                            Spacer()
+                            Button {
+                                settings.fontFallbackFamilies.removeAll { $0 == family }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(DS.textTertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    Menu {
+                        ForEach(fallbackSuggestions, id: \.self) { family in
+                            Button(family) {
+                                settings.fontFallbackFamilies.append(family)
+                            }
+                        }
+                    } label: {
+                        Label("Add Fallback…", systemImage: "plus")
+                            .font(DS.Typography.detailStrong)
+                    }
+                    .disabled(settings.fontFamily == nil)
+                    Text("Used for glyphs missing from the primary font (e.g. Nerd Font icons, box drawing).")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                }
             }
 
             groupBlock("Background") {
@@ -203,6 +241,17 @@ struct SettingsPage: View {
     }
 
     // MARK: - Helpers
+
+    /// Symbol/unicode fonts commonly used as fallbacks.
+    private var fallbackSuggestions: [String] {
+        let candidates = [
+            "Apple Symbols", "Apple Color Emoji",
+            "Noto Sans Symbols", "Noto Sans Symbols 2",
+            "Noto Color Emoji", "Symbols Nerd Font",
+            "Maple Mono NF CN",
+        ]
+        return candidates.filter { !settings.fontFallbackFamilies.contains($0) }
+    }
 
     private func groupBlock(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: DS.Space.md) {

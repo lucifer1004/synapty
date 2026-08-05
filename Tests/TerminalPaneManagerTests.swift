@@ -114,6 +114,22 @@ final class TerminalPaneManagerTests: XCTestCase {
         XCTAssertEqual(manager.allLeaves.count, 1)
     }
 
+    /// connectSession must NOT steal focus: if the user switched to another
+    /// session while this one was connecting, the completion callback should
+    /// not yank them away.
+    func testConnectSessionDoesNotSwitchActiveSession() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
+        let manager = TerminalPaneManager()
+        manager.addLocalSession()
+        let localID = manager.activeSessionID
+        let remoteID = manager.addRemoteSessionPlaceholder(label: "GPU Box", hostEntry: host)
+        // User moves back to the local session while remote connects.
+        manager.activeSessionID = localID
+        manager.connectSession(id: remoteID, command: "bash connect.sh agent-1 10.0.1.5 22 user 9000", agentID: "agent-1")
+        XCTAssertEqual(manager.activeSessionID, localID, "completing a background connection must not steal focus")
+        XCTAssertEqual(manager.sessions.first { $0.id == remoteID }?.state, .connected)
+    }
+
     /// failSession keeps the placeholder session with no panes.
     func testFailSessionKeepsPlaceholderWithoutPane() {
         let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")

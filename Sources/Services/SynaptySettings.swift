@@ -23,6 +23,13 @@ import Foundation
         didSet { persistAndWriteFragment() }
     }
 
+    /// Extra fallback font families appended after the primary — ghostty
+    /// walks them for codepoints missing from the primary font (unicode
+    /// symbols, Nerd Font icons, etc.).
+    @Published var fontFallbackFamilies: [String] {
+        didSet { persistAndWriteFragment() }
+    }
+
     /// Terminal font size in points. nil = ghostty default.
     @Published var fontSize: Double? {
         didSet { persistAndWriteFragment() }
@@ -79,6 +86,7 @@ import Foundation
     private struct Payload: Codable {
         var themeName: String?
         var fontFamily: String?
+        var fontFallbackFamilies: [String]?
         var fontSize: Double?
         var backgroundOpacity: Double?
         var cursorStyle: String?
@@ -104,6 +112,7 @@ import Foundation
         // Defaults before load (ports are Synapty's hardcoded defaults).
         hubPort = 9000
         tunnelPort = 9000
+        fontFallbackFamilies = []
         load()
         // Ensure the fragment exists (first run or after changes).
         writeGhosttyFragment()
@@ -115,6 +124,7 @@ import Foundation
         else { return }
         themeName = payload.themeName
         fontFamily = payload.fontFamily
+        fontFallbackFamilies = payload.fontFallbackFamilies ?? []
         fontSize = payload.fontSize
         backgroundOpacity = payload.backgroundOpacity
         cursorStyle = payload.cursorStyle
@@ -139,6 +149,7 @@ import Foundation
         let payload = Payload(
             themeName: themeName,
             fontFamily: fontFamily,
+            fontFallbackFamilies: fontFallbackFamilies,
             fontSize: fontSize,
             backgroundOpacity: backgroundOpacity,
             cursorStyle: cursorStyle,
@@ -166,6 +177,11 @@ import Foundation
         }
         if let fontFamily, !fontFamily.isEmpty {
             lines.append("font-family = \(fontFamily)")
+            // Fallback fonts: repeated font-family lines append (ghostty
+            // walks them for codepoints missing from the primary).
+            for fallback in fontFallbackFamilies where !fallback.isEmpty {
+                lines.append("font-family = \(fallback)")
+            }
         }
         if let fontSize {
             lines.append("font-size = \(fontSize)")
