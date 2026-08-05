@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-017"
+title = "fix(gui): background sessions no longer steal focus; unicode font fallbacks"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "Connecting a session in the background forced the current view over to it; pane-level focus changes also promoted sessions. Remove activeSessionID writes from connectSession and focusLeaf (pane-level focus only). Also add font fallback families so unicode glyphs render."
+
+[[content.acceptance_criteria]]
+text = "background session connect no longer forces the current view to it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "pane focus changes stay pane-level and no longer promote sessions"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "font fallback families render unicode glyphs"
+status = "done"
+category = "added"

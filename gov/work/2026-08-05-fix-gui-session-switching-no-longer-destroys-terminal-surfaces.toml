@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-011"
+title = "fix(gui): session switching no longer destroys terminal surfaces"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "Switching away from the terminal page (hosts/tasks/activity/hub/settings) and back used to deinit ghostty surfaces, killing PTY children and dropping sessions. Keep the terminal page and placeholder in the view tree (ZStack + opacity) so surfaces survive page switches, and make tapping a session row always return to the terminal page."
+
+[[content.acceptance_criteria]]
+text = "switching away from and back to the terminal page no longer drops sessions (surfaces stay in view tree)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "tapping a session row always navigates back to the terminal page"
+status = "done"
+category = "fixed"
