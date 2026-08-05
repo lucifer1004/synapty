@@ -62,6 +62,8 @@ pub fn main(init: std.process.Init) !void {
     const sub = parseArgs(allocator, arg_list.items) catch |err| {
         switch (err) {
             ParseError.HelpRequested => {
+                try io_mod.stdoutWriteAll("usage: synapty <task|agents|activity|github|skills|run|hub|mcp-serve> [args]\n");
+                try io_mod.stdoutWriteAll("try 'synapty <subcommand> --help' for subcommand options\n");
                 std.process.exit(0);
             },
             ParseError.MissingSubcommand => {
