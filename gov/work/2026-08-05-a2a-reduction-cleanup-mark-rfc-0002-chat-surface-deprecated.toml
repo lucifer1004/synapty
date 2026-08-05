@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-08-05-004"
 title = "A2A reduction cleanup — mark RFC-0002 chat surface deprecated"
-status = "queue"
+status = "done"
 created = "2026-08-05"
 
 [content]

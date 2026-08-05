@@ -327,3 +327,87 @@ pub fn runTaskCreate(allocator: Allocator, args: types.TaskCreateArgs) !void {
     if (args.body) |b| try args_obj.put(allocator, "body", .{ .string = b });
     try toolRoundtrip(allocator, "task.create", args_obj);
 }
+
+// ---------------------------------------------------------------------------
+// skills subcommand — RFC-0003 C-SKILLS
+// ---------------------------------------------------------------------------
+
+/// The canonical skill document, embedded at compile time.
+const synapty_skill = @embedFile("../skills/synapty-task/SKILL.md");
+
+const skill_install_marker = "<!-- synapty:installed -->";
+
+/// Write the skill doc to `<dir>/SKILL.md` (creating parent dirs).
+/// All three platforms use the skill-directory convention now
+/// (Claude Code / Codex / Gemini CLI), so this is a plain overwrite —
+/// idempotent by construction and always current.
+fn installSkillFile(allocator: Allocator, path: []const u8) !void {
+    _ = allocator;
+    const io = io_mod.get();
+    const dir_path = std.fs.path.dirname(path) orelse return error.InvalidPath;
+    try std.Io.Dir.cwd().createDirPath(io, dir_path);
+    var out = try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer out.close(io);
+    try out.writeStreamingAll(io, synapty_skill);
+}
+
+/// Remove a previously appended marked section (old AGENTS.md / GEMINI.md
+/// distribution) so global instruction files are not polluted.
+fn stripSynaptySection(allocator: Allocator, path: []const u8) void {
+    const io = io_mod.get();
+    const file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return;
+    defer file.close(io);
+    var existing = std.ArrayList(u8).empty;
+    defer existing.deinit(allocator);
+    var tmp: [4096]u8 = undefined;
+    while (true) {
+        const n = file.readStreaming(io, &.{tmp[0..]}) catch break;
+        if (n == 0) break;
+        existing.appendSlice(allocator, tmp[0..n]) catch break;
+    }
+    const marker = std.mem.indexOf(u8, existing.items, skill_install_marker) orelse return;
+    // Cut everything from the blank line before the marker.
+    var cut = marker;
+    while (cut > 0 and existing.items[cut - 1] == '\n') cut -= 1;
+    // Rewrite without the section.
+    var out = std.Io.Dir.cwd().createFile(io, path, .{}) catch return;
+    defer out.close(io);
+    out.writeStreamingAll(io, existing.items[0..cut]) catch {};
+}
+
+/// `synapty skills install` — copy the skill to detected platforms.
+/// All platforms use the skill-directory convention:
+///   Claude Code: ~/.claude/skills/synapty-task/SKILL.md
+///   Codex:       ~/.codex/skills/synapty-task/SKILL.md
+///   Gemini CLI:  ~/.gemini/skills/synapty-task/SKILL.md
+pub fn runSkillsInstall(allocator: Allocator) !void {
+    const home = sys.getenv("HOME") orelse {
+        try io_mod.stderrWriteAll("error: HOME not set\n");
+        std.process.exit(1);
+    };
+
+    // Migration: remove the old appended sections from global instruction
+    // files (AGENTS.md / GEMINI.md) if present.
+    const codex_agents = try std.fmt.allocPrint(allocator, "{s}/.codex/AGENTS.md", .{home});
+    defer allocator.free(codex_agents);
+    stripSynaptySection(allocator, codex_agents);
+    const gemini_md = try std.fmt.allocPrint(allocator, "{s}/.gemini/GEMINI.md", .{home});
+    defer allocator.free(gemini_md);
+    stripSynaptySection(allocator, gemini_md);
+
+    const platforms = [_]struct { label: []const u8, path: []const u8 }{
+        .{ .label = "Claude Code", .path = "{s}/.claude/skills/synapty-task/SKILL.md" },
+        .{ .label = "Codex", .path = "{s}/.codex/skills/synapty-task/SKILL.md" },
+        .{ .label = "Gemini CLI", .path = "{s}/.gemini/skills/synapty-task/SKILL.md" },
+    };
+    inline for (platforms) |p| {
+        const path = try std.fmt.allocPrint(allocator, p.path, .{home});
+        defer allocator.free(path);
+        try installSkillFile(allocator, path);
+        try io_mod.stdoutWriteAll("installed: ");
+        try io_mod.stdoutWriteAll(p.label);
+        try io_mod.stdoutWriteAll(" skill -> ");
+        try io_mod.stdoutWriteAll(path);
+        try io_mod.stdoutWriteAll("\n");
+    }
+}

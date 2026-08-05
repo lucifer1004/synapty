@@ -65,7 +65,7 @@ pub fn main(init: std.process.Init) !void {
                 std.process.exit(0);
             },
             ParseError.MissingSubcommand => {
-                try io_mod.stderrWriteAll("usage: synapty <register|send|recv|agents|channel|run|hub|mcp-serve> [args]\n");
+                try io_mod.stderrWriteAll("usage: synapty <task|agents|github|skills|run|hub|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
                 try io_mod.stderrWriteAll("error: unknown subcommand\n");
@@ -100,6 +100,9 @@ pub fn main(init: std.process.Init) !void {
         },
         .github => |g| {
             try commands.runGithubLogin(allocator, g);
+        },
+        .skills => |sk| {
+            if (sk.install) try commands.runSkillsInstall(allocator);
         },
         .task => |t| switch (t) {
             .list => |a| try commands.runTaskList(allocator, a),

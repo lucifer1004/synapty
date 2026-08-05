@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-08-05-005"
 title = "Agent skills distribution — synapty task docs for claude/codex/gemini"
-status = "queue"
+status = "done"
 created = "2026-08-05"
 
 [content]

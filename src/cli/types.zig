@@ -30,6 +30,13 @@ pub const Subcommand = union(enum) {
     mcp_serve,
     github: GithubArgs,
     task: TaskArgs,
+    skills: SkillsArgs,
+};
+
+/// `synapty skills install` — copy the synapty-task skill to detected
+/// agent platforms (RFC-0003 C-SKILLS).
+pub const SkillsArgs = struct {
+    install: bool = false,
 };
 
 /// `synapty github login` — configure hub repo + store PAT (C-AUTH).

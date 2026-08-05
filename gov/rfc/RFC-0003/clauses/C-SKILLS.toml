@@ -14,12 +14,18 @@ configuration. This is the ADR-0001 deliverable #6 ("Agent Skills") restored
 as the primary integration surface.
 
 - The canonical skill lives in the repository at
-  `configs/skills/synapty-task/` (SKILL.md) and is mirrored per platform:
-  Claude Code skills (`~/.claude/skills/`), Codex AGENTS.md conventions,
-  Gemini CLI equivalents.
-- `synapty skills install` copies the skill files to the detected
-  platforms' standard locations (idempotent); manual copy is equally
-  supported — the skill is just a markdown document.
+  `src/skills/synapty-task/SKILL.md` (embedded into the binary at compile
+  time via @embedFile, so `skills install` always distributes the version
+  matching the binary).
+- `synapty skills install` copies the skill to the skill-directory
+  convention of all three platforms — Claude Code
+  (`~/.claude/skills/synapty-task/SKILL.md`), Codex
+  (`~/.codex/skills/synapty-task/SKILL.md`), Gemini CLI
+  (`~/.gemini/skills/synapty-task/SKILL.md`) — overwriting to stay
+  current (idempotent by construction). Skills load on demand, so they
+  never pollute global instruction files (AGENTS.md / GEMINI.md);
+  `skills install` also strips any previously appended sections from
+  those files. Manual copy is equally supported.
 - `synapty github login` remains the only credential step and runs once on
   the login device; everything else is configuration-free.
 

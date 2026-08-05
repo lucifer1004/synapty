@@ -27,8 +27,24 @@ pub fn parseArgs(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (mem.eql(u8, sub, "mcp-serve")) return parseMcpServe(allocator, rest);
     if (mem.eql(u8, sub, "github")) return parseGithub(allocator, rest);
     if (mem.eql(u8, sub, "task")) return parseTask(allocator, rest);
+    if (mem.eql(u8, sub, "skills")) return parseSkills(allocator, rest);
 
     return ParseError.UnknownSubcommand;
+}
+
+// ---------------------------------------------------------------------------
+// skills subcommand (RFC-0003 C-SKILLS)
+// ---------------------------------------------------------------------------
+
+fn parseSkills(allocator: Allocator, args: []const []const u8) !Subcommand {
+    _ = allocator;
+    if (args.len == 0) return ParseError.MissingSubcommand;
+    if (mem.eql(u8, args[0], "--help") or mem.eql(u8, args[0], "-h")) return ParseError.HelpRequested;
+    if (!mem.eql(u8, args[0], "install")) return ParseError.UnknownSubcommand;
+    if (args.len > 1 and (mem.eql(u8, args[1], "--help") or mem.eql(u8, args[1], "-h"))) {
+        return ParseError.HelpRequested;
+    }
+    return .{ .skills = .{ .install = true } };
 }
 
 // ---------------------------------------------------------------------------
