@@ -54,11 +54,18 @@ targets:
               cp "$SRC" "$DEST/synapty"
             fi
           done
-          # Bundle the unified synapty binary ([[ADR-0004]]: hub is `synapty hub`)
+          # Bundle the unified synapty binary ([[ADR-0004]]: hub is `synapty hub`).
+          # Must live in Contents/MacOS/ (standard Mach-O location): a bare
+          # executable copied into Contents/Resources/ is not covered by the
+          # app signature, and Apple System Policy kills it on exec
+          # ("load code signature error 2"). In MacOS/ it is sealed as a
+          # nested helper and executes fine.
           BIN_SRC="${SRCROOT}/zig-out/bin/synapty"
-          BIN_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources"
+          BIN_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/MacOS"
           if [ -f "$BIN_SRC" ]; then
-            cp "$BIN_SRC" "$BIN_DEST/synapty"
+            # Name must not collide with the main executable: APFS is
+            # case-insensitive, so "synapty" would overwrite "Synapty".
+            cp "$BIN_SRC" "$BIN_DEST/synapty-cli"
           fi
         name: Bundle deploy and hub binaries
     dependencies:

@@ -145,8 +145,12 @@ import AppKit
     func localCommand() -> (command: String, agentID: String) {
         let agentID = "local-\(UUID().uuidString.prefix(4).lowercased())"
         let synaptyBin: String
-        if let bundled = Bundle.main.path(forResource: "synapty", ofType: nil) {
-            synaptyBin = bundled
+        // Contents/MacOS/ — Resources/ copies are killed by ASP (signature
+        // not sealed); MacOS/ is the standard nested-helper location.
+        let macosBin = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/MacOS/synapty-cli").path
+        if FileManager.default.fileExists(atPath: macosBin) {
+            synaptyBin = macosBin
         } else {
             let cwd = FileManager.default.currentDirectoryPath
             synaptyBin = "\(cwd)/zig-out/bin/synapty"

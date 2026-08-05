@@ -122,8 +122,12 @@ struct ChatMessage: Identifiable, Equatable {
     // MARK: - Binary path resolution (matches HubManager pattern)
 
     private func synaptyBinaryPath() -> String? {
-        if let bundled = Bundle.main.path(forResource: "synapty", ofType: nil) {
-            return bundled
+        // Contents/MacOS/ — Resources/ copies are killed by ASP (signature
+        // not sealed); MacOS/ is the standard nested-helper location.
+        let macosBin = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/MacOS/synapty-cli").path
+        if FileManager.default.fileExists(atPath: macosBin) {
+            return macosBin
         }
         let devPath = "zig-out/bin/synapty"
         if FileManager.default.fileExists(atPath: devPath) {

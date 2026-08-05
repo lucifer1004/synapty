@@ -37,3 +37,4 @@ zig-pkg/
 
 # local
 .env
+default.profraw
