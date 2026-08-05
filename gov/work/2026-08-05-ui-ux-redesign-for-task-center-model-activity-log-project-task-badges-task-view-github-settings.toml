@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-08-05-006"
 title = "UI/UX redesign for task-center model — activity log, project task badges, task view, GitHub settings"
-status = "queue"
+status = "done"
 created = "2026-08-05"
 
 [content]
