@@ -1,6 +1,6 @@
 #!/bin/bash
 # Synapty host setup script.
-# Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path]
+# Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path] [proxy-jump] [fwd-kind listen target-host target-port ...]
 #
 # Detects remote platform, uploads the synapty binary (if changed),
 # and establishes an SSH ControlMaster with a reverse tunnel.
@@ -11,11 +11,20 @@
 # bug → EAFNOSUPPORT). Reusing the master keeps the check cheap.
 set -euo pipefail
 
-HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path]}"
+HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path] [proxy-jump] [forwards...]}"
 PORT="${2:-22}"
 USER="${3:-$(whoami)}"
 TUNNEL_PORT="${4:-9000}"
 KEY="${5:-}"
+PROXY_JUMP="${6:-}"
+
+# Remaining args: forward rules as (kind listen target-host target-port) quads.
+FORWARDS=()
+shift 6 2>/dev/null || true
+while [ "$#" -ge 4 ]; do
+    FORWARDS+=("$1" "$2" "$3" "$4")
+    shift 4
+done
 
 DEST="${USER}@${HOST}"
 # Robustness (WI-2026-03-31-003): fail fast on unreachable hosts, auto-accept
@@ -25,6 +34,10 @@ SCP_FLAGS="-O -P ${PORT}"
 if [ -n "$KEY" ]; then
     SSH_FLAGS="-i ${KEY} ${SSH_FLAGS}"
     SCP_FLAGS="-i ${KEY} ${SCP_FLAGS}"
+fi
+if [ -n "$PROXY_JUMP" ]; then
+    SSH_FLAGS="-J ${PROXY_JUMP} ${SSH_FLAGS}"
+    SCP_FLAGS="-J ${PROXY_JUMP} ${SCP_FLAGS}"
 fi
 
 SOCKET_DIR="$HOME/.synapty/sockets"
@@ -119,10 +132,22 @@ if $CM_ACTIVE; then
     echo "ControlMaster already established (reusing)."
 else
     echo "Starting SSH ControlMaster with reverse tunnel (port ${TUNNEL_PORT})..."
+    # Build forwarding args: -L listen:targetHost:targetPort / -R ...
+    FORWARD_ARGS=()
+    i=0
+    while [ $((i + 3)) -lt ${#FORWARDS[@]} ]; do
+        KIND="${FORWARDS[$i]}"
+        LISTEN="${FORWARDS[$((i + 1))]}"
+        THOST="${FORWARDS[$((i + 2))]}"
+        TPORT="${FORWARDS[$((i + 3))]}"
+        FORWARD_ARGS+=("-$KIND" "${LISTEN}:${THOST}:${TPORT}")
+        i=$((i + 4))
+    done
     ssh -MNf -S "$SOCKET" -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
         -o ServerAliveInterval=15 \
         -o ServerAliveCountMax=3 \
         -o ControlPersist=300 \
+        "${FORWARD_ARGS[@]}" \
         $SSH_FLAGS "$DEST"
     echo "ControlMaster established: ${SOCKET}"
 fi

@@ -250,3 +250,78 @@ final class HostStoreTests: XCTestCase {
         XCTAssertEqual(decoded.identities[0].label, "CI")
     }
 }
+
+// MARK: - Port forwarding & ProxyJump (Termius parity 2/3/4)
+
+final class PortForwardTests: XCTestCase {
+    func testLocalForwardFlag() {
+        let fwd = PortForward(kind: .local, listenPort: 8080, targetHost: "localhost", targetPort: 80)
+        XCTAssertEqual(fwd.sshFlag, "local 8080:localhost:80")
+    }
+
+    func testRemoteForwardFlag() {
+        let fwd = PortForward(kind: .remote, listenPort: 9090, targetHost: "127.0.0.1", targetPort: 9000)
+        XCTAssertEqual(fwd.sshFlag, "remote 9090:127.0.0.1:9000")
+    }
+
+    func testHostEntryCodableWithNewFields() throws {
+        let fwd = PortForward(kind: .local, listenPort: 8080, targetHost: "localhost", targetPort: 80)
+        let host = HostEntry(
+            label: "web", address: "10.0.0.2", username: "u",
+            proxyJump: "user@bastion:22", forwardings: [fwd]
+        )
+        let data = try JSONEncoder().encode(host)
+        let decoded = try JSONDecoder().decode(HostEntry.self, from: data)
+        XCTAssertEqual(decoded.proxyJump, "user@bastion:22")
+        XCTAssertEqual(decoded.forwardings.count, 1)
+        XCTAssertEqual(decoded.forwardings[0].sshFlag, "local 8080:localhost:80")
+    }
+}
+
+@MainActor
+final class SSHConfigImportTests: XCTestCase {
+    func testParseSSHConfigBasic() {
+        let content = """
+        Host bastion
+            HostName 203.0.113.1
+            User admin
+            Port 2222
+
+        Host gpu-1
+            HostName 10.0.1.5
+            User ml
+            IdentityFile ~/.ssh/gpu_key
+            ProxyJump admin@bastion:2222
+
+        Host *.example.com
+            HostName example.com
+        """
+        let entries = HostStore.parseSSHConfig(content)
+        XCTAssertEqual(entries.count, 2) // wildcard skipped
+
+        let bastion = entries.first { $0.label == "bastion" }
+        XCTAssertEqual(bastion?.address, "203.0.113.1")
+        XCTAssertEqual(bastion?.username, "admin")
+        XCTAssertEqual(bastion?.port, 2222)
+
+        let gpu = entries.first { $0.label == "gpu-1" }
+        XCTAssertEqual(gpu?.address, "10.0.1.5")
+        XCTAssertEqual(gpu?.username, "ml")
+        XCTAssertEqual(gpu?.sshKeyPath, "~/.ssh/gpu_key")
+        XCTAssertEqual(gpu?.proxyJump, "admin@bastion:2222")
+    }
+
+    func testParseSSHConfigEqualSyntaxAndComments() {
+        let content = """
+        # comment
+        Host db
+            HostName=10.0.2.5
+            User=root
+        """
+        let entries = HostStore.parseSSHConfig(content)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].label, "db")
+        XCTAssertEqual(entries[0].address, "10.0.2.5")
+        XCTAssertEqual(entries[0].username, "root")
+    }
+}

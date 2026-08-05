@@ -87,6 +87,16 @@ import AppKit
         hostStore?.effectivePort(for: host) ?? host.port
     }
 
+    /// Effective jump host (ProxyJump) for a host, or nil.
+    func effectiveProxyJump(for host: HostEntry) -> String? {
+        hostStore?.effectiveProxyJump(for: host)
+    }
+
+    /// Effective port-forwarding rules for a host.
+    func effectiveForwardings(for host: HostEntry) -> [PortForward] {
+        hostStore?.effectiveForwardings(for: host) ?? host.forwardings
+    }
+
     // MARK: - Socket path
 
     func socketPath(for host: HostEntry) -> String {
@@ -157,6 +167,17 @@ import AppKit
         if let key = effectiveKeyPath(for: host), !key.isEmpty {
             parts.append(shellEscape(key))
         }
+        // Optional jump host (ProxyJump).
+        if let jump = effectiveProxyJump(for: host), !jump.isEmpty {
+            parts.append(shellEscape(jump))
+        }
+        // Optional port-forwarding rules ("local 8080 localhost 80" each).
+        for fwd in effectiveForwardings(for: host) {
+            parts.append(fwd.kind.rawValue)
+            parts.append("\(fwd.listenPort)")
+            parts.append(shellEscape(fwd.targetHost))
+            parts.append("\(fwd.targetPort)")
+        }
         return (parts.joined(separator: " "), agentID)
     }
 
@@ -189,6 +210,17 @@ import AppKit
         var args = [script, host.address, "\(effectivePort(for: host))", effectiveUsername(for: host), "\(tunnelPort)"]
         if let key = effectiveKeyPath(for: host), !key.isEmpty {
             args.append(key)
+        }
+        // Optional jump host (ProxyJump).
+        if let jump = effectiveProxyJump(for: host), !jump.isEmpty {
+            args.append(jump)
+        }
+        // Optional port-forwarding rules ("local 8080 localhost 80" each).
+        for fwd in effectiveForwardings(for: host) {
+            args.append(fwd.kind.rawValue)
+            args.append("\(fwd.listenPort)")
+            args.append(fwd.targetHost)
+            args.append("\(fwd.targetPort)")
         }
         process.arguments = args
 

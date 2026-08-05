@@ -22,6 +22,31 @@ struct Identity: Identifiable, Codable, Equatable {
     var sshKeyPath: String?
 }
 
+// MARK: - Port forwarding
+
+/// An SSH port forwarding rule, applied when the tunnel is established.
+/// Mirrors OpenSSH's -L / -R semantics.
+struct PortForward: Identifiable, Codable, Equatable {
+    enum Kind: String, Codable, CaseIterable {
+        case local   // -L: forward local port to remote target
+        case remote  // -R: forward remote port to local target
+    }
+
+    var id = UUID()
+    var kind: Kind = .local
+    /// Port on the near side (local for -L, remote for -R).
+    var listenPort: Int = 8080
+    /// Target host on the far side (empty = localhost).
+    var targetHost: String = "localhost"
+    /// Target port on the far side.
+    var targetPort: Int = 80
+
+    /// `-L listen:targetHost:targetPort` / `-R ...` OpenSSH fragment.
+    var sshFlag: String {
+        "\(kind.rawValue) \(listenPort):\(targetHost):\(targetPort)"
+    }
+}
+
 // MARK: - HostGroup (nested, with inherited settings)
 
 struct HostGroup: Identifiable, Codable, Equatable {
@@ -35,6 +60,10 @@ struct HostGroup: Identifiable, Codable, Equatable {
     var port: Int?
     /// Optional default username inherited by hosts in this group.
     var username: String?
+    /// Optional jump host inherited by hosts in this group (ProxyJump).
+    var proxyJump: String?
+    /// Optional port-forwarding rules inherited by hosts in this group.
+    var forwardings: [PortForward]?
 }
 
 // MARK: - HostEntry
@@ -52,6 +81,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
     var tags: [String] = []
     /// Reusable credentials reference; overrides group inheritance.
     var identityID: UUID?
+    /// Jump host for ProxyJump, e.g. "user@bastion:22" (host-level override).
+    var proxyJump: String?
+    /// Port forwarding rules applied when the tunnel is established.
+    var forwardings: [PortForward] = []
 
     /// Resolved display address (username@address).
     var displayAddress: String { "\(username)@\(address)" }
@@ -62,7 +95,7 @@ struct HostEntry: Identifiable, Codable, Equatable {
     // hosts would be silently lost on migration.
 
     private enum CodingKeys: String, CodingKey {
-        case id, label, address, port, username, sshKeyPath, groupID, tags, identityID
+        case id, label, address, port, username, sshKeyPath, groupID, tags, identityID, proxyJump, forwardings
     }
 
     init(
@@ -74,7 +107,9 @@ struct HostEntry: Identifiable, Codable, Equatable {
         sshKeyPath: String? = nil,
         groupID: UUID? = nil,
         tags: [String] = [],
-        identityID: UUID? = nil
+        identityID: UUID? = nil,
+        proxyJump: String? = nil,
+        forwardings: [PortForward] = []
     ) {
         self.id = id
         self.label = label
@@ -85,6 +120,8 @@ struct HostEntry: Identifiable, Codable, Equatable {
         self.groupID = groupID
         self.tags = tags
         self.identityID = identityID
+        self.proxyJump = proxyJump
+        self.forwardings = forwardings
     }
 
     init(from decoder: Decoder) throws {
@@ -98,6 +135,8 @@ struct HostEntry: Identifiable, Codable, Equatable {
         groupID = try c.decodeIfPresent(UUID.self, forKey: .groupID)
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         identityID = try c.decodeIfPresent(UUID.self, forKey: .identityID)
+        proxyJump = try c.decodeIfPresent(String.self, forKey: .proxyJump)
+        forwardings = try c.decodeIfPresent([PortForward].self, forKey: .forwardings) ?? []
     }
 }
 
@@ -346,6 +385,33 @@ struct HostEntry: Identifiable, Codable, Equatable {
         return 22
     }
 
+    /// Resolved jump host (ProxyJump) for a host: host-level → group chain.
+    func effectiveProxyJump(for host: HostEntry) -> String? {
+        if let jump = host.proxyJump, !jump.isEmpty { return jump }
+        guard let groupID = host.groupID else { return nil }
+        return inheritedGroupValue(groupID, keyPath: \.proxyJump)
+    }
+
+    /// Effective forwarding rules: host-level rules, or the group's if the
+    /// host defines none. (Forwarding rules are not merged to keep the
+    /// command line predictable.)
+    func effectiveForwardings(for host: HostEntry) -> [PortForward] {
+        if !host.forwardings.isEmpty { return host.forwardings }
+        guard let groupID = host.groupID else { return [] }
+        return groupForwardings(groupID)
+    }
+
+    /// Forwardings declared on the group chain (nearest group wins).
+    private func groupForwardings(_ groupID: UUID) -> [PortForward] {
+        var current: UUID? = groupID
+        while let gid = current {
+            guard let group = groups.first(where: { $0.id == gid }) else { break }
+            if group.forwardings != nil { return group.forwardings! }
+            current = group.parentID
+        }
+        return []
+    }
+
     /// Walks up the group chain looking for the nearest non-nil value.
     private func inheritedGroupValue<T>(_ groupID: UUID, keyPath: KeyPath<HostGroup, T?>) -> T? {
         var current: UUID? = groupID
@@ -379,5 +445,65 @@ struct HostEntry: Identifiable, Codable, Equatable {
             host.tags.contains { $0.lowercased().contains(needle) } ||
             groupPath(for: host.groupID).joined(separator: "/").lowercased().contains(needle)
         }
+    }
+}
+
+// MARK: - ~/.ssh/config import
+
+extension HostStore {
+    /// Parse ~/.ssh/config into importable host entries. Returns entries with
+    /// resolved HostName/User/Port/IdentityFile/ProxyJump where available.
+    /// Skips wildcard and pattern Host entries.
+    static func parseSSHConfig(_ content: String) -> [HostEntry] {
+        var entries: [HostEntry] = []
+        var current: [String: String] = [:]
+        var currentHost: String?
+
+        func flush() {
+            guard let hostName = current["hostname"],
+                  let host = currentHost,
+                  !host.contains("*") && !host.contains("?") else {
+                current = [:]
+                currentHost = nil
+                return
+            }
+            let user = current["user"] ?? NSUserName()
+            var entry = HostEntry(
+                label: host,
+                address: hostName,
+                port: Int(current["port"] ?? "") ?? 22,
+                username: user,
+                sshKeyPath: current["identityfile"]?.split(separator: " ").first.map(String.init),
+                proxyJump: current["proxyjump"]
+            )
+            entries.append(entry)
+            current = [:]
+            currentHost = nil
+        }
+
+        for rawLine in content.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+            // ssh config allows "Key=Value" or "Key Value"; split on first
+            // whitespace or '='.
+            let parts: [String]
+            if let eq = line.firstIndex(of: "=") {
+                parts = [String(line[..<eq]), String(line[line.index(after: eq)...])]
+            } else {
+                parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+            }
+            guard parts.count == 2 else { continue }
+            let key = parts[0].lowercased()
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+
+            if key == "host" {
+                flush()
+                currentHost = value
+            } else if let currentHost, currentHost != "" {
+                current[key] = value
+            }
+        }
+        flush()
+        return entries
     }
 }
