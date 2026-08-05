@@ -8,9 +8,10 @@ struct SynaptyApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appDelegate)
+                .tint(DS.accent)
         }
         .windowStyle(.titleBar)
-        .defaultSize(width: 900, height: 600)
+        .defaultSize(width: 1100, height: 720)
         .commands {
             SynaptyCommands()
         }
@@ -23,6 +24,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyApp()
+
+        // Enforce a sensible minimum window size.
+        for window in NSApplication.shared.windows {
+            window.minSize = NSSize(width: 760, height: 480)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

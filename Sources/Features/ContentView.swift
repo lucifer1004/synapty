@@ -63,10 +63,16 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 } else {
-                    Text("Initializing terminal...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(.black)
-                        .foregroundColor(.white)
+                    VStack(spacing: DS.Space.sm) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(DS.accent)
+                        Text("Initializing terminal…")
+                            .font(DS.Typography.detail)
+                            .foregroundStyle(DS.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(DS.background)
                 }
                 ContextStatusBar(
                     paneManager: paneManager,
@@ -103,12 +109,12 @@ struct ContentView: View {
                 Button {
                     showHubSheet = true
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Circle()
-                            .fill(hubManager.status.isRunning ? Color.green : Color.red)
+                            .fill(hubManager.status.isRunning ? DS.success : DS.danger)
                             .frame(width: 8, height: 8)
                         Text("Hub")
-                            .font(.caption)
+                            .font(DS.Typography.caption)
                     }
                 }
                 .help("Hub Status")
