@@ -4,9 +4,25 @@ import SwiftUI
 /// Replaces the chat-message log of the dialogue model.
 struct ActivityLogView: View {
     @ObservedObject var taskMonitor: TaskMonitor
+    @Binding var isPresented: Bool
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Text("Activity")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            Divider()
             if taskMonitor.activities.isEmpty {
                 emptyState
             } else {

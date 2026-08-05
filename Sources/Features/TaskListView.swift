@@ -5,6 +5,7 @@ import SwiftUI
 /// GitHub; details/comments live on the platform by design.
 struct TaskListView: View {
     @ObservedObject var taskMonitor: TaskMonitor
+    @Binding var isPresented: Bool
 
     @State private var stateFilter: TaskStatus? = nil
 
@@ -28,6 +29,13 @@ struct TaskListView: View {
             Text("Tasks")
                 .font(.headline)
             Spacer()
+            Button {
+                isPresented = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
             Picker("State", selection: $stateFilter) {
                 Text("All").tag(nil as TaskStatus?)
                 Text("Todo").tag(TaskStatus.todo as TaskStatus?)

@@ -65,10 +65,10 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showActivityLog) {
-            ActivityLogView(taskMonitor: taskMonitor)
+            ActivityLogView(taskMonitor: taskMonitor, isPresented: $showActivityLog)
         }
         .sheet(isPresented: $showTaskList) {
-            TaskListView(taskMonitor: taskMonitor)
+            TaskListView(taskMonitor: taskMonitor, isPresented: $showTaskList)
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
