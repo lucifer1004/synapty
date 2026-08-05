@@ -297,15 +297,38 @@ class GhosttyNSView: NSView, NSTextInputClient {
         keyEvent.mods = translateModifiers(event.modifierFlags)
         keyEvent.composing = hasMarkedText()
 
+        // unshifted_codepoint: the key's base character with no modifiers.
+        // Ghostty's ctrlSeq uses it to lowercase letters (e.g. Ctrl+B with
+        // caps lock must encode as 0x02). Without it, Ctrl sequences break.
+        if event.type == .keyDown || event.type == .keyUp,
+           let chars = event.characters(byApplyingModifiers: []),
+           let scalar = chars.unicodeScalars.first {
+            keyEvent.unshifted_codepoint = scalar.value
+        }
+
+        // consumed_mods: which modifiers contributed to the text translation.
+        // Control and command never contribute to macOS text translation.
+        keyEvent.consumed_mods = translateModifiers(
+            event.modifierFlags.subtracting([.control, .command])
+        )
+
+        // Text handling: ghostty itself encodes control characters (Ctrl+A →
+        // 0x01 etc.) from keycode+mods. If we pass the control character
+        // produced by interpretKeyEvents (e.g. "\u{02}" for Ctrl+B) as text,
+        // ghostty's ctrlSeq hits `else => null` and the key is swallowed —
+        // breaking Ctrl passthrough to Zellij and friends. Only pass text for
+        // printable characters (>= 0x20), mirroring Ghostty's own keyAction.
         let text = pendingText ?? ""
-        if text.isEmpty {
-            keyEvent.text = nil
-            ghostty_surface_key(surface, keyEvent)
-        } else {
+        if !text.isEmpty,
+           let first = text.utf8.first,
+           first >= 0x20 {
             text.withCString { ptr in
                 keyEvent.text = ptr
                 ghostty_surface_key(surface, keyEvent)
             }
+        } else {
+            keyEvent.text = nil
+            ghostty_surface_key(surface, keyEvent)
         }
         pendingText = nil
     }
