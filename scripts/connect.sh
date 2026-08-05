@@ -64,6 +64,10 @@ if ssh -S "$SOCKET" -O check "$DEST" 2>/dev/null; then
         ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 else
     echo "No ControlMaster found. Connecting with new tunnel..."
-    exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" "${FORWARD_ARGS[@]}" $SSH_FLAGS "$DEST" \
+    # macOS ships bash 3.2: expanding an empty array under `set -u`
+    # ("${FORWARD_ARGS[@]}") errors with "unbound variable". Use the
+    # ${var[@]+...} guard so an empty array expands to nothing.
+    exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
+        ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"} $SSH_FLAGS "$DEST" \
         ".synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 fi

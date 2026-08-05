@@ -155,7 +155,7 @@ else
         -o ServerAliveInterval=15 \
         -o ServerAliveCountMax=3 \
         -o ControlPersist=300 \
-        "${FORWARD_ARGS[@]}" \
+        ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"} \
         $SSH_FLAGS "$DEST"
     echo "ControlMaster established: ${SOCKET}"
 fi
