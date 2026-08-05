@@ -35,6 +35,17 @@ struct TaskListView: View {
                 Text("Tasks")
                     .font(DS.Typography.titleLarge)
                 Spacer()
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DS.textSecondary)
+                        .frame(width: 22, height: 22)
+                        .background(DS.hover, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close")
             }
             .padding(.horizontal, DS.Space.xl)
             .padding(.top, DS.Space.lg)

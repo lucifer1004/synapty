@@ -40,6 +40,7 @@ struct ContentView: View {
                     agentMonitor?.clearAttention(agent.id)
                 }
             )
+            .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
             VStack(spacing: 0) {
                 if let ghosttyApp = appDelegate.ghosttyApp {

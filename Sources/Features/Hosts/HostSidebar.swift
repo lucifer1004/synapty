@@ -35,10 +35,13 @@ struct HostSidebar: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Synapty")
                         .font(DS.Typography.titleLarge)
-                    Text("Agent Workbench")
+                        .lineLimit(1)
+                    Text("Workbench")
                         .font(DS.Typography.monoCaption)
                         .foregroundStyle(DS.textTertiary)
+                        .lineLimit(1)
                 }
+                .layoutPriority(1)
 
                 Spacer(minLength: DS.Space.sm)
 
@@ -361,6 +364,7 @@ struct AgentSubRow: View {
                         Text(agent.tool.displayName)
                             .font(DS.Typography.detailStrong)
                             .foregroundStyle(DS.textPrimary)
+                            .lineLimit(1)
 
                         Spacer(minLength: DS.Space.xs)
 
