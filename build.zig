@@ -181,6 +181,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "protocol", .module = deploy_mods.protocol },
                 .{ .name = "io", .module = deploy_mods.io },
                 .{ .name = "sys", .module = deploy_mods.sys },
+                .{ .name = "github", .module = deploy_mods.github },
             },
         });
         const deploy_cli_mod = b.createModule(.{

@@ -44,11 +44,22 @@ pub const SIGPIPE: i32 = 13;
 // Address structures
 // ---------------------------------------------------------------------------
 
+/// `sa_family_t`: macOS uses a 1-byte family (prefixed by a length byte
+/// in sockaddr_in/sockaddr_un); Linux uses a 2-byte family with no length
+/// prefix. Using the wrong width shifts the rest of the struct, so the
+/// kernel reads garbage (e.g. the first path byte as the high half of the
+/// family) and connect/bind fails with EAFNOSUPPORT.
+pub const sa_family_t = switch (builtin.os.tag) {
+    .macos => u8,
+    .linux => u16,
+    else => @compileError("unsupported OS"),
+};
+
 /// IPv4 socket address (`struct sockaddr_in`).
 /// macOS prefixes the family byte with a length byte; Linux does not.
 pub const sockaddr_in = extern struct {
     prefix: Prefix,
-    family: u8,
+    family: sa_family_t,
     port: u16, // network byte order
     addr: u32, // network byte order
     zero: [8]u8,
@@ -62,6 +73,12 @@ pub const sockaddr_in = extern struct {
 
     comptime {
         if (@sizeOf(sockaddr_in) != 16) @compileError("bad sockaddr_in size");
+        // Linux sa_family_t is u16 at offset 0 (no length prefix); macOS is
+        // u8 at offset 1 (after the length byte).
+        if (builtin.os.tag == .linux and @offsetOf(sockaddr_in, "family") != 0)
+            @compileError("bad Linux sockaddr_in family offset");
+        if (builtin.os.tag == .macos and @offsetOf(sockaddr_in, "family") != 1)
+            @compileError("bad macOS sockaddr_in family offset");
     }
 
     pub fn init(addr: u32, port: u16) sockaddr_in {
@@ -81,7 +98,7 @@ pub const sockaddr_in = extern struct {
 /// Unix domain socket address (`struct sockaddr_un`).
 pub const sockaddr_un = extern struct {
     prefix: Prefix,
-    family: u8,
+    family: sa_family_t,
     path: [PathLen]u8,
 
     const PathLen = if (builtin.os.tag == .macos)
@@ -97,6 +114,20 @@ pub const sockaddr_un = extern struct {
         extern struct {}
     else
         @compileError("unsupported OS");
+
+    comptime {
+        // Layout guard: the kernel reads sa_family_t (1 byte on macOS, 2 on
+        // Linux) directly from the struct. If the family width or path
+        // offset is wrong, connect/bind fail with EAFNOSUPPORT because the
+        // first path byte lands where the family's high byte should be.
+        if (builtin.os.tag == .macos) {
+            if (@sizeOf(sockaddr_un) != 106) @compileError("bad macOS sockaddr_un size");
+            if (@offsetOf(sockaddr_un, "path") != 2) @compileError("bad macOS sockaddr_un path offset");
+        } else if (builtin.os.tag == .linux) {
+            if (@sizeOf(sockaddr_un) != 110) @compileError("bad Linux sockaddr_un size");
+            if (@offsetOf(sockaddr_un, "path") != 2) @compileError("bad Linux sockaddr_un path offset");
+        }
+    }
 
     /// Build an address from a path. Returns null if the path does not fit.
     pub fn init(path: []const u8) ?sockaddr_un {
