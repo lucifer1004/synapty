@@ -19,6 +19,7 @@ struct ContentView: View {
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
     @StateObject private var taskMonitor = TaskMonitor()
+    @StateObject private var settings = SynaptySettings()
     @State private var page: AppPage = .terminal
     @State private var showShortcuts = false
     @State private var showFindBar = false
@@ -55,7 +56,7 @@ struct ContentView: View {
             case .terminal:
                 terminalPage
             case .hosts:
-                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager, settings: settings)
             case .tasks:
                 TaskListView(taskMonitor: taskMonitor)
             case .activity:

@@ -115,6 +115,12 @@ struct HostEntry: Identifiable, Codable, Equatable {
         return dir.appendingPathComponent("hosts.json")
     }
 
+    /// Rolling backup of the previous hosts.json. Written before every save
+    /// so a bad migration or accidental overwrite can be rolled back.
+    private static var backupURL: URL {
+        storageURL.deletingPathExtension().appendingPathExtension("json.bak")
+    }
+
     init() {
         load()
     }
@@ -160,9 +166,28 @@ struct HostEntry: Identifiable, Codable, Equatable {
     }
 
     func save() {
+        // Keep a rolling backup of the previous file so a bad migration or
+        // accidental overwrite is never irreversible.
+        if FileManager.default.fileExists(atPath: Self.storageURL.path) {
+            try? FileManager.default.removeItem(at: Self.backupURL)
+            try? FileManager.default.copyItem(at: Self.storageURL, to: Self.backupURL)
+        }
         let payload = Payload(hosts: hosts, groups: groups, identities: identities)
         guard let data = try? JSONEncoder().encode(payload) else { return }
         try? data.write(to: Self.storageURL, options: .atomic)
+    }
+
+    /// Attempt to restore the last saved state from the rolling backup.
+    /// Returns true on success.
+    func restoreFromBackup() -> Bool {
+        guard FileManager.default.fileExists(atPath: Self.backupURL.path),
+              let data = try? Data(contentsOf: Self.backupURL),
+              let payload = try? JSONDecoder().decode(Payload.self, from: data)
+        else { return false }
+        hosts = payload.hosts
+        groups = payload.groups
+        identities = payload.identities
+        return true
     }
 
     // MARK: - Hosts

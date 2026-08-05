@@ -17,17 +17,12 @@ import AppKit
     /// once and rendered in one frame.
     private var tickScheduled = false
 
-    /// Write the Synapty ghostty config fragment if missing and load it
-    /// (loaded after default files, so it overrides them).
+    /// Load the Synapty-managed ghostty config fragment (scroll behavior,
+    /// theme). The fragment is written by SynaptySettings; loaded after
+    /// default files so it overrides them.
     private func loadSynaptyConfig(_ cfg: ghostty_config_t) {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let dir = "\(home)/.config/synapty"
-        let path = "\(dir)/ghostty.conf"
-        if !FileManager.default.fileExists(atPath: path) {
-            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            let fragment = "scroll-to-bottom = no-keystroke,no-output\n"
-            try? fragment.write(toFile: path, atomically: true, encoding: .utf8)
-        }
+        let path = "\(home)/.config/synapty/ghostty.conf"
         path.withCString { cStr in
             ghostty_config_load_file(cfg, cStr)
         }
