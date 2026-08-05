@@ -36,6 +36,14 @@ import AppKit
     init() {
         GhosttyApp.shared = self
 
+        // macOS crashes inside ghostty_init's setlocale when LANG is a
+        // locale with missing data (observed: en_CN.UTF-8 → loadlocale
+        // NULL-deref in open()). Pin a safe locale for the process before
+        // initializing; children (synapty run) inherit it too.
+        if let lang = getenv("LANG"), String(cString: lang).contains("en_CN") {
+            setenv("LANG", "en_US.UTF-8", 1)
+        }
+
         // Initialize the Ghostty library — must be called before any other ghostty_ function
         let initResult = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
         guard initResult == GHOSTTY_SUCCESS else {
