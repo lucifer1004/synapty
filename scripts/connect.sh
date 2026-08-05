@@ -56,13 +56,13 @@ done
 
 SOCKET="$HOME/.synapty/sockets/${USER}@${HOST}:${PORT}"
 
-# Remote shell preamble: if the remote host cannot resolve the ghostty
-# terminfo entry (xterm-ghostty), fall back to xterm-256color which every
-# ncurses install has. Without a resolvable TERM entry, shells (zsh +
-# powerlevel10k etc.) mis-encode backspace/delete — the classic "backspace
-# prints a space" bug (ghostty#5818). Detection is cheap and runs once per
-# connection.
-REMOTE_PREAMBLE='if infocmp -x xterm-ghostty >/dev/null 2>&1; then :; else export TERM=xterm-256color; fi; exec'
+# Remote shell preamble: if the remote host cannot resolve the TERM entry
+# that ssh forwarded (xterm-ghostty, or plain "ghostty" depending on the
+# launching env), fall back to xterm-256color which every ncurses install
+# has. Without a resolvable TERM entry, shells (zsh + powerlevel10k etc.)
+# mis-encode backspace/delete — the classic "backspace prints a space" bug
+# (ghostty#5818). We probe the ACTUAL $TERM value, not a hardcoded name.
+REMOTE_PREAMBLE='case "$TERM" in "") TERM=xterm-256color ;; *) infocmp -x "$TERM" >/dev/null 2>&1 || export TERM=xterm-256color ;; esac; exec'
 
 # Check if ControlMaster is active; if not, fall back to direct connection with tunnel
 if ssh -S "$SOCKET" -O check "$DEST" 2>/dev/null; then
