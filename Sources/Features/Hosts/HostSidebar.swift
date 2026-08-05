@@ -6,8 +6,6 @@ struct HostSidebar: View {
     @ObservedObject var paneManager: TerminalPaneManager
     @ObservedObject var tunnelManager: TunnelManager
     @ObservedObject var agentMonitor: AgentMonitor
-    /// Currently displayed application page.
-    @Binding var page: AppPage
     @State private var showHostPicker = false
     /// ID of the session currently being renamed inline.
     @State private var editingSessionID: UUID?
@@ -21,33 +19,9 @@ struct HostSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Page switcher — application-level navigation.
-            HStack(spacing: DS.Space.xs) {
-                sidebarPageButton(.terminal, icon: "terminal", label: "Terminal")
-                sidebarPageButton(.hosts, icon: "server.rack", label: "Hosts")
-                sidebarPageButton(.tasks, icon: "checklist", label: "Tasks")
-                sidebarPageButton(.activity, icon: "tray.full", label: "Activity")
-                sidebarPageButton(.hub, icon: "dot.radiowaves.left.and.right", label: "Hub")
-            }
-            .padding(.horizontal, DS.Space.md)
-            .padding(.top, DS.Space.md)
-
-            // Header — action toolbar only. No in-app branding: the window
-            // title bar already identifies the app.
+            // Header — single action: new session. Page navigation lives
+            // in the window toolbar (no duplicated controls).
             HStack(spacing: DS.Space.sm) {
-                // Configuration → Hosts page
-                Button {
-                    page = .hosts
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(DS.textSecondary)
-                        .frame(width: 24, height: 24)
-                        .background(DS.hover, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
-                }
-                .buttonStyle(.plain)
-                .help("Host Configuration")
-
                 Spacer(minLength: DS.Space.sm)
 
                 // New session
@@ -145,32 +119,6 @@ struct HostSidebar: View {
             }
         }
         .background(DS.sidebar)
-    }
-
-    // MARK: - Page switcher
-
-    private func sidebarPageButton(_ target: AppPage, icon: String, label: String) -> some View {
-        let isActive = page == target
-        return Button {
-            page = target
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium))
-                Text(label)
-                    .font(DS.Typography.monoCaption)
-            }
-            .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DS.Space.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .fill(isActive ? DS.accentSoft : DS.hover.opacity(0.001))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(label)
     }
 }
 

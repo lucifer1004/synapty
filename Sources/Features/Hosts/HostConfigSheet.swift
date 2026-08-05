@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Sub-panes of the Hosts page.
+enum HostsPane: Hashable {
+    case hosts
+    case identities
+}
+
 /// Host management page — Termius-style host management:
 /// nested groups in a sidebar, searchable host list with tags, and full
 /// CRUD for hosts, groups and reusable identities.
@@ -11,6 +17,8 @@ struct HostConfigSheet: View {
     @State private var selectedGroupID: UUID?
     /// Host search text.
     @State private var searchText = ""
+    /// Which sub-pane of the Hosts page is shown.
+    @State private var pane: HostsPane = .hosts
     @State private var showAddHost = false
     @State private var showNewGroup = false
     @State private var subgroupRequest: GroupSubgroupRequest?
@@ -18,6 +26,9 @@ struct HostConfigSheet: View {
     @State private var hostToDelete: HostEntry?
     @State private var groupToDelete: HostGroup?
     @State private var editingGroupID: UUID?
+    @State private var identityToEdit: Identity?
+    @State private var identityToDelete: Identity?
+    @State private var showNewIdentity = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,43 +51,29 @@ struct HostConfigSheet: View {
             .padding(.vertical, DS.Space.lg)
             Divider()
 
-            HStack(spacing: 0) {
-                // Left: group tree
-                groupSidebar
-                    .frame(width: 200)
-
-                Divider()
-
-                // Right: host list
-                hostListPane
-            }
-
-            Divider()
-
-            // Footer
-            HStack(spacing: DS.Space.md) {
-                Button {
-                    showAddHost = true
-                } label: {
-                    Label("New Host", systemImage: "plus")
-                }
-                Button {
-                    showNewGroup = true
-                } label: {
-                    Label("New Group", systemImage: "folder.badge.plus")
-                }
+            // Sub-navigation: Hosts | Identities
+            HStack(spacing: DS.Space.sm) {
+                paneChip(.hosts, title: "Hosts", icon: "server.rack")
+                paneChip(.identities, title: "Identities", icon: "key")
                 Spacer()
-                if let group = selectedGroup {
-                    Button(role: .destructive) {
-                        groupToDelete = group
-                    } label: {
-                        Label("Delete Group", systemImage: "trash")
-                    }
-                    .disabled(hostStore.childGroups(of: group.id).isEmpty && hostStore.hosts(inGroup: group.id).isEmpty)
-                    .help("Only empty groups can be deleted")
+                if pane == .hosts {
+                    Text("\(hostStore.hosts.count) hosts · \(hostStore.groups.count) groups")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                } else {
+                    Text("\(hostStore.identities.count) identities")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
                 }
             }
-            .padding(DS.Space.lg)
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.md)
+
+            if pane == .hosts {
+                hostsPane
+            } else {
+                identitiesPane
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
@@ -112,6 +109,19 @@ struct HostConfigSheet: View {
                 )
             )
         }
+        .sheet(isPresented: $showNewIdentity) {
+            IdentityEditSheet(hostStore: hostStore, isPresented: $showNewIdentity)
+        }
+        .sheet(item: $identityToEdit) { identity in
+            IdentityEditSheet(
+                hostStore: hostStore,
+                isPresented: Binding(
+                    get: { identityToEdit != nil },
+                    set: { if !$0 { identityToEdit = nil } }
+                ),
+                editingIdentity: identity
+            )
+        }
         .alert("Delete Group", isPresented: Binding(
             get: { groupToDelete != nil },
             set: { if !$0 { groupToDelete = nil } }
@@ -143,6 +153,20 @@ struct HostConfigSheet: View {
             if let host = hostToDelete {
                 Text("Are you sure you want to delete \"\(host.label)\"?")
             }
+        }
+        .alert("Delete Identity", isPresented: Binding(
+            get: { identityToDelete != nil },
+            set: { if !$0 { identityToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { identityToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let identity = identityToDelete {
+                    hostStore.removeIdentity(identity)
+                    identityToDelete = nil
+                }
+            }
+        } message: {
+            Text("Delete \"\(identityToDelete?.label ?? "")\"? Hosts referencing it fall back to their own fields.")
         }
     }
 
@@ -247,6 +271,182 @@ struct HostConfigSheet: View {
                 .scrollContentBackground(.hidden)
             }
         }
+    }
+
+    // MARK: - Hosts pane (group tree + list + footer)
+
+    private var hostsPane: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                groupSidebar
+                    .frame(width: 200)
+
+                Divider()
+
+                hostListPane
+            }
+
+            Divider()
+
+            // Footer
+            HStack(spacing: DS.Space.md) {
+                Button {
+                    showAddHost = true
+                } label: {
+                    Label("New Host", systemImage: "plus")
+                }
+                Button {
+                    showNewGroup = true
+                } label: {
+                    Label("New Group", systemImage: "folder.badge.plus")
+                }
+                Spacer()
+                if let group = selectedGroup {
+                    Button(role: .destructive) {
+                        groupToDelete = group
+                    } label: {
+                        Label("Delete Group", systemImage: "trash")
+                    }
+                    .disabled(hostStore.childGroups(of: group.id).isEmpty && hostStore.hosts(inGroup: group.id).isEmpty)
+                    .help("Only empty groups can be deleted")
+                }
+            }
+            .padding(DS.Space.lg)
+        }
+    }
+
+    // MARK: - Identities pane
+
+    private var identitiesPane: some View {
+        VStack(spacing: 0) {
+            if hostStore.identities.isEmpty {
+                VStack(spacing: DS.Space.lg) {
+                    Image(systemName: "key")
+                        .font(.system(size: 32))
+                        .foregroundStyle(DS.textTertiary)
+                    Text("No identities")
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
+                    Text("Identities are reusable credentials (username + SSH key)\nshared across hosts and groups.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(hostStore.identities) { identity in
+                        IdentityRow(
+                            identity: identity,
+                            store: hostStore,
+                            onEdit: { identityToEdit = identity },
+                            onDelete: { identityToDelete = identity }
+                        )
+                    }
+                }
+                .listStyle(.inset)
+                .scrollContentBackground(.hidden)
+            }
+
+            Divider()
+
+            // Footer
+            HStack {
+                Button {
+                    showNewIdentity = true
+                } label: {
+                    Label("New Identity", systemImage: "plus")
+                }
+                Spacer()
+            }
+            .padding(DS.Space.lg)
+        }
+    }
+
+    // MARK: - Pane chips
+
+    private func paneChip(_ target: HostsPane, title: String, icon: String) -> some View {
+        let isActive = pane == target
+        return Button {
+            pane = target
+        } label: {
+            HStack(spacing: DS.Space.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                Text(title)
+                    .font(DS.Typography.detailStrong)
+            }
+            .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.vertical, DS.Space.xs)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.pill)
+                    .fill(isActive ? DS.accentSoft : DS.hover)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Identity row
+
+struct IdentityRow: View {
+    let identity: Identity
+    @ObservedObject var store: HostStore
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    private var usedByCount: Int {
+        store.hosts.filter { $0.identityID == identity.id }.count +
+        store.groups.filter { $0.identityID == identity.id }.count
+    }
+
+    var body: some View {
+        HStack(spacing: DS.Space.md) {
+            Image(systemName: "key.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(DS.accent)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(identity.label)
+                    .font(DS.Typography.bodyStrong)
+                HStack(spacing: DS.Space.xs) {
+                    Text(identity.username)
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textSecondary)
+                    if let key = identity.sshKeyPath {
+                        Text(key)
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            Spacer()
+
+            if usedByCount > 0 {
+                Text("\(usedByCount) reference\(usedByCount == 1 ? "" : "s")")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textTertiary)
+            }
+
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .foregroundStyle(DS.textSecondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Edit")
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .foregroundStyle(DS.danger)
+            }
+            .buttonStyle(.borderless)
+            .help("Delete")
+        }
+        .padding(.vertical, DS.Space.xs)
     }
 }
 

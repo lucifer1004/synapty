@@ -31,7 +31,6 @@ struct ContentView: View {
                 paneManager: paneManager,
                 tunnelManager: tunnelManager,
                 agentMonitor: agentMonitor,
-                page: $page,
                 onHostConnect: { host in
                     // Create placeholder immediately, update when tunnel is ready.
                     let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
@@ -67,11 +66,11 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
-                // Page switcher — management surfaces are full pages.
-                pageButton(.hosts, icon: "server.rack", label: "Hosts", help: "Host management")
-                pageButton(.tasks, icon: "checklist", label: "Tasks", help: "Hub-repo task list")
-                pageButton(.activity, icon: "tray.full", label: "Activity", help: "Tool-request activity log (⌘⇧M)")
-                pageButton(.hub, icon: "dot.radiowaves.left.and.right", label: "Hub", help: "Hub status")
+                // Page switcher — icon-only, management surfaces are full pages.
+                pageButton(.hosts, icon: "server.rack", help: "Host management")
+                pageButton(.tasks, icon: "checklist", help: "Hub-repo task list")
+                pageButton(.activity, icon: "tray.full", help: "Tool-request activity log")
+                pageButton(.hub, icon: "dot.radiowaves.left.and.right", help: "Hub status")
             }
         }
         .sheet(isPresented: $showShortcuts) {
@@ -202,22 +201,22 @@ struct ContentView: View {
 
     // MARK: - Page buttons
 
-    private func pageButton(_ target: AppPage, icon: String, label: String, help: String) -> some View {
+    private func pageButton(_ target: AppPage, icon: String, help: String) -> some View {
         let isActive = page == target
         return Button {
             page = target
         } label: {
-            Label(label, systemImage: icon)
-                .labelStyle(.titleAndIcon)
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .fill(isActive ? DS.accentSoft : Color.clear)
+                )
+                .contentShape(Rectangle())
         }
         .help(help)
         .buttonStyle(.plain)
-        .padding(.horizontal, DS.Space.sm)
-        .padding(.vertical, DS.Space.xs)
-        .background(
-            RoundedRectangle(cornerRadius: DS.Radius.md)
-                .fill(isActive ? DS.accentSoft : Color.clear)
-        )
     }
 }
