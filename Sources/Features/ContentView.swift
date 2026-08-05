@@ -111,6 +111,25 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
             paneManager.addLocalSession()
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .synaptyFontIncrease).merge(
+                with: NotificationCenter.default.publisher(for: .synaptyFontDecrease),
+                NotificationCenter.default.publisher(for: .synaptyFontReset),
+                NotificationCenter.default.publisher(for: .synaptyFind)
+            )
+        ) { note in
+            guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+            let action: String
+            switch note.name {
+            case .synaptyFontIncrease: action = "increase_font_size"
+            case .synaptyFontDecrease: action = "decrease_font_size"
+            case .synaptyFontReset: action = "reset_font_size"
+            default: action = "start_search"
+            }
+            action.withCString { ptr in
+                ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyShowShortcuts)) { _ in
             showShortcuts = true
         }

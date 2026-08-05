@@ -80,6 +80,33 @@ struct SynaptyCommands: Commands {
             }
             .keyboardShortcut("/", modifiers: [.command, .shift])
         }
+
+        // View menu — terminal text size and search. Key equivalents are
+        // also handled directly in TerminalSurface when the terminal has
+        // focus; these menu items cover the unfocused case.
+        CommandMenu("View") {
+            Button("Increase Font Size") {
+                NotificationCenter.default.post(name: .synaptyFontIncrease, object: nil)
+            }
+            .keyboardShortcut("=", modifiers: .command)
+
+            Button("Decrease Font Size") {
+                NotificationCenter.default.post(name: .synaptyFontDecrease, object: nil)
+            }
+            .keyboardShortcut("-", modifiers: .command)
+
+            Button("Reset Font Size") {
+                NotificationCenter.default.post(name: .synaptyFontReset, object: nil)
+            }
+            .keyboardShortcut("0", modifiers: .command)
+
+            Divider()
+
+            Button("Find") {
+                NotificationCenter.default.post(name: .synaptyFind, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+        }
     }
 }
 
@@ -88,4 +115,8 @@ struct SynaptyCommands: Commands {
 extension Notification.Name {
     static let synaptyNewSession = Notification.Name("synaptyNewSession")
     static let synaptyShowShortcuts = Notification.Name("synaptyShowShortcuts")
+    static let synaptyFontIncrease = Notification.Name("synaptyFontIncrease")
+    static let synaptyFontDecrease = Notification.Name("synaptyFontDecrease")
+    static let synaptyFontReset = Notification.Name("synaptyFontReset")
+    static let synaptyFind = Notification.Name("synaptyFind")
 }

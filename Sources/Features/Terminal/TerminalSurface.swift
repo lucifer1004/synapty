@@ -192,6 +192,24 @@ class GhosttyNSView: NSView, NSTextInputClient {
            let chars = event.charactersIgnoringModifiers?.lowercased() {
             let hasShift = event.modifierFlags.contains(.shift)
             switch chars {
+            case "f":
+                // Cmd+F → ghostty find-in-scrollback (WI-2026-03-31-006)
+                _ = "start_search".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
+            case "=":
+                // Cmd+= → increase font size (WI-2026-03-31-005)
+                _ = "increase_font_size".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
+            case "0":
+                // Cmd+0 → reset font size
+                _ = "reset_font_size".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
             case "c":
                 _ = "copy_to_clipboard".withCString { ptr in
                     ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
@@ -214,6 +232,11 @@ class GhosttyNSView: NSView, NSTextInputClient {
                     DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical) }
                     return true
                 }
+                // Cmd+- → decrease font size (WI-2026-03-31-005)
+                _ = "decrease_font_size".withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+                return true
             case "w":
                 DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestCloseSplit() }
                 return true
