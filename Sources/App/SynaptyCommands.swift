@@ -120,4 +120,5 @@ extension Notification.Name {
     static let synaptyFontReset = Notification.Name("synaptyFontReset")
     static let synaptyFind = Notification.Name("synaptyFind")
     static let synaptyTunnelFailed = Notification.Name("synaptyTunnelFailed")
+    static let synaptySettingsChanged = Notification.Name("synaptySettingsChanged")
 }

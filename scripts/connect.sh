@@ -1,6 +1,6 @@
 #!/bin/bash
 # Synapty session connect script.
-# Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <key|''> <jump|''> [fwd-kind listen target-host target-port ...]
+# Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <hub-port> <key|''> <jump|''> [fwd-kind listen target-host target-port ...]
 #
 # Reuses an existing SSH ControlMaster (set up by setup-host.sh) to
 # connect and run synapty with the given agent identity.
@@ -8,17 +8,18 @@
 # positional layout is fixed.
 set -euo pipefail
 
-AGENT_ID="${1:?Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <key> <jump> [forwards...]}"
-HOST="${2:?Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <key> <jump> [forwards...]}"
+AGENT_ID="${1:?Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <hub-port> <key> <jump> [forwards...]}"
+HOST="${2:?Usage: connect.sh <agent-id> <host> <port> <user> <tunnel-port> <hub-port> <key> <jump> [forwards...]}"
 PORT="${3:-22}"
 USER="${4:-$(whoami)}"
 TUNNEL_PORT="${5:-9000}"
-KEY="${6:-}"
-PROXY_JUMP="${7:-}"
+HUB_PORT="${6:-9000}"
+KEY="${7:-}"
+PROXY_JUMP="${8:-}"
 
 # Remaining args: forward rules as (kind listen target-host target-port) quads.
 FORWARDS=()
-shift 7 2>/dev/null || set --
+shift 8 2>/dev/null || set --
 while [ "$#" -ge 4 ]; do
     FORWARDS+=("$1" "$2" "$3" "$4")
     shift 4
@@ -75,7 +76,9 @@ else
     # macOS ships bash 3.2: expanding an empty array under `set -u`
     # ("${FORWARD_ARGS[@]}") errors with "unbound variable". Use the
     # ${var[@]+...} guard so an empty array expands to nothing.
-    exec ssh -t -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
+    # The reverse tunnel forwards the remote TUNNEL_PORT back to the
+    # local hub on HUB_PORT (WI-2026-08-06-001).
+    exec ssh -t -R "${TUNNEL_PORT}:localhost:${HUB_PORT}" \
         ${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"} $SSH_FLAGS "$DEST" \
         "$REMOTE_PREAMBLE .synapty/bin/synapty run --id ${AGENT_ID} --hub 127.0.0.1:${TUNNEL_PORT} -- \$SHELL -l"
 fi

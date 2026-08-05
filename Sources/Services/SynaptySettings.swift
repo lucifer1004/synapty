@@ -143,6 +143,9 @@ import Foundation
     private func persistAndWriteFragment() {
         save()
         writeGhosttyFragment()
+        // Live apply: GhosttyApp rebuilds the config and propagates it to
+        // all surfaces (WI-2026-08-06-001).
+        NotificationCenter.default.post(name: .synaptySettingsChanged, object: nil)
     }
 
     private func save() {
@@ -166,11 +169,25 @@ import Foundation
 
     // MARK: - Ghostty fragment
 
+    /// Base fragment line: never force the scroll position back to the
+    /// bottom (WI-2026-03-31-005).
+    static let scrollToBottomLine = "scroll-to-bottom = no-keystroke,no-output"
+
+    /// Ensure the fragment file exists before the initial ghostty config
+    /// load. GhosttyApp builds its config at launch, which can run before
+    /// this settings object is initialized (first launch); the file must
+    /// exist so the config load picks up the Synapty defaults.
+    static func ensureGhosttyFragmentExists() {
+        let url = ghosttyConfURL
+        guard !FileManager.default.fileExists(atPath: url.path) else { return }
+        try? "\(scrollToBottomLine)\n".write(to: url, atomically: true, encoding: .utf8)
+    }
+
     /// Writes the full Synapty-managed ghostty config fragment.
     func writeGhosttyFragment() {
         var lines: [String] = []
         // Scroll behavior (WI-2026-03-31-005): never force scroll to bottom.
-        lines.append("scroll-to-bottom = no-keystroke,no-output")
+        lines.append(Self.scrollToBottomLine)
 
         if let themeName, !themeName.isEmpty {
             lines.append("theme = \(themeName)")

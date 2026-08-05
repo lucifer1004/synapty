@@ -38,3 +38,8 @@ zig-pkg/
 # local
 .env
 default.profraw
+.zig-cache-global/
+
+# Local build artifacts (sandboxed DerivedData / zig global cache)
+.build/
+.zig-cache-global/

@@ -38,7 +38,10 @@ import AppKit
         }
     }
 
-    /// Global tunnel port (Hub + reverse tunnel). Default 9000.
+    /// Local hub TCP port (where the in-app hub listens). Default 9000.
+    @Published var hubPort: Int = 9000
+
+    /// Remote listen port of the reverse tunnel; forwards to localhost:HUB_PORT.
     @Published var tunnelPort: Int = 9000
 
     /// Per-host tunnel status.
@@ -157,7 +160,7 @@ import AppKit
 
     /// Returns (command, agentID) so callers can store the agent ID on the session.
     /// Argument layout is FIXED so the shell scripts can shift reliably:
-    /// <agent-id> <host> <port> <user> <tunnel-port> <key|''> <jump|''> [forwards...]
+    /// <agent-id> <host> <port> <user> <tunnel-port> <hub-port> <key|''> <jump|''> [forwards...]
     func connectCommand(for host: HostEntry) -> (command: String, agentID: String) {
         let script = scriptPath("connect")
         let agentID = "\(host.label)-\(UUID().uuidString.prefix(4).lowercased())"
@@ -169,7 +172,7 @@ import AppKit
         let jump = effectiveProxyJump(for: host) ?? ""
         var parts = ["bash", shellEscape(script), shellEscape(agentID),
                      shellEscape(host.address), "\(port)",
-                     shellEscape(username), "\(tunnelPort)",
+                     shellEscape(username), "\(tunnelPort)", "\(hubPort)",
                      shellEscape(key), shellEscape(jump)]
         // Optional port-forwarding rules ("local 8080 localhost 80" each).
         for fwd in effectiveForwardings(for: host) {
@@ -195,7 +198,7 @@ import AppKit
             let cwd = FileManager.default.currentDirectoryPath
             synaptyBin = "\(cwd)/zig-out/bin/synapty"
         }
-        let cmd = "\(shellEscape(synaptyBin)) run --id \(shellEscape(agentID)) --hub 127.0.0.1:\(tunnelPort) -- ${SHELL:-/bin/zsh} -l"
+        let cmd = "\(shellEscape(synaptyBin)) run --id \(shellEscape(agentID)) --hub 127.0.0.1:\(hubPort) -- ${SHELL:-/bin/zsh} -l"
         return (cmd, agentID)
     }
 
@@ -207,8 +210,8 @@ import AppKit
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Process.arguments are passed as argv (no shell interpolation), so no escaping needed here.
         // The script itself uses $1, $2 etc. which are safe in bash.
-        // Fixed layout: <host> <port> <user> <tunnel-port> <key|''> <jump|''> [forwards...]
-        var args = [script, host.address, "\(effectivePort(for: host))", effectiveUsername(for: host), "\(tunnelPort)"]
+        // Fixed layout: <host> <port> <user> <tunnel-port> <hub-port> <key|''> <jump|''> [forwards...]
+        var args = [script, host.address, "\(effectivePort(for: host))", effectiveUsername(for: host), "\(tunnelPort)", "\(hubPort)"]
         args.append(effectiveKeyPath(for: host) ?? "")
         args.append(effectiveProxyJump(for: host) ?? "")
         // Optional port-forwarding rules ("local 8080 localhost 80" each).

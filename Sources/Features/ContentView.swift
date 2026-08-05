@@ -159,6 +159,7 @@ struct ContentView: View {
             tunnelManager.hostStore = hostStore
             // Apply configured ports before the hub starts / tunnels connect.
             hubManager.port = settings.hubPort
+            tunnelManager.hubPort = settings.hubPort
             tunnelManager.tunnelPort = settings.tunnelPort
             TerminalCoordinatorRef.instance = paneManager
             Task { @MainActor in
@@ -170,6 +171,15 @@ struct ContentView: View {
                     paneManager.addLocalSession()
                 }
             }
+        }
+        // Port changes from Settings → Network apply on the next Hub start
+        // (Hub page Restart) / next tunnel connection.
+        .onChange(of: settings.hubPort) { newPort in
+            hubManager.port = newPort
+            tunnelManager.hubPort = newPort
+        }
+        .onChange(of: settings.tunnelPort) { newPort in
+            tunnelManager.tunnelPort = newPort
         }
         .onDisappear {
             agentMonitor.stopMonitoring()

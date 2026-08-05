@@ -1,6 +1,6 @@
 #!/bin/bash
 # Synapty host setup script.
-# Usage: setup-host.sh <host> <port> <user> <tunnel-port> <key|''> <jump|''> [fwd-kind listen target-host target-port ...]
+# Usage: setup-host.sh <host> <port> <user> <tunnel-port> <hub-port> <key|''> <jump|''> [fwd-kind listen target-host target-port ...]
 #
 # Detects remote platform, uploads the synapty binary (if changed),
 # and establishes an SSH ControlMaster with a reverse tunnel.
@@ -13,16 +13,17 @@
 # positional layout is fixed.
 set -euo pipefail
 
-HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> <key> <jump> [forwards...]}"
+HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> <hub-port> <key> <jump> [forwards...]}"
 PORT="${2:-22}"
 USER="${3:-$(whoami)}"
 TUNNEL_PORT="${4:-9000}"
-KEY="${5:-}"
-PROXY_JUMP="${6:-}"
+HUB_PORT="${5:-9000}"
+KEY="${6:-}"
+PROXY_JUMP="${7:-}"
 
 # Remaining args: forward rules as (kind listen target-host target-port) quads.
 FORWARDS=()
-shift 6 2>/dev/null || set --
+shift 7 2>/dev/null || set --
 while [ "$#" -ge 4 ]; do
     FORWARDS+=("$1" "$2" "$3" "$4")
     shift 4
@@ -169,7 +170,7 @@ fi
 if $CM_ACTIVE; then
     echo "ControlMaster already established (reusing)."
 else
-    echo "Starting SSH ControlMaster with reverse tunnel (port ${TUNNEL_PORT})..."
+    echo "Starting SSH ControlMaster with reverse tunnel (port ${TUNNEL_PORT} → local hub ${HUB_PORT})..."
     # Build forwarding args: -L listen:targetHost:targetPort / -R ...
     FORWARD_ARGS=()
     i=0
@@ -187,7 +188,8 @@ else
         FORWARD_ARGS+=("$FLAG" "${LISTEN}:${THOST}:${TPORT}")
         i=$((i + 4))
     done
-    ssh -MNf -S "$SOCKET" -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
+    # Reverse tunnel: remote TUNNEL_PORT → local hub on HUB_PORT (WI-2026-08-06-001).
+    ssh -MNf -S "$SOCKET" -R "${TUNNEL_PORT}:localhost:${HUB_PORT}" \
         -o ServerAliveInterval=15 \
         -o ServerAliveCountMax=3 \
         -o ControlPersist=300 \

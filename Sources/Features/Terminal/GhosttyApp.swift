@@ -12,6 +12,9 @@ import AppKit
     /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
     var activeSurface: ghostty_surface_t?
 
+    /// Settings-change observer (live config apply).
+    private var settingsObserver: NSObjectProtocol?
+
     /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
     /// result in a single tick() call, so all pending PTY output is processed at
     /// once and rendered in one frame.
@@ -26,6 +29,23 @@ import AppKit
         path.withCString { cStr in
             ghostty_config_load_file(cfg, cStr)
         }
+    }
+
+    /// Rebuild the app config from the current fragment and propagate it to
+    /// all surfaces (WI-2026-08-06-001): settings changes apply live instead
+    /// of requiring an app restart.
+    private func reloadConfig() {
+        guard let app else { return }
+        guard let newCfg = ghostty_config_new() else {
+            print("Failed to create ghostty config for reload")
+            return
+        }
+        ghostty_config_load_default_files(newCfg)
+        loadSynaptyConfig(newCfg)
+        ghostty_config_finalize(newCfg)
+        ghostty_app_update_config(app, newCfg)
+        if let config { ghostty_config_free(config) }
+        config = newCfg
     }
 
     init() {
@@ -52,6 +72,9 @@ import AppKit
             return
         }
         config = cfg
+        // First-launch ordering (WI-2026-08-06-001): this init can run before
+        // SynaptySettings is initialized, so make sure the fragment exists.
+        SynaptySettings.ensureGhosttyFragmentExists()
         ghostty_config_load_default_files(cfg)
         // Synapty-managed overrides (WI-2026-03-31-005): never force the
         // scroll position back to the bottom on keystroke/output — agents
@@ -152,6 +175,18 @@ import AppKit
         if app == nil {
             print("Failed to create Ghostty app")
         }
+
+        // Live-apply settings changes: rebuild the config from the fragment
+        // and propagate to all surfaces (WI-2026-08-06-001).
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: .synaptySettingsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reloadConfig()
+            }
+        }
     }
 
     /// Schedule a tick if one isn't already pending. Multiple wakeups between
@@ -173,6 +208,10 @@ import AppKit
     }
 
     func shutdown() {
+        if let settingsObserver {
+            NotificationCenter.default.removeObserver(settingsObserver)
+            self.settingsObserver = nil
+        }
         if let app {
             ghostty_app_free(app)
             self.app = nil

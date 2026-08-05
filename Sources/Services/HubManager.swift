@@ -102,8 +102,8 @@ import AppKit
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binary)
         // Hub runs as the `hub` subcommand of the unified binary ([[ADR-0004]]).
-        // Hub currently uses hardcoded port 9000. Future: pass --port flag.
-        proc.arguments = ["hub"]
+        // WI-2026-08-06-001: pass the configured port (Settings → Network).
+        proc.arguments = ["hub", "--port", "\(port)"]
 
         let pipe = Pipe()
         proc.standardOutput = pipe
