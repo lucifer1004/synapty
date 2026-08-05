@@ -13,13 +13,13 @@ struct FindBarView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            TextField("Find", text: $text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.accent)
+            TextField("Find in scrollback", text: $text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12, design: .monospaced))
+                .font(DS.Typography.mono)
                 .focused($focused)
                 .onChange(of: text) { _, newValue in
                     onTextChange(newValue)
@@ -27,25 +27,29 @@ struct FindBarView: View {
                 .onSubmit {
                     onTextChange(text)
                 }
+            Divider()
+                .frame(height: 14)
             Button {
                 onClose()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DS.textSecondary)
+                    .frame(width: 20, height: 20)
+                    .background(DS.hover, in: Circle())
             }
             .buttonStyle(.plain)
             .help("Close search (Esc)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .frame(width: 280)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, DS.Space.lg)
+        .padding(.vertical, DS.Space.sm)
+        .frame(width: 300)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DS.Radius.lg)
+                .stroke(DS.border, lineWidth: 1)
         )
-        .shadow(radius: 6)
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
         .onExitCommand {
             onClose()
         }

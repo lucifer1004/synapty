@@ -47,7 +47,7 @@ struct AllPanesSplitView: View {
                        let focusedID = activePane.focusedLeafID,
                        let focusFrame = activeFrames[focusedID] {
                         RoundedRectangle(cornerRadius: 2)
-                            .stroke(Color.accentColor, lineWidth: 2)
+                            .stroke(DS.accent, lineWidth: 2)
                             .frame(width: focusFrame.width, height: focusFrame.height)
                             .offset(x: focusFrame.minX, y: focusFrame.minY)
                             .allowsHitTesting(false)
@@ -149,7 +149,7 @@ struct DraggableDivider: View {
         ZStack {
             // Visible thin line
             Rectangle()
-                .fill(isHovered ? Color.accentColor : Color.gray.opacity(0.5))
+                .fill(isHovered ? DS.accent : DS.border)
                 .frame(
                     width: isHorizontal ? 4 : info.rect.width,
                     height: isHorizontal ? info.rect.height : 4
@@ -157,7 +157,7 @@ struct DraggableDivider: View {
 
             // Invisible wide grab area with cursor + drag
             Rectangle()
-                .fill(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
+                .fill(isHovered ? DS.accentSoft : Color.clear)
                 .frame(
                     width: isHorizontal ? grabSize : info.rect.width,
                     height: isHorizontal ? info.rect.height : grabSize
