@@ -1,0 +1,213 @@
+import Foundation
+import SwiftUI
+
+// MARK: - Data Models (RFC-0003 task-center model)
+
+/// A task = a GitHub issue in the hub repo (C-ISSUE-STATES).
+struct TaskItem: Identifiable, Decodable {
+    let number: Int
+    let title: String
+    let state: String
+    let url: String
+    let labels: [String]
+    let assignee: String?
+
+    var id: Int { number }
+
+    var projectLabel: String? {
+        labels.first { $0.hasPrefix("p:") }
+    }
+
+    var statusLabel: String? {
+        labels.first { $0.hasPrefix("s:") }
+    }
+
+    var status: TaskStatus {
+        switch statusLabel {
+        case "s:doing": return .doing
+        case "s:done": return .done
+        default: return .todo
+        }
+    }
+}
+
+enum TaskStatus: String {
+    case todo = "todo"
+    case doing = "doing"
+    case done = "done"
+
+    var color: Color {
+        switch self {
+        case .todo: return .secondary
+        case .doing: return .blue
+        case .done: return .green
+        }
+    }
+}
+
+/// One hub tool-request activity entry (C-HUB-ROLE).
+struct ActivityItem: Identifiable, Decodable {
+    let ts: Int64
+    let agent: String
+    let tool: String
+    let detail: String
+
+    var id: Int64 { ts }
+}
+
+/// Per-project task counts.
+struct ProjectCounts {
+    var todo = 0
+    var doing = 0
+    var done = 0
+
+    var total: Int { todo + doing + done }
+}
+
+/// Bridge connection state (C-AUTH: login device holds the credential).
+enum BridgeStatus: Equatable {
+    case unknown
+    case configured
+    case notConfigured
+    case error(String)
+}
+
+// MARK: - TaskMonitor
+
+/// Polls the hub for the task list and the tool-request activity stream,
+/// driving the status-bar badges and the activity log view.
+@MainActor final class TaskMonitor: ObservableObject {
+    @Published var tasks: [TaskItem] = []
+    @Published var activities: [ActivityItem] = []
+    @Published var bridgeStatus: BridgeStatus = .unknown
+    @Published var lastError: String?
+
+    private var timer: Timer?
+    private let pollInterval: TimeInterval = 5.0
+
+    /// Aggregate per-project counts from the current task list.
+    var projectCounts: [String: ProjectCounts] {
+        var counts: [String: ProjectCounts] = [:]
+        for task in tasks {
+            guard let project = task.projectLabel else { continue }
+            switch task.status {
+            case .todo: counts[project, default: ProjectCounts()].todo += 1
+            case .doing: counts[project, default: ProjectCounts()].doing += 1
+            case .done: counts[project, default: ProjectCounts()].done += 1
+            }
+        }
+        return counts
+    }
+
+    func start() {
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.poll()
+            }
+        }
+        poll()
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    func poll() {
+        fetchTasks()
+        fetchActivity()
+    }
+
+    // MARK: - Binary path (matches AgentMonitor/HubManager pattern)
+
+    private func synaptyBinaryPath() -> String? {
+        if let bundled = Bundle.main.path(forResource: "synapty", ofType: nil) {
+            return bundled
+        }
+        let devPath = "zig-out/bin/synapty"
+        if FileManager.default.fileExists(atPath: devPath) {
+            return devPath
+        }
+        return nil
+    }
+
+    /// Run `synapty <args...>` and return stdout, or nil on failure.
+    private func runCLI(_ arguments: [String]) -> String? {
+        guard let binary = synaptyBinaryPath() else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: binary)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
+    }
+
+    /// Extract the tool_response envelope payload dict from CLI stdout.
+    private func parseEnvelopePayload(_ output: String) -> [String: Any]? {
+        guard let data = output.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = root["payload"] as? [String: Any]
+        else { return nil }
+        return payload
+    }
+
+    // MARK: - Fetch tasks
+
+    private func fetchTasks() {
+        guard let output = runCLI(["task", "list"]) else { return }
+        guard let payload = parseEnvelopePayload(output) else { return }
+
+        if let ok = payload["ok"] as? Bool, !ok {
+            let msg = payload["error"] as? String ?? "github error"
+            if msg.contains("not configured") || msg.contains("token") {
+                bridgeStatus = .notConfigured
+            } else {
+                bridgeStatus = .error(msg)
+            }
+            lastError = msg
+            return
+        }
+        bridgeStatus = .configured
+        lastError = nil
+
+        guard let data = payload["data"] as? [[String: Any]] else { return }
+        var items: [TaskItem] = []
+        for dict in data {
+            guard let item = try? JSONDecoder().decode(
+                TaskItem.self,
+                from: JSONSerialization.data(withJSONObject: dict)
+            ) else { continue }
+            items.append(item)
+        }
+        tasks = items
+    }
+
+    // MARK: - Fetch activity
+
+    private func fetchActivity() {
+        guard let output = runCLI(["activity"]) else { return }
+        guard let payload = parseEnvelopePayload(output),
+              let ok = payload["ok"] as? Bool, ok,
+              let data = payload["data"] as? [[String: Any]]
+        else { return }
+
+        var items: [ActivityItem] = []
+        for dict in data {
+            guard let item = try? JSONDecoder().decode(
+                ActivityItem.self,
+                from: JSONSerialization.data(withJSONObject: dict)
+            ) else { continue }
+            items.append(item)
+        }
+        activities = Array(items.suffix(100))
+    }
+}

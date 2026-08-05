@@ -6,6 +6,7 @@ struct ContextStatusBar: View {
     @ObservedObject var paneManager: TerminalPaneManager
     @ObservedObject var agentMonitor: AgentMonitor
     @ObservedObject var hubManager: HubManager
+    @ObservedObject var taskMonitor: TaskMonitor
 
     var body: some View {
         HStack(spacing: 0) {
@@ -13,7 +14,11 @@ struct ContextStatusBar: View {
             focusedSessionInfo
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Right: Hub summary
+            // Middle-right: per-project task badges (RFC-0003 C-UI)
+            projectBadges
+
+            // Right: bridge state + Hub summary
+            bridgeStatusView
             hubSummary
         }
         .padding(.horizontal, 12)
@@ -63,6 +68,65 @@ struct ContextStatusBar: View {
             Text("No active session")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
+        }
+    }
+
+    // MARK: - Project task badges (RFC-0003 C-UI)
+
+    private var projectBadges: some View {
+        let counts = taskMonitor.projectCounts
+        return HStack(spacing: 8) {
+            ForEach(counts.keys.sorted(), id: \.self) { project in
+                if let c = counts[project] {
+                    HStack(spacing: 4) {
+                        Text(project.replacingOccurrences(of: "p:", with: ""))
+                            .font(.system(size: 10, weight: .semibold))
+                        if c.doing > 0 {
+                            Text("\(c.doing)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.blue)
+                        }
+                        if c.todo > 0 {
+                            Text("\(c.todo)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        if c.done > 0 {
+                            Text("\(c.done)✓")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                }
+            }
+        }
+    }
+
+    // MARK: - Bridge state (C-AUTH)
+
+    @ViewBuilder
+    private var bridgeStatusView: some View {
+        switch taskMonitor.bridgeStatus {
+        case .unknown, .configured:
+            EmptyView()
+        case .notConfigured:
+            Button {
+                // Opens the setup hint — login happens in a terminal.
+                NSWorkspace.shared.open(URL(string: "https://github.com/settings/tokens?type=beta")!)
+            } label: {
+                Image(systemName: "link.badge.plus")
+                    .font(.system(size: 10))
+                    .foregroundColor(.orange)
+            }
+            .help("GitHub bridge not configured — run `synapty github login` in a pane")
+        case .error:
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 10))
+                .foregroundColor(.red)
+                .help(taskMonitor.lastError ?? "GitHub bridge error")
         }
     }
 

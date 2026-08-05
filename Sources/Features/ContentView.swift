@@ -7,8 +7,10 @@ struct ContentView: View {
     @StateObject private var paneManager = TerminalPaneManager()
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
+    @StateObject private var taskMonitor = TaskMonitor()
     @State private var showHubSheet = false
     @State private var showShortcuts = false
+    @State private var showActivityLog = false
 
     var body: some View {
         NavigationSplitView {
@@ -53,10 +55,26 @@ struct ContentView: View {
                         .background(.black)
                         .foregroundColor(.white)
                 }
-                ContextStatusBar(paneManager: paneManager, agentMonitor: agentMonitor, hubManager: hubManager)
+                ContextStatusBar(
+                    paneManager: paneManager,
+                    agentMonitor: agentMonitor,
+                    hubManager: hubManager,
+                    taskMonitor: taskMonitor
+                )
             }
         }
+        .sheet(isPresented: $showActivityLog) {
+            ActivityLogView(taskMonitor: taskMonitor)
+        }
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showActivityLog = true
+                } label: {
+                    Label("Activity", systemImage: "tray.full")
+                }
+                .help("Tool-request activity log (⌘⇧M)")
+            }
             ToolbarItem(placement: .automatic) {
                 Button {
                     showHubSheet = true
