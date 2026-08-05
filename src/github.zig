@@ -17,6 +17,9 @@ const Allocator = std.mem.Allocator;
 pub const Config = struct {
     owner: []const u8,
     repo: []const u8,
+    /// GitHub username of the login-device operator; used as the issue
+    /// assignee on task.claim. Optional.
+    username: ?[]const u8 = null,
 
     /// Absolute path to the config file. Returns null if HOME is unset.
     pub fn configPath(allocator: Allocator) !?[]const u8 {
@@ -46,9 +49,11 @@ pub const Config = struct {
     pub fn parseConfigText(allocator: Allocator, text: []const u8) !?Config {
         var owner: ?[]const u8 = null;
         var repo: ?[]const u8 = null;
+        var username: ?[]const u8 = null;
         errdefer {
             if (owner) |o| allocator.free(o);
             if (repo) |r| allocator.free(r);
+            if (username) |u| allocator.free(u);
         }
         var lines = std.mem.splitScalar(u8, text, '\n');
         while (lines.next()) |line| {
@@ -61,6 +66,8 @@ pub const Config = struct {
                     owner = try allocator.dupe(u8, value);
                 } else if (std.mem.eql(u8, key, "repo")) {
                     repo = try allocator.dupe(u8, value);
+                } else if (std.mem.eql(u8, key, "username")) {
+                    username = try allocator.dupe(u8, value);
                 }
             }
         }
@@ -68,9 +75,10 @@ pub const Config = struct {
             // Normal return — errdefer does not fire; free explicitly.
             if (owner) |o| allocator.free(o);
             if (repo) |r| allocator.free(r);
+            if (username) |u| allocator.free(u);
             return null;
         }
-        return .{ .owner = owner.?, .repo = repo.? };
+        return .{ .owner = owner.?, .repo = repo.?, .username = username };
     }
 
     /// Write config to disk (creates ~/.config/synapty/ as needed).
@@ -82,12 +90,21 @@ pub const Config = struct {
         const dir_path = std.fs.path.dirname(path) orelse return error.InvalidConfigPath;
         try std.Io.Dir.cwd().createDirPath(io, dir_path);
 
-        const content = try std.fmt.allocPrint(allocator,
-            \\[github]
-            \\owner = "{s}"
-            \\repo = "{s}"
-            \\
-        , .{ self.owner, self.repo });
+        const content = if (self.username) |u|
+            try std.fmt.allocPrint(allocator,
+                \\[github]
+                \\owner = "{s}"
+                \\repo = "{s}"
+                \\username = "{s}"
+                \\
+            , .{ self.owner, self.repo, u })
+        else
+            try std.fmt.allocPrint(allocator,
+                \\[github]
+                \\owner = "{s}"
+                \\repo = "{s}"
+                \\
+            , .{ self.owner, self.repo });
         defer allocator.free(content);
 
         var file = try std.Io.Dir.cwd().createFile(io, path, .{});
@@ -98,6 +115,7 @@ pub const Config = struct {
     pub fn deinit(self: *const Config, allocator: Allocator) void {
         allocator.free(self.owner);
         allocator.free(self.repo);
+        if (self.username) |u| allocator.free(u);
     }
 };
 
@@ -208,7 +226,10 @@ pub const Api = struct {
             // Include the API error message in the failure.
             return error.GithubApi;
         }
-        return resp.written();
+        // Dupe out of the writer's buffer: `resp` is deinitialized on return,
+        // so the caller must receive an owned slice.
+        const resp_body = resp.written();
+        return self.allocator.dupe(u8, resp_body);
     }
 
     /// GET /issues?labels=<labels>&state=<state>

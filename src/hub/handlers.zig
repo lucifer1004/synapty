@@ -473,8 +473,14 @@ fn compactIssue(arena: Allocator, issue: json.Value) !json.Value {
     return .{ .object = out };
 }
 
+const Bridge = struct {
+    api: github.Api,
+    /// GitHub username for claim assignee; may be null.
+    username: ?[]const u8,
+};
+
 /// Load config + token; returns null (with err_msg set) when not configured.
-fn loadBridge(arena: Allocator, err_msg: *?[]const u8) ?github.Api {
+fn loadBridge(arena: Allocator, err_msg: *?[]const u8) ?Bridge {
     const config = github.Config.load(arena) catch {
         err_msg.* = "github not configured: run `synapty github login` on the login device";
         return null;
@@ -493,7 +499,10 @@ fn loadBridge(arena: Allocator, err_msg: *?[]const u8) ?github.Api {
         err_msg.* = "github token not found: run `synapty github login`";
         return null;
     };
-    return github.Api{ .allocator = arena, .owner = config.owner, .repo = config.repo, .token = token };
+    return .{
+        .api = .{ .allocator = arena, .owner = config.owner, .repo = config.repo, .token = token },
+        .username = config.username,
+    };
 }
 
 /// Replace state labels (s:*) on an issue with the given one.
@@ -532,11 +541,11 @@ fn handleTaskList(arena: Allocator, conn: *Connection, req_id: []const u8, sourc
     const labels = objGetString(args, "labels");
     const state = objGetString(args, "state") orelse "open";
     var err_msg: ?[]const u8 = null;
-    const api = loadBridge(arena, &err_msg) orelse {
+    const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
         return;
     };
-    const body = api.listIssues(labels, state) catch {
+    const body = bridge.api.listIssues(labels, state) catch {
         try sendToolResponse(arena, conn, req_id, source, false, null, "github api error");
         return;
     };
@@ -566,15 +575,25 @@ fn handleTaskClaim(arena: Allocator, conn: *Connection, req_id: []const u8, sour
         },
     };
     var err_msg: ?[]const u8 = null;
-    const api = loadBridge(arena, &err_msg) orelse {
+    const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
         return;
     };
-    const labels: []const []const u8 = &.{"s:doing"};
-    const body = api.updateIssue(number, null, labels, source) catch {
+    // Assignee must be a real GitHub user (C-ISSUE-STATES: claim self-assigns
+    // with the login-device operator's username; falls back to label-only).
+    // Labels are replaced wholesale by the API, so preserve non-state labels.
+    const body = updateStateLabels(arena, &bridge.api, number, "s:doing", false) catch {
         try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (claim)");
         return;
     };
+    // updateStateLabels does not touch assignees — set it now.
+    if (bridge.username) |u| {
+        const body2 = bridge.api.updateIssue(number, null, null, u) catch {
+            try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (claim assignee)");
+            return;
+        };
+        _ = body2;
+    }
     const parsed = try json.parseFromSlice(json.Value, arena, body, .{ .allocate = .alloc_always });
     try sendToolResponse(arena, conn, req_id, source, true, try compactIssue(arena, parsed.value), null);
 }
@@ -597,7 +616,7 @@ fn handleTaskUpdate(arena: Allocator, conn: *Connection, req_id: []const u8, sou
         return;
     };
     var err_msg: ?[]const u8 = null;
-    const api = loadBridge(arena, &err_msg) orelse {
+    const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
         return;
     };
@@ -608,7 +627,7 @@ fn handleTaskUpdate(arena: Allocator, conn: *Connection, req_id: []const u8, sou
     else
         "s:todo";
     const close = mem.eql(u8, status, "done");
-    const body = updateStateLabels(arena, &api, number, label, close) catch {
+    const body = updateStateLabels(arena, &bridge.api, number, label, close) catch {
         try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (update)");
         return;
     };
@@ -634,11 +653,11 @@ fn handleTaskComment(arena: Allocator, conn: *Connection, req_id: []const u8, so
         return;
     };
     var err_msg: ?[]const u8 = null;
-    const api = loadBridge(arena, &err_msg) orelse {
+    const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
         return;
     };
-    const resp_body = api.addComment(number, body_text) catch {
+    const resp_body = bridge.api.addComment(number, body_text) catch {
         try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (comment)");
         return;
     };
@@ -659,12 +678,12 @@ fn handleTaskCreate(arena: Allocator, conn: *Connection, req_id: []const u8, sou
         return;
     };
     var err_msg: ?[]const u8 = null;
-    const api = loadBridge(arena, &err_msg) orelse {
+    const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
         return;
     };
     const labels: []const []const u8 = &.{ project, "s:todo" };
-    const body = api.createIssue(title, body_text, labels) catch {
+    const body = bridge.api.createIssue(title, body_text, labels) catch {
         try sendToolResponse(arena, conn, req_id, source, false, null, "github api error (create)");
         return;
     };

@@ -222,6 +222,23 @@ pub fn runGithubLogin(allocator: Allocator, args: types.GithubArgs) !void {
     };
     allocator.free(check);
 
+    // Record the GitHub username (issue assignee identity for task.claim).
+    if (api.request(.GET, "/user", null)) |user_body| {
+        defer allocator.free(user_body);
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const parsed = json.parseFromSlice(json.Value, arena.allocator(), user_body, .{ .allocate = .alloc_always }) catch null;
+        if (parsed) |p| {
+            switch (p.value) {
+                .object => |obj| if (obj.get("login")) |login| switch (login) {
+                    .string => |l| config.username = try allocator.dupe(u8, l),
+                    else => {},
+                },
+                else => {},
+            }
+        }
+    } else |_| {}
+
     try config.save(allocator);
     try github.storeToken(allocator, accountOf(allocator, owner, repo), token);
     try io_mod.stdoutWriteAll("Saved. Hub repo: ");

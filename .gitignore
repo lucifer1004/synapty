@@ -34,3 +34,6 @@ devenv.local.yaml
 .zig-global-cache*/
 zig-pkg/
 .metal-dev/
+
+# local
+.env
