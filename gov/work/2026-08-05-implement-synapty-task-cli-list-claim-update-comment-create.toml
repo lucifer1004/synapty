@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-08-05-002"
 title = "Implement synapty task CLI (list/claim/update/comment/create) as the agent interface"
-status = "queue"
+status = "done"
 created = "2026-08-05"
 
 [content]

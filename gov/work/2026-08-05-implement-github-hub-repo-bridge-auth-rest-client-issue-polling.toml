@@ -3,7 +3,7 @@
 [govctl]
 id = "WI-2026-08-05-001"
 title = "Implement GitHub hub-repo bridge — auth, REST client, issue polling"
-status = "queue"
+status = "done"
 created = "2026-08-05"
 
 [content]
