@@ -13,8 +13,8 @@ struct HostConfigSheet: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var tunnelManager: TunnelManager
 
-    /// Currently selected group (nil = All).
-    @State private var selectedGroupID: UUID?
+    /// Currently selected host-list filter.
+    @State private var selectedFilter: HostFilter = .all
     /// Host search text.
     @State private var searchText = ""
     /// Which sub-pane of the Hosts page is shown.
@@ -82,7 +82,7 @@ struct HostConfigSheet: View {
                 hostStore: hostStore,
                 tunnelManager: tunnelManager,
                 isPresented: $showAddHost,
-                presetGroupID: selectedGroupID
+                presetGroupID: selectedGroup?.id
             )
         }
         .sheet(item: $hostToEdit) { host in
@@ -97,7 +97,7 @@ struct HostConfigSheet: View {
             )
         }
         .sheet(isPresented: $showNewGroup) {
-            NewGroupSheet(hostStore: hostStore, parentID: selectedGroupID, isPresented: $showNewGroup)
+            NewGroupSheet(hostStore: hostStore, parentID: selectedGroup?.id, isPresented: $showNewGroup)
         }
         .sheet(item: $subgroupRequest) { request in
             NewGroupSheet(
@@ -140,7 +140,9 @@ struct HostConfigSheet: View {
             Button("Delete", role: .destructive) {
                 if let group = groupToDelete {
                     hostStore.removeGroup(group)
-                    if selectedGroupID == group.id { selectedGroupID = nil }
+                    if case .group(let id) = selectedFilter, id == group.id {
+                        selectedFilter = .all
+                    }
                     groupToDelete = nil
                 }
             }
@@ -206,8 +208,8 @@ struct HostConfigSheet: View {
     // MARK: - Group sidebar
 
     private var selectedGroup: HostGroup? {
-        guard let selectedGroupID else { return nil }
-        return hostStore.groups.first(where: { $0.id == selectedGroupID })
+        guard case .group(let id) = selectedFilter else { return nil }
+        return hostStore.groups.first(where: { $0.id == id })
     }
 
     private var groupSidebar: some View {
@@ -219,18 +221,18 @@ struct HostConfigSheet: View {
             .padding(.horizontal, DS.Space.lg)
             .padding(.vertical, DS.Space.md)
 
-            List(selection: $selectedGroupID) {
+            List(selection: $selectedFilter) {
                 // "All hosts" pseudo-group
                 Label("All Hosts", systemImage: "square.grid.2x2")
                     .font(DS.Typography.detailStrong)
-                    .tag(Optional<UUID>.none)
+                    .tag(HostFilter.all)
 
                 // Ungrouped pseudo-group
                 if !hostStore.hosts(inGroup: nil).isEmpty {
                     Label("Ungrouped", systemImage: "tray")
                         .font(DS.Typography.detail)
                         .foregroundStyle(DS.textSecondary)
-                        .tag(UUID()) // placeholder tag — handled via selectedGroupID == nil check below
+                        .tag(HostFilter.ungrouped)
                 }
 
                 // Group tree
@@ -243,7 +245,7 @@ struct HostConfigSheet: View {
                         onNewSubgroup: { parentID in subgroupRequest = GroupSubgroupRequest(parentID: parentID) },
                         onEdit: { group in groupToEdit = group }
                     )
-                    .tag(Optional(group.id))
+                    .tag(HostFilter.group(group.id))
                 }
             }
             .listStyle(.sidebar)
@@ -255,7 +257,7 @@ struct HostConfigSheet: View {
     // MARK: - Host list
 
     private var visibleHosts: [HostEntry] {
-        hostStore.searchHosts(searchText, in: selectedGroupID)
+        hostStore.searchHosts(searchText, in: selectedFilter)
     }
 
     private var hostListPane: some View {

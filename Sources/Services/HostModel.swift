@@ -66,6 +66,17 @@ struct HostGroup: Identifiable, Codable, Equatable {
     var forwardings: [PortForward]?
 }
 
+// MARK: - Host list filter
+
+/// Which hosts the Hosts page shows. All/ungrouped are distinct: previously
+/// both collapsed to "groupID == nil", so selecting Ungrouped could not be
+/// undone and "All" only showed ungrouped hosts.
+enum HostFilter: Hashable {
+    case all
+    case ungrouped
+    case group(UUID)
+}
+
 // MARK: - HostEntry
 
 struct HostEntry: Identifiable, Codable, Equatable {
@@ -433,8 +444,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
     }
 
     /// Hosts filtered by search text (label, address, tags, group path).
-    func searchHosts(_ query: String, in groupID: UUID?) -> [HostEntry] {
-        let base = hosts(inGroup: groupID)
+    /// - `.all`: every host; `.ungrouped`: no group; `.group(id)`: that
+    ///   group and its subgroups.
+    func searchHosts(_ query: String, in filter: HostFilter) -> [HostEntry] {
+        let base = hosts(inFilter: filter)
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return base }
         let needle = trimmed.lowercased()
@@ -444,6 +457,18 @@ struct HostEntry: Identifiable, Codable, Equatable {
             host.username.lowercased().contains(needle) ||
             host.tags.contains { $0.lowercased().contains(needle) } ||
             groupPath(for: host.groupID).joined(separator: "/").lowercased().contains(needle)
+        }
+    }
+
+    /// All hosts matching a filter (no search term applied).
+    func hosts(inFilter filter: HostFilter) -> [HostEntry] {
+        switch filter {
+        case .all:
+            return hosts
+        case .ungrouped:
+            return hosts.filter { $0.groupID == nil }
+        case .group(let id):
+            return hosts(inGroup: id)
         }
     }
 }

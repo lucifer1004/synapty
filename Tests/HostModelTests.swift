@@ -197,9 +197,22 @@ final class HostStoreTests: XCTestCase {
         let h2 = HostEntry(label: "db", address: "10.0.2.5", username: "ml", tags: ["db"])
         store.hosts = [h1, h2]
         XCTAssertEqual(store.allTags, ["db", "gpu", "prod"])
-        XCTAssertEqual(store.searchHosts("gpu", in: nil).count, 1)
-        XCTAssertEqual(store.searchHosts("db", in: nil).count, 1)
-        XCTAssertEqual(store.searchHosts("", in: nil).count, 2)
+        XCTAssertEqual(store.searchHosts("gpu", in: .all).count, 1)
+        XCTAssertEqual(store.searchHosts("db", in: .all).count, 1)
+        XCTAssertEqual(store.searchHosts("", in: .all).count, 2)
+    }
+
+    func testHostFilterDistinguishesAllAndUngrouped() {
+        let store = HostStore()
+        let group = HostGroup(label: "Prod")
+        store.groups = [group]
+        let grouped = HostEntry(label: "web", address: "10.0.0.2", username: "u", groupID: group.id)
+        let ungrouped = HostEntry(label: "laptop", address: "10.0.0.9", username: "u")
+        store.hosts = [grouped, ungrouped]
+        // .all sees everything; .ungrouped only the free hosts.
+        XCTAssertEqual(store.hosts(inFilter: .all).count, 2)
+        XCTAssertEqual(store.hosts(inFilter: .ungrouped).count, 1)
+        XCTAssertEqual(store.hosts(inFilter: .group(group.id)).count, 1)
     }
 
     // MARK: - Legacy v1 migration

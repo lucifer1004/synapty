@@ -35,12 +35,14 @@ struct ContentView: View {
                 agentMonitor: agentMonitor,
                 onHostConnect: { host in
                     // Create placeholder immediately, update when tunnel is ready.
+                    page = .terminal
                     let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
                     tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
                         paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
                     }
                 },
                 onNewLocalPane: {
+                    page = .terminal
                     paneManager.addLocalSession()
                 },
                 onAgentTap: { [weak paneManager, weak agentMonitor] agent in
@@ -89,9 +91,8 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 // Page switcher — icon-only, management surfaces are full pages.
-                // Terminal is first so you can always get back to the workspace.
-                pageButton(.terminal, icon: "terminal", help: "Terminal workspace (⌘1)")
-                Divider()
+                // No Terminal button: selecting a session in the sidebar always
+                // returns to the terminal workspace.
                 pageButton(.hosts, icon: "server.rack", help: "Host management")
                 pageButton(.tasks, icon: "checklist", help: "Hub-repo task list")
                 pageButton(.activity, icon: "tray.full", help: "Tool-request activity log")
