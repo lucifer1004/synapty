@@ -22,6 +22,7 @@ struct HostConfigSheet: View {
     @State private var showAddHost = false
     @State private var showNewGroup = false
     @State private var subgroupRequest: GroupSubgroupRequest?
+    @State private var groupToEdit: HostGroup?
     @State private var hostToEdit: HostEntry?
     @State private var hostToDelete: HostEntry?
     @State private var groupToDelete: HostGroup?
@@ -107,6 +108,16 @@ struct HostConfigSheet: View {
                     get: { subgroupRequest != nil },
                     set: { if !$0 { subgroupRequest = nil } }
                 )
+            )
+        }
+        .sheet(item: $groupToEdit) { group in
+            GroupEditSheet(
+                hostStore: hostStore,
+                isPresented: Binding(
+                    get: { groupToEdit != nil },
+                    set: { if !$0 { groupToEdit = nil } }
+                ),
+                editingGroup: group
             )
         }
         .sheet(isPresented: $showNewIdentity) {
@@ -207,7 +218,8 @@ struct HostConfigSheet: View {
                         hostStore: hostStore,
                         indent: 0,
                         editingGroupID: $editingGroupID,
-                        onNewSubgroup: { parentID in subgroupRequest = GroupSubgroupRequest(parentID: parentID) }
+                        onNewSubgroup: { parentID in subgroupRequest = GroupSubgroupRequest(parentID: parentID) },
+                        onEdit: { group in groupToEdit = group }
                     )
                     .tag(Optional(group.id))
                 }
@@ -465,6 +477,8 @@ struct GroupRow: View {
     @Binding var editingGroupID: UUID?
     /// Request a new subgroup under this group.
     let onNewSubgroup: (UUID) -> Void
+    /// Open the group settings sheet.
+    let onEdit: (HostGroup) -> Void
 
     @State private var isExpanded = true
     @State private var editText = ""
@@ -484,7 +498,8 @@ struct GroupRow: View {
                         hostStore: hostStore,
                         indent: indent + 1,
                         editingGroupID: $editingGroupID,
-                        onNewSubgroup: onNewSubgroup
+                        onNewSubgroup: onNewSubgroup,
+                        onEdit: onEdit
                     )
                 }
             }
@@ -517,6 +532,8 @@ struct GroupRow: View {
         .contextMenu {
             Button("Rename") { editingGroupID = group.id }
             Button("New Subgroup") { onNewSubgroup(group.id) }
+            Divider()
+            Button("Group Settings\u{2026}") { onEdit(group) }
         }
     }
 }
@@ -663,5 +680,102 @@ struct HostConfigRow: View {
             .help("Delete")
         }
         .padding(.vertical, DS.Space.xs)
+    }
+}
+
+// MARK: - Group edit sheet (inherited settings)
+
+/// Edit a group's inherited defaults (Termius-style): hosts and subgroups
+/// inherit these unless they override them explicitly.
+struct GroupEditSheet: View {
+    @ObservedObject var hostStore: HostStore
+    @Binding var isPresented: Bool
+    var editingGroup: HostGroup
+
+    @State private var label = ""
+    @State private var identityID: UUID?
+    @State private var portText = ""
+    @State private var username = ""
+
+    private var canSave: Bool {
+        !label.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DSSheetHeader(title: "Group Settings", icon: "folder", isPresented: $isPresented)
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.xl) {
+                    VStack(alignment: .leading, spacing: DS.Space.md) {
+                        DSSectionLabel(text: "Group")
+                        TextField("Label", text: $label)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Typography.body)
+                    }
+
+                    VStack(alignment: .leading, spacing: DS.Space.md) {
+                        DSSectionLabel(text: "Inherited Defaults")
+                        Text("Hosts and subgroups inherit these unless they set their own values.")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.textTertiary)
+
+                        Picker("Identity", selection: $identityID) {
+                            Text("Inherit from parent").tag(Optional<UUID>.none)
+                            ForEach(hostStore.identities) { identity in
+                                Text(identity.label).tag(Optional(identity.id))
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        TextField("Username (inherited)", text: $username)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Typography.body)
+
+                        TextField("Port (inherited)", text: $portText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Typography.body)
+                    }
+                }
+                .padding(DS.Space.xl)
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Cancel") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    save()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSave)
+                .buttonStyle(.borderedProminent)
+                .tint(DS.accent)
+            }
+            .padding(DS.Space.lg)
+        }
+        .frame(width: 400)
+        .background(DS.background)
+        .onAppear {
+            label = editingGroup.label
+            identityID = editingGroup.identityID
+            username = editingGroup.username ?? ""
+            if let port = editingGroup.port {
+                portText = "\(port)"
+            }
+        }
+    }
+
+    private func save() {
+        var updated = editingGroup
+        updated.label = label.trimmingCharacters(in: .whitespaces)
+        updated.identityID = identityID
+        updated.username = username.trimmingCharacters(in: .whitespaces).isEmpty ? nil : username.trimmingCharacters(in: .whitespaces)
+        updated.port = Int(portText)
+        hostStore.updateGroup(updated)
+        isPresented = false
     }
 }
