@@ -136,7 +136,11 @@ pub const HubServer = struct {
     pub fn run(self: *HubServer) !void {
         while (true) {
             const fd = try sys.accept(self.listener_fd);
-            log.info("accepted connection on fd {d}", .{fd});
+            // Note: no log here on purpose. The GUI HubManager health check
+            // opens a probe connection (connect + close) every few seconds;
+            // logging every accept would spam the log with empty
+            // connections. Real connections log on register/tool_request
+            // in the reader thread.
 
             // Create Connection on heap and register in all_connections BEFORE
             // spawning the reader thread, so deinit can always shutdown the
