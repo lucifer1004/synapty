@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Bottom context bar (28pt) — shows info about the currently focused session/pane.
+/// Bottom context bar — shows info about the currently focused session/pane.
 /// Agents live in the sidebar; this bar provides "what am I looking at right now?"
 struct ContextStatusBar: View {
     @ObservedObject var paneManager: TerminalPaneManager
@@ -9,7 +9,7 @@ struct ContextStatusBar: View {
     @ObservedObject var taskMonitor: TaskMonitor
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: DS.Space.md) {
             // Left: focused session context
             focusedSessionInfo
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -21,9 +21,9 @@ struct ContextStatusBar: View {
             bridgeStatusView
             hubSummary
         }
-        .padding(.horizontal, 12)
-        .frame(height: 28)
-        .background(.bar)
+        .padding(.horizontal, DS.Space.lg)
+        .frame(height: DS.Layout.statusBarHeight)
+        .background(DS.surface)
         .overlay(alignment: .top) { Divider() }
     }
 
@@ -32,11 +32,12 @@ struct ContextStatusBar: View {
     @ViewBuilder
     private var focusedSessionInfo: some View {
         if let session = paneManager.activeSession {
-            HStack(spacing: 6) {
+            HStack(spacing: DS.Space.sm) {
                 // Session type indicator
-                Circle()
-                    .fill(session.isLocal ? .green : .blue)
-                    .frame(width: 7, height: 7)
+                DSStatusDot(
+                    color: session.isLocal ? DS.success : DS.info,
+                    size: 7
+                )
 
                 // Agent info if registered, otherwise session label
                 if let agentID = session.agentID,
@@ -45,29 +46,29 @@ struct ContextStatusBar: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(agent.tool.accentColor)
                     Text(agent.tool.displayName)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DS.Typography.detailStrong)
                     if agent.session != "-" {
                         Text("·")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(DS.textTertiary)
                         Text(agent.session)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.detail)
+                            .foregroundStyle(DS.textSecondary)
                             .lineLimit(1)
                     }
                 } else {
                     Text(session.label)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DS.Typography.detailStrong)
                     if let agentID = session.agentID {
                         Text(agentID)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textSecondary)
                     }
                 }
             }
         } else {
             Text("No active session")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(DS.Typography.detail)
+                .foregroundStyle(DS.textSecondary)
         }
     }
 
@@ -75,31 +76,34 @@ struct ContextStatusBar: View {
 
     private var projectBadges: some View {
         let counts = taskMonitor.projectCounts
-        return HStack(spacing: 8) {
+        return HStack(spacing: DS.Space.sm) {
             ForEach(counts.keys.sorted(), id: \.self) { project in
                 if let c = counts[project] {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Space.xs) {
                         Text(project.replacingOccurrences(of: "p:", with: ""))
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(DS.Typography.captionStrong)
                         if c.doing > 0 {
                             Text("\(c.doing)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color.blue)
+                                .font(DS.Typography.captionStrong)
+                                .foregroundStyle(DS.info)
                         }
                         if c.todo > 0 {
                             Text("\(c.todo)")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.textSecondary)
                         }
                         if c.done > 0 {
                             Text("\(c.done)✓")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.textSecondary)
                         }
                     }
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, DS.Space.sm)
                     .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                    .background(
+                        RoundedRectangle(cornerRadius: DS.Radius.pill)
+                            .fill(DS.hover)
+                    )
                 }
             }
         }
@@ -119,13 +123,14 @@ struct ContextStatusBar: View {
             } label: {
                 Image(systemName: "link.badge.plus")
                     .font(.system(size: 10))
-                    .foregroundColor(.orange)
+                    .foregroundColor(DS.warning)
             }
+            .buttonStyle(.plain)
             .help("GitHub bridge not configured — run `synapty github login` in a pane")
         case .error:
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 10))
-                .foregroundColor(.red)
+                .foregroundColor(DS.danger)
                 .help(taskMonitor.lastError ?? "GitHub bridge error")
         }
     }
@@ -133,14 +138,15 @@ struct ContextStatusBar: View {
     // MARK: - Hub summary
 
     private var hubSummary: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(hubManager.status.isRunning ? Color.green : Color.red)
-                .frame(width: 6, height: 6)
+        HStack(spacing: DS.Space.xs) {
+            DSStatusDot(
+                color: hubManager.status.isRunning ? DS.success : DS.danger,
+                size: 6
+            )
             let count = agentMonitor.agents.count
             Text("Hub: \(count) agent\(count == 1 ? "" : "s")")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.textSecondary)
         }
     }
 }

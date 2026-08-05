@@ -10,33 +10,42 @@ struct SessionPlaceholderView: View {
     let session: TerminalPaneManager.Session
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.lg) {
             switch session.state {
             case .connecting:
                 ProgressView()
                     .controlSize(.large)
-                Text("Connecting to \(session.label)…")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .tint(DS.accent)
+                VStack(spacing: DS.Space.xs) {
+                    Text("Connecting to \(session.label)")
+                        .font(DS.Typography.title)
+                        .foregroundStyle(DS.textPrimary)
+                    Text("Establishing SSH tunnel…")
+                        .font(DS.Typography.detail)
+                        .foregroundStyle(DS.textSecondary)
+                }
             case .failed(let message):
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.orange)
-                Text("Connection failed")
-                    .font(.system(size: 14, weight: .medium))
-                Text(message)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
+                    .font(.system(size: 30))
+                    .foregroundStyle(DS.warning)
+                VStack(spacing: DS.Space.xs) {
+                    Text("Connection failed")
+                        .font(DS.Typography.title)
+                        .foregroundStyle(DS.textPrimary)
+                    Text(message)
+                        .font(DS.Typography.detail)
+                        .foregroundStyle(DS.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                }
             case .connected:
                 // Transient: connectSession replaces the placeholder with a
                 // real session+pane immediately, so this should not render.
                 EmptyView()
             }
         }
-        .padding(32)
+        .padding(DS.Space.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.92))
+        .background(DS.background)
     }
 }
