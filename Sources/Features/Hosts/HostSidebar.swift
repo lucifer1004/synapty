@@ -418,7 +418,8 @@ struct HostPickerPopover: View {
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(host.label)
                                             .font(DS.Typography.bodyStrong)
-                                        Text("\(host.username)@\(host.address)")
+                                        // Effective credentials: host → identity → group chain.
+                                        Text("\(tunnelManager.effectiveUsername(for: host))@\(host.address)")
                                             .font(DS.Typography.monoCaption)
                                             .foregroundStyle(DS.textSecondary)
                                     }
