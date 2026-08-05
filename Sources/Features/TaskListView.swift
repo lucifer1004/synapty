@@ -7,6 +7,7 @@ struct TaskListView: View {
     @ObservedObject var taskMonitor: TaskMonitor
 
     @State private var stateFilter: TaskStatus? = nil
+    @State private var isRefreshing = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,10 +36,35 @@ struct TaskListView: View {
                     .font(DS.Typography.titleLarge)
                 Spacer()
                 if !taskMonitor.tasks.isEmpty {
-                    Text("\(taskMonitor.tasks.count) open")
+                    Text("\(taskMonitor.tasks.count) total")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textSecondary)
                 }
+                // Manual refresh — the task list is low-frequency by design.
+                Button {
+                    isRefreshing = true
+                    Task { @MainActor in
+                        taskMonitor.refreshTasks()
+                        // Give the @Published update a moment to land.
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        isRefreshing = false
+                    }
+                } label: {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 22, height: 22)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(DS.textSecondary)
+                            .frame(width: 22, height: 22)
+                            .background(DS.hover, in: Circle())
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Refresh tasks")
+                .disabled(isRefreshing)
             }
             .padding(.horizontal, DS.Space.xl)
             .padding(.top, DS.Space.lg)

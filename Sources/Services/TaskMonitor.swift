@@ -82,8 +82,11 @@ enum BridgeStatus: Equatable {
     @Published var bridgeStatus: BridgeStatus = .unknown
     @Published var lastError: String?
 
-    private var timer: Timer?
-    private let pollInterval: TimeInterval = 5.0
+    private var activityTimer: Timer?
+    private var tasksTimer: Timer?
+    /// Activity stream is real-time-ish; the task list changes rarely.
+    private let activityInterval: TimeInterval = 5.0
+    private let tasksInterval: TimeInterval = 60.0
 
     /// Aggregate per-project counts from the current task list.
     var projectCounts: [String: ProjectCounts] {
@@ -100,18 +103,33 @@ enum BridgeStatus: Equatable {
     }
 
     func start() {
-        guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+        guard activityTimer == nil else { return }
+        // Activity stream: frequent (5s). Task list: very low frequency
+        // (60s) — manual refresh is the primary path (Tasks page button).
+        activityTimer = Timer.scheduledTimer(withTimeInterval: activityInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.poll()
+                self?.fetchActivity()
             }
         }
+        tasksTimer = Timer.scheduledTimer(withTimeInterval: tasksInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.fetchTasks()
+            }
+        }
+        // Initial fetch of both.
         poll()
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        activityTimer?.invalidate()
+        activityTimer = nil
+        tasksTimer?.invalidate()
+        tasksTimer = nil
+    }
+
+    /// Manual refresh of the task list (Tasks page refresh button).
+    func refreshTasks() {
+        fetchTasks()
     }
 
     func poll() {
