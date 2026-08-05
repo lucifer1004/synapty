@@ -140,7 +140,13 @@ else
         LISTEN="${FORWARDS[$((i + 1))]}"
         THOST="${FORWARDS[$((i + 2))]}"
         TPORT="${FORWARDS[$((i + 3))]}"
-        FORWARD_ARGS+=("-$KIND" "${LISTEN}:${THOST}:${TPORT}")
+        # Map kind -> ssh flag: local=-L, remote=-R
+        case "$KIND" in
+            local) FLAG="-L" ;;
+            remote) FLAG="-R" ;;
+            *) echo "Error: unknown forward kind: $KIND" >&2; exit 1 ;;
+        esac
+        FORWARD_ARGS+=("$FLAG" "${LISTEN}:${THOST}:${TPORT}")
         i=$((i + 4))
     done
     ssh -MNf -S "$SOCKET" -R "${TUNNEL_PORT}:localhost:${TUNNEL_PORT}" \
