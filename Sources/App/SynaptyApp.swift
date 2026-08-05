@@ -5,7 +5,10 @@ struct SynaptyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        WindowGroup {
+        // Empty window title: the app name is already in the macOS menu bar,
+        // and in-app branding was removed from the sidebar. No duplicate
+        // "Synapty" text anywhere in the window.
+        WindowGroup("") {
             ContentView()
                 .environmentObject(appDelegate)
                 .tint(DS.accent)
@@ -25,9 +28,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyApp()
 
-        // Enforce a sensible minimum window size.
+        // Enforce a sensible minimum window size and clear any window title
+        // (the app name lives in the menu bar; no in-window branding).
         for window in NSApplication.shared.windows {
             window.minSize = NSSize(width: 760, height: 480)
+            window.title = ""
+            window.subtitle = ""
+            window.titleVisibility = .hidden
         }
     }
 

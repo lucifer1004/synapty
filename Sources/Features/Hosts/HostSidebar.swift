@@ -20,31 +20,9 @@ struct HostSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Brand header — app identity + actions
+            // Header — action toolbar only. No in-app branding: the window
+            // title bar already identifies the app.
             HStack(spacing: DS.Space.sm) {
-                // Brand mark: synapse glyph in an accent tile
-                RoundedRectangle(cornerRadius: DS.Radius.sm)
-                    .fill(DS.accent)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Image(systemName: "point.3.connected.trianglepath.dotted")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                    )
-
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Synapty")
-                        .font(DS.Typography.titleLarge)
-                        .lineLimit(1)
-                    Text("Workbench")
-                        .font(DS.Typography.monoCaption)
-                        .foregroundStyle(DS.textTertiary)
-                        .lineLimit(1)
-                }
-                .layoutPriority(1)
-
-                Spacer(minLength: DS.Space.sm)
-
                 // Configuration
                 Button {
                     showHostConfig = true
@@ -57,6 +35,8 @@ struct HostSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .help("Host Configuration")
+
+                Spacer(minLength: DS.Space.sm)
 
                 // New session
                 Button {
