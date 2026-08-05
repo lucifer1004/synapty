@@ -26,9 +26,13 @@ struct AddHostSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(isEditing ? "Edit Host" : "Add Host")
-                .font(.headline)
-                .padding(.top)
+            DSSheetHeader(
+                title: isEditing ? "Edit Host" : "Add Host",
+                icon: isEditing ? "pencil.circle" : "plus.circle",
+                isPresented: $isPresented
+            )
+
+            Divider()
 
             Form {
                 TextField("Label", text: $label)
@@ -42,7 +46,8 @@ struct AddHostSheet: View {
                     }
                 }
             }
-            .padding()
+            .formStyle(.grouped)
+            .padding(.vertical, DS.Space.sm)
 
             Divider()
 
@@ -75,10 +80,13 @@ struct AddHostSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSave)
+                .buttonStyle(.borderedProminent)
+                .tint(DS.accent)
             }
-            .padding()
+            .padding(DS.Space.lg)
         }
-        .frame(width: 400)
+        .frame(width: 420)
+        .background(DS.background)
         .onAppear {
             if let host = editingHost {
                 label = host.label

@@ -6,24 +6,12 @@ struct KeyboardShortcutsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Keyboard Shortcuts")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    isPresented = false
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
+            DSSheetHeader(title: "Keyboard Shortcuts", icon: "keyboard", isPresented: $isPresented)
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DS.Space.xl) {
                     shortcutSection("Sessions & Tabs", shortcuts: [
                         ("New Session", "⌘N"),
                         ("New Tab", "⌘T"),
@@ -48,28 +36,36 @@ struct KeyboardShortcutsView: View {
                         ("Paste", "⌘V"),
                         ("Rename (sidebar)", "Enter"),
                     ])
+
+                    shortcutSection("Terminal", shortcuts: [
+                        ("Find in Scrollback", "⌘F"),
+                        ("Increase Font", "⌘+"),
+                        ("Decrease Font", "⌘−"),
+                        ("Reset Font", "⌘0"),
+                    ])
                 }
-                .padding()
+                .padding(DS.Space.xl)
             }
         }
-        .frame(width: 380, height: 420)
+        .frame(width: 400, height: 460)
+        .background(DS.background)
     }
 
     private func shortcutSection(_ title: String, shortcuts: [(String, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .textCase(.uppercase)
-                .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            DSSectionLabel(text: title)
 
             ForEach(shortcuts, id: \.0) { name, key in
                 HStack {
                     Text(name)
-                        .font(.system(size: 13))
+                        .font(DS.Typography.body)
                     Spacer()
                     Text(key)
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textSecondary)
+                        .padding(.horizontal, DS.Space.sm)
+                        .padding(.vertical, 2)
+                        .background(DS.hover, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
                 }
             }
         }

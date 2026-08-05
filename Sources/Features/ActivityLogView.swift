@@ -8,20 +8,7 @@ struct ActivityLogView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Activity")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    isPresented = false
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            DSSheetHeader(title: "Activity", icon: "tray.full", isPresented: $isPresented)
             Divider()
             if taskMonitor.activities.isEmpty {
                 emptyState
@@ -29,26 +16,27 @@ struct ActivityLogView: View {
                 activityTimeline
             }
         }
-        .frame(minWidth: 400, minHeight: 300)
+        .frame(minWidth: 420, minHeight: 320)
+        .background(DS.background)
     }
 
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.lg) {
             Image(systemName: "tray")
                 .font(.system(size: 36))
-                .foregroundColor(.secondary)
+                .foregroundStyle(DS.textTertiary)
             Text("No activity yet")
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.titleLarge)
+                .foregroundStyle(DS.textSecondary)
             Text("Task tool requests (list / claim / update / comment / create)\nwill appear here as agents work the hub repo.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.textTertiary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(DS.background)
     }
 
     // MARK: - Activity timeline
@@ -56,13 +44,13 @@ struct ActivityLogView: View {
     private var activityTimeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: DS.Space.xs) {
                     ForEach(taskMonitor.activities) { item in
                         ActivityRow(item: item)
                             .id(item.id)
                     }
                 }
-                .padding()
+                .padding(DS.Space.lg)
             }
             .onChange(of: taskMonitor.activities.count) { _ in
                 if let last = taskMonitor.activities.last {
@@ -97,24 +85,37 @@ struct ActivityRow: View {
         }
     }
 
+    private var iconColor: Color {
+        switch item.tool {
+        case "task.create": return DS.success
+        case "task.claim": return DS.info
+        case "task.update": return DS.warning
+        case "task.comment": return DS.accent
+        default: return DS.textSecondary
+        }
+    }
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.sm) {
             Image(systemName: icon)
                 .font(.system(size: 11))
-                .foregroundColor(.secondary)
-                .frame(width: 16)
+                .foregroundStyle(iconColor)
+                .frame(width: 18)
             Text(timeText)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DS.Typography.monoCaption)
+                .foregroundStyle(DS.textTertiary)
             Text(item.detail)
-                .font(.system(size: 12))
+                .font(DS.Typography.body)
                 .lineLimit(1)
             Spacer()
             Text(item.agent)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DS.Typography.monoCaption)
+                .foregroundStyle(DS.textSecondary)
                 .lineLimit(1)
+                .padding(.horizontal, DS.Space.sm)
+                .padding(.vertical, 1)
+                .background(DS.hover, in: Capsule())
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, DS.Space.xs)
     }
 }

@@ -13,35 +13,25 @@ struct HostConfigSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Text("Host Configuration")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    isPresented = false
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding()
+            DSSheetHeader(title: "Host Configuration", icon: "server.rack", isPresented: $isPresented)
 
             Divider()
 
             // Host list
             if hostStore.hosts.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.lg) {
                     Image(systemName: "server.rack")
                         .font(.system(size: 36))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(DS.textTertiary)
                     Text("No hosts configured")
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
                     Text("Add a remote host to get started.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DS.background)
             } else {
                 List {
                     ForEach(hostStore.hosts) { host in
@@ -56,6 +46,7 @@ struct HostConfigSheet: View {
                     }
                 }
                 .listStyle(.inset)
+                .scrollContentBackground(.hidden)
             }
 
             Divider()
@@ -69,9 +60,10 @@ struct HostConfigSheet: View {
                 }
                 Spacer()
             }
-            .padding()
+            .padding(DS.Space.lg)
         }
-        .frame(width: 550, height: 400)
+        .frame(width: 560, height: 420)
+        .background(DS.background)
         .sheet(isPresented: $showAddHost) {
             AddHostSheet(hostStore: hostStore, isPresented: $showAddHost)
         }
@@ -114,22 +106,24 @@ struct HostConfigRow: View {
     let onDisconnect: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: DS.Space.md) {
             // Status dot
-            Circle()
-                .fill(Color(tunnelStatus.color))
-                .frame(width: 8, height: 8)
+            DSStatusDot(
+                color: Color(tunnelStatus.color),
+                size: 8,
+                pulsing: tunnelStatus == .connecting || tunnelStatus == .reconnecting
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(host.label)
-                    .font(.body)
-                HStack(spacing: 4) {
+                    .font(DS.Typography.bodyStrong)
+                HStack(spacing: DS.Space.xs) {
                     Text("\(host.username)@\(host.address):\(host.port)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("- \(tunnelStatus.label)")
-                        .font(.caption)
-                        .foregroundColor(Color(tunnelStatus.color))
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textSecondary)
+                    Text("· \(tunnelStatus.label)")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(Color(tunnelStatus.color))
                 }
             }
 
@@ -141,6 +135,7 @@ struct HostConfigRow: View {
                     onDisconnect()
                 } label: {
                     Image(systemName: "bolt.slash")
+                        .foregroundStyle(DS.textSecondary)
                 }
                 .buttonStyle(.borderless)
                 .help("Disconnect tunnel")
@@ -149,6 +144,7 @@ struct HostConfigRow: View {
                     onReconnect()
                 } label: {
                     Image(systemName: "bolt")
+                        .foregroundStyle(DS.accent)
                 }
                 .buttonStyle(.borderless)
                 .help("Reconnect tunnel")
@@ -156,17 +152,18 @@ struct HostConfigRow: View {
 
             Button { onEdit() } label: {
                 Image(systemName: "pencil")
+                    .foregroundStyle(DS.textSecondary)
             }
             .buttonStyle(.borderless)
             .help("Edit")
 
             Button { onDelete() } label: {
                 Image(systemName: "trash")
-                    .foregroundColor(.red)
+                    .foregroundStyle(DS.danger)
             }
             .buttonStyle(.borderless)
             .help("Delete")
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, DS.Space.xs)
     }
 }

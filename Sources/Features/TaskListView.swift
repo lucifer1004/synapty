@@ -19,52 +19,79 @@ struct TaskListView: View {
                 taskGroups
             }
         }
-        .frame(minWidth: 480, minHeight: 360)
+        .frame(minWidth: 500, minHeight: 380)
+        .background(DS.background)
     }
 
     // MARK: - Filter bar
 
     private var filterBar: some View {
-        HStack(spacing: 8) {
-            Text("Tasks")
-                .font(.headline)
-            Spacer()
-            Button {
-                isPresented = false
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "checklist")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text("Tasks")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
             }
-            .buttonStyle(.plain)
-            Picker("State", selection: $stateFilter) {
-                Text("All").tag(nil as TaskStatus?)
-                Text("Todo").tag(TaskStatus.todo as TaskStatus?)
-                Text("Doing").tag(TaskStatus.doing as TaskStatus?)
-                Text("Done").tag(TaskStatus.done as TaskStatus?)
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.top, DS.Space.lg)
+            .padding(.bottom, DS.Space.md)
+
+            // State filter chips
+            HStack(spacing: DS.Space.xs) {
+                filterChip(title: "All", status: nil)
+                filterChip(title: "Todo", status: .todo)
+                filterChip(title: "Doing", status: .doing)
+                filterChip(title: "Done", status: .done)
+                Spacer()
             }
-            .pickerStyle(.segmented)
-            .frame(width: 220)
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.bottom, DS.Space.lg)
         }
-        .padding(10)
+    }
+
+    private func filterChip(title: String, status: TaskStatus?) -> some View {
+        let isSelected = stateFilter == status
+        return Button {
+            stateFilter = status
+        } label: {
+            Text(title)
+                .font(DS.Typography.detailStrong)
+                .foregroundStyle(isSelected ? DS.accent : DS.textSecondary)
+                .padding(.horizontal, DS.Space.lg)
+                .padding(.vertical, DS.Space.xs)
+                .background(
+                    RoundedRectangle(cornerRadius: DS.Radius.pill)
+                        .fill(isSelected ? DS.accentSoft : DS.hover)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.pill)
+                        .stroke(isSelected ? DS.accent.opacity(0.5) : Color.clear, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.lg) {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 36))
-                .foregroundColor(.secondary)
+                .foregroundStyle(DS.textTertiary)
             Text(stateFilter == nil ? "No open tasks" : "Nothing \(stateFilter!.rawValue)")
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.titleLarge)
+                .foregroundStyle(DS.textSecondary)
             Text("Tasks are issues in your hub repo, grouped by p: labels.\nCreate one with `synapty task create`.")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.textTertiary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(DS.background)
     }
 
     // MARK: - Grouped list
@@ -81,16 +108,20 @@ struct TaskListView: View {
 
     private var taskGroups: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: DS.Space.xl) {
                 ForEach(groups, id: \.project) { group in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(group.project)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 12)
+                    VStack(alignment: .leading, spacing: DS.Space.xs) {
+                        DSSectionLabel(text: group.project.replacingOccurrences(of: "p:", with: ""), count: group.tasks.count)
+                            .padding(.horizontal, DS.Space.xl)
                         ForEach(group.tasks) { task in
                             TaskRow(task: task)
-                                .padding(.horizontal, 12)
+                                .padding(.horizontal, DS.Space.lg)
+                                .padding(.vertical, DS.Space.sm)
+                                .background(
+                                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                                        .fill(DS.hover)
+                                )
+                                .padding(.horizontal, DS.Space.xl)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     if let url = URL(string: task.url) {
@@ -101,7 +132,7 @@ struct TaskListView: View {
                     }
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, DS.Space.lg)
         }
     }
 }
@@ -112,26 +143,23 @@ struct TaskRow: View {
     let task: TaskItem
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(task.status.color)
-                .frame(width: 7, height: 7)
+        HStack(spacing: DS.Space.sm) {
+            DSStatusDot(color: task.status.color, size: 7)
             Text("#\(task.number)")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DS.Typography.monoCaption)
+                .foregroundStyle(DS.textSecondary)
             Text(task.title)
-                .font(.system(size: 12))
+                .font(DS.Typography.body)
                 .lineLimit(1)
             Spacer()
             if let assignee = task.assignee {
                 Text(assignee)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textSecondary)
             }
             Image(systemName: "arrow.up.right")
                 .font(.system(size: 9))
-                .foregroundColor(.secondary)
+                .foregroundStyle(DS.textTertiary)
         }
-        .padding(.vertical, 4)
     }
 }
