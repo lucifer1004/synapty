@@ -83,6 +83,16 @@ targets:
             mkdir -p "$THEMES_DEST"
             cp -R "$THEMES_SRC/." "$THEMES_DEST/"
           fi
+          # Bundle terminfo so ghostty's resourcesDir() sentinel
+          # (terminfo/78/xterm-ghostty under Contents/Resources) resolves —
+          # without it theme lookup falls back to nothing and 'theme = X'
+          # silently fails.
+          TERMINFO_SRC="${SRCROOT}/ghostty/zig-out/share/terminfo"
+          TERMINFO_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/terminfo"
+          if [ -d "$TERMINFO_SRC" ]; then
+            mkdir -p "$TERMINFO_DEST"
+            cp -R "$TERMINFO_SRC/." "$TERMINFO_DEST/"
+          fi
         name: Bundle deploy and hub binaries
     dependencies:
       - framework: GhosttyKit.xcframework
