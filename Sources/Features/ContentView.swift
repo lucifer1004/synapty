@@ -169,6 +169,7 @@ struct ContentView: View {
             Task { @MainActor in
                 hubManager.ensureRunning()
                 agentMonitor.startMonitoring()
+                taskMonitor.start()
                 tunnelManager.startHeartbeat()
                 if paneManager.sessions.isEmpty {
                     paneManager.addLocalSession()
@@ -177,6 +178,7 @@ struct ContentView: View {
         }
         .onDisappear {
             agentMonitor.stopMonitoring()
+            taskMonitor.stop()
             tunnelManager.stopHeartbeat()
             hubManager.shutdown()
         }
