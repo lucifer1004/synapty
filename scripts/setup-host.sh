@@ -128,6 +128,38 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Deploy ghostty terminfo to the remote host (ghostty#5818)
+# ---------------------------------------------------------------------------
+# Remote shells (zsh + powerlevel10k etc.) misbehave when the TERM entry
+# (xterm-ghostty) is missing on the server: backspace outputs a space
+# instead of deleting. The bundled file is a COMPILED terminfo entry, so
+# we copy it straight into the user's terminfo db (~/.terminfo/78/…) —
+# no tic needed on the remote.
+echo "Deploying ghostty terminfo to remote..."
+TERMINFO_SRC=""
+for candidate in \
+    "${SCRIPT_DIR}/../../Resources/terminfo/78/xterm-ghostty" \
+    "${SCRIPT_DIR}/../ghostty/zig-out/share/terminfo/78/xterm-ghostty" \
+    "ghostty/zig-out/share/terminfo/78/xterm-ghostty"; do
+    if [ -f "$candidate" ]; then
+        TERMINFO_SRC="$candidate"
+        break
+    fi
+done
+
+if [ -n "$TERMINFO_SRC" ]; then
+    ssh $SSH_CMD $SSH_FLAGS "$DEST" "mkdir -p .terminfo/78 .synapty"
+    if $CM_ACTIVE; then
+        scp $SCP_FLAGS -o "ControlPath=$SOCKET" -o ControlMaster=auto "$TERMINFO_SRC" "$DEST":.terminfo/78/xterm-ghostty
+    else
+        scp $SCP_FLAGS "$TERMINFO_SRC" "$DEST":.terminfo/78/xterm-ghostty
+    fi
+    ssh $SSH_CMD $SSH_FLAGS "$DEST" "test -f .terminfo/78/xterm-ghostty && echo 'terminfo installed (~/.terminfo/78/xterm-ghostty)'"
+else
+    echo "Warning: xterm-ghostty terminfo source not found locally; skipping deploy."
+fi
+
+# ---------------------------------------------------------------------------
 # Establish ControlMaster with reverse tunnel (only if not already active)
 # ---------------------------------------------------------------------------
 if $CM_ACTIVE; then
