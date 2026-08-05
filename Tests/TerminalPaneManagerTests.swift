@@ -234,4 +234,23 @@ final class TerminalPaneManagerTests: XCTestCase {
         manager.addLocalSession()
         XCTAssertEqual(manager.sessions.first!.id, firstID)
     }
+
+    // MARK: - Focus (background connections must not steal session focus)
+
+    func testFocusLeafDoesNotSwitchActiveSession() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
+        let manager = TerminalPaneManager()
+        manager.addLocalSession()
+        let localID = manager.activeSessionID
+        // Remote session connects while user is in the local session.
+        manager.addRemoteSession(label: "GPU Box", hostEntry: host,
+                                command: "bash connect.sh agent-1 10.0.1.5 22 user 9000", agentID: "agent-1")
+        let remoteLeaf = manager.sessions.last!.panes.first!.splitRoot.leaves.first!.id
+        manager.activeSessionID = localID
+
+        // A background surface becoming first responder focuses its pane…
+        manager.focusLeaf(remoteLeaf)
+        // …but must not switch the active session.
+        XCTAssertEqual(manager.activeSessionID, localID, "focusLeaf must not steal session focus")
+    }
 }

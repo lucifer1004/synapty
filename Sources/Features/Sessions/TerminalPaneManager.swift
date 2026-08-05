@@ -414,13 +414,16 @@ import Foundation
     }
 
     /// Set focus to a specific leaf (called from surface becomeFirstResponder).
+    /// Updates the pane-level focus only — it must NOT switch the active
+    /// session: a background connection's new surface becoming first
+    /// responder would otherwise yank the user away from the session they
+    /// are working in.
     func focusLeaf(_ leafID: UUID) {
         for sIdx in sessions.indices {
             for pIdx in sessions[sIdx].panes.indices {
                 if sessions[sIdx].panes[pIdx].splitRoot.findLeaf(leafID) != nil {
                     sessions[sIdx].panes[pIdx].focusedLeafID = leafID
                     sessions[sIdx].activePaneID = sessions[sIdx].panes[pIdx].id
-                    activeSessionID = sessions[sIdx].id
                     return
                 }
             }
