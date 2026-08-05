@@ -1,11 +1,10 @@
 import SwiftUI
 
-/// Lightweight task panel — hub-repo issues grouped by project label,
+/// Task management page — hub-repo issues grouped by project label,
 /// filterable by state (RFC-0003 C-UI). Clicking a task opens it on
 /// GitHub; details/comments live on the platform by design.
 struct TaskListView: View {
     @ObservedObject var taskMonitor: TaskMonitor
-    @Binding var isPresented: Bool
 
     @State private var stateFilter: TaskStatus? = nil
 
@@ -19,7 +18,7 @@ struct TaskListView: View {
                 taskGroups
             }
         }
-        .frame(minWidth: 500, minHeight: 380)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
     }
 
@@ -35,17 +34,11 @@ struct TaskListView: View {
                 Text("Tasks")
                     .font(DS.Typography.titleLarge)
                 Spacer()
-                Button {
-                    isPresented = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                if !taskMonitor.tasks.isEmpty {
+                    Text("\(taskMonitor.tasks.count) open")
+                        .font(DS.Typography.caption)
                         .foregroundStyle(DS.textSecondary)
-                        .frame(width: 22, height: 22)
-                        .background(DS.hover, in: Circle())
                 }
-                .buttonStyle(.plain)
-                .help("Close")
             }
             .padding(.horizontal, DS.Space.xl)
             .padding(.top, DS.Space.lg)

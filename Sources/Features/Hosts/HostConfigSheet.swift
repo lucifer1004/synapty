@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Dedicated host configuration sheet — Termius-style host management:
+/// Host management page — Termius-style host management:
 /// nested groups in a sidebar, searchable host list with tags, and full
 /// CRUD for hosts, groups and reusable identities.
 struct HostConfigSheet: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var tunnelManager: TunnelManager
-    @Binding var isPresented: Bool
 
     /// Currently selected group (nil = All).
     @State private var selectedGroupID: UUID?
@@ -22,13 +21,29 @@ struct HostConfigSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DSSheetHeader(title: "Hosts", icon: "server.rack", isPresented: $isPresented)
+            // Page header
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text("Hosts")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
+                if !hostStore.hosts.isEmpty {
+                    Text("\(hostStore.hosts.count) hosts")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textSecondary)
+                }
+            }
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.lg)
             Divider()
 
             HStack(spacing: 0) {
                 // Left: group tree
                 groupSidebar
-                    .frame(width: 190)
+                    .frame(width: 200)
 
                 Divider()
 
@@ -63,7 +78,7 @@ struct HostConfigSheet: View {
             }
             .padding(DS.Space.lg)
         }
-        .frame(width: 680, height: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
         .sheet(isPresented: $showAddHost) {
             AddHostSheet(

@@ -1,5 +1,16 @@
 import SwiftUI
 
+/// Top-level application pages. Terminal is the default workspace; the
+/// management surfaces (hosts/tasks/activity/hub) are full pages, not
+/// modal popovers, so they can use the whole window.
+enum AppPage: Hashable {
+    case terminal
+    case hosts
+    case tasks
+    case activity
+    case hub
+}
+
 struct ContentView: View {
     @EnvironmentObject var appDelegate: AppDelegate
     @StateObject private var hostStore = HostStore()
@@ -8,10 +19,8 @@ struct ContentView: View {
     @StateObject private var tunnelManager = TunnelManager()
     @StateObject private var hubManager = HubManager()
     @StateObject private var taskMonitor = TaskMonitor()
-    @State private var showHubSheet = false
+    @State private var page: AppPage = .terminal
     @State private var showShortcuts = false
-    @State private var showActivityLog = false
-    @State private var showTaskList = false
     @State private var showFindBar = false
     @State private var findText = ""
 
@@ -22,6 +31,7 @@ struct ContentView: View {
                 paneManager: paneManager,
                 tunnelManager: tunnelManager,
                 agentMonitor: agentMonitor,
+                page: $page,
                 onHostConnect: { host in
                     // Create placeholder immediately, update when tunnel is ready.
                     let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
@@ -42,92 +52,33 @@ struct ContentView: View {
             )
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
-            VStack(spacing: 0) {
-                if let ghosttyApp = appDelegate.ghosttyApp {
-                    if let session = paneManager.activeSession, session.panes.count > 0 {
-                        PaneTabBar(paneManager: paneManager, session: session)
-                    }
-
-                    if let session = paneManager.activeSession, session.panes.isEmpty {
-                        // Remote placeholder while the tunnel is being
-                        // established, or a failed connection: show a status
-                        // view instead of a terminal (no ghostty surface —
-                        // a nil-command surface would spawn a local shell,
-                        // WI-2026-03-31-003).
-                        SessionPlaceholderView(session: session)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        AllPanesSplitView(
-                            paneManager: paneManager,
-                            ghosttyApp: ghosttyApp
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                } else {
-                    VStack(spacing: DS.Space.sm) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(DS.accent)
-                        Text("Initializing terminal…")
-                            .font(DS.Typography.detail)
-                            .foregroundStyle(DS.textSecondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(DS.background)
-                }
-                ContextStatusBar(
-                    paneManager: paneManager,
-                    agentMonitor: agentMonitor,
-                    hubManager: hubManager,
-                    taskMonitor: taskMonitor
-                )
+            switch page {
+            case .terminal:
+                terminalPage
+            case .hosts:
+                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+            case .tasks:
+                TaskListView(taskMonitor: taskMonitor)
+            case .activity:
+                ActivityLogView(taskMonitor: taskMonitor)
+            case .hub:
+                HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
             }
-        }
-        .sheet(isPresented: $showActivityLog) {
-            ActivityLogView(taskMonitor: taskMonitor, isPresented: $showActivityLog)
-        }
-        .sheet(isPresented: $showTaskList) {
-            TaskListView(taskMonitor: taskMonitor, isPresented: $showTaskList)
         }
         .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showTaskList = true
-                } label: {
-                    Label("Tasks", systemImage: "checklist")
-                }
-                .help("Hub-repo task list")
+            ToolbarItemGroup(placement: .navigation) {
+                // Page switcher — management surfaces are full pages.
+                pageButton(.hosts, icon: "server.rack", label: "Hosts", help: "Host management")
+                pageButton(.tasks, icon: "checklist", label: "Tasks", help: "Hub-repo task list")
+                pageButton(.activity, icon: "tray.full", label: "Activity", help: "Tool-request activity log (⌘⇧M)")
+                pageButton(.hub, icon: "dot.radiowaves.left.and.right", label: "Hub", help: "Hub status")
             }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showActivityLog = true
-                } label: {
-                    Label("Activity", systemImage: "tray.full")
-                }
-                .help("Tool-request activity log (⌘⇧M)")
-            }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showHubSheet = true
-                } label: {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(hubManager.status.isRunning ? DS.success : DS.danger)
-                            .frame(width: 8, height: 8)
-                        Text("Hub")
-                            .font(DS.Typography.caption)
-                    }
-                }
-                .help("Hub Status")
-            }
-        }
-        .sheet(isPresented: $showHubSheet) {
-            HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor, isPresented: $showHubSheet)
         }
         .sheet(isPresented: $showShortcuts) {
             KeyboardShortcutsView(isPresented: $showShortcuts)
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
+            page = .terminal
             paneManager.addLocalSession()
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyTunnelFailed)) { note in
@@ -159,7 +110,7 @@ struct ContentView: View {
             showFindBar = true
         }
         .overlay(alignment: .top) {
-            if showFindBar {
+            if showFindBar && page == .terminal {
                 FindBarView(
                     text: $findText,
                     onTextChange: { needle in
@@ -202,5 +153,71 @@ struct ContentView: View {
             tunnelManager.stopHeartbeat()
             hubManager.shutdown()
         }
+    }
+
+    // MARK: - Terminal page
+
+    private var terminalPage: some View {
+        VStack(spacing: 0) {
+            if let ghosttyApp = appDelegate.ghosttyApp {
+                if let session = paneManager.activeSession, session.panes.count > 0 {
+                    PaneTabBar(paneManager: paneManager, session: session)
+                }
+
+                if let session = paneManager.activeSession, session.panes.isEmpty {
+                    // Remote placeholder while the tunnel is being
+                    // established, or a failed connection: show a status
+                    // view instead of a terminal (no ghostty surface —
+                    // a nil-command surface would spawn a local shell,
+                    // WI-2026-03-31-003).
+                    SessionPlaceholderView(session: session)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    AllPanesSplitView(
+                        paneManager: paneManager,
+                        ghosttyApp: ghosttyApp
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                VStack(spacing: DS.Space.sm) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(DS.accent)
+                    Text("Initializing terminal…")
+                        .font(DS.Typography.detail)
+                        .foregroundStyle(DS.textSecondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DS.background)
+            }
+            ContextStatusBar(
+                paneManager: paneManager,
+                agentMonitor: agentMonitor,
+                hubManager: hubManager,
+                taskMonitor: taskMonitor
+            )
+        }
+    }
+
+    // MARK: - Page buttons
+
+    private func pageButton(_ target: AppPage, icon: String, label: String, help: String) -> some View {
+        let isActive = page == target
+        return Button {
+            page = target
+        } label: {
+            Label(label, systemImage: icon)
+                .labelStyle(.titleAndIcon)
+                .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+        }
+        .help(help)
+        .buttonStyle(.plain)
+        .padding(.horizontal, DS.Space.sm)
+        .padding(.vertical, DS.Space.xs)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(isActive ? DS.accentSoft : Color.clear)
+        )
     }
 }

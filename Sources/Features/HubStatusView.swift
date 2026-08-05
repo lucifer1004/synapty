@@ -1,16 +1,26 @@
 import SwiftUI
 
-/// Hub status sheet — shows running state, agents, logs with copiable text.
+/// Hub status page — shows running state, agents, logs with copiable text.
 struct HubStatusSheet: View {
     @ObservedObject var hubManager: HubManager
     @ObservedObject var agentMonitor: AgentMonitor
     @ObservedObject var taskMonitor: TaskMonitor
-    @Binding var isPresented: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            DSSheetHeader(title: "Hub Status", icon: "dot.radiowaves.left.and.right", isPresented: $isPresented)
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text("Hub Status")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
+                DSStatusDot(color: statusColor, size: 9)
+            }
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.lg)
 
             Divider()
 
@@ -127,7 +137,7 @@ struct HubStatusSheet: View {
             .padding(.horizontal, DS.Space.xl)
             .padding(.vertical, DS.Space.lg)
         }
-        .frame(width: 580, height: 500)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
     }
 

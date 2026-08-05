@@ -201,4 +201,52 @@ final class HostStoreTests: XCTestCase {
         XCTAssertEqual(store.searchHosts("db", in: nil).count, 1)
         XCTAssertEqual(store.searchHosts("", in: nil).count, 2)
     }
+
+    // MARK: - Legacy v1 migration
+
+    /// Old hosts.json was a flat [HostEntry] array. New fields have defaults,
+    /// so decoding must succeed and preserve every legacy field.
+    func testLegacyV1ArrayDecodes() throws {
+        let legacyJSON = """
+        [{"id":"11111111-2222-3333-4444-555555555555","label":"GPU Box",
+          "address":"100.86.153.75","port":22,"username":"zihuaw",
+          "sshKeyPath":"/Users/zihuaw/.ssh/id_ed25519"}]
+        """
+        let data = legacyJSON.data(using: .utf8)!
+        let hosts = try JSONDecoder().decode([HostEntry].self, from: data)
+        XCTAssertEqual(hosts.count, 1)
+        XCTAssertEqual(hosts[0].label, "GPU Box")
+        XCTAssertEqual(hosts[0].address, "100.86.153.75")
+        XCTAssertEqual(hosts[0].username, "zihuaw")
+        XCTAssertEqual(hosts[0].sshKeyPath, "/Users/zihuaw/.ssh/id_ed25519")
+        XCTAssertNil(hosts[0].groupID)
+        XCTAssertTrue(hosts[0].tags.isEmpty)
+        XCTAssertNil(hosts[0].identityID)
+    }
+
+    /// The versioned payload round-trips hosts/groups/identities together.
+    func testPayloadRoundTrip() throws {
+        let group = HostGroup(label: "Prod", username: "deploy")
+        let identity = Identity(label: "CI", username: "ci", sshKeyPath: "/keys/ci")
+        let host = HostEntry(
+            label: "web", address: "10.0.0.2", username: "",
+            groupID: group.id, tags: ["prod"], identityID: identity.id
+        )
+        // Encode via the same JSON shape HostStore uses.
+        struct Payload: Codable {
+            var version: Int
+            var hosts: [HostEntry]
+            var groups: [HostGroup]
+            var identities: [Identity]
+        }
+        let payload = Payload(version: 2, hosts: [host], groups: [group], identities: [identity])
+        let data = try JSONEncoder().encode(payload)
+        let decoded = try JSONDecoder().decode(Payload.self, from: data)
+        XCTAssertEqual(decoded.hosts[0].label, "web")
+        XCTAssertEqual(decoded.hosts[0].groupID, group.id)
+        XCTAssertEqual(decoded.hosts[0].identityID, identity.id)
+        XCTAssertEqual(decoded.hosts[0].tags, ["prod"])
+        XCTAssertEqual(decoded.groups[0].username, "deploy")
+        XCTAssertEqual(decoded.identities[0].label, "CI")
+    }
 }

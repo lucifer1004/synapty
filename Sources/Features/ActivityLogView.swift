@@ -1,14 +1,30 @@
 import SwiftUI
 
-/// Activity log window — the hub's tool-request stream (RFC-0003 C-UI).
+/// Activity page — the hub's tool-request stream (RFC-0003 C-UI).
 /// Replaces the chat-message log of the dialogue model.
 struct ActivityLogView: View {
     @ObservedObject var taskMonitor: TaskMonitor
-    @Binding var isPresented: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            DSSheetHeader(title: "Activity", icon: "tray.full", isPresented: $isPresented)
+            // Page header
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "tray.full")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text("Activity")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
+                if !taskMonitor.activities.isEmpty {
+                    Text("\(taskMonitor.activities.count) events")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textSecondary)
+                }
+            }
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.lg)
+
             Divider()
             if taskMonitor.activities.isEmpty {
                 emptyState
@@ -16,7 +32,7 @@ struct ActivityLogView: View {
                 activityTimeline
             }
         }
-        .frame(minWidth: 420, minHeight: 320)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
     }
 

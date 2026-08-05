@@ -55,6 +55,50 @@ struct HostEntry: Identifiable, Codable, Equatable {
 
     /// Resolved display address (username@address).
     var displayAddress: String { "\(username)@\(address)" }
+
+    // MARK: Codable — tolerant of legacy v1 JSON (missing new fields).
+    // The synthesized decoder requires every key; a legacy hosts.json
+    // without `tags`/`groupID`/`identityID` would throw and the user's
+    // hosts would be silently lost on migration.
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, address, port, username, sshKeyPath, groupID, tags, identityID
+    }
+
+    init(
+        id: UUID = UUID(),
+        label: String,
+        address: String,
+        port: Int = 22,
+        username: String,
+        sshKeyPath: String? = nil,
+        groupID: UUID? = nil,
+        tags: [String] = [],
+        identityID: UUID? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.address = address
+        self.port = port
+        self.username = username
+        self.sshKeyPath = sshKeyPath
+        self.groupID = groupID
+        self.tags = tags
+        self.identityID = identityID
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        label = try c.decode(String.self, forKey: .label)
+        address = try c.decode(String.self, forKey: .address)
+        port = try c.decodeIfPresent(Int.self, forKey: .port) ?? 22
+        username = try c.decodeIfPresent(String.self, forKey: .username) ?? ""
+        sshKeyPath = try c.decodeIfPresent(String.self, forKey: .sshKeyPath)
+        groupID = try c.decodeIfPresent(UUID.self, forKey: .groupID)
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+        identityID = try c.decodeIfPresent(UUID.self, forKey: .identityID)
+    }
 }
 
 // MARK: - Store
