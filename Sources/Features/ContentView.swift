@@ -56,19 +56,34 @@ struct ContentView: View {
             )
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
-            switch page {
-            case .terminal:
+            ZStack {
+                // Terminal workspace stays in the view tree at all times.
+                // Destroying it on page switch would deinit the ghostty
+                // surfaces, killing the PTY child processes and removing
+                // sessions via close_surface_cb — "session cleared when
+                // switching back". Hidden via opacity instead.
                 terminalPage
-            case .hosts:
-                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
-            case .tasks:
-                TaskListView(taskMonitor: taskMonitor)
-            case .activity:
-                ActivityLogView(taskMonitor: taskMonitor)
-            case .hub:
-                HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
-            case .settings:
-                SettingsPage(settings: settings)
+                    .opacity(page == .terminal ? 1 : 0)
+                    .allowsHitTesting(page == .terminal)
+                    .accessibilityHidden(page != .terminal)
+
+                // Management pages are lightweight; render only when active.
+                if page != .terminal {
+                    switch page {
+                    case .hosts:
+                        HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+                    case .tasks:
+                        TaskListView(taskMonitor: taskMonitor)
+                    case .activity:
+                        ActivityLogView(taskMonitor: taskMonitor)
+                    case .hub:
+                        HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
+                    case .settings:
+                        SettingsPage(settings: settings)
+                    case .terminal:
+                        EmptyView()
+                    }
+                }
             }
         }
         .toolbar {
