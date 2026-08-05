@@ -45,11 +45,21 @@ struct ContentView: View {
                         PaneTabBar(paneManager: paneManager, session: session)
                     }
 
-                    AllPanesSplitView(
-                        paneManager: paneManager,
-                        ghosttyApp: ghosttyApp
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if let session = paneManager.activeSession, session.panes.isEmpty {
+                        // Remote placeholder while the tunnel is being
+                        // established, or a failed connection: show a status
+                        // view instead of a terminal (no ghostty surface —
+                        // a nil-command surface would spawn a local shell,
+                        // WI-2026-03-31-003).
+                        SessionPlaceholderView(session: session)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        AllPanesSplitView(
+                            paneManager: paneManager,
+                            ghosttyApp: ghosttyApp
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 } else {
                     Text("Initializing terminal...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

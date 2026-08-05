@@ -79,7 +79,7 @@ import Foundation
         /// The host entry for remote sessions, nil for local.
         let hostEntry: HostEntry?
         /// The synapty agent ID for this session (e.g., "local-37cb").
-        let agentID: String?
+        var agentID: String?
         /// Connection state — connecting shows placeholder in sidebar.
         var state: SessionState
         let createdAt: Date
@@ -100,9 +100,19 @@ import Foundation
             self.agentID = agentID
             self.state = state
             self.createdAt = Date()
-            let pane = Pane(label: "Shell", command: initialCommand)
-            self.panes = [pane]
-            self.activePaneID = pane.id
+            if let initialCommand, !initialCommand.isEmpty {
+                // A real command launches the session shell (local or remote).
+                let pane = Pane(label: "Shell", command: initialCommand)
+                self.panes = [pane]
+                self.activePaneID = pane.id
+            } else {
+                // No command yet (e.g. remote placeholder while the tunnel is
+                // being established): no Pane, no ghostty surface. Creating a
+                // surface with a nil command would spawn a spurious local
+                // shell (WI-2026-03-31-003).
+                self.panes = []
+                self.activePaneID = nil
+            }
         }
     }
 
@@ -163,18 +173,19 @@ import Foundation
     }
 
     /// Update a connecting session to connected with the actual command and agent ID.
+    /// The session's UUID is preserved (in-place mutation) so any references
+    /// to the placeholder session stay valid.
     func connectSession(id: UUID, command: String, agentID: String?) {
         guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[idx].agentID = agentID
         sessions[idx].state = .connected
-        sessions[idx] = Session(
-            label: sessions[idx].label,
-            hostEntry: sessions[idx].hostEntry,
-            agentID: agentID,
-            state: .connected,
-            initialCommand: command
-        )
-        // Preserve the same ID by replacing inline — the UUID changes but that's OK
-        // since we re-assign activeSessionID.
+        // The placeholder session has no pane (nil command would spawn a
+        // spurious local shell); create the real pane now that the tunnel is up.
+        if sessions[idx].panes.isEmpty {
+            let pane = Pane(label: "Shell", command: command)
+            sessions[idx].panes = [pane]
+            sessions[idx].activePaneID = pane.id
+        }
         activeSessionID = sessions[idx].id
     }
 

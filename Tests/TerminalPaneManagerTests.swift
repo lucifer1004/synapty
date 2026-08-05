@@ -83,6 +83,53 @@ final class TerminalPaneManagerTests: XCTestCase {
         XCTAssertNil(manager.activeSessionID)
     }
 
+    // MARK: - Remote Placeholder (WI-2026-03-31-003)
+
+    /// A connecting placeholder must not create a Pane: a nil-command Pane
+    /// would make ghostty spawn a spurious local shell.
+    func testRemotePlaceholderHasNoPane() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
+        let manager = TerminalPaneManager()
+        let sessionID = manager.addRemoteSessionPlaceholder(label: "GPU Box", hostEntry: host)
+        let session = manager.sessions.first!
+        XCTAssertEqual(session.id, sessionID)
+        XCTAssertEqual(session.state, .connecting)
+        XCTAssertTrue(session.panes.isEmpty)
+        XCTAssertNil(session.activePaneID)
+        XCTAssertEqual(manager.allLeaves.count, 0)
+    }
+
+    /// connectSession keeps the placeholder's UUID and creates the real pane.
+    func testConnectSessionPreservesIDAndCreatesPane() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
+        let manager = TerminalPaneManager()
+        let sessionID = manager.addRemoteSessionPlaceholder(label: "GPU Box", hostEntry: host)
+        manager.connectSession(id: sessionID, command: "bash connect.sh agent-1 10.0.1.5 22 user 9000", agentID: "agent-1")
+        let session = manager.sessions.first!
+        XCTAssertEqual(session.id, sessionID, "placeholder UUID must be preserved")
+        XCTAssertEqual(session.state, .connected)
+        XCTAssertEqual(session.agentID, "agent-1")
+        XCTAssertEqual(session.panes.count, 1)
+        XCTAssertEqual(session.panes.first!.hostCommand, "bash connect.sh agent-1 10.0.1.5 22 user 9000")
+        XCTAssertEqual(manager.allLeaves.count, 1)
+    }
+
+    /// failSession keeps the placeholder session with no panes.
+    func testFailSessionKeepsPlaceholderWithoutPane() {
+        let host = HostEntry(label: "GPU Box", address: "10.0.1.5", username: "user")
+        let manager = TerminalPaneManager()
+        let sessionID = manager.addRemoteSessionPlaceholder(label: "GPU Box", hostEntry: host)
+        manager.failSession(id: sessionID, error: "Connection refused")
+        let session = manager.sessions.first!
+        XCTAssertEqual(session.id, sessionID)
+        if case .failed(let msg) = session.state {
+            XCTAssertEqual(msg, "Connection refused")
+        } else {
+            XCTFail("expected failed state")
+        }
+        XCTAssertTrue(session.panes.isEmpty)
+    }
+
     // MARK: - Pane Management
 
     func testAddPaneToActiveSession() {
