@@ -111,6 +111,11 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
             paneManager.addLocalSession()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyTunnelFailed)) { note in
+            guard let hostID = note.userInfo?["hostID"] as? UUID,
+                  let message = note.userInfo?["message"] as? String else { return }
+            paneManager.markSessionFailed(hostID: hostID, message: message)
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: .synaptyFontIncrease).merge(
                 with: NotificationCenter.default.publisher(for: .synaptyFontDecrease),

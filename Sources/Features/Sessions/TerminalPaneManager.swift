@@ -324,6 +324,16 @@ import Foundation
         }
     }
 
+    /// Mark a connecting remote placeholder as failed (WI-2026-03-31-003).
+    func markSessionFailed(hostID: UUID, message: String) {
+        guard let idx = sessions.firstIndex(where: { $0.hostEntry?.id == hostID }) else { return }
+        var session = sessions[idx]
+        if case .connecting = session.state {
+            session.state = .failed(message)
+            sessions[idx] = session
+        }
+    }
+
     /// Close a specific leaf by ID (called when its process exits).
     func closeLeaf(_ leafID: UUID) {
         for sIdx in sessions.indices {

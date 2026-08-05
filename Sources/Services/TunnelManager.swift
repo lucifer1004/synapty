@@ -190,6 +190,13 @@ import AppKit
                     let lastLine = output.split(separator: "\n").last.map(String.init) ?? "Setup failed"
                     self.tunnelStates[host.id] = .failed(lastLine)
                     self.pendingCallbacks.removeValue(forKey: host.id)
+                    // Tell the UI so the connecting placeholder shows the error
+                    // instead of spinning forever (WI-2026-03-31-003).
+                    NotificationCenter.default.post(
+                        name: .synaptyTunnelFailed,
+                        object: nil,
+                        userInfo: ["hostID": host.id, "message": lastLine]
+                    )
                 }
             }
         }

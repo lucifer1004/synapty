@@ -14,7 +14,10 @@ TUNNEL_PORT="${5:-9000}"
 KEY="${6:-}"
 
 DEST="${USER}@${HOST}"
-SSH_FLAGS="-p ${PORT}"
+# Robustness (WI-2026-03-31-003): fail fast on unreachable hosts, auto-accept
+# new host keys, detect silently dropped connections so the pane never
+# freezes on a dead link, and exit if the reverse tunnel cannot be created.
+SSH_FLAGS="-p ${PORT} -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes"
 if [ -n "$KEY" ]; then
     SSH_FLAGS="-i ${KEY} ${SSH_FLAGS}"
 fi

@@ -13,7 +13,9 @@ TUNNEL_PORT="${4:-9000}"
 KEY="${5:-}"
 
 DEST="${USER}@${HOST}"
-SSH_FLAGS="-p ${PORT}"
+# Robustness (WI-2026-03-31-003): fail fast on unreachable hosts, auto-accept
+# new host keys, detect silently dropped connections.
+SSH_FLAGS="-p ${PORT} -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
 SCP_FLAGS="-O -P ${PORT}"
 if [ -n "$KEY" ]; then
     SSH_FLAGS="-i ${KEY} ${SSH_FLAGS}"
