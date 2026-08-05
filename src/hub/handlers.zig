@@ -691,9 +691,46 @@ fn handleTaskCreate(arena: Allocator, conn: *Connection, req_id: []const u8, sou
     try sendToolResponse(arena, conn, req_id, source, true, try compactIssue(arena, parsed.value), null);
 }
 
+/// Short human-readable summary of tool args for the activity stream.
+fn summarizeToolArgs(arena: Allocator, tool: []const u8, args: json.ObjectMap) []const u8 {
+    if (mem.eql(u8, tool, "task.list")) {
+        if (objGetString(args, "labels")) |l| {
+            return std.fmt.allocPrint(arena, "list {s}", .{l}) catch "list";
+        }
+        return "list";
+    }
+    if (mem.eql(u8, tool, "task.claim") or mem.eql(u8, tool, "task.update") or
+        mem.eql(u8, tool, "task.comment"))
+    {
+        const number = if (args.get("number")) |n| switch (n) {
+            .integer => |i| std.fmt.allocPrint(arena, "{d}", .{i}) catch "?",
+            else => "?",
+        } else "?";
+        if (mem.eql(u8, tool, "task.claim")) return std.fmt.allocPrint(arena, "claim #{s}", .{number}) catch "claim";
+        if (mem.eql(u8, tool, "task.update")) {
+            const status = objGetString(args, "status") orelse "?";
+            return std.fmt.allocPrint(arena, "update #{s} -> {s}", .{ number, status }) catch "update";
+        }
+        const body = objGetString(args, "body") orelse "";
+        const short = if (body.len > 24) body[0..24] else body;
+        return std.fmt.allocPrint(arena, "comment #{s}: {s}", .{ number, short }) catch "comment";
+    }
+    if (mem.eql(u8, tool, "task.create")) {
+        const title = objGetString(args, "title") orelse "";
+        const short = if (title.len > 32) title[0..32] else title;
+        return std.fmt.allocPrint(arena, "create \"{s}\"", .{short}) catch "create";
+    }
+    return tool;
+}
+
+/// tool "activity.list" — return the recent activity stream.
+fn handleActivityList(arena: Allocator, state: *HubState, conn: *Connection, req_id: []const u8, source: []const u8) !void {
+    const data = try state.activity_log.toJson(arena, 50);
+    try sendToolResponse(arena, conn, req_id, source, true, data, null);
+}
+
 /// Dispatcher for tool_request envelopes.
 fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, envelope: protocol.Envelope) !void {
-    _ = state;
     const req_id = envelope.id;
     const source = envelope.source;
     const tool = blk: {
@@ -719,6 +756,15 @@ fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, enve
         else => json.ObjectMap.empty,
     };
 
+    // Record the tool request in the activity stream (C-HUB-ROLE).
+    const detail = summarizeToolArgs(arena, tool, args);
+    state.activity_log.append(state.allocator, .{
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
+        .agent = source,
+        .tool = tool,
+        .detail = detail,
+    }) catch {};
+
     if (mem.eql(u8, tool, "task.list"))
         return handleTaskList(arena, conn, req_id, source, args)
     else if (mem.eql(u8, tool, "task.claim"))
@@ -729,6 +775,8 @@ fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, enve
         return handleTaskComment(arena, conn, req_id, source, args)
     else if (mem.eql(u8, tool, "task.create"))
         return handleTaskCreate(arena, conn, req_id, source, args)
+    else if (mem.eql(u8, tool, "activity.list"))
+        return handleActivityList(arena, state, conn, req_id, source)
     else {
         try sendToolResponse(arena, conn, req_id, source, false, null, "unknown tool");
         return;

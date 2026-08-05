@@ -28,8 +28,17 @@ pub fn parseArgs(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (mem.eql(u8, sub, "github")) return parseGithub(allocator, rest);
     if (mem.eql(u8, sub, "task")) return parseTask(allocator, rest);
     if (mem.eql(u8, sub, "skills")) return parseSkills(allocator, rest);
+    if (mem.eql(u8, sub, "activity")) return parseActivity(allocator, rest);
 
     return ParseError.UnknownSubcommand;
+}
+
+fn parseActivity(allocator: Allocator, args: []const []const u8) !Subcommand {
+    _ = allocator;
+    if (args.len > 0 and (mem.eql(u8, args[0], "--help") or mem.eql(u8, args[0], "-h"))) {
+        return ParseError.HelpRequested;
+    }
+    return .{ .activity = {} };
 }
 
 // ---------------------------------------------------------------------------

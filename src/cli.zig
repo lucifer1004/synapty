@@ -65,7 +65,7 @@ pub fn main(init: std.process.Init) !void {
                 std.process.exit(0);
             },
             ParseError.MissingSubcommand => {
-                try io_mod.stderrWriteAll("usage: synapty <task|agents|github|skills|run|hub|mcp-serve> [args]\n");
+                try io_mod.stderrWriteAll("usage: synapty <task|agents|activity|github|skills|run|hub|mcp-serve> [args]\n");
             },
             ParseError.UnknownSubcommand => {
                 try io_mod.stderrWriteAll("error: unknown subcommand\n");
@@ -86,9 +86,21 @@ pub fn main(init: std.process.Init) !void {
             .channel_create, .channel_invite, .channel_leave, .channel_list => try commands.runChannel(allocator, ipc_sub.action, ipc_sub.args),
         },
         .run => |a| {
-            var server = try run.RunServer.init(allocator, a.agent_id, a.hub_addr, a.hub_port);
+            var server = run.RunServer.init(allocator, a.agent_id, a.hub_addr, a.hub_port) catch |err| {
+                try io_mod.stderrWriteAll("synapty run: init failed: ");
+                try io_mod.stderrWriteAll(@errorName(err));
+                var diag_buf: [128]u8 = undefined;
+                const diag = std.fmt.bufPrint(&diag_buf, " (hub {s}:{d})\n", .{ a.hub_addr, a.hub_port }) catch "\n";
+                try io_mod.stderrWriteAll(diag);
+                std.process.exit(1);
+            };
             defer server.deinit();
-            try server.run(a.child_argv);
+            server.run(a.child_argv) catch |err| {
+                try io_mod.stderrWriteAll("synapty run: failed: ");
+                try io_mod.stderrWriteAll(@errorName(err));
+                try io_mod.stderrWriteAll("\n");
+                std.process.exit(1);
+            };
         },
         .hub => |h| {
             var hub_server = try hub.HubServer.initWithAddress("0.0.0.0", h.port);
@@ -103,6 +115,9 @@ pub fn main(init: std.process.Init) !void {
         },
         .skills => |sk| {
             if (sk.install) try commands.runSkillsInstall(allocator);
+        },
+        .activity => {
+            try commands.runActivity(allocator);
         },
         .task => |t| switch (t) {
             .list => |a| try commands.runTaskList(allocator, a),

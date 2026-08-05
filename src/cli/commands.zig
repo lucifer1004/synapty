@@ -411,3 +411,11 @@ pub fn runSkillsInstall(allocator: Allocator) !void {
         try io_mod.stdoutWriteAll("\n");
     }
 }
+
+// ---------------------------------------------------------------------------
+// activity subcommand — recent tool-request stream (RFC-0003 C-HUB-ROLE)
+// ---------------------------------------------------------------------------
+
+pub fn runActivity(allocator: Allocator) !void {
+    try toolRoundtrip(allocator, "activity.list", json.ObjectMap.empty);
+}

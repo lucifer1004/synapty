@@ -386,6 +386,82 @@ pub const MessageLog = struct {
 };
 
 // ---------------------------------------------------------------------------
+// Activity Log — RFC-0003 C-HUB-ROLE: tool-request activity stream
+// (replaces the chat-history role of MessageLog; MessageLog stays for
+// the deprecated dm compat surface)
+// ---------------------------------------------------------------------------
+
+pub const ActivityEntry = struct {
+    ts: i64,
+    /// Requesting agent id (real agents; cli-tmp-* for one-shot tools).
+    agent: []const u8,
+    /// Tool name, e.g. "task.claim".
+    tool: []const u8,
+    /// Short human-readable detail, e.g. "claim #12".
+    detail: []const u8,
+};
+
+pub const ActivityLog = struct {
+    entries: std.ArrayList(ActivityEntry),
+    mutex: std.Io.Mutex,
+    max_entries: usize,
+
+    pub fn init(max_entries: usize) ActivityLog {
+        return .{
+            .entries = std.ArrayList(ActivityEntry).empty,
+            .mutex = .init,
+            .max_entries = max_entries,
+        };
+    }
+
+    pub fn deinit(self: *ActivityLog, allocator: Allocator) void {
+        for (self.entries.items) |entry| {
+            allocator.free(entry.agent);
+            allocator.free(entry.tool);
+            allocator.free(entry.detail);
+        }
+        self.entries.deinit(allocator);
+    }
+
+    /// Append an entry, duping strings into `allocator` (caller picks the
+    /// long-lived allocator, e.g. HubState.allocator).
+    pub fn append(self: *ActivityLog, allocator: Allocator, entry: ActivityEntry) !void {
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
+        const owned = ActivityEntry{
+            .ts = entry.ts,
+            .agent = try allocator.dupe(u8, entry.agent),
+            .tool = try allocator.dupe(u8, entry.tool),
+            .detail = try allocator.dupe(u8, entry.detail),
+        };
+        try self.entries.append(allocator, owned);
+        if (self.entries.items.len > self.max_entries) {
+            const evicted = self.entries.orderedRemove(0);
+            allocator.free(evicted.agent);
+            allocator.free(evicted.tool);
+            allocator.free(evicted.detail);
+        }
+    }
+
+    /// Copy the newest `limit` entries as JSON (caller allocates via arena).
+    pub fn toJson(self: *ActivityLog, arena: Allocator, limit: usize) !json.Value {
+        self.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.mutex.unlock(io_mod.get());
+        var arr = json.Array.init(arena);
+        const start = if (self.entries.items.len > limit) self.entries.items.len - limit else 0;
+        for (self.entries.items[start..]) |entry| {
+            var obj = json.ObjectMap.empty;
+            try obj.put(arena, "ts", .{ .integer = entry.ts });
+            try obj.put(arena, "agent", .{ .string = entry.agent });
+            try obj.put(arena, "tool", .{ .string = entry.tool });
+            try obj.put(arena, "detail", .{ .string = entry.detail });
+            try arr.append(.{ .object = obj });
+        }
+        return .{ .array = arr };
+    }
+};
+
+// ---------------------------------------------------------------------------
 // Hub State — combines all registries
 // ---------------------------------------------------------------------------
 
@@ -394,6 +470,8 @@ pub const HubState = struct {
     agent_registry: AgentRegistry,
     channel_registry: ChannelRegistry,
     message_log: MessageLog,
+    /// Tool-request activity stream (RFC-0003 C-HUB-ROLE).
+    activity_log: ActivityLog,
     allocator: Allocator,
     /// All heap-allocated connections — freed in deinit after all threads join.
     /// Connections outlive their reader/writer threads to prevent use-after-free
@@ -407,6 +485,7 @@ pub const HubState = struct {
             .agent_registry = AgentRegistry.init(allocator),
             .channel_registry = ChannelRegistry.init(allocator),
             .message_log = MessageLog.init(10_000),
+            .activity_log = ActivityLog.init(500),
             .allocator = allocator,
             .all_connections = std.ArrayList(*Connection).empty,
             .all_connections_mutex = .init,
@@ -424,6 +503,7 @@ pub const HubState = struct {
         self.agent_registry.deinit();
         self.channel_registry.deinit();
         self.message_log.deinit(self.allocator);
+        self.activity_log.deinit(self.allocator);
     }
 };
 

@@ -31,6 +31,8 @@ pub const Subcommand = union(enum) {
     github: GithubArgs,
     task: TaskArgs,
     skills: SkillsArgs,
+    /// `synapty activity` — recent tool-request activity stream.
+    activity,
 };
 
 /// `synapty skills install` — copy the synapty-task skill to detected
