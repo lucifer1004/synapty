@@ -186,6 +186,7 @@ struct ContentView: View {
         }
         .onAppear {
             TunnelManager.shared = tunnelManager
+            tunnelManager.hostStore = hostStore
             TerminalCoordinatorRef.instance = paneManager
             Task { @MainActor in
                 hubManager.ensureRunning()

@@ -8,6 +8,9 @@ import AppKit
     /// Singleton for access from TerminalPaneManager (addPaneToActiveSession).
     static weak var shared: TunnelManager?
 
+    /// Host store for resolving inherited credentials (groups/identities).
+    weak var hostStore: HostStore?
+
     enum TunnelStatus: Equatable {
         case disconnected
         case connecting
@@ -67,13 +70,30 @@ import AppKit
         return "scripts/\(name).sh"
     }
 
+    // MARK: - Credential resolution (Termius-style inheritance)
+
+    /// Effective username for a host (host field → identity → group chain).
+    func effectiveUsername(for host: HostEntry) -> String {
+        hostStore?.effectiveUsername(for: host) ?? host.username
+    }
+
+    /// Effective SSH key path for a host, or nil.
+    func effectiveKeyPath(for host: HostEntry) -> String? {
+        hostStore?.effectiveKeyPath(for: host) ?? host.sshKeyPath
+    }
+
+    /// Effective port for a host.
+    func effectivePort(for host: HostEntry) -> Int {
+        hostStore?.effectivePort(for: host) ?? host.port
+    }
+
     // MARK: - Socket path
 
     func socketPath(for host: HostEntry) -> String {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".synapty/sockets").path
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        return "\(dir)/\(host.username)@\(host.address):\(host.port)"
+        return "\(dir)/\(effectiveUsername(for: host))@\(host.address):\(effectivePort(for: host))"
     }
 
     // MARK: - Tunnel status
@@ -88,7 +108,7 @@ import AppKit
         let socket = socketPath(for: host)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-S", socket, "-O", "check", "\(host.username)@\(host.address)"]
+        process.arguments = ["-S", socket, "-O", "check", "\(effectiveUsername(for: host))@\(host.address)"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {
@@ -129,10 +149,12 @@ import AppKit
     func connectCommand(for host: HostEntry) -> (command: String, agentID: String) {
         let script = scriptPath("connect")
         let agentID = "\(host.label)-\(UUID().uuidString.prefix(4).lowercased())"
+        let username = effectiveUsername(for: host)
+        let port = effectivePort(for: host)
         var parts = ["bash", shellEscape(script), shellEscape(agentID),
-                     shellEscape(host.address), "\(host.port)",
-                     shellEscape(host.username), "\(tunnelPort)"]
-        if let key = host.sshKeyPath, !key.isEmpty {
+                     shellEscape(host.address), "\(port)",
+                     shellEscape(username), "\(tunnelPort)"]
+        if let key = effectiveKeyPath(for: host), !key.isEmpty {
             parts.append(shellEscape(key))
         }
         return (parts.joined(separator: " "), agentID)
@@ -164,8 +186,8 @@ import AppKit
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Process.arguments are passed as argv (no shell interpolation), so no escaping needed here.
         // The script itself uses $1, $2 etc. which are safe in bash.
-        var args = [script, host.address, "\(host.port)", host.username, "\(tunnelPort)"]
-        if let key = host.sshKeyPath, !key.isEmpty {
+        var args = [script, host.address, "\(effectivePort(for: host))", effectiveUsername(for: host), "\(tunnelPort)"]
+        if let key = effectiveKeyPath(for: host), !key.isEmpty {
             args.append(key)
         }
         process.arguments = args
@@ -224,7 +246,7 @@ import AppKit
         let socket = socketPath(for: host)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-S", socket, "-O", "exit", "\(host.username)@\(host.address)"]
+        process.arguments = ["-S", socket, "-O", "exit", "\(effectiveUsername(for: host))@\(host.address)"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try? process.run()
