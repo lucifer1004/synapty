@@ -20,6 +20,8 @@ struct AddHostSheet: View {
     @State private var groupID: UUID?
     @State private var identityID: UUID?
     @State private var tagsText = ""
+    @State private var proxyJump = ""
+    @State private var forwardings: [PortForward] = []
     @State private var showFilePicker = false
 
     private var isEditing: Bool { editingHost != nil }
@@ -49,6 +51,59 @@ struct AddHostSheet: View {
                         TextField("Address", text: $address)
                         TextField("Port", text: $portText)
                         TextField("Username (optional)", text: $username)
+                        // Jump host (ProxyJump): e.g. "user@bastion:22"
+                        HStack(spacing: DS.Space.sm) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 11))
+                                .foregroundStyle(DS.textTertiary)
+                            TextField("Jump host (optional, user@host:port)", text: $proxyJump)
+                        }
+                    }
+
+                    // Port forwardings
+                    formSection("Port Forwarding") {
+                        if forwardings.isEmpty {
+                            Text("No forwarding rules. Add local (-L) or remote (-R) forwards, applied when the tunnel is established.")
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.textTertiary)
+                        }
+                        ForEach(forwardings.indices, id: \.self) { idx in
+                            HStack(spacing: DS.Space.sm) {
+                                Picker("", selection: $forwardings[idx].kind) {
+                                    Text("Local (-L)").tag(PortForward.Kind.local)
+                                    Text("Remote (-R)").tag(PortForward.Kind.remote)
+                                }
+                                .labelsHidden()
+                                .frame(width: 110)
+                                TextField("Listen", text: Binding(
+                                    get: { "\(forwardings[idx].listenPort)" },
+                                    set: { forwardings[idx].listenPort = Int($0) ?? 0 }
+                                ))
+                                .frame(width: 55)
+                                Text(":")
+                                TextField("Target", text: $forwardings[idx].targetHost)
+                                Text(":")
+                                TextField("Port", text: Binding(
+                                    get: { "\(forwardings[idx].targetPort)" },
+                                    set: { forwardings[idx].targetPort = Int($0) ?? 0 }
+                                ))
+                                .frame(width: 55)
+                                Button {
+                                    forwardings.remove(at: idx)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(DS.textTertiary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .font(DS.Typography.monoCaption)
+                        }
+                        Button {
+                            forwardings.append(PortForward())
+                        } label: {
+                            Label("Add Forward", systemImage: "plus")
+                                .font(DS.Typography.detailStrong)
+                        }
                     }
 
                     // Group
@@ -157,6 +212,8 @@ struct AddHostSheet: View {
                 groupID = host.groupID
                 identityID = host.identityID
                 tagsText = host.tags.joined(separator: ", ")
+                proxyJump = host.proxyJump ?? ""
+                forwardings = host.forwardings
             } else if let presetGroupID {
                 groupID = presetGroupID
             }
@@ -192,6 +249,8 @@ struct AddHostSheet: View {
         let trimmedLabel = label.trimmingCharacters(in: .whitespaces)
         let trimmedAddress = address.trimmingCharacters(in: .whitespaces)
         let trimmedUsername = username.trimmingCharacters(in: .whitespaces)
+        let trimmedProxy = proxyJump.trimmingCharacters(in: .whitespaces)
+        let validForwardings = forwardings.filter { $0.listenPort > 0 && $0.targetPort > 0 }
 
         if var existing = editingHost {
             existing.label = trimmedLabel
@@ -202,6 +261,8 @@ struct AddHostSheet: View {
             existing.groupID = groupID
             existing.identityID = identityID
             existing.tags = parsedTags
+            existing.proxyJump = trimmedProxy.isEmpty ? nil : trimmedProxy
+            existing.forwardings = validForwardings
             hostStore.updateHost(existing)
         } else {
             let entry = HostEntry(
@@ -212,7 +273,9 @@ struct AddHostSheet: View {
                 sshKeyPath: sshKeyPath.isEmpty ? nil : sshKeyPath,
                 groupID: groupID,
                 tags: parsedTags,
-                identityID: identityID
+                identityID: identityID,
+                proxyJump: trimmedProxy.isEmpty ? nil : trimmedProxy,
+                forwardings: validForwardings
             )
             hostStore.addHost(entry)
         }

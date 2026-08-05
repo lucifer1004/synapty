@@ -178,6 +178,29 @@ struct HostConfigSheet: View {
         } message: {
             Text("Delete \"\(identityToDelete?.label ?? "")\"? Hosts referencing it fall back to their own fields.")
         }
+        .alert("Import Hosts", isPresented: Binding(
+            get: { !importPreview.isEmpty },
+            set: { if !$0 { importPreview = [] } }
+        )) {
+            Button("Cancel", role: .cancel) { importPreview = [] }
+            Button("Import \(importPreview.count)") {
+                for host in importPreview {
+                    hostStore.addHost(host)
+                }
+                importPreview = []
+            }
+        } message: {
+            let labels = importPreview.prefix(8).map(\.label).joined(separator: ", ")
+            Text("Import \(importPreview.count) hosts from ~/.ssh/config?\n\(labels)\(importPreview.count > 8 ? ", …" : "")")
+        }
+        .alert("SSH Config", isPresented: Binding(
+            get: { importError != nil },
+            set: { if !$0 { importError = nil } }
+        )) {
+            Button("OK", role: .cancel) { importError = nil }
+        } message: {
+            Text(importError ?? "")
+        }
     }
 
     // MARK: - Group sidebar
@@ -311,6 +334,12 @@ struct HostConfigSheet: View {
                 } label: {
                     Label("New Group", systemImage: "folder.badge.plus")
                 }
+                Button {
+                    importFromSSHConfig()
+                } label: {
+                    Label("Import from SSH Config", systemImage: "square.and.arrow.down")
+                }
+                .help("Import hosts from ~/.ssh/config")
                 Spacer()
                 if let group = selectedGroup {
                     Button(role: .destructive) {
@@ -325,6 +354,29 @@ struct HostConfigSheet: View {
             .padding(DS.Space.lg)
         }
     }
+
+    // MARK: - SSH config import
+
+    @State private var importPreview: [HostEntry] = []
+
+    private func importFromSSHConfig() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = "\(home)/.ssh/config"
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            // No config file — show an alert with the path.
+            importError = "No SSH config found at \(path)"
+            return
+        }
+        let parsed = HostStore.parseSSHConfig(content)
+        // Skip hosts that already exist (same address).
+        let existing = Set(hostStore.hosts.map(\.address))
+        importPreview = parsed.filter { !existing.contains($0.address) }
+        if importPreview.isEmpty {
+            importError = "No new hosts to import from \(path)"
+        }
+    }
+
+    @State private var importError: String?
 
     // MARK: - Identities pane
 
@@ -695,6 +747,7 @@ struct GroupEditSheet: View {
     @State private var identityID: UUID?
     @State private var portText = ""
     @State private var username = ""
+    @State private var proxyJump = ""
 
     private var canSave: Bool {
         !label.trimmingCharacters(in: .whitespaces).isEmpty
@@ -735,6 +788,10 @@ struct GroupEditSheet: View {
                         TextField("Port (inherited)", text: $portText)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
+
+                        TextField("Jump host (inherited, user@host:port)", text: $proxyJump)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Typography.body)
                     }
                 }
                 .padding(DS.Space.xl)
@@ -762,6 +819,7 @@ struct GroupEditSheet: View {
             label = editingGroup.label
             identityID = editingGroup.identityID
             username = editingGroup.username ?? ""
+            proxyJump = editingGroup.proxyJump ?? ""
             if let port = editingGroup.port {
                 portText = "\(port)"
             }
@@ -774,6 +832,7 @@ struct GroupEditSheet: View {
         updated.identityID = identityID
         updated.username = username.trimmingCharacters(in: .whitespaces).isEmpty ? nil : username.trimmingCharacters(in: .whitespaces)
         updated.port = Int(portText)
+        updated.proxyJump = proxyJump.trimmingCharacters(in: .whitespaces).isEmpty ? nil : proxyJump.trimmingCharacters(in: .whitespaces)
         hostStore.updateGroup(updated)
         isPresented = false
     }
