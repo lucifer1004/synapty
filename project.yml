@@ -66,6 +66,14 @@ targets:
             # Name must not collide with the main executable: APFS is
             # case-insensitive, so "synapty" would overwrite "Synapty".
             cp "$BIN_SRC" "$BIN_DEST/synapty-cli"
+            # zig 0.16 links with a linker-signed ad-hoc signature
+            # (CodeDirectory flags 0x20002 "adhoc, linker-signed"). On macOS
+            # 15+ the kernel rejects linker-signed nested helpers at exec:
+            # "load code signature error 2" / "embedded signature doesn't
+            # match attached signature" -> ASP SIGKILL (Code Signature
+            # Invalid), even though `codesign --verify` passes. Re-sign with
+            # a plain ad-hoc signature (flags 0x2) so exec is allowed.
+            codesign --force -s - "$BIN_DEST/synapty-cli"
           fi
         name: Bundle deploy and hub binaries
     dependencies:
