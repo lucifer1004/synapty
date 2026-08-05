@@ -1,11 +1,16 @@
 import SwiftUI
 
-/// Session-based sidebar. Shows active terminal sessions with nested agent info and host management.
+/// Session-based sidebar with layered navigation.
+/// Top: grouped navigation (workspace / infrastructure / collaboration /
+/// system). Bottom: active sessions (always visible so you can jump back
+/// to the terminal from any page).
 struct HostSidebar: View {
     @ObservedObject var hostStore: HostStore
     @ObservedObject var paneManager: TerminalPaneManager
     @ObservedObject var tunnelManager: TunnelManager
     @ObservedObject var agentMonitor: AgentMonitor
+    /// Currently displayed application page (navigation selection).
+    @Binding var page: AppPage
     @State private var showHostPicker = false
     /// ID of the session currently being renamed inline.
     @State private var editingSessionID: UUID?
@@ -19,21 +24,68 @@ struct HostSidebar: View {
     /// Called when the user selects a session in the list (switch to terminal page).
     var onSessionSelect: (() -> Void)?
 
+    /// Navigation groups: (section title, items).
+    private static let navGroups: [(title: String, items: [(page: AppPage, icon: String, label: String)])] = [
+        ("Workspace", [
+            (.terminal, "terminal", "Terminal"),
+        ]),
+        ("Infrastructure", [
+            (.hosts, "server.rack", "Hosts"),
+        ]),
+        ("Collaboration", [
+            (.tasks, "checklist", "Tasks"),
+            (.activity, "tray.full", "Activity"),
+        ]),
+        ("System", [
+            (.hub, "dot.radiowaves.left.and.right", "Hub"),
+            (.settings, "gearshape", "Settings"),
+        ]),
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header — single action: new session. Page navigation lives
-            // in the window toolbar (no duplicated controls).
-            HStack(spacing: DS.Space.sm) {
-                Spacer(minLength: DS.Space.sm)
+            // Layered navigation — the single source of page switching.
+            List(selection: $page) {
+                ForEach(Self.navGroups, id: \.title) { group in
+                    Section {
+                        ForEach(group.items, id: \.page) { item in
+                            Label(item.label, systemImage: item.icon)
+                                .font(DS.Typography.detailStrong)
+                                .tag(item.page)
+                        }
+                    } header: {
+                        Text(group.title.uppercased())
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textTertiary)
+                            .kerning(0.6)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .frame(height: 190)
 
-                // New session
+            Divider()
+
+            // Sessions — always visible; tapping one returns to Terminal.
+            sessionsSection
+        }
+        .background(DS.sidebar)
+    }
+
+    /// The sessions list with the "+" new-session action.
+    private var sessionsSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                DSSectionLabel(text: "Sessions", count: paneManager.sessions.isEmpty ? nil : paneManager.sessions.count)
+                Spacer()
                 Button {
                     showHostPicker = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                         .background(DS.accent, in: RoundedRectangle(cornerRadius: DS.Radius.sm))
                 }
                 .buttonStyle(.plain)
@@ -54,9 +106,8 @@ struct HostSidebar: View {
                 }
             }
             .padding(.horizontal, DS.Space.lg)
-            .padding(.vertical, DS.Space.lg)
-
-            Divider()
+            .padding(.top, DS.Space.md)
+            .padding(.bottom, DS.Space.sm)
 
             List(selection: Binding(
                 get: { paneManager.activeSessionID },
@@ -134,7 +185,6 @@ struct HostSidebar: View {
                 return .handled
             }
         }
-        .background(DS.sidebar)
     }
 }
 
