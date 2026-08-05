@@ -102,16 +102,13 @@ import AppKit
 
     // MARK: - Ensure tunnel (auto-setup on first connect)
 
-    /// Ensures a tunnel is active for the host. If already connected, calls completion
-    /// immediately with the connect command. Otherwise runs setup first.
+    /// Ensures a tunnel is active for the host AND the remote synapty binary
+    /// is up to date. Always runs setup-host.sh — it reuses an existing
+    /// ControlMaster (fast) and uploads a stale remote binary (WI-2026-03-31-003,
+    /// sa_family_t deploy fix), so a live master no longer skips binary
+    /// freshness checks.
     func ensureTunnel(for host: HostEntry, completion: @escaping ((command: String, agentID: String)) -> Void) {
         trackedHosts[host.id] = host
-
-        if checkTunnel(for: host) {
-            tunnelStates[host.id] = .connected
-            completion(connectCommand(for: host))
-            return
-        }
 
         // Queue the callback and run setup
         pendingCallbacks[host.id, default: []].append(completion)
