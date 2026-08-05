@@ -1,6 +1,6 @@
 #!/bin/bash
 # Synapty host setup script.
-# Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path] [proxy-jump] [fwd-kind listen target-host target-port ...]
+# Usage: setup-host.sh <host> <port> <user> <tunnel-port> <key|''> <jump|''> [fwd-kind listen target-host target-port ...]
 #
 # Detects remote platform, uploads the synapty binary (if changed),
 # and establishes an SSH ControlMaster with a reverse tunnel.
@@ -9,9 +9,11 @@
 # already active. The master may outlive a rebuild (ControlPersist=300),
 # and a stale remote binary keeps old bugs (e.g. the sa_family_t layout
 # bug → EAFNOSUPPORT). Reusing the master keeps the check cheap.
+# NOTE: <key> and <jump> are always present ('' when unused) so the
+# positional layout is fixed.
 set -euo pipefail
 
-HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> [ssh-key-path] [proxy-jump] [forwards...]}"
+HOST="${1:?Usage: setup-host.sh <host> <port> <user> <tunnel-port> <key> <jump> [forwards...]}"
 PORT="${2:-22}"
 USER="${3:-$(whoami)}"
 TUNNEL_PORT="${4:-9000}"
@@ -20,7 +22,7 @@ PROXY_JUMP="${6:-}"
 
 # Remaining args: forward rules as (kind listen target-host target-port) quads.
 FORWARDS=()
-shift 6 2>/dev/null || true
+shift 6 2>/dev/null || set --
 while [ "$#" -ge 4 ]; do
     FORWARDS+=("$1" "$2" "$3" "$4")
     shift 4

@@ -156,21 +156,21 @@ import AppKit
     // MARK: - Connect command
 
     /// Returns (command, agentID) so callers can store the agent ID on the session.
+    /// Argument layout is FIXED so the shell scripts can shift reliably:
+    /// <agent-id> <host> <port> <user> <tunnel-port> <key|''> <jump|''> [forwards...]
     func connectCommand(for host: HostEntry) -> (command: String, agentID: String) {
         let script = scriptPath("connect")
         let agentID = "\(host.label)-\(UUID().uuidString.prefix(4).lowercased())"
         let username = effectiveUsername(for: host)
         let port = effectivePort(for: host)
+        // Always pass key and jump (empty string when absent) so positional
+        // parsing in the script is unambiguous.
+        let key = effectiveKeyPath(for: host) ?? ""
+        let jump = effectiveProxyJump(for: host) ?? ""
         var parts = ["bash", shellEscape(script), shellEscape(agentID),
                      shellEscape(host.address), "\(port)",
-                     shellEscape(username), "\(tunnelPort)"]
-        if let key = effectiveKeyPath(for: host), !key.isEmpty {
-            parts.append(shellEscape(key))
-        }
-        // Optional jump host (ProxyJump).
-        if let jump = effectiveProxyJump(for: host), !jump.isEmpty {
-            parts.append(shellEscape(jump))
-        }
+                     shellEscape(username), "\(tunnelPort)",
+                     shellEscape(key), shellEscape(jump)]
         // Optional port-forwarding rules ("local 8080 localhost 80" each).
         for fwd in effectiveForwardings(for: host) {
             parts.append(fwd.kind.rawValue)
@@ -207,14 +207,10 @@ import AppKit
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Process.arguments are passed as argv (no shell interpolation), so no escaping needed here.
         // The script itself uses $1, $2 etc. which are safe in bash.
+        // Fixed layout: <host> <port> <user> <tunnel-port> <key|''> <jump|''> [forwards...]
         var args = [script, host.address, "\(effectivePort(for: host))", effectiveUsername(for: host), "\(tunnelPort)"]
-        if let key = effectiveKeyPath(for: host), !key.isEmpty {
-            args.append(key)
-        }
-        // Optional jump host (ProxyJump).
-        if let jump = effectiveProxyJump(for: host), !jump.isEmpty {
-            args.append(jump)
-        }
+        args.append(effectiveKeyPath(for: host) ?? "")
+        args.append(effectiveProxyJump(for: host) ?? "")
         // Optional port-forwarding rules ("local 8080 localhost 80" each).
         for fwd in effectiveForwardings(for: host) {
             args.append(fwd.kind.rawValue)
