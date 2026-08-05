@@ -95,7 +95,16 @@ struct HostSidebar: View {
                                 paneManager: paneManager,
                                 editingSessionID: $editingSessionID,
                                 agent: agent,
-                                agentNeedsAttention: attention
+                                agentNeedsAttention: attention,
+                                onTap: {
+                                    // Explicit tap handler: List selection's
+                                    // set: does NOT fire when the clicked
+                                    // session is already active, so returning
+                                    // to the terminal from another page would
+                                    // silently fail. Always select + switch.
+                                    paneManager.activeSessionID = session.id
+                                    onSessionSelect?()
+                                }
                             )
                             .tag(session.id)
                             .contextMenu {
@@ -138,6 +147,8 @@ struct SessionRow: View {
     /// Agent registered on this session, if any.
     let agent: AgentInfo?
     let agentNeedsAttention: Bool
+    /// Fired on row tap (selects session + returns to terminal page).
+    var onTap: (() -> Void)? = nil
 
     @State private var editText = ""
     @FocusState private var isTextFieldFocused: Bool
@@ -267,6 +278,12 @@ struct SessionRow: View {
         )
         .contentShape(Rectangle())
         .onHover { hovering in isHovered = hovering }
+        .onTapGesture {
+            // Always fires, even when the row is already the selected
+            // session (List selection set: would not). Ensures returning
+            // to the terminal page works from any page.
+            onTap?()
+        }
         .opacity(session.state == .connecting ? 0.7 : 1.0)
         .onReceive(timer) { date in now = date }
     }
