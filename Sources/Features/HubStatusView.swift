@@ -4,6 +4,7 @@ import SwiftUI
 struct HubStatusSheet: View {
     @ObservedObject var hubManager: HubManager
     @ObservedObject var agentMonitor: AgentMonitor
+    @ObservedObject var taskMonitor: TaskMonitor
     @Binding var isPresented: Bool
 
     var body: some View {
@@ -28,6 +29,10 @@ struct HubStatusSheet: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+
+            Divider()
+
+            githubBridgeSection
 
             Divider()
 
@@ -140,6 +145,49 @@ struct HubStatusSheet: View {
             .padding(.vertical, 10)
         }
         .frame(width: 560, height: 480)
+    }
+
+    // MARK: - GitHub bridge (RFC-0003 C-AUTH)
+
+    @ViewBuilder
+    private var githubBridgeSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "link")
+                    .font(.system(size: 12))
+                Text("GitHub Bridge")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                switch taskMonitor.bridgeStatus {
+                case .configured:
+                    Text("Connected")
+                        .font(.system(size: 11))
+                        .foregroundColor(.green)
+                case .notConfigured:
+                    Text("Not configured")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                case .error(let msg):
+                    Text(msg)
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                        .lineLimit(1)
+                case .unknown:
+                    Text("…")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            if taskMonitor.bridgeStatus == .notConfigured {
+                Text("Run `synapty github login` in any terminal pane to configure the hub repo and token. The credential stays in your Keychain.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 
     private var statusColor: Color {

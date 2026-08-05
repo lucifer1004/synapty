@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showHubSheet = false
     @State private var showShortcuts = false
     @State private var showActivityLog = false
+    @State private var showTaskList = false
 
     var body: some View {
         NavigationSplitView {
@@ -66,7 +67,18 @@ struct ContentView: View {
         .sheet(isPresented: $showActivityLog) {
             ActivityLogView(taskMonitor: taskMonitor)
         }
+        .sheet(isPresented: $showTaskList) {
+            TaskListView(taskMonitor: taskMonitor)
+        }
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showTaskList = true
+                } label: {
+                    Label("Tasks", systemImage: "checklist")
+                }
+                .help("Hub-repo task list")
+            }
             ToolbarItem(placement: .automatic) {
                 Button {
                     showActivityLog = true
@@ -91,7 +103,7 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showHubSheet) {
-            HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, isPresented: $showHubSheet)
+            HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor, isPresented: $showHubSheet)
         }
         .sheet(isPresented: $showShortcuts) {
             KeyboardShortcutsView(isPresented: $showShortcuts)
