@@ -539,7 +539,10 @@ fn updateStateLabels(arena: Allocator, api: *const github.Api, number: u32, new_
 /// task.list — compact issue list filtered by project/state.
 fn handleTaskList(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
     const labels = objGetString(args, "labels");
-    const state = objGetString(args, "state") orelse "open";
+    // Default to "all" so done issues (closed + s:done) are visible; the
+    // caller filters by state (CLI --state / GUI chips). "open" would hide
+    // every completed task.
+    const state = objGetString(args, "state") orelse "all";
     var err_msg: ?[]const u8 = null;
     const bridge = loadBridge(arena, &err_msg) orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, err_msg);
