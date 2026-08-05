@@ -193,6 +193,12 @@ import Foundation
             lines.append("theme = \(themeName)")
         }
         if let fontFamily, !fontFamily.isEmpty {
+            // Clear any font-family set by the user's own ghostty config
+            // (~/.config/ghostty/config etc.): font-family is a repeatable
+            // key — later lines APPEND as a fallback chain instead of
+            // overriding, so without the clear the primary font would always
+            // come from the user's config (WI-2026-08-06-003).
+            lines.append("font-family = \"\"")
             lines.append("font-family = \(fontFamily)")
             // Fallback fonts: repeated font-family lines append (ghostty
             // walks them for codepoints missing from the primary).
@@ -240,12 +246,6 @@ import Foundation
         return (try? FileManager.default.contentsOfDirectory(atPath: devPath))
             .map { $0.sorted() } ?? []
     }
-
-    /// Common monospace font families for the picker.
-    static let fontFamilySuggestions = [
-        "SF Mono", "Menlo", "Monaco", "JetBrains Mono",
-        "Fira Code", "Maple Mono NF", "Cascadia Code", "IBM Plex Mono",
-    ]
 
     /// Cursor style options (ghostty cursor-style values).
     static let cursorStyleOptions = [

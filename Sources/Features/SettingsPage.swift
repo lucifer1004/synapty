@@ -14,6 +14,9 @@ struct SettingsPage: View {
 
     @State private var pane: SettingsPane = .terminal
 
+    /// Installed font families, loaded lazily when the page appears.
+    @State private var fontFamilies: [FontCatalog.Family] = []
+
     var body: some View {
         VStack(spacing: 0) {
             // Page header
@@ -59,6 +62,11 @@ struct SettingsPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
+        .onAppear {
+            if fontFamilies.isEmpty {
+                fontFamilies = FontCatalog.load()
+            }
+        }
     }
 
     // MARK: - Terminal (appearance)
@@ -77,14 +85,8 @@ struct SettingsPage: View {
             }
 
             groupBlock("Font") {
-                Picker("Font Family", selection: fontFamilyBinding) {
-                    Text("Default").tag(String?.none)
-                    ForEach(SynaptySettings.fontFamilySuggestions, id: \.self) { name in
-                        Text(name).tag(String?.some(name))
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 380)
+                FontFamilyPicker(selection: fontFamilyBinding, families: fontFamilies)
+                    .frame(maxWidth: 380)
 
                 HStack(spacing: DS.Space.md) {
                     Stepper("Size", value: fontSizeBinding, in: 6...48, step: 1)
@@ -118,16 +120,13 @@ struct SettingsPage: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    Menu {
-                        ForEach(fallbackSuggestions, id: \.self) { family in
-                            Button(family) {
-                                settings.fontFallbackFamilies.append(family)
-                            }
-                        }
-                    } label: {
-                        Label("Add Fallback…", systemImage: "plus")
-                            .font(DS.Typography.detailStrong)
-                    }
+                    FontFamilyPicker(
+                        selection: .constant(nil),
+                        families: fontFamilies,
+                        mode: .add,
+                        alreadyAdded: Set(settings.fontFallbackFamilies),
+                        onAdd: { settings.fontFallbackFamilies.append($0) }
+                    )
                     .disabled(settings.fontFamily == nil)
                     Text("Used for glyphs missing from the primary font (e.g. Nerd Font icons, box drawing).")
                         .font(DS.Typography.caption)
@@ -241,17 +240,6 @@ struct SettingsPage: View {
     }
 
     // MARK: - Helpers
-
-    /// Symbol/unicode fonts commonly used as fallbacks.
-    private var fallbackSuggestions: [String] {
-        let candidates = [
-            "Apple Symbols", "Apple Color Emoji",
-            "Noto Sans Symbols", "Noto Sans Symbols 2",
-            "Noto Color Emoji", "Symbols Nerd Font",
-            "Maple Mono NF CN",
-        ]
-        return candidates.filter { !settings.fontFallbackFamilies.contains($0) }
-    }
 
     private func groupBlock(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: DS.Space.md) {
