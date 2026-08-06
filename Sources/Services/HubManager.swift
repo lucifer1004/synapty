@@ -33,6 +33,9 @@ import AppKit
 
     private var process: Process?
     private var healthTimer: Timer?
+    /// Pending log lines awaiting the next throttled publish.
+    private var pendingLogs: [String] = []
+    private var logFlushTask: Task<Void, Never>?
 
     // MARK: - Hub binary path
 
@@ -208,11 +211,30 @@ import AppKit
     // MARK: - Logging
 
     private func appendLog(_ line: String) {
+        // The hub logs "agent metadata updated" on every agents poll —
+        // pure noise that churned @Published logs → whole-UI re-render
+        // (WI-2026-08-07-006). Skip it.
+        if line.contains("agent metadata updated") {
+            return
+        }
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        logs.append("[\(timestamp)] \(line)")
-        // Keep last 500 lines
-        if logs.count > 500 {
-            logs.removeFirst(logs.count - 500)
+        pendingLogs.append("[\(timestamp)] \(line)")
+        if pendingLogs.count > 500 {
+            pendingLogs.removeFirst(pendingLogs.count - 500)
+        }
+        // Throttle publishes to at most one per second so bursts of hub
+        // output don't re-render the whole UI on every line.
+        guard logFlushTask == nil else { return }
+        logFlushTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            self.logFlushTask = nil
+            guard !self.pendingLogs.isEmpty else { return }
+            self.logs.append(contentsOf: self.pendingLogs)
+            self.pendingLogs.removeAll()
+            if self.logs.count > 500 {
+                self.logs.removeFirst(self.logs.count - 500)
+            }
         }
     }
 

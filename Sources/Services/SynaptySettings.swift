@@ -265,6 +265,10 @@ enum AppearanceMode: String, Codable, CaseIterable {
         var lines: [String] = []
         // Scroll behavior (WI-2026-03-31-005): never force scroll to bottom.
         lines.append(Self.scrollToBottomLine)
+        // Bound the scrollback: ghostty's default line limit is unbounded
+        // (only byte-capped), which lets the grid grow huge and drags
+        // memory/layout cost. 10k lines is plenty for agent work.
+        lines.append("scrollback-limit-lines = 10000")
 
         if let themeLine = Self.themeLine(light: lightThemeName, dark: darkThemeName) {
             lines.append(themeLine)
@@ -312,7 +316,10 @@ enum AppearanceMode: String, Codable, CaseIterable {
     // MARK: - Helpers
 
     /// Built-in theme names shipped with the bundled ghostty, for the picker.
-    static func builtinThemeNames() -> [String] {
+    /// Built-in theme names — computed ONCE (592 entries) and cached:
+    /// the picker renders a lazy list from this, so it must not re-read
+    /// the directory on every body evaluation (WI-2026-08-07-006).
+    static let builtinThemeNames: [String] = {
         if let resPath = Bundle.main.resourcePath {
             let themesDir = "\(resPath)/ghostty/themes"
             let names = (try? FileManager.default.contentsOfDirectory(atPath: themesDir))
@@ -322,7 +329,7 @@ enum AppearanceMode: String, Codable, CaseIterable {
         let devPath = "ghostty/zig-out/share/ghostty/themes"
         return (try? FileManager.default.contentsOfDirectory(atPath: devPath))
             .map { $0.sorted() } ?? []
-    }
+    }()
 
     /// Cursor style options (ghostty cursor-style values).
     static let cursorStyleOptions = [

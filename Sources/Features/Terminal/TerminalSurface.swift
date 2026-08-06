@@ -134,6 +134,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
             surface = ghostty_surface_new(app, &config)
         }
 
+        if let surface {
+            // Register for per-surface color scheme updates (WI-2026-08-07-005).
+            ghosttyApp?.registerSurface(surface)
+        }
         if surface == nil {
             print("Failed to create Ghostty surface")
         }
@@ -573,6 +577,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
             if let app = ghosttyApp, app.activeSurface == surface {
                 app.activeSurface = nil
             }
+            ghosttyApp?.unregisterSurface(surface)
             ghostty_surface_free(surface)
             self.surface = nil
         }

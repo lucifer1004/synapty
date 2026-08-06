@@ -29,7 +29,11 @@ struct ContentView: View {
     @AppStorage("synapty.settingsPanelVisible") private var showSettingsPanel = false
 
     var body: some View {
-        NavigationSplitView {
+        // Plain HStack instead of NavigationSplitView: the split view adds
+        // ~10+ levels of internal hosting/NSView nesting, making every
+        // layout pass (page switches, display cycles) expensive — the
+        // "whole UI feels heavy" symptom (WI-2026-08-07-006).
+        HStack(spacing: 0) {
             HostSidebar(
                 hostStore: hostStore,
                 paneManager: paneManager,
@@ -59,53 +63,45 @@ struct ContentView: View {
                     page = .terminal
                 }
             )
-            .navigationSplitViewColumnWidth(min: 190, ideal: 230)
-        } detail: {
+            .frame(width: 230)
+            Divider()
             ZStack {
-                // Content column: terminal workspace stays in the view tree
-                // at all times (destroying it would deinit the ghostty
-                // surfaces — recurring bug). Management pages render on top.
+                // Terminal page dock + right settings panel on the terminal
+                // page (panel shrinks the terminal).
                 HStack(spacing: 0) {
-                    ZStack {
-                        // Terminal workspace stays in the view tree at all times.
-                        // Destroying it on page switch would deinit the ghostty
-                        // surfaces, killing the PTY child processes and removing
-                        // sessions via close_surface_cb — "session cleared when
-                        // switching back". Hidden via opacity instead.
-                        terminalPage
-                            .opacity(page == .terminal ? 1 : 0)
-                            .allowsHitTesting(page == .terminal)
-                            .accessibilityHidden(page != .terminal)
+                    terminalPage
+                        .opacity(page == .terminal ? 1 : 0)
+                        .allowsHitTesting(page == .terminal)
+                        .accessibilityHidden(page != .terminal)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        // Management pages are lightweight; render only when active.
-                        if page != .terminal {
-                            switch page {
-                            case .hosts:
-                                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
-                            case .tasks:
-                                TaskListView(taskMonitor: taskMonitor)
-                            case .activity:
-                                ActivityLogView(taskMonitor: taskMonitor)
-                            case .hub:
-                                HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
-                            case .settings:
-                                SettingsPage(settings: settings)
-                            case .terminal:
-                                EmptyView()
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    // Terminal page: dock the settings panel (terminal shrinks).
                     if showSettingsPanel && page == .terminal {
                         TerminalSettingsPanel(settings: settings) {
                             showSettingsPanel = false
                         }
                     }
                 }
+            }
+            .overlay {
+                // Management pages are lightweight; render only when active.
+                if page != .terminal {
+                    switch page {
+                    case .hosts:
+                        HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+                    case .tasks:
+                        TaskListView(taskMonitor: taskMonitor)
+                    case .activity:
+                        ActivityLogView(taskMonitor: taskMonitor)
+                    case .hub:
+                        HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
+                    case .settings:
+                        SettingsPage(settings: settings)
+                    case .terminal:
+                        EmptyView()
+                    }
+                }
 
-                // Other pages: panel floats over the content's right edge.
+                // Other pages: settings panel floats over the content's right edge.
                 if showSettingsPanel && page != .terminal {
                     TerminalSettingsPanel(settings: settings) {
                         showSettingsPanel = false
@@ -116,6 +112,8 @@ struct ContentView: View {
                     .shadow(color: .black.opacity(0.15), radius: 8, x: -2, y: 0)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DS.background)
         }
         .toolbar {
             // Navigation moved into the sidebar (layered groups); the
@@ -217,6 +215,11 @@ struct ContentView: View {
             taskMonitor.stop()
             tunnelManager.stopHeartbeat()
             hubManager.shutdown()
+        }
+        // Pause vsync rendering of hidden terminal surfaces while on other
+        // pages — keeps the window compositor light (WI-2026-08-07-006).
+        .onChange(of: page) { _, newPage in
+            appDelegate.ghosttyApp?.setSurfacesPaused(newPage != .terminal)
         }
     }
 

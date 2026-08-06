@@ -96,8 +96,20 @@ struct SettingsPage: View {
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
             groupBlock("Theme") {
-                themePicker("Light Theme", selection: lightThemeBinding)
-                themePicker("Dark Theme", selection: darkThemeBinding)
+                HStack(spacing: DS.Space.xl) {
+                    VStack(alignment: .leading, spacing: DS.Space.xs) {
+                        Text("Light")
+                            .font(DS.Typography.captionStrong)
+                            .foregroundStyle(DS.textSecondary)
+                        ThemePicker(selection: lightThemeBinding, themes: SynaptySettings.builtinThemeNames)
+                    }
+                    VStack(alignment: .leading, spacing: DS.Space.xs) {
+                        Text("Dark")
+                            .font(DS.Typography.captionStrong)
+                            .foregroundStyle(DS.textSecondary)
+                        ThemePicker(selection: darkThemeBinding, themes: SynaptySettings.builtinThemeNames)
+                    }
+                }
                 Text("Each theme applies to its appearance mode (Settings → Appearance). Terminal colors switch live with the mode.")
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.textTertiary)
@@ -259,17 +271,6 @@ struct SettingsPage: View {
     }
 
     // MARK: - Helpers
-
-    private func themePicker(_ title: String, selection: Binding<String?>) -> some View {
-        Picker(title, selection: selection) {
-            Text("Ghostty Default").tag(String?.none)
-            ForEach(SynaptySettings.builtinThemeNames(), id: \.self) { name in
-                Text(name).tag(String?.some(name))
-            }
-        }
-        .pickerStyle(.menu)
-        .frame(maxWidth: 380)
-    }
 
     private func groupBlock(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: DS.Space.md) {

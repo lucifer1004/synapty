@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Data Models (RFC-0003 task-center model)
 
 /// A task = a GitHub issue in the hub repo (C-ISSUE-STATES).
-struct TaskItem: Identifiable, Decodable {
+struct TaskItem: Identifiable, Decodable, Equatable {
     let number: Int
     let title: String
     let state: String
@@ -46,7 +46,7 @@ enum TaskStatus: String {
 }
 
 /// One hub tool-request activity entry (C-HUB-ROLE).
-struct ActivityItem: Identifiable, Decodable {
+struct ActivityItem: Identifiable, Decodable, Equatable {
     let ts: Int64
     let agent: String
     let tool: String
@@ -153,24 +153,41 @@ enum BridgeStatus: Equatable {
         return nil
     }
 
-    /// Run `synapty <args...>` and return stdout, or nil on failure.
-    private func runCLI(_ arguments: [String]) -> String? {
-        guard let binary = synaptyBinaryPath() else { return nil }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: binary)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
-        } catch {
-            return nil
+    /// Run `synapty <args...>` asynchronously — the subprocess (incl. the
+    /// GitHub API round-trip) runs on a background queue so the main thread
+    /// is never blocked (WI-2026-08-07-006: polling was freezing the UI
+    /// every few seconds). `completion` is called on the main actor.
+    private func runCLI(
+        _ arguments: [String],
+        completion: @escaping @MainActor (String?) -> Void
+    ) {
+        guard let binary = synaptyBinaryPath() else {
+            Task { @MainActor in completion(nil) }
+            return
+        }
+        DispatchQueue.global(qos: .utility).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: binary)
+            process.arguments = arguments
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)
+                Task { @MainActor in completion(output) }
+            } catch {
+                Task { @MainActor in completion(nil) }
+            }
         }
     }
+
+    /// In-flight guards — skip a poll when the previous one is still
+    /// running (slow GitHub calls must not pile up).
+    private var tasksInFlight = false
+    private var activityInFlight = false
 
     /// Extract the tool_response envelope payload dict from CLI stdout.
     private func parseEnvelopePayload(_ output: String) -> [String: Any]? {
@@ -184,51 +201,77 @@ enum BridgeStatus: Equatable {
     // MARK: - Fetch tasks
 
     private func fetchTasks() {
-        guard let output = runCLI(["task", "list"]) else { return }
-        guard let payload = parseEnvelopePayload(output) else { return }
+        guard !tasksInFlight else { return }
+        tasksInFlight = true
+        runCLI(["task", "list"]) { [weak self] output in
+            defer { self?.tasksInFlight = false }
+            guard let self, let output else { return }
+            guard let payload = self.parseEnvelopePayload(output) else { return }
 
-        if let ok = payload["ok"] as? Bool, !ok {
-            let msg = payload["error"] as? String ?? "github error"
-            if msg.contains("not configured") || msg.contains("token") {
-                bridgeStatus = .notConfigured
-            } else {
-                bridgeStatus = .error(msg)
+            if let ok = payload["ok"] as? Bool, !ok {
+                let msg = payload["error"] as? String ?? "github error"
+                if msg.contains("not configured") || msg.contains("token") {
+                    if self.bridgeStatus != .notConfigured { self.bridgeStatus = .notConfigured }
+                } else if self.bridgeStatus != .error(msg) {
+                    self.bridgeStatus = .error(msg)
+                }
+                if self.lastError != msg { self.lastError = msg }
+                return
             }
-            lastError = msg
-            return
-        }
-        bridgeStatus = .configured
-        lastError = nil
+            if self.bridgeStatus != .configured { self.bridgeStatus = .configured }
+            if self.lastError != nil { self.lastError = nil }
 
-        guard let data = payload["data"] as? [[String: Any]] else { return }
-        var items: [TaskItem] = []
-        for dict in data {
-            guard let item = try? JSONDecoder().decode(
-                TaskItem.self,
-                from: JSONSerialization.data(withJSONObject: dict)
-            ) else { continue }
-            items.append(item)
+            guard let data = payload["data"] as? [[String: Any]] else { return }
+            var items: [TaskItem] = []
+            for dict in data {
+                guard let item = try? JSONDecoder().decode(
+                    TaskItem.self,
+                    from: JSONSerialization.data(withJSONObject: dict)
+                ) else { continue }
+                items.append(item)
+            }
+            // Publish only on change — otherwise every poll re-renders the
+            // Tasks page + status badges and triggers a full layout pass.
+            if items != self.tasks {
+                self.tasks = items
+            }
         }
-        tasks = items
     }
 
     // MARK: - Fetch activity
 
     private func fetchActivity() {
-        guard let output = runCLI(["activity"]) else { return }
-        guard let payload = parseEnvelopePayload(output),
-              let ok = payload["ok"] as? Bool, ok,
-              let data = payload["data"] as? [[String: Any]]
-        else { return }
+        guard !activityInFlight else { return }
+        activityInFlight = true
+        runCLI(["activity"]) { [weak self] output in
+            defer { self?.activityInFlight = false }
+            guard let self, let output else { return }
+            guard let payload = self.parseEnvelopePayload(output),
+                  let ok = payload["ok"] as? Bool, ok,
+                  let data = payload["data"] as? [[String: Any]]
+            else { return }
 
-        var items: [ActivityItem] = []
-        for dict in data {
-            guard let item = try? JSONDecoder().decode(
-                ActivityItem.self,
-                from: JSONSerialization.data(withJSONObject: dict)
-            ) else { continue }
-            items.append(item)
+            var items: [ActivityItem] = []
+            for dict in data {
+                guard let item = try? JSONDecoder().decode(
+                    ActivityItem.self,
+                    from: JSONSerialization.data(withJSONObject: dict)
+                ) else { continue }
+                items.append(item)
+            }
+            // Filter self-generated polling noise: the hub records every
+            // activity.list/task.list call as an activity event, so the
+            // stream never stabilizes and the change-detection below would
+            // always fire (re-render + layout every poll). WI-2026-08-07-006.
+            let real = items.filter { item in
+                guard item.agent.hasPrefix("cli-tmp-") else { return true }
+                return !(item.tool == "activity.list" || item.tool == "task.list")
+            }
+            // Publish only on change (see fetchTasks).
+            let suffix = Array(real.suffix(100))
+            if suffix != self.activities {
+                self.activities = suffix
+            }
         }
-        activities = Array(items.suffix(100))
     }
 }

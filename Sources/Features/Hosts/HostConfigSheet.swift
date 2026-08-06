@@ -77,6 +77,8 @@ struct HostConfigSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
+        .onAppear {
+        }
         .sheet(isPresented: $showAddHost) {
             AddHostSheet(
                 hostStore: hostStore,

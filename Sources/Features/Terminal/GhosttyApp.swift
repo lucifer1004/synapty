@@ -11,6 +11,9 @@ import AppKit
     private(set) var config: ghostty_config_t?
     /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
     var activeSurface: ghostty_surface_t?
+    /// All live surfaces, registered by GhosttyNSView (main-thread only).
+    /// Needed for per-surface color scheme updates (WI-2026-08-07-005).
+    private(set) var liveSurfaces: [ghostty_surface_t] = []
 
     /// Settings-change observer (live config apply).
     private var settingsObserver: NSObjectProtocol?
@@ -20,6 +23,8 @@ import AppKit
     private var reloadObserver: NSObjectProtocol?
     /// KVO on effectiveAppearance (System mode / OS appearance changes).
     private var systemAppearanceKVO: NSKeyValueObservation?
+    /// Last scheme pushed to ghostty (avoid redundant updates).
+    private var appliedScheme: ghostty_color_scheme_e?
 
     /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
     /// result in a single tick() call, so all pending PTY output is processed at
@@ -54,9 +59,36 @@ import AppKit
         config = newCfg
     }
 
+    /// Coalesced reload scheduling (WI-2026-08-07-005): a single user
+    /// action (e.g. appearance switch) cascades several reload requests
+    /// (app + per-surface) within one run-loop turn. Collapse same-turn
+    /// requests into ONE update with ~zero added latency; hard requests
+    /// win over soft.
+    private var reloadQueued = false
+    private var pendingReloadIsSoft = true
+
+    private func scheduleReload(soft: Bool) {
+        pendingReloadIsSoft = pendingReloadIsSoft && soft
+        guard !reloadQueued else { return }
+        reloadQueued = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.reloadQueued = false
+            let soft = self.pendingReloadIsSoft
+            self.pendingReloadIsSoft = true
+            guard let app = self.app else { return }
+            if soft {
+                if let config {
+                    ghostty_app_update_config(app, config)
+                }
+            } else {
+                self.reloadConfig()
+            }
+        }
+    }
+
     init() {
         GhosttyApp.shared = self
-
         // macOS crashes inside ghostty_init's setlocale when LANG is a
         // locale with missing data (observed: en_CN.UTF-8 → loadlocale
         // NULL-deref in open()). Pin a safe locale for the process before
@@ -208,7 +240,7 @@ import AppKit
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.reloadConfig()
+                self?.scheduleReload(soft: false)
             }
         }
 
@@ -227,7 +259,7 @@ import AppKit
 
         // Ghostty-initiated reload requests (WI-2026-08-07-001): soft →
         // re-apply current config (color scheme → light/dark theme);
-        // hard → rebuild from fragment.
+        // hard → rebuild from fragment. Coalesced (WI-2026-08-07-005).
         reloadObserver = NotificationCenter.default.addObserver(
             forName: .synaptyReloadRequested,
             object: nil,
@@ -235,7 +267,7 @@ import AppKit
         ) { [weak self] note in
             let soft = (note.userInfo?["soft"] as? NSNumber)?.boolValue ?? false
             Task { @MainActor in
-                self?.handleReloadRequest(soft: soft)
+                self?.scheduleReload(soft: soft)
             }
         }
 
@@ -256,22 +288,42 @@ import AppKit
         case .darkAqua?: scheme = GHOSTTY_COLOR_SCHEME_DARK
         default: scheme = GHOSTTY_COLOR_SCHEME_LIGHT
         }
+        // Skip if unchanged (KVO can fire redundantly on appearance sets).
+        if appliedScheme == scheme { return }
+        appliedScheme = scheme
         ghostty_app_set_color_scheme(app, scheme)
+        // Per-surface: surfaces keep their own conditional state; without
+        // this the light/dark theme pair always resolves with the initial
+        // scheme (WI-2026-08-07-005).
+        for surface in liveSurfaces {
+            ghostty_surface_set_color_scheme(surface, scheme)
+        }
     }
 
-    /// Handle a ghostty-initiated reload request (WI-2026-08-07-001).
-    /// Soft: re-apply the current config — surfaces re-derive it with the
-    /// updated conditional state (e.g. color scheme → light/dark theme).
-    /// Hard: rebuild the config from the fragment and re-apply.
-    private func handleReloadRequest(soft: Bool) {
-        guard let app else { return }
-        if soft {
-            if let config {
-                ghostty_app_update_config(app, config)
-            }
-        } else {
-            reloadConfig()
+    /// Register a live surface (called by GhosttyNSView on creation).
+    func registerSurface(_ surface: ghostty_surface_t) {
+        guard !liveSurfaces.contains(where: { $0 == surface }) else { return }
+        liveSurfaces.append(surface)
+    }
+
+    /// Pause vsync-driven rendering for all surfaces (WI-2026-08-07-006):
+    /// hidden terminal surfaces must not keep rendering at 60fps — that
+    /// saturates the GPU/window compositor and makes the whole UI feel
+    /// sluggish. Display id 0 = render on wakeup only; surfaces stay alive.
+    func setSurfacesPaused(_ paused: Bool) {
+        for surface in liveSurfaces {
+            ghostty_surface_set_display_id(surface, paused ? 0 : displayIDForSurfaces)
         }
+    }
+
+    /// Current display id for vsync rendering (re-queried per resume).
+    private var displayIDForSurfaces: UInt32 {
+        UInt32(NSScreen.main?.displayID ?? 0)
+    }
+
+    /// Unregister a destroyed surface (called by GhosttyNSView on destroy).
+    func unregisterSurface(_ surface: ghostty_surface_t) {
+        liveSurfaces.removeAll { $0 == surface }
     }
 
     /// Schedule a tick if one isn't already pending. Multiple wakeups between

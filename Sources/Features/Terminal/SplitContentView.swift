@@ -72,13 +72,17 @@ enum SplitLayout {
     }
 
     static func computeFrames(node: SplitNode, in rect: CGRect) -> [UUID: CGRect] {
+        // Round to integral points so fractional sizes never ping-pong
+        // the layout (each pass would otherwise recompute a slightly
+        // different frame → perpetual re-layout → UI jank).
+        let rounded = rect.integral
         switch node {
         case .leaf(let data):
-            return [data.id: rect]
+            return [data.id: rounded]
 
         case .split(let data):
             let dividerSize: CGFloat = 4 // slightly wider for easier grab
-            let (firstRect, secondRect) = splitRects(rect, direction: data.direction, ratio: data.ratio, dividerSize: dividerSize)
+            let (firstRect, secondRect) = splitRects(rounded, direction: data.direction, ratio: data.ratio, dividerSize: dividerSize)
             let first = computeFrames(node: data.first, in: firstRect)
             let second = computeFrames(node: data.second, in: secondRect)
             return first.merging(second) { _, b in b }

@@ -34,6 +34,8 @@ struct ActivityLogView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
+        .onAppear {
+        }
     }
 
     // MARK: - Empty state

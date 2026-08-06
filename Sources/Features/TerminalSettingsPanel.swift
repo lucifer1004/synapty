@@ -59,8 +59,18 @@ struct TerminalSettingsPanel: View {
                     // Theme — light/dark pair side by side
                     section("Theme") {
                         HStack(spacing: DS.Space.md) {
-                            compactThemeMenu("Light", selection: lightThemeBinding)
-                            compactThemeMenu("Dark", selection: darkThemeBinding)
+                            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                                Text("Light")
+                                    .font(DS.Typography.captionStrong)
+                                    .foregroundStyle(DS.textSecondary)
+                                ThemePicker(selection: lightThemeBinding, themes: SynaptySettings.builtinThemeNames, width: 118)
+                            }
+                            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                                Text("Dark")
+                                    .font(DS.Typography.captionStrong)
+                                    .foregroundStyle(DS.textSecondary)
+                                ThemePicker(selection: darkThemeBinding, themes: SynaptySettings.builtinThemeNames, width: 118)
+                            }
                         }
                         Text("Follows the Appearance mode above")
                             .font(DS.Typography.caption)
@@ -130,24 +140,6 @@ struct TerminalSettingsPanel: View {
         VStack(alignment: .leading, spacing: DS.Space.md) {
             DSSectionLabel(text: title)
             content()
-        }
-    }
-
-    /// Compact theme menu for the narrow panel (label above the menu).
-    private func compactThemeMenu(_ label: String, selection: Binding<String?>) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.xs) {
-            Text(label)
-                .font(DS.Typography.captionStrong)
-                .foregroundStyle(DS.textSecondary)
-            Picker(label, selection: selection) {
-                Text("Default").tag(String?.none)
-                ForEach(SynaptySettings.builtinThemeNames(), id: \.self) { name in
-                    Text(name).tag(String?.some(name))
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

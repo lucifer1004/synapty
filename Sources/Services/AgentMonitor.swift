@@ -79,7 +79,7 @@ struct ChatMessage: Identifiable, Equatable {
 
     func startMonitoring() {
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.refresh()
         }
     }
@@ -105,8 +105,11 @@ struct ChatMessage: Identifiable, Equatable {
             knownAgents = newMap
             agents = sorted
         }
-        // Prune attention for agents that disappeared.
-        needsAttention = needsAttention.filter { newMap[$0] != nil }
+        // Prune attention for agents that disappeared — publish only on change.
+        let pruned = needsAttention.filter { newMap[$0] != nil }
+        if pruned != needsAttention {
+            needsAttention = pruned
+        }
     }
 
     // MARK: - Attention
@@ -138,28 +141,39 @@ struct ChatMessage: Identifiable, Equatable {
 
     // MARK: - Refresh
 
+    /// In-flight guard — skip a poll while the previous one is running.
+    private var refreshInFlight = false
+
     private func refresh() {
-        guard let binary = synaptyBinaryPath() else { return }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: binary)
-        process.arguments = ["agents"]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            let parsed = parseAgentsOutput(output)
-            DispatchQueue.main.async {
-                self.mergeAgents(parsed)
+        guard let binary = synaptyBinaryPath(), !refreshInFlight else { return }
+        refreshInFlight = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            defer {
+                DispatchQueue.main.async {
+                    self?.refreshInFlight = false
+                }
             }
-        } catch {
-            // Binary not available yet — stay silent
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: binary)
+            process.arguments = ["agents"]
+
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? ""
+                // parseAgentsOutput is pure — safe off the main actor.
+                let parsed = Self.parseAgentsOutput(output)
+                DispatchQueue.main.async {
+                    self?.mergeAgents(parsed)
+                }
+            } catch {
+                // Binary not available yet — stay silent
+            }
         }
     }
 
@@ -169,7 +183,7 @@ struct ChatMessage: Identifiable, Equatable {
     /// IPC path returns JSON: {"success":true,"data":"<hub-response-json>"}
     /// The Hub response contains: {"ok":true,"agents":[{"id":"...","tool":"...","project":"...","session":"..."},...]}
     /// Fallback (direct TCP) returns raw Hub JSON envelope.
-    private func parseAgentsOutput(_ output: String) -> [AgentInfo] {
+    nonisolated private static func parseAgentsOutput(_ output: String) -> [AgentInfo] {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
@@ -193,7 +207,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 
     /// Extract agent list from various JSON response shapes.
-    private func parseAgentsJSON(_ json: [String: Any]) -> [AgentInfo] {
+    nonisolated private static func parseAgentsJSON(_ json: [String: Any]) -> [AgentInfo] {
         // Shape 1: IPC response {"success":true,"data":"<json-string>"}
         if let dataStr = json["data"] as? String,
            let innerData = dataStr.data(using: .utf8),
@@ -215,7 +229,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 
     /// Extract [AgentInfo] from a dict containing "agents" array.
-    private func extractAgents(from dict: [String: Any]) -> [AgentInfo] {
+    nonisolated private static func extractAgents(from dict: [String: Any]) -> [AgentInfo] {
         guard let agentArray = dict["agents"] as? [[String: Any]] else { return [] }
         return agentArray.compactMap { obj -> AgentInfo? in
             guard let id = obj["id"] as? String else { return nil }
