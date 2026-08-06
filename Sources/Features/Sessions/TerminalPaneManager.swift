@@ -348,6 +348,16 @@ import Foundation
         }
     }
 
+    /// Reset a failed placeholder back to connecting (WI-2026-08-07-004 retry).
+    func markSessionConnecting(id: UUID) {
+        guard let idx = sessions.firstIndex(where: { $0.id == id }) else { return }
+        var session = sessions[idx]
+        if case .failed = session.state {
+            session.state = .connecting
+            sessions[idx] = session
+        }
+    }
+
     /// Close a specific leaf by ID (called when its process exits).
     func closeLeaf(_ leafID: UUID) {
         for sIdx in sessions.indices {

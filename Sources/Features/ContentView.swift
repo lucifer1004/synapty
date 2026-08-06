@@ -25,6 +25,8 @@ struct ContentView: View {
     @State private var showShortcuts = false
     @State private var showFindBar = false
     @State private var findText = ""
+    /// Right settings panel visibility — global, persisted (WI-2026-08-07-002).
+    @AppStorage("synapty.settingsPanelVisible") private var showSettingsPanel = false
 
     var body: some View {
         NavigationSplitView {
@@ -60,32 +62,58 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 230)
         } detail: {
             ZStack {
-                // Terminal workspace stays in the view tree at all times.
-                // Destroying it on page switch would deinit the ghostty
-                // surfaces, killing the PTY child processes and removing
-                // sessions via close_surface_cb — "session cleared when
-                // switching back". Hidden via opacity instead.
-                terminalPage
-                    .opacity(page == .terminal ? 1 : 0)
-                    .allowsHitTesting(page == .terminal)
-                    .accessibilityHidden(page != .terminal)
+                // Content column: terminal workspace stays in the view tree
+                // at all times (destroying it would deinit the ghostty
+                // surfaces — recurring bug). Management pages render on top.
+                HStack(spacing: 0) {
+                    ZStack {
+                        // Terminal workspace stays in the view tree at all times.
+                        // Destroying it on page switch would deinit the ghostty
+                        // surfaces, killing the PTY child processes and removing
+                        // sessions via close_surface_cb — "session cleared when
+                        // switching back". Hidden via opacity instead.
+                        terminalPage
+                            .opacity(page == .terminal ? 1 : 0)
+                            .allowsHitTesting(page == .terminal)
+                            .accessibilityHidden(page != .terminal)
 
-                // Management pages are lightweight; render only when active.
-                if page != .terminal {
-                    switch page {
-                    case .hosts:
-                        HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
-                    case .tasks:
-                        TaskListView(taskMonitor: taskMonitor)
-                    case .activity:
-                        ActivityLogView(taskMonitor: taskMonitor)
-                    case .hub:
-                        HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
-                    case .settings:
-                        SettingsPage(settings: settings)
-                    case .terminal:
-                        EmptyView()
+                        // Management pages are lightweight; render only when active.
+                        if page != .terminal {
+                            switch page {
+                            case .hosts:
+                                HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+                            case .tasks:
+                                TaskListView(taskMonitor: taskMonitor)
+                            case .activity:
+                                ActivityLogView(taskMonitor: taskMonitor)
+                            case .hub:
+                                HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
+                            case .settings:
+                                SettingsPage(settings: settings)
+                            case .terminal:
+                                EmptyView()
+                            }
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    // Terminal page: dock the settings panel (terminal shrinks).
+                    if showSettingsPanel && page == .terminal {
+                        TerminalSettingsPanel(settings: settings) {
+                            showSettingsPanel = false
+                        }
+                    }
+                }
+
+                // Other pages: panel floats over the content's right edge.
+                if showSettingsPanel && page != .terminal {
+                    TerminalSettingsPanel(settings: settings) {
+                        showSettingsPanel = false
+                    }
+                    .frame(maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .background(Color.clear)
+                    .shadow(color: .black.opacity(0.15), radius: 8, x: -2, y: 0)
                 }
             }
         }
@@ -154,6 +182,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .synaptyShowShortcuts)) { _ in
             showShortcuts = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
+            showSettingsPanel.toggle()
+        }
         .onAppear {
             TunnelManager.shared = tunnelManager
             tunnelManager.hostStore = hostStore
@@ -214,9 +245,30 @@ struct ContentView: View {
                     .allowsHitTesting(!showPlaceholder)
 
                     if showPlaceholder {
-                        SessionPlaceholderView(session: placeholderSession)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        SessionPlaceholderView(
+                            session: placeholderSession,
+                            onRetry: retryFailedSession
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                }
+                .overlay(alignment: .topTrailing) {
+                    // Right settings panel toggle (WI-2026-08-07-002).
+                    Button {
+                        showSettingsPanel.toggle()
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(showSettingsPanel ? DS.accent : DS.textSecondary)
+                            .frame(width: 26, height: 24)
+                            .background(
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .fill(showSettingsPanel ? DS.accentSoft : DS.hover)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Terminal settings panel (⌘⌥P)")
+                    .padding(DS.Space.sm)
                 }
             } else {
                 VStack(spacing: DS.Space.sm) {
@@ -252,5 +304,17 @@ struct ContentView: View {
             hostEntry: nil,
             state: .connecting
         )
+    }
+
+    /// Re-run the tunnel setup for the failed placeholder session
+    /// (WI-2026-08-07-004).
+    private func retryFailedSession() {
+        guard let session = paneManager.activeSession,
+              let host = session.hostEntry else { return }
+        let sessionID = session.id
+        paneManager.markSessionConnecting(id: sessionID)
+        tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
+            paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
+        }
     }
 }

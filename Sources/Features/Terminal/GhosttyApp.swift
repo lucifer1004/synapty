@@ -16,6 +16,8 @@ import AppKit
     private var settingsObserver: NSObjectProtocol?
     /// Appearance-change observer (ghostty color scheme).
     private var appearanceObserver: NSObjectProtocol?
+    /// Ghostty-initiated reload request observer.
+    private var reloadObserver: NSObjectProtocol?
     /// KVO on effectiveAppearance (System mode / OS appearance changes).
     private var systemAppearanceKVO: NSKeyValueObservation?
 
@@ -105,6 +107,24 @@ import AppKit
                 guard target.tag == GHOSTTY_TARGET_SURFACE else { return false }
                 NotificationCenter.default.post(name: .synaptyFind, object: nil)
                 return true
+
+            case GHOSTTY_ACTION_RELOAD_CONFIG:
+                // Ghostty requests a config reload (e.g. after a color
+                // scheme change — the light/dark theme pair re-resolves
+                // through the conditional state). The embedded apprt
+                // delegates the reload to the embedder: soft → re-apply
+                // the current config so surfaces re-derive it; hard →
+                // rebuild from the fragment. WI-2026-08-07-001.
+                // Notification pattern: C function pointers cannot capture
+                // context, so hop via NotificationCenter (like START_SEARCH).
+                let isSoft = action.action.reload_config.soft
+                NotificationCenter.default.post(
+                    name: .synaptyReloadRequested,
+                    object: nil,
+                    userInfo: ["soft": isSoft]
+                )
+                return true
+
             default:
                 return false
             }
@@ -205,6 +225,20 @@ import AppKit
             }
         }
 
+        // Ghostty-initiated reload requests (WI-2026-08-07-001): soft →
+        // re-apply current config (color scheme → light/dark theme);
+        // hard → rebuild from fragment.
+        reloadObserver = NotificationCenter.default.addObserver(
+            forName: .synaptyReloadRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            let soft = (note.userInfo?["soft"] as? NSNumber)?.boolValue ?? false
+            Task { @MainActor in
+                self?.handleReloadRequest(soft: soft)
+            }
+        }
+
         // System mode: keep ghostty in sync when macOS switches appearance
         // (KVO on effectiveAppearance — AppKit has no appearance notification).
         systemAppearanceKVO = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
@@ -223,6 +257,21 @@ import AppKit
         default: scheme = GHOSTTY_COLOR_SCHEME_LIGHT
         }
         ghostty_app_set_color_scheme(app, scheme)
+    }
+
+    /// Handle a ghostty-initiated reload request (WI-2026-08-07-001).
+    /// Soft: re-apply the current config — surfaces re-derive it with the
+    /// updated conditional state (e.g. color scheme → light/dark theme).
+    /// Hard: rebuild the config from the fragment and re-apply.
+    private func handleReloadRequest(soft: Bool) {
+        guard let app else { return }
+        if soft {
+            if let config {
+                ghostty_app_update_config(app, config)
+            }
+        } else {
+            reloadConfig()
+        }
     }
 
     /// Schedule a tick if one isn't already pending. Multiple wakeups between
@@ -251,6 +300,10 @@ import AppKit
         if let appearanceObserver {
             NotificationCenter.default.removeObserver(appearanceObserver)
             self.appearanceObserver = nil
+        }
+        if let reloadObserver {
+            NotificationCenter.default.removeObserver(reloadObserver)
+            self.reloadObserver = nil
         }
         systemAppearanceKVO?.invalidate()
         systemAppearanceKVO = nil

@@ -56,22 +56,9 @@ struct HostSidebar: View {
     }
 
     private func navButton(_ item: (page: AppPage, icon: String, label: String)) -> some View {
-        let isActive = page == item.page
-        return Button {
+        NavRailButton(item: item, isActive: page == item.page) {
             page = item.page
-        } label: {
-            Image(systemName: item.icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
-                .frame(width: 26, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .fill(isActive ? DS.accentSoft : Color.clear)
-                )
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .help(item.label)
     }
 
     /// The sessions list with the "+" new-session action.
@@ -183,6 +170,43 @@ struct HostSidebar: View {
                 return .handled
             }
         }
+    }
+}
+
+// MARK: - Navigation rail button
+
+/// Navigation rail icon button — soft fill + bottom indicator bar on the
+/// active icon, hover feedback, tooltip (WI-2026-08-07-003).
+private struct NavRailButton: View {
+    let item: (page: AppPage, icon: String, label: String)
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            // Horizontal rail convention: soft fill + bottom indicator bar
+            // under the active icon.
+            VStack(spacing: 2) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+                    .frame(width: 26, height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .fill(isActive ? DS.accentSoft : (isHovered ? DS.hover : Color.clear))
+                    )
+                    .contentShape(Rectangle())
+                Rectangle()
+                    .fill(isActive ? DS.accent : Color.clear)
+                    .frame(width: 18, height: 2)
+                    .clipShape(Capsule())
+            }
+        }
+        .buttonStyle(.plain)
+        .help(item.label)
+        .onHover { hovering in isHovered = hovering }
     }
 }
 

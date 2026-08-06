@@ -95,7 +95,9 @@ enum DS {
     )
 
     static let textTertiary = dynamicColor(
-        light: NSColor.tertiaryLabelColor,
+        // tertiaryLabelColor fails 4.5:1 contrast on white (~3.3:1);
+        // use a darker gray in light mode (WI-2026-08-07-004).
+        light: NSColor(red: 0.40, green: 0.40, blue: 0.42, alpha: 1),
         dark: NSColor.tertiaryLabelColor
     )
 

@@ -313,47 +313,77 @@ struct HostConfigSheet: View {
 
     private var hostsPane: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                groupSidebar
-                    .frame(width: 200)
+            if hostStore.hosts.isEmpty {
+                // First-run empty state (WI-2026-08-07-004).
+                VStack(spacing: DS.Space.lg) {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 36))
+                        .foregroundStyle(DS.textTertiary)
+                    Text("No hosts yet")
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
+                    Text("Add hosts manually, or import them from your ~/.ssh/config.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: DS.Space.md) {
+                        Button {
+                            showAddHost = true
+                        } label: {
+                            Label("New Host", systemImage: "plus")
+                        }
+                        Button {
+                            importFromSSHConfig()
+                        } label: {
+                            Label("Import from ~/.ssh/config", systemImage: "square.and.arrow.down")
+                        }
+                        .help("Import hosts from ~/.ssh/config")
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HStack(spacing: 0) {
+                    groupSidebar
+                        .frame(width: 200)
+
+                    Divider()
+
+                    hostListPane
+                }
 
                 Divider()
 
-                hostListPane
-            }
-
-            Divider()
-
-            // Footer
-            HStack(spacing: DS.Space.md) {
-                Button {
-                    showAddHost = true
-                } label: {
-                    Label("New Host", systemImage: "plus")
-                }
-                Button {
-                    showNewGroup = true
-                } label: {
-                    Label("New Group", systemImage: "folder.badge.plus")
-                }
-                Button {
-                    importFromSSHConfig()
-                } label: {
-                    Label("Import from SSH Config", systemImage: "square.and.arrow.down")
-                }
-                .help("Import hosts from ~/.ssh/config")
-                Spacer()
-                if let group = selectedGroup {
-                    Button(role: .destructive) {
-                        groupToDelete = group
+                // Footer
+                HStack(spacing: DS.Space.md) {
+                    Button {
+                        showAddHost = true
                     } label: {
-                        Label("Delete Group", systemImage: "trash")
+                        Label("New Host", systemImage: "plus")
                     }
-                    .disabled(hostStore.childGroups(of: group.id).isEmpty && hostStore.hosts(inGroup: group.id).isEmpty)
-                    .help("Only empty groups can be deleted")
+                    Button {
+                        showNewGroup = true
+                    } label: {
+                        Label("New Group", systemImage: "folder.badge.plus")
+                    }
+                    Button {
+                        importFromSSHConfig()
+                    } label: {
+                        Label("Import from SSH Config", systemImage: "square.and.arrow.down")
+                    }
+                    .help("Import hosts from ~/.ssh/config")
+                    Spacer()
+                    if let group = selectedGroup {
+                        Button(role: .destructive) {
+                            groupToDelete = group
+                        } label: {
+                            Label("Delete Group", systemImage: "trash")
+                        }
+                        .disabled(hostStore.childGroups(of: group.id).isEmpty && hostStore.hosts(inGroup: group.id).isEmpty)
+                        .help("Only empty groups can be deleted")
+                    }
                 }
+                .padding(DS.Space.lg)
             }
-            .padding(DS.Space.lg)
         }
     }
 

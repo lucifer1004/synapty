@@ -154,12 +154,16 @@ struct ContextStatusBar: View {
 // MARK: - Pulse Animation (used by sidebar AgentRow)
 
 struct PulseAnimation: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPulsing = false
 
     func body(content: Content) -> some View {
         content
             .opacity(isPulsing ? 0.4 : 1.0)
-            .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isPulsing)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
+                value: isPulsing
+            )
             .onAppear { isPulsing = true }
     }
 }

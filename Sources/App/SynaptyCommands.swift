@@ -106,6 +106,13 @@ struct SynaptyCommands: Commands {
                 NotificationCenter.default.post(name: .synaptyFind, object: nil)
             }
             .keyboardShortcut("f", modifiers: .command)
+
+            Divider()
+
+            Button("Toggle Settings Panel") {
+                NotificationCenter.default.post(name: .synaptyToggleSettingsPanel, object: nil)
+            }
+            .keyboardShortcut("p", modifiers: [.command, .option])
         }
     }
 }
@@ -122,4 +129,6 @@ extension Notification.Name {
     static let synaptyTunnelFailed = Notification.Name("synaptyTunnelFailed")
     static let synaptySettingsChanged = Notification.Name("synaptySettingsChanged")
     static let synaptyAppearanceChanged = Notification.Name("synaptyAppearanceChanged")
+    static let synaptyReloadRequested = Notification.Name("synaptyReloadRequested")
+    static let synaptyToggleSettingsPanel = Notification.Name("synaptyToggleSettingsPanel")
 }

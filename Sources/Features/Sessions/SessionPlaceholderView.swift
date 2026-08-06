@@ -8,6 +8,8 @@ import SwiftUI
 /// local session").
 struct SessionPlaceholderView: View {
     let session: TerminalPaneManager.Session
+    /// Re-run the tunnel setup after a failed connection (WI-2026-08-07-004).
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: DS.Space.lg) {
@@ -37,6 +39,17 @@ struct SessionPlaceholderView: View {
                         .foregroundStyle(DS.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(3)
+                }
+                if let onRetry {
+                    Button(action: onRetry) {
+                        Label("Retry", systemImage: "arrow.clockwise")
+                            .font(DS.Typography.detailStrong)
+                            .padding(.horizontal, DS.Space.lg)
+                            .padding(.vertical, DS.Space.sm)
+                            .background(DS.accent, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
                 }
             case .connected:
                 // Transient: connectSession replaces the placeholder with a

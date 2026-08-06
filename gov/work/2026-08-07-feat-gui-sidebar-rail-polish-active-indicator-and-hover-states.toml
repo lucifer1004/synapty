@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-07-003"
+title = "feat(gui): sidebar rail polish — active indicator and hover states"
+status = "done"
+created = "2026-08-07"
+started = "2026-08-07"
+completed = "2026-08-07"
+
+[content]
+description = "The icon-only navigation rail shows active state as a soft fill only, which is weak at a glance. Add a bottom indicator bar under the active icon (horizontal rail convention), hover fill feedback, and keep tooltips. Sessions rows already carry status dots/hover/rename — no changes there."
+
+[[content.acceptance_criteria]]
+text = "active nav icon gets a bottom indicator bar plus soft fill"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hover fill on nav icons"
+status = "done"
+category = "added"
