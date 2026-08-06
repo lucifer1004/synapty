@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// Application settings page — grouped by user-facing concerns:
-/// Terminal (appearance), Scrolling, Clipboard, Network (Synapty).
+/// Appearance (app-level), Terminal, Scrolling, Clipboard, Network (Synapty).
 struct SettingsPage: View {
     @ObservedObject var settings: SynaptySettings
 
     enum SettingsPane: Hashable {
+        case appearance
         case terminal
         case scrolling
         case clipboard
@@ -36,6 +37,7 @@ struct SettingsPage: View {
 
             // Sub-navigation
             HStack(spacing: DS.Space.sm) {
+                paneChip(.appearance, title: "Appearance", icon: "circle.lefthalf.filled")
                 paneChip(.terminal, title: "Terminal", icon: "textformat")
                 paneChip(.scrolling, title: "Scrolling", icon: "arrow.up.to.line")
                 paneChip(.clipboard, title: "Clipboard", icon: "doc.on.doc")
@@ -50,6 +52,7 @@ struct SettingsPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
                     switch pane {
+                    case .appearance: appearanceSection
                     case .terminal: terminalSection
                     case .scrolling: scrollingSection
                     case .clipboard: clipboardSection
@@ -65,6 +68,25 @@ struct SettingsPage: View {
         .onAppear {
             if fontFamilies.isEmpty {
                 fontFamilies = FontCatalog.load()
+            }
+        }
+    }
+
+    // MARK: - Appearance (app-level)
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: DS.Space.xl) {
+            groupBlock("Mode") {
+                Picker("Appearance", selection: appearanceBinding) {
+                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+                Text("Applies to the whole app — sidebar, settings and terminal chrome. In System mode Synapty follows macOS, including live changes.")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textTertiary)
             }
         }
     }
@@ -271,6 +293,10 @@ struct SettingsPage: View {
     }
 
     // MARK: - Bindings
+
+    private var appearanceBinding: Binding<AppearanceMode> {
+        Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
+    }
 
     private var themeBinding: Binding<String?> {
         Binding(get: { settings.themeName }, set: { settings.themeName = $0 })

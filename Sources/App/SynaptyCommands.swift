@@ -121,4 +121,5 @@ extension Notification.Name {
     static let synaptyFind = Notification.Name("synaptyFind")
     static let synaptyTunnelFailed = Notification.Name("synaptyTunnelFailed")
     static let synaptySettingsChanged = Notification.Name("synaptySettingsChanged")
+    static let synaptyAppearanceChanged = Notification.Name("synaptyAppearanceChanged")
 }

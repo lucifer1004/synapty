@@ -14,6 +14,10 @@ import AppKit
 
     /// Settings-change observer (live config apply).
     private var settingsObserver: NSObjectProtocol?
+    /// Appearance-change observer (ghostty color scheme).
+    private var appearanceObserver: NSObjectProtocol?
+    /// KVO on effectiveAppearance (System mode / OS appearance changes).
+    private var systemAppearanceKVO: NSKeyValueObservation?
 
     /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
     /// result in a single tick() call, so all pending PTY output is processed at
@@ -187,6 +191,38 @@ import AppKit
                 self?.reloadConfig()
             }
         }
+
+        // Appearance mode (WI-2026-08-06-004): forward the resolved color
+        // scheme to ghostty so terminal colors and light/dark theme
+        // conditionals follow the app appearance.
+        appearanceObserver = NotificationCenter.default.addObserver(
+            forName: .synaptyAppearanceChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.applyColorScheme()
+            }
+        }
+
+        // System mode: keep ghostty in sync when macOS switches appearance
+        // (KVO on effectiveAppearance — AppKit has no appearance notification).
+        systemAppearanceKVO = NSApp.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in
+                self?.applyColorScheme()
+            }
+        }
+    }
+
+    /// Push the resolved color scheme (settings override, else OS) to ghostty.
+    private func applyColorScheme() {
+        guard let app else { return }
+        let scheme: ghostty_color_scheme_e
+        switch NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
+        case .darkAqua?: scheme = GHOSTTY_COLOR_SCHEME_DARK
+        default: scheme = GHOSTTY_COLOR_SCHEME_LIGHT
+        }
+        ghostty_app_set_color_scheme(app, scheme)
     }
 
     /// Schedule a tick if one isn't already pending. Multiple wakeups between
@@ -212,6 +248,12 @@ import AppKit
             NotificationCenter.default.removeObserver(settingsObserver)
             self.settingsObserver = nil
         }
+        if let appearanceObserver {
+            NotificationCenter.default.removeObserver(appearanceObserver)
+            self.appearanceObserver = nil
+        }
+        systemAppearanceKVO?.invalidate()
+        systemAppearanceKVO = nil
         if let app {
             ghostty_app_free(app)
             self.app = nil

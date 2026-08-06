@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 // ===========================================================================
 // SynaptySettings — persisted app settings (~/.config/synapty/settings.json).
@@ -9,7 +10,49 @@ import Foundation
 // loaded by GhosttyApp after the default files, so it overrides them.
 // ===========================================================================
 
+/// App-level appearance mode (WI-2026-08-06-004).
+enum AppearanceMode: String, Codable, CaseIterable {
+    case system
+    case light
+    case dark
+
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    /// The NSAppearance to force, or nil to follow the system.
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 @MainActor final class SynaptySettings: ObservableObject {
+
+    // MARK: - Appearance (app-level)
+
+    /// Light / Dark / System for the whole app UI. Not a ghostty fragment
+    /// key — applied to NSApp and forwarded to ghostty's color scheme.
+    @Published var appearanceMode: AppearanceMode = .system {
+        didSet {
+            applyAppearance()
+            persistOnly()
+        }
+    }
+
+    /// Apply the appearance to the app and notify ghostty (colors, theme
+    /// conditionals). Safe to call during init/load (no observers yet).
+    func applyAppearance() {
+        NSApp.appearance = appearanceMode.nsAppearance
+        NotificationCenter.default.post(name: .synaptyAppearanceChanged, object: nil)
+    }
 
     // MARK: - Terminal (appearance)
 
@@ -96,6 +139,7 @@ import Foundation
         var clipboardWrite: Bool?
         var hubPort: Int?
         var tunnelPort: Int?
+        var appearanceMode: AppearanceMode?
     }
 
     private static var settingsDir: URL {
@@ -134,6 +178,7 @@ import Foundation
         clipboardWrite = payload.clipboardWrite
         if let hubPort = payload.hubPort { self.hubPort = hubPort }
         if let tunnelPort = payload.tunnelPort { self.tunnelPort = tunnelPort }
+        if let appearanceMode = payload.appearanceMode { self.appearanceMode = appearanceMode }
     }
 
     private func persistOnly() {
@@ -161,7 +206,8 @@ import Foundation
             clipboardRead: clipboardRead,
             clipboardWrite: clipboardWrite,
             hubPort: hubPort,
-            tunnelPort: tunnelPort
+            tunnelPort: tunnelPort,
+            appearanceMode: appearanceMode
         )
         guard let data = try? JSONEncoder().encode(payload) else { return }
         try? data.write(to: Self.settingsURL, options: .atomic)
