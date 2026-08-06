@@ -56,8 +56,13 @@ enum AppearanceMode: String, Codable, CaseIterable {
 
     // MARK: - Terminal (appearance)
 
-    /// Ghostty theme name; nil = ghostty default.
-    @Published var themeName: String? {
+    /// Ghostty theme for light appearance; nil = ghostty default.
+    @Published var lightThemeName: String? {
+        didSet { persistAndWriteFragment() }
+    }
+
+    /// Ghostty theme for dark appearance; nil = ghostty default.
+    @Published var darkThemeName: String? {
         didSet { persistAndWriteFragment() }
     }
 
@@ -128,6 +133,8 @@ enum AppearanceMode: String, Codable, CaseIterable {
 
     private struct Payload: Codable {
         var themeName: String?
+        var lightThemeName: String?
+        var darkThemeName: String?
         var fontFamily: String?
         var fontFallbackFamilies: [String]?
         var fontSize: Double?
@@ -166,7 +173,13 @@ enum AppearanceMode: String, Codable, CaseIterable {
         guard let data = try? Data(contentsOf: Self.settingsURL),
               let payload = try? JSONDecoder().decode(Payload.self, from: data)
         else { return }
-        themeName = payload.themeName
+        lightThemeName = payload.lightThemeName
+        darkThemeName = payload.darkThemeName
+        // Migration (WI-2026-08-06-005): legacy single theme → both slots.
+        if lightThemeName == nil, darkThemeName == nil, let legacy = payload.themeName {
+            lightThemeName = legacy
+            darkThemeName = legacy
+        }
         fontFamily = payload.fontFamily
         fontFallbackFamilies = payload.fontFallbackFamilies ?? []
         fontSize = payload.fontSize
@@ -195,7 +208,9 @@ enum AppearanceMode: String, Codable, CaseIterable {
 
     private func save() {
         let payload = Payload(
-            themeName: themeName,
+            themeName: nil,
+            lightThemeName: lightThemeName,
+            darkThemeName: darkThemeName,
             fontFamily: fontFamily,
             fontFallbackFamilies: fontFallbackFamilies,
             fontSize: fontSize,
@@ -219,6 +234,22 @@ enum AppearanceMode: String, Codable, CaseIterable {
     /// bottom (WI-2026-03-31-005).
     static let scrollToBottomLine = "scroll-to-bottom = no-keystroke,no-output"
 
+    /// Build the `theme` line for the fragment (WI-2026-08-06-005).
+    /// Both themes set → ghostty light/dark pair (comma syntax, both
+    /// required); exactly one set → plain single theme (applies to both
+    /// appearances); neither → nil.
+    nonisolated static func themeLine(light: String?, dark: String?) -> String? {
+        let light = light?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dark = dark?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let light, !light.isEmpty, let dark, !dark.isEmpty {
+            return "theme = light:\(light),dark:\(dark)"
+        }
+        if let single = (light?.isEmpty == false ? light : (dark?.isEmpty == false ? dark : nil)) {
+            return "theme = \(single)"
+        }
+        return nil
+    }
+
     /// Ensure the fragment file exists before the initial ghostty config
     /// load. GhosttyApp builds its config at launch, which can run before
     /// this settings object is initialized (first launch); the file must
@@ -235,8 +266,8 @@ enum AppearanceMode: String, Codable, CaseIterable {
         // Scroll behavior (WI-2026-03-31-005): never force scroll to bottom.
         lines.append(Self.scrollToBottomLine)
 
-        if let themeName, !themeName.isEmpty {
-            lines.append("theme = \(themeName)")
+        if let themeLine = Self.themeLine(light: lightThemeName, dark: darkThemeName) {
+            lines.append(themeLine)
         }
         if let fontFamily, !fontFamily.isEmpty {
             // Clear any font-family set by the user's own ghostty config

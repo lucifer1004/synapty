@@ -96,14 +96,11 @@ struct SettingsPage: View {
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
             groupBlock("Theme") {
-                Picker("Theme", selection: themeBinding) {
-                    Text("Ghostty Default").tag(String?.none)
-                    ForEach(SynaptySettings.builtinThemeNames(), id: \.self) { name in
-                        Text(name).tag(String?.some(name))
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 380)
+                themePicker("Light Theme", selection: lightThemeBinding)
+                themePicker("Dark Theme", selection: darkThemeBinding)
+                Text("Each theme applies to its appearance mode (Settings → Appearance). Terminal colors switch live with the mode.")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textTertiary)
             }
 
             groupBlock("Font") {
@@ -263,6 +260,17 @@ struct SettingsPage: View {
 
     // MARK: - Helpers
 
+    private func themePicker(_ title: String, selection: Binding<String?>) -> some View {
+        Picker(title, selection: selection) {
+            Text("Ghostty Default").tag(String?.none)
+            ForEach(SynaptySettings.builtinThemeNames(), id: \.self) { name in
+                Text(name).tag(String?.some(name))
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: 380)
+    }
+
     private func groupBlock(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: DS.Space.md) {
             DSSectionLabel(text: title)
@@ -298,8 +306,12 @@ struct SettingsPage: View {
         Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
     }
 
-    private var themeBinding: Binding<String?> {
-        Binding(get: { settings.themeName }, set: { settings.themeName = $0 })
+    private var lightThemeBinding: Binding<String?> {
+        Binding(get: { settings.lightThemeName }, set: { settings.lightThemeName = $0 })
+    }
+
+    private var darkThemeBinding: Binding<String?> {
+        Binding(get: { settings.darkThemeName }, set: { settings.darkThemeName = $0 })
     }
 
     private var fontFamilyBinding: Binding<String?> {
