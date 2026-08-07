@@ -49,8 +49,22 @@ enum AppearanceMode: String, Codable, CaseIterable {
 
     /// Apply the appearance to the app and notify ghostty (colors, theme
     /// conditionals). Safe to call during init/load (no observers yet).
+    /// The visible windows' appearance animates as a ~0.25s crossfade
+    /// (WI-2026-08-08-002) so dark→light does not snap.
     func applyAppearance() {
         NSApp.appearance = appearanceMode.nsAppearance
+        for window in NSApp.windows where window.isVisible {
+            let target = appearanceMode.nsAppearance
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.appearance = target
+            }
+        }
+        // The terminal reloads its theme through .synaptyAppearanceChanged,
+        // in the same turn as the window crossfade starts — the terminal
+        // snaps to the new colors at t=0 while the UI chrome crossfades
+        // (native-terminal behavior, cf. Ghostty/iTerm2; WI-2026-08-08-002).
         NotificationCenter.default.post(name: .synaptyAppearanceChanged, object: nil)
     }
 

@@ -609,3 +609,4 @@ struct TerminalView: NSViewRepresentable {
         nsView.leafID = leafID
     }
 }
+

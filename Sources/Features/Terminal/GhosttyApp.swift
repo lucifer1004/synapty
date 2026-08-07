@@ -78,7 +78,7 @@ import AppKit
             self.pendingReloadIsSoft = true
             guard let app = self.app else { return }
             if soft {
-                if let config {
+                if let config = self.config {
                     ghostty_app_update_config(app, config)
                 }
             } else {
