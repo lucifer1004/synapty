@@ -144,7 +144,7 @@ struct ContentView: View {
             case .synaptyFontDecrease: action = "decrease_font_size:1"
             default: action = "reset_font_size"
             }
-            action.withCString { ptr in
+            _ = action.withCString { ptr in
                 ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
             }
         }
@@ -161,7 +161,7 @@ struct ContentView: View {
                     onTextChange: { needle in
                         guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
                         let action = "search:\(needle)"
-                        action.withCString { ptr in
+                        _ = action.withCString { ptr in
                             ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                         }
                     },
@@ -203,11 +203,11 @@ struct ContentView: View {
         }
         // Port changes from Settings → Network apply on the next Hub start
         // (Hub page Restart) / next tunnel connection.
-        .onChange(of: settings.hubPort) { newPort in
+        .onChange(of: settings.hubPort) { _, newPort in
             hubManager.port = newPort
             tunnelManager.hubPort = newPort
         }
-        .onChange(of: settings.tunnelPort) { newPort in
+        .onChange(of: settings.tunnelPort) { _, newPort in
             tunnelManager.tunnelPort = newPort
         }
         .onDisappear {

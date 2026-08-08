@@ -70,7 +70,7 @@ struct ActivityLogView: View {
                 }
                 .padding(DS.Space.lg)
             }
-            .onChange(of: taskMonitor.activities.count) { _ in
+            .onChange(of: taskMonitor.activities.count) { _, _ in
                 if let last = taskMonitor.activities.last {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo(last.id, anchor: .bottom)

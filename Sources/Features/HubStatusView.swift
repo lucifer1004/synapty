@@ -121,7 +121,7 @@ struct HubStatusSheet: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .onChange(of: hubManager.logs.count) { _ in
+                    .onChange(of: hubManager.logs.count) { _, _ in
                         if let last = hubManager.logs.indices.last {
                             proxy.scrollTo(last, anchor: .bottom)
                         }

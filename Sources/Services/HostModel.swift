@@ -493,7 +493,7 @@ extension HostStore {
                 return
             }
             let user = current["user"] ?? NSUserName()
-            var entry = HostEntry(
+            let entry = HostEntry(
                 label: host,
                 address: hostName,
                 port: Int(current["port"] ?? "") ?? 22,

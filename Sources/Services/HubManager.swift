@@ -201,25 +201,29 @@ import AppKit
 
     private func startHealthCheck() {
         healthTimer?.invalidate()
-        // Use 1s interval during startup for fast detection, 10s once running
+        // Use 1s interval during startup for fast detection, 10s once running.
+        // Timer callbacks are Sendable; hop to the main actor for the
+        // @MainActor health logic (WI-2026-08-08-009).
         healthTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let portUp = self.isPortInUse()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let portUp = self.isPortInUse()
 
-            if portUp {
-                if case .starting = self.status {
-                    self.status = .running(owned: true)
-                    self.appendLog("Hub started on port \(self.port)")
-                    // Slow down to steady-state interval
-                    self.startSteadyHealthCheck()
-                }
-            } else {
-                if case .running(owned: true) = self.status {
-                    self.appendLog("Hub health check failed, restarting...")
-                    self.restartHub()
-                } else if case .running(owned: false) = self.status {
-                    self.status = .stopped
-                    self.appendLog("External Hub no longer available")
+                if portUp {
+                    if case .starting = self.status {
+                        self.status = .running(owned: true)
+                        self.appendLog("Hub started on port \(self.port)")
+                        // Slow down to steady-state interval
+                        self.startSteadyHealthCheck()
+                    }
+                } else {
+                    if case .running(owned: true) = self.status {
+                        self.appendLog("Hub health check failed, restarting...")
+                        self.restartHub()
+                    } else if case .running(owned: false) = self.status {
+                        self.status = .stopped
+                        self.appendLog("External Hub no longer available")
+                    }
                 }
             }
         }
@@ -228,14 +232,16 @@ import AppKit
     private func startSteadyHealthCheck() {
         healthTimer?.invalidate()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if !self.isPortInUse() {
-                if case .running(owned: true) = self.status {
-                    self.appendLog("Hub health check failed, restarting...")
-                    self.restartHub()
-                } else {
-                    self.status = .stopped
-                    self.appendLog("External Hub no longer available")
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !self.isPortInUse() {
+                    if case .running(owned: true) = self.status {
+                        self.appendLog("Hub health check failed, restarting...")
+                        self.restartHub()
+                    } else {
+                        self.status = .stopped
+                        self.appendLog("External Hub no longer available")
+                    }
                 }
             }
         }

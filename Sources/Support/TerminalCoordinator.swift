@@ -3,8 +3,9 @@ import Foundation
 /// Typed coordinator protocol for terminal surface events.
 /// Replaces stringly-typed NotificationCenter plumbing between
 /// GhosttyNSView (AppKit) and TerminalPaneManager (SwiftUI state).
-/// Typed coordinator protocol for terminal surface events.
-/// All methods are called on the main thread via DispatchQueue.main.async.
+/// All methods run on the main actor (the coordinator mutates SwiftUI
+/// state); callers from AppKit/C callbacks hop via Task { @MainActor }.
+@MainActor
 protocol TerminalCoordinator: AnyObject {
     func requestSplit(direction: SplitNode.SplitDirection)
     func requestCloseSplit()
@@ -20,6 +21,8 @@ protocol TerminalCoordinator: AnyObject {
 
 /// Global holder for the coordinator reference.
 /// Set by ContentView, accessed by GhosttyNSView and GhosttyApp callbacks.
+/// `nonisolated(unsafe)`: set once before any surface exists and never
+/// mutated afterwards; all readers hop to the main actor before use.
 enum TerminalCoordinatorRef {
-    static weak var instance: TerminalCoordinator?
+    nonisolated(unsafe) static weak var instance: TerminalCoordinator?
 }

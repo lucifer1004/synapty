@@ -94,6 +94,7 @@ targets:
             cp -R "$TERMINFO_SRC/." "$TERMINFO_DEST/"
           fi
         name: Bundle deploy and hub binaries
+        basedOnDependencyAnalysis: false
     dependencies:
       - framework: GhosttyKit.xcframework
         embed: false

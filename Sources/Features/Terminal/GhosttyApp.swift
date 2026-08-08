@@ -173,7 +173,7 @@ import AppKit
             // userdata is per-surface: a pointer to UUID (the leaf ID).
             guard let userdata else { return }
             let leafID = userdata.assumingMemoryBound(to: UUID.self).pointee
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 TerminalCoordinatorRef.instance?.leafDidClose(leafID)
             }
         }

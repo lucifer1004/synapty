@@ -48,7 +48,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
         }
         // Notify coordinator of focus change for split navigation
         if let leafID {
-            DispatchQueue.main.async { TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
+            Task { @MainActor in TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
         }
         return super.becomeFirstResponder()
     }
@@ -257,14 +257,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 return true
             case "d":
                 let direction: SplitNode.SplitDirection = hasShift ? .vertical : .horizontal
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: direction) }
+                Task { @MainActor in TerminalCoordinatorRef.instance?.requestSplit(direction: direction) }
                 return true
             case "\\":
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .horizontal) }
+                Task { @MainActor in TerminalCoordinatorRef.instance?.requestSplit(direction: .horizontal) }
                 return true
             case "-":
                 if hasShift {
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical) }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestSplit(direction: .vertical) }
                     return true
                 }
                 // Cmd+- → decrease font size (WI-2026-03-31-005); f32 param
@@ -274,34 +274,34 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 }
                 return true
             case "w":
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestCloseSplit() }
+                Task { @MainActor in TerminalCoordinatorRef.instance?.requestCloseSplit() }
                 return true
             case "]":
                 if hasShift {
                     // Cmd+Shift+] → next tab
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestNextTab() }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestNextTab() }
                 } else {
                     // Cmd+] → next split
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusNextSplit() }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestFocusNextSplit() }
                 }
                 return true
             case "[":
                 if hasShift {
                     // Cmd+Shift+[ → previous tab
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestPreviousTab() }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestPreviousTab() }
                 } else {
                     // Cmd+[ → previous split
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestFocusPreviousSplit() }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestFocusPreviousSplit() }
                 }
                 return true
             case "t":
                 // Cmd+T → new tab in current session
-                DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestNewTab() }
+                Task { @MainActor in TerminalCoordinatorRef.instance?.requestNewTab() }
                 return true
             case "1", "2", "3", "4", "5", "6", "7", "8", "9":
                 // Cmd+1–9 → switch to session by number
                 if let num = Int(chars) {
-                    DispatchQueue.main.async { TerminalCoordinatorRef.instance?.requestSwitchSession(index: num) }
+                    Task { @MainActor in TerminalCoordinatorRef.instance?.requestSwitchSession(index: num) }
                     return true
                 }
             default:
@@ -482,7 +482,7 @@ class GhosttyNSView: NSView, NSTextInputClient {
         window?.makeFirstResponder(self)
         // Update split focus on every click (becomeFirstResponder only fires on change)
         if let leafID {
-            DispatchQueue.main.async { TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
+            Task { @MainActor in TerminalCoordinatorRef.instance?.leafDidFocus(leafID) }
         }
         guard let surface else { return }
         let point = convert(event.locationInWindow, from: nil)

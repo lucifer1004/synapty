@@ -642,7 +642,7 @@ struct NewGroupSheet: View {
                     .textFieldStyle(.roundedBorder)
                     .font(DS.Typography.body)
                     .focused($focused)
-                if let parentID, let parent = hostStore.groups.first(where: { $0.id == parentID }) {
+                if let parentID, hostStore.groups.contains(where: { $0.id == parentID }) {
                     Text("Inside: \(hostStore.groupPath(for: parentID).joined(separator: " / "))")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textSecondary)

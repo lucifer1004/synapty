@@ -85,7 +85,11 @@ struct ChatMessage: Identifiable, Equatable {
     func startMonitoring() {
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.refresh()
+            // Timer callbacks are Sendable; hop to the main actor for the
+            // @MainActor refresh (WI-2026-08-08-009).
+            Task { @MainActor [weak self] in
+                self?.refresh()
+            }
         }
     }
 
