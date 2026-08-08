@@ -12,9 +12,8 @@ enum HostsPane: Hashable {
 struct HostsPageView: View {
     var hostStore: HostStore
     var tunnelManager: TunnelManager
-    /// Termius parity (WI-2026-08-08-058): connect to every host in a
-    /// group (incl. subgroups) at once.
-    var onQuickConnect: (([HostEntry]) -> Void)? = nil
+    /// One-click terminal open from the host list (WI-2026-08-08-064).
+    var onOpenTerminal: ((HostEntry) -> Void)? = nil
 
     /// Currently selected host-list filter.
     @State private var selectedFilter: HostFilter = .all
@@ -298,8 +297,7 @@ struct HostsPageView: View {
                         indent: 0,
                         editingGroupID: $editingGroupID,
                         onNewSubgroup: { parentID in subgroupRequest = GroupSubgroupRequest(parentID: parentID) },
-                        onEdit: { group in groupToEdit = group },
-                        onQuickConnect: { hosts in onQuickConnect?(hosts) }
+                        onEdit: { group in groupToEdit = group }
                     )
                     .tag(HostFilter.group(group.id))
                 }
@@ -442,6 +440,7 @@ struct HostsPageView: View {
                                 store: hostStore,
                                 tunnelStatus: tunnelManager.status(for: host),
                                 isSelected: selectedHostIDs.contains(host.id),
+                                onOpenTerminal: { onOpenTerminal?(host) },
                                 onEdit: { hostToEdit = host },
                                 onDelete: { hostToDelete = host },
                                 onReconnect: { tunnelManager.reconnectTunnel(for: host) },
@@ -749,9 +748,6 @@ struct GroupRow: View {
     let onNewSubgroup: (UUID) -> Void
     /// Open the group settings sheet.
     let onEdit: (HostGroup) -> Void
-    /// Termius parity (WI-2026-08-08-058): connect to every host in the
-    /// group (incl. subgroups).
-    let onQuickConnect: (([HostEntry]) -> Void)?
 
     /// Persisted collapsed groups (WI-2026-08-08-061): JSON-encoded set of
     /// group IDs in UserDefaults; expansion defaults to open. Each row owns
@@ -792,10 +788,6 @@ struct GroupRow: View {
 
     private var isEditing: Bool { editingGroupID == group.id }
 
-    private var groupHosts: [HostEntry] {
-        hostStore.hosts(inGroup: group.id)
-    }
-
     var body: some View {
         DisclosureGroup(isExpanded: isExpandedBinding) {
             if !children.isEmpty {
@@ -806,8 +798,7 @@ struct GroupRow: View {
                         indent: indent + 1,
                         editingGroupID: $editingGroupID,
                         onNewSubgroup: onNewSubgroup,
-                        onEdit: onEdit,
-                        onQuickConnect: onQuickConnect
+                        onEdit: onEdit
                     )
                 }
             }
@@ -875,12 +866,6 @@ struct GroupRow: View {
                 editingGroupID = group.id
             }
             Button("New Subgroup") { onNewSubgroup(group.id) }
-            Divider()
-            // Termius parity (WI-2026-08-08-058): one session per host.
-            Button("Quick Connect — \(groupHosts.count) host\(groupHosts.count == 1 ? "" : "s")") {
-                onQuickConnect?(groupHosts)
-            }
-            .disabled(groupHosts.isEmpty)
             Divider()
             Button("Group Settings\u{2026}") { onEdit(group) }
         }

@@ -41,6 +41,8 @@ struct HostBlockView: View {
     var store: HostStore
     let tunnelStatus: TunnelManager.TunnelStatus
     let isSelected: Bool
+    /// One-click session start from the Hosts list (WI-2026-08-08-064).
+    let onOpenTerminal: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onReconnect: () -> Void
@@ -126,6 +128,17 @@ struct HostBlockView: View {
 
             // Actions
             HStack(spacing: DS.Space.sm) {
+                // One-click terminal open (WI-2026-08-08-064) — the primary
+                // action of a host block.
+                Button(action: onOpenTerminal) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(DS.accent)
+                .help("Open terminal")
+                .accessibilityLabel("Open terminal for \(host.label)")
+
                 if tunnelStatus == .connected {
                     Button(action: onDisconnect) {
                         Image(systemName: "bolt.slash")

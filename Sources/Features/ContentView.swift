@@ -96,13 +96,10 @@ struct ContentView: View {
                         HostsPageView(
                             hostStore: hostStore,
                             tunnelManager: tunnelManager,
-                            onQuickConnect: { hosts in
-                                // Termius parity: one session per host in
-                                // the group (WI-2026-08-08-058).
-                                page = .terminal
-                                for host in hosts {
-                                    handleHostConnect(host)
-                                }
+                            onOpenTerminal: { host in
+                                // One-click terminal from the Hosts list
+                                // (WI-2026-08-08-064).
+                                handleHostConnect(host)
                             }
                         )
                     case .tasks:
@@ -374,9 +371,9 @@ struct ContentView: View {
         }
     }
 
-    /// Shared single-host connect path (session picker, Quick Connect):
+    /// Shared single-host connect path (session picker, Hosts list):
     /// create the placeholder immediately, wire the tunnel when ready
-    /// (WI-2026-08-08-058).
+    /// (WI-2026-08-08-064).
     private func handleHostConnect(_ host: HostEntry) {
         page = .terminal
         let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
