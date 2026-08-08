@@ -27,10 +27,14 @@ enum SubprocessRunner {
     }
 
     /// Synchronous — call from a background queue, never the main thread.
+    /// `input` (when non-nil) is written to the child's stdin after launch —
+    /// used to feed secrets (e.g. the GitHub PAT) without ever putting them
+    /// in argv where `ps` could see them (WI-2026-08-08-043).
     static func run(
         executable: String,
         arguments: [String],
-        timeout: TimeInterval = 30
+        timeout: TimeInterval = 30,
+        input: String? = nil
     ) -> Output {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -40,6 +44,10 @@ enum SubprocessRunner {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
+        let inPipe = input == nil ? nil : Pipe()
+        if let inPipe {
+            process.standardInput = inPipe
+        }
 
         let outHandle = outPipe.fileHandleForReading
         let errHandle = errPipe.fileHandleForReading
@@ -76,6 +84,13 @@ enum SubprocessRunner {
         var launchError: String?
         do {
             try process.run()
+            if let input, let inPipe {
+                // Feed stdin after launch. The token is small — the pipe
+                // write cannot block. Closing stdin lets the child's
+                // prompt read EOF (or the value) and proceed.
+                inPipe.fileHandleForWriting.write(input.data(using: .utf8) ?? Data())
+                inPipe.fileHandleForWriting.closeFile()
+            }
         } catch {
             launchError = "\(error)"
         }

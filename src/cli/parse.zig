@@ -63,6 +63,19 @@ fn parseSkills(allocator: Allocator, args: []const []const u8) !Subcommand {
 fn parseGithub(allocator: Allocator, args: []const []const u8) !Subcommand {
     if (args.len == 0) return ParseError.MissingSubcommand;
     if (mem.eql(u8, args[0], "--help") or mem.eql(u8, args[0], "-h")) return ParseError.HelpRequested;
+
+    // Subcommands (WI-2026-08-08-043): login | logout | status. logout and
+    // status take no parameters.
+    if (mem.eql(u8, args[0], "logout")) {
+        const rest = args[1..];
+        if (rest.len > 0 and (mem.eql(u8, rest[0], "--help") or mem.eql(u8, rest[0], "-h"))) return ParseError.HelpRequested;
+        return .{ .github = .{ .action = .logout } };
+    }
+    if (mem.eql(u8, args[0], "status")) {
+        const rest = args[1..];
+        if (rest.len > 0 and (mem.eql(u8, rest[0], "--help") or mem.eql(u8, rest[0], "-h"))) return ParseError.HelpRequested;
+        return .{ .github = .{ .action = .status } };
+    }
     if (!mem.eql(u8, args[0], "login")) return ParseError.UnknownSubcommand;
     const rest = args[1..];
 
@@ -81,6 +94,7 @@ fn parseGithub(allocator: Allocator, args: []const []const u8) !Subcommand {
 
     if (res.args.help != 0) return ParseError.HelpRequested;
     return .{ .github = .{
+        .action = .login,
         .owner = res.args.owner,
         .repo = res.args.repo,
         .token = res.args.token,

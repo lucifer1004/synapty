@@ -117,8 +117,10 @@ pub fn main(init: std.process.Init) !void {
         .mcp_serve => {
             try mcp.runMcp(allocator);
         },
-        .github => |g| {
-            try commands.runGithubLogin(allocator, g);
+        .github => |g| switch (g.action) {
+            .login => try commands.runGithubLogin(allocator, g),
+            .logout => try commands.runGithubLogout(allocator),
+            .status => try commands.runGithubStatus(allocator),
         },
         .skills => |sk| {
             if (sk.install) try commands.runSkillsInstall(allocator);
@@ -456,4 +458,15 @@ test "parseArgs: run --hub empty host returns error" {
 comptime {
     _ = @import("cli/commands.zig");
     _ = @import("cli/transport.zig");
+}
+
+test "parseArgs: github logout and status subcommands (WI-2026-08-08-043)" {
+    const logout = try parseArgs(std.testing.allocator, &.{ "github", "logout" });
+    try std.testing.expectEqual(types.GithubArgs.Action.logout, logout.github.action);
+    const status = try parseArgs(std.testing.allocator, &.{ "github", "status" });
+    try std.testing.expectEqual(types.GithubArgs.Action.status, status.github.action);
+    const login = try parseArgs(std.testing.allocator, &.{ "github", "login", "--owner", "o", "--repo", "r" });
+    try std.testing.expectEqual(types.GithubArgs.Action.login, login.github.action);
+    try std.testing.expectEqualStrings("o", login.github.owner.?);
+    try std.testing.expectEqualStrings("r", login.github.repo.?);
 }

@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-045"
+title = "feat(gui): host test-connection, session config-drift notice, delete cascade confirm"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "User-scenario gaps #10/#11/#13: hosts have no test-connection affordance (only trial-and-error connects); editing a host does not affect already-created sessions (Session.hostEntry is a value copy) with no drift notice; deleting a host with active sessions/tunnels gives no cascade warning. Deliver: a per-host 'Test' button (BatchMode ssh with short timeout, pass/fail feedback); a config-drift indicator on session rows whose stored hostEntry differs from the current host record; delete-confirm text that counts affected active sessions/tunnels."
+notes = ["Host rows gained a Test-connection button (ssh -o BatchMode=yes -o ConnectTimeout=5 -i <key> user@host true via runQuiet, 8s bound) with idle/ok/fail feedback; session rows show a drift icon when the host record changed after the session was created (Session.hostEntry is a value copy) with 'reconnect to apply' help; the delete-host confirm counts active tunnels and warns about the disconnect cascade."]
+
+[[content.acceptance_criteria]]
+text = "fix: per-host test-connection button with pass/fail feedback"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: session rows show a drift notice when the host config changed after the session was created"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: delete-host confirm mentions affected active sessions/tunnels"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

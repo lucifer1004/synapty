@@ -132,4 +132,5 @@ extension Notification.Name {
     static let synaptyAppearanceChanged = Notification.Name("synaptyAppearanceChanged")
     static let synaptyReloadRequested = Notification.Name("synaptyReloadRequested")
     static let synaptyToggleSettingsPanel = Notification.Name("synaptyToggleSettingsPanel")
+    static let synaptyShowHubPage = Notification.Name("synaptyShowHubPage")
 }

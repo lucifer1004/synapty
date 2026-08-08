@@ -163,7 +163,15 @@ struct HostConfigSheet: View {
             }
         } message: {
             if let host = hostToDelete {
-                Text("Are you sure you want to delete \"\(host.label)\"?")
+                // Cascade warning (WI-2026-08-08-045): active tunnels for
+                // this host will be disconnected.
+                let active = hostStore.hosts
+                    .filter { $0.id == host.id }
+                    .filter { tunnelManager.status(for: $0).isActive }
+                    .count
+                Text(active > 0
+                    ? "Are you sure you want to delete \"\(host.label)\"? \(active) active tunnel\(active == 1 ? "" : "s") will be disconnected."
+                    : "Are you sure you want to delete \"\(host.label)\"?")
             }
         }
         .alert("Delete Identity", isPresented: Binding(
@@ -696,8 +704,37 @@ struct HostConfigRow: View {
     let onReconnect: () -> Void
     let onDisconnect: () -> Void
 
+    // Test-connection state (WI-2026-08-08-045): nil = idle, true = ok,
+    // false = failed.
+    @State private var testResult: Bool?
+    @State private var isTesting = false
+
     private var effectiveUsername: String { store.effectiveUsername(for: host) }
     private var effectivePort: Int { store.effectivePort(for: host) }
+
+    /// ssh -o BatchMode=yes -o ConnectTimeout=5 ... true — no password
+    /// prompts, bounded time, key used when configured.
+    private func testConnection() {
+        guard !isTesting, let binary = "/usr/bin/ssh" as String? else { return }
+        isTesting = true
+        testResult = nil
+        var args = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-p", "\(effectivePort)"]
+        if let key = store.effectiveKeyPath(for: host), !key.isEmpty {
+            args += ["-i", key]
+        }
+        args += ["\(effectiveUsername)@\(host.address)", "true"]
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = SubprocessRunner.runQuiet(
+                executable: binary,
+                arguments: args,
+                timeout: 8
+            )
+            DispatchQueue.main.async {
+                isTesting = false
+                testResult = ok
+            }
+        }
+    }
 
     var body: some View {
         HStack(spacing: DS.Space.md) {
@@ -762,6 +799,30 @@ struct HostConfigRow: View {
                 .help("Reconnect tunnel")
                 .accessibilityLabel("Reconnect tunnel")
             }
+
+            // Test connection (WI-2026-08-08-045): BatchMode ssh with a
+            // short timeout — pass/fail feedback without trial-and-error
+            // connects.
+            Button {
+                testConnection()
+            } label: {
+                if isTesting {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else if testResult == true {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundStyle(DS.success)
+                } else if testResult == false {
+                    Image(systemName: "xmark.circle")
+                        .foregroundStyle(DS.danger)
+                } else {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(DS.textSecondary)
+                }
+            }
+            .buttonStyle(.borderless)
+            .help(testResult == true ? "Connection OK" : (testResult == false ? "Connection failed" : "Test connection"))
+            .accessibilityLabel("Test connection")
 
             Button { onEdit() } label: {
                 Image(systemName: "pencil")

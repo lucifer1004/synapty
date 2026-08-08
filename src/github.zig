@@ -167,6 +167,29 @@ pub fn storeToken(allocator: Allocator, account: []const u8, token: []const u8) 
     _ = allocator;
 }
 
+/// Delete the stored token for the given account. Returns true when a
+/// credential was deleted, false when none existed (security exits 44 for
+/// "item not found"). The ONLY removal path for the bridge credential
+/// (WI-2026-08-08-043).
+pub fn deleteToken(allocator: Allocator, account: []const u8) !bool {
+    const result = try runSecurity(allocator, &.{
+        "security", "delete-generic-password",
+        "-a", account,
+        "-s", keychain_service,
+    });
+    defer {
+        allocator.free(result.stdout);
+        allocator.free(result.stderr);
+    }
+    switch (result.term) {
+        .exited => |code| {
+            if (code == 0) return true;
+            return code == 44; // 44 = item not found -> nothing to delete
+        },
+        else => return error.KeychainDeleteFailed,
+    }
+}
+
 /// Load the token for the given account. Returns null when absent.
 pub fn loadToken(allocator: Allocator, account: []const u8) !?[]const u8 {
     const result = try runSecurity(allocator, &.{

@@ -30,6 +30,16 @@ import os
             }
         }
 
+        /// A tunnel in a state that implies an active/live connection —
+        /// used for cascade warnings when hosts are deleted
+        /// (WI-2026-08-08-045).
+        var isActive: Bool {
+            switch self {
+            case .connected, .connecting, .reconnecting: return true
+            case .disconnected, .failed: return false
+            }
+        }
+
         var color: NSColor {
             switch self {
             case .disconnected: return .systemGray

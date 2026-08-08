@@ -141,6 +141,7 @@ struct HostSidebar: View {
                             SessionRow(
                                 session: session,
                                 paneManager: paneManager,
+                                hostStore: hostStore,
                                 editingSessionID: $editingSessionID,
                                 agent: agent,
                                 agentNeedsAttention: attention,
@@ -234,6 +235,7 @@ private struct NavRailButton: View {
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
     @ObservedObject var paneManager: TerminalPaneManager
+    @ObservedObject var hostStore: HostStore
     @Binding var editingSessionID: UUID?
     /// Agent registered on this session, if any.
     let agent: AgentInfo?
@@ -263,6 +265,19 @@ struct SessionRow: View {
     private var hostAddress: String? {
         guard let host = session.hostEntry else { return nil }
         return "\(host.username)@\(host.address)"
+    }
+
+    /// True when the host record changed AFTER this session was created —
+    /// the session still uses the stale copy (Session.hostEntry is a value
+    /// copy; WI-2026-08-08-045).
+    private var configDrifted: Bool {
+        guard let sessionHost = session.hostEntry,
+              let current = hostStore.hosts.first(where: { $0.id == sessionHost.id })
+        else { return false }
+        return current.address != sessionHost.address
+            || current.port != sessionHost.port
+            || current.username != sessionHost.username
+            || current.sshKeyPath != sessionHost.sshKeyPath
     }
 
     private var tabCount: Int { session.panes.count }
@@ -337,6 +352,12 @@ struct SessionRow: View {
                         .font(DS.Typography.monoCaption)
                         .foregroundStyle(DS.textSecondary)
                         .lineLimit(1)
+                    if configDrifted {
+                        Image(systemName: "arrow.triangle.2.circlepath.circle")
+                            .font(.system(size: 9))
+                            .foregroundStyle(DS.warning)
+                            .help("Host config changed after this session started — reconnect to apply")
+                    }
                 }
 
                 // Count summary — only when there is something notable

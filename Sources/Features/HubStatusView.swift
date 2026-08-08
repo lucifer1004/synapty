@@ -6,6 +6,21 @@ struct HubStatusSheet: View {
     @ObservedObject var agentMonitor: AgentMonitor
     @ObservedObject var taskMonitor: TaskMonitor
 
+    /// Bound hub repo details from `synapty github status`
+    /// (WI-2026-08-08-044): owner/repo/username when configured.
+    @State private var binding: GithubBinding?
+    @State private var showConnectSheet = false
+    @State private var isDisconnecting = false
+
+    /// Parsed `synapty github status` output.
+    struct GithubBinding {
+        var owner: String
+        var repo: String
+        var username: String?
+        var hasToken: Bool
+        var configured: Bool { hasToken }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -153,6 +168,60 @@ struct HubStatusSheet: View {
 
     // MARK: - GitHub bridge (RFC-0003 C-AUTH)
 
+    /// Fetch the current binding (owner/repo/username) via the CLI.
+    private func refreshBinding() {
+        guard let binary = SynaptyBinary.resolve() else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let output = SubprocessRunner.run(
+                executable: binary,
+                arguments: ["github", "status"],
+                timeout: 15
+            )
+            DispatchQueue.main.async {
+                guard output.error == nil, !output.timedOut,
+                      let data = output.stdout.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let configured = json["configured"] as? Bool
+                else { return }
+                if configured {
+                    self.binding = GithubBinding(
+                        owner: json["owner"] as? String ?? "",
+                        repo: json["repo"] as? String ?? "",
+                        username: json["username"] as? String,
+                        hasToken: json["hasToken"] as? Bool ?? true
+                    )
+                } else {
+                    // Keep owner/repo if present (pre-fill for Change/Connect).
+                    self.binding = GithubBinding(
+                        owner: json["owner"] as? String ?? "",
+                        repo: json["repo"] as? String ?? "",
+                        username: json["username"] as? String,
+                        hasToken: false
+                    )
+                }
+            }
+        }
+    }
+
+    /// Unbind via `synapty github logout` (WI-2026-08-08-043).
+    private func disconnect() {
+        guard let binary = SynaptyBinary.resolve(), !isDisconnecting else { return }
+        isDisconnecting = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = SubprocessRunner.run(
+                executable: binary,
+                arguments: ["github", "logout"],
+                timeout: 20
+            )
+            DispatchQueue.main.async {
+                isDisconnecting = false
+                binding = nil
+                taskMonitor.refreshTasks() // re-derive bridgeStatus
+                refreshBinding()
+            }
+        }
+    }
+
     @ViewBuilder
     private var githubBridgeSection: some View {
         HStack(spacing: DS.Space.sm) {
@@ -191,10 +260,49 @@ struct HubStatusSheet: View {
                             .foregroundStyle(DS.textSecondary)
                     }
                 }
-                if taskMonitor.bridgeStatus == .notConfigured {
-                    Text("Run `synapty github login` in any terminal pane to configure the hub repo and token. The credential stays in your Keychain.")
+
+                // Bound repo details (WI-2026-08-08-044) — visible for both
+                // configured and error states so users know WHAT is bound.
+                if let binding {
+                    HStack(spacing: DS.Space.xs) {
+                        Image(systemName: "book.closed")
+                            .font(.system(size: 9))
+                            .foregroundStyle(DS.textTertiary)
+                        Text(binding.owner.isEmpty ? "…" : "\(binding.owner)/\(binding.repo)")
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textSecondary)
+                        if let username = binding.username, !username.isEmpty {
+                            Text("· \(username)")
+                                .font(DS.Typography.monoCaption)
+                                .foregroundStyle(DS.textTertiary)
+                        }
+                    }
+                }
+
+                if taskMonitor.bridgeStatus == .notConfigured && (binding?.owner.isEmpty ?? true) {
+                    Text("Connect a hub repo to start the task center. The credential stays in your Keychain.")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textSecondary)
+                }
+
+                // Action entry (WI-2026-08-08-043/044): every state has a
+                // path forward — Connect, Change, or Disconnect.
+                HStack(spacing: DS.Space.sm) {
+                    Button {
+                        showConnectSheet = true
+                    } label: {
+                        Label(taskMonitor.bridgeStatus == .configured ? "Change" : "Connect", systemImage: "link.badge.plus")
+                    }
+                    .controlSize(.small)
+                    if binding?.owner.isEmpty == false {
+                        Button {
+                            disconnect()
+                        } label: {
+                            Label(isDisconnecting ? "Disconnecting…" : "Disconnect", systemImage: "link.slash")
+                        }
+                        .controlSize(.small)
+                        .disabled(isDisconnecting)
+                    }
                 }
             }
         }
@@ -205,6 +313,18 @@ struct HubStatusSheet: View {
         )
         .padding(.horizontal, DS.Space.xl)
         .padding(.vertical, DS.Space.lg)
+        .sheet(isPresented: $showConnectSheet) {
+            GithubConnectSheet(
+                isPresented: $showConnectSheet,
+                onConnected: {
+                    taskMonitor.refreshTasks()
+                    refreshBinding()
+                }
+            )
+        }
+        .onAppear {
+            refreshBinding()
+        }
     }
 
     private var statusColor: Color {

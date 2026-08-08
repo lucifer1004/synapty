@@ -43,6 +43,10 @@ pub const SkillsArgs = struct {
 
 /// `synapty github login` — configure hub repo + store PAT (C-AUTH).
 pub const GithubArgs = struct {
+    /// login | logout | status (WI-2026-08-08-043).
+    pub const Action = enum { login, logout, status };
+
+    action: Action = .login,
     owner: ?[]const u8 = null,
     repo: ?[]const u8 = null,
     token: ?[]const u8 = null,

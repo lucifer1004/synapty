@@ -275,6 +275,58 @@ fn accountOf(allocator: Allocator, owner: []const u8, repo: []const u8) []const 
     return std.fmt.allocPrint(allocator, "{s}/{s}", .{ owner, repo }) catch "github";
 }
 
+/// `synapty github logout` — unbind the bridge: delete the Keychain
+/// credential AND the config binding (owner/repo/username). The ONLY
+/// removal path for the stored PAT (WI-2026-08-08-043).
+pub fn runGithubLogout(allocator: Allocator) !void {
+    const config = try github.Config.load(allocator);
+    if (config) |c| {
+        const account = accountOf(allocator, c.owner, c.repo);
+        defer allocator.free(account);
+        const deleted = try github.deleteToken(allocator, account);
+        if (deleted) {
+            try io_mod.stdoutWriteAll("Removed GitHub credential for ");
+            try io_mod.stdoutWriteAll(c.owner);
+            try io_mod.stdoutWriteAll("/");
+            try io_mod.stdoutWriteAll(c.repo);
+            try io_mod.stdoutWriteAll("\n");
+        } else {
+            try io_mod.stdoutWriteAll("No stored credential found — clearing the binding anyway.\n");
+        }
+        // The config file only carries the github binding — remove it.
+        if (try github.Config.configPath(allocator)) |path| {
+            defer allocator.free(path);
+            sys.unlink(path);
+        }
+        try io_mod.stdoutWriteAll("GitHub bridge unbound.\n");
+    } else {
+        try io_mod.stdoutWriteAll("GitHub bridge is not configured.\n");
+    }
+}
+
+/// `synapty github status` — print the current binding as JSON for the
+/// GUI: {configured, owner, repo, username?, hasToken} (WI-2026-08-08-043).
+pub fn runGithubStatus(allocator: Allocator) !void {
+    var payload = json.ObjectMap.empty;
+    const config = try github.Config.load(allocator);
+    if (config) |c| {
+        const account = accountOf(allocator, c.owner, c.repo);
+        defer allocator.free(account);
+        const has_token = (try github.loadToken(allocator, account)) != null;
+        try payload.put(allocator, "configured", .{ .bool = has_token });
+        try payload.put(allocator, "owner", .{ .string = c.owner });
+        try payload.put(allocator, "repo", .{ .string = c.repo });
+        if (c.username) |u| try payload.put(allocator, "username", .{ .string = u });
+        try payload.put(allocator, "hasToken", .{ .bool = has_token });
+    } else {
+        try payload.put(allocator, "configured", .{ .bool = false });
+    }
+    const raw = try json.Stringify.valueAlloc(allocator, json.Value{ .object = payload }, .{});
+    defer allocator.free(raw);
+    try io_mod.stdoutWriteAll(raw);
+    try io_mod.stdoutWriteAll("\n");
+}
+
 // ---------------------------------------------------------------------------
 // task subcommand — RFC-0003 C-CLI-TOOLS
 // ---------------------------------------------------------------------------

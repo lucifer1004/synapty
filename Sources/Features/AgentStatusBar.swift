@@ -128,10 +128,18 @@ struct ContextStatusBar: View {
             .buttonStyle(.plain)
             .help("GitHub bridge not configured — run `synapty github login` in a pane")
         case .error:
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 10))
-                .foregroundColor(DS.danger)
-                .help(taskMonitor.lastError ?? "GitHub bridge error")
+            Button {
+                // Jump to the Hub page — its bridge section shows the
+                // error AND offers Connect/Change/Disconnect
+                // (WI-2026-08-08-044).
+                NotificationCenter.default.post(name: .synaptyShowHubPage, object: nil)
+            } label: {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 10))
+                    .foregroundColor(DS.danger)
+            }
+            .buttonStyle(.plain)
+            .help(taskMonitor.lastError ?? "GitHub bridge error")
         }
     }
 

@@ -186,8 +186,15 @@ struct ContentView: View {
                 .padding(.top, 8)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyShowShortcuts)) { _ in
-            showShortcuts = true
+        .onReceive(
+            NotificationCenter.default.publisher(for: .synaptyShowShortcuts)
+                .merge(with: NotificationCenter.default.publisher(for: .synaptyShowHubPage))
+        ) { note in
+            switch note.name {
+            case .synaptyShowShortcuts: showShortcuts = true
+            case .synaptyShowHubPage: page = .hub
+            default: break
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
             showSettingsPanel.toggle()
@@ -219,28 +226,20 @@ struct ContentView: View {
         .onChange(of: settings.tunnelPort) { _, newPort in
             tunnelManager.tunnelPort = newPort
         }
-        .onAppear {
-            // The SwiftUI WindowGroup window often does not exist yet at
-            // applicationDidFinishLaunching — enforce the min size on the
-            // real window here (WI-2026-08-08-033).
-            if let window = NSApp.keyWindow {
-                window.minSize = NSSize(width: 760, height: 480)
+        // Window lifecycle + page-switch effects in one modifier — keeps
+        // the main body expression small enough for the type-checker
+        // (WI-2026-08-08-043 round).
+        .modifier(WindowLifecycle(
+            page: $page,
+            taskMonitor: taskMonitor,
+            ghosttyAppProvider: { appDelegate.ghosttyApp },
+            onStop: {
+                agentMonitor.stopMonitoring()
+                taskMonitor.stop()
+                tunnelManager.stopHeartbeat()
+                hubManager.shutdown()
             }
-            // Initial activity-poll state (WI-2026-08-08-041).
-            taskMonitor.setActivityPollingEnabled(page == .activity)
-        }
-        .onDisappear {
-            agentMonitor.stopMonitoring()
-            taskMonitor.stop()
-            tunnelManager.stopHeartbeat()
-            hubManager.shutdown()
-        }
-        // Page switch: pause hidden terminal surfaces (WI-2026-08-07-006)
-        // and the Activity-page poll (WI-2026-08-08-041).
-        .onChange(of: page) { _, newPage in
-            appDelegate.ghosttyApp?.setSurfacesPaused(newPage != .terminal)
-            taskMonitor.setActivityPollingEnabled(newPage == .activity)
-        }
+        ))
     }
 
     // MARK: - Terminal page
@@ -341,5 +340,41 @@ struct ContentView: View {
         tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
             paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
         }
+    }
+}
+
+
+// MARK: - Window lifecycle + page-switch effects
+
+/// Holds the window min-size enforcement, teardown, and page-switch side
+/// effects (surface pausing + activity-poll gating) — extracted from the
+/// main body to keep its expression type-checkable (WI-2026-08-08-043).
+private struct WindowLifecycle: ViewModifier {
+    @Binding var page: AppPage
+    let taskMonitor: TaskMonitor
+    let ghosttyAppProvider: () -> GhosttyApp?
+    let onStop: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                // The SwiftUI WindowGroup window often does not exist yet
+                // at applicationDidFinishLaunching — enforce the min size
+                // on the real window here (WI-2026-08-08-033).
+                if let window = NSApp.keyWindow {
+                    window.minSize = NSSize(width: 760, height: 480)
+                }
+                // Initial activity-poll state (WI-2026-08-08-041).
+                taskMonitor.setActivityPollingEnabled(page == .activity)
+            }
+            .onDisappear {
+                onStop()
+            }
+            // Page switch: pause hidden terminal surfaces (WI-2026-08-07-006)
+            // and the Activity-page poll (WI-2026-08-08-041).
+            .onChange(of: page) { _, newPage in
+                ghosttyAppProvider()?.setSurfacesPaused(newPage != .terminal)
+                taskMonitor.setActivityPollingEnabled(newPage == .activity)
+            }
     }
 }
