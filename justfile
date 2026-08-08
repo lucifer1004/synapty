@@ -88,8 +88,10 @@ package:
     rm -rf "$STAGE" "zig-out/package/${DMG_NAME}.dmg" "zig-out/package/${DMG_NAME}-rw.dmg"
     mkdir -p "$STAGE/.deploy"
 
-    # Find the most recently built Synapty.app (sorted by modification time)
-    APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/Synapty-*/Build/Products/Release \
+    # Find the most recently built Synapty.app — check BOTH DerivedData
+    # locations (default and .build/DerivedData, WI-2026-08-08-088).
+    APP_PATH=$(find .build/DerivedData/Build/Products/Release \
+        ~/Library/Developer/Xcode/DerivedData/Synapty-*/Build/Products/Release \
         -name 'Synapty.app' -maxdepth 1 -print0 2>/dev/null \
         | xargs -0 ls -dt 2>/dev/null | head -1)
     if [ -z "$APP_PATH" ]; then
@@ -100,6 +102,13 @@ package:
 
     # Applications symlink for drag-to-install
     ln -s /Applications "$STAGE/Applications"
+
+    # Zip artifact for Homebrew Cask (WI-2026-08-08-088): the cask points
+    # at the GitHub Release zip asset and needs its sha256.
+    echo "==> Creating zip for Homebrew Cask..."
+    ditto -c -k --keepParent "$STAGE/Synapty.app" "zig-out/package/Synapty-${VERSION}.zip"
+    echo "    Synapty-${VERSION}.zip: $(ls -lh "zig-out/package/Synapty-${VERSION}.zip" | awk '{print $5}')"
+    echo "    sha256: $(shasum -a 256 "zig-out/package/Synapty-${VERSION}.zip" | awk '{print $1}')"
 
     # Copy all deploy binaries (hidden in .deploy so DMG window stays clean)
     for target in linux-aarch64 linux-x86_64 linux-riscv64 macos-aarch64 macos-x86_64; do

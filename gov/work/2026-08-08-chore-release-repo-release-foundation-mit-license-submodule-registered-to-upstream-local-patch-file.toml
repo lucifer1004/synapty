@@ -3,9 +3,10 @@
 [govctl]
 id = "WI-2026-08-08-087"
 title = "chore(release): repo release foundation — MIT license, submodule registered to upstream, local patch file"
-status = "active"
+status = "done"
 created = "2026-08-08"
 started = "2026-08-08"
+completed = "2026-08-08"
 
 [content]
 description = """
@@ -16,20 +17,20 @@ Release prep (GitHub Release + Homebrew Cask path, no Apple account):
 
 [[content.acceptance_criteria]]
 text = "MIT LICENSE at repo root"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "ghostty registered as gitlink at upstream commit; git submodule update --init reproduces it"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "local SYNAPTY_METAL_DIR patch lives in scripts/patches and is applied only when needed"
-status = "pending"
+status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
 text = "test: Swift + Zig suites still green; local build still works with the patch"
-status = "pending"
+status = "done"
 category = "chore"
