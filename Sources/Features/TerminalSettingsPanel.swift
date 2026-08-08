@@ -17,9 +17,6 @@ struct TerminalSettingsPanel: View {
         VStack(spacing: 0) {
             // Panel header
             HStack(spacing: DS.Space.sm) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(DS.accent)
                 Text("Terminal")
                     .font(DS.Typography.title)
                 DSHelpButton(text: "Quick settings — apply live to the terminal. The full set lives in Settings → Terminal.")
@@ -41,32 +38,82 @@ struct TerminalSettingsPanel: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.xl) {
-                    // Theme — light/dark pair side by side
-                    DSSectionBlock(title: "Theme") {
-                        SettingsThemeControls(settings: settings, pickerWidth: 118)
+                // Compact label+control rows (WI-2026-08-08-081).
+                VStack(alignment: .leading, spacing: DS.Space.lg) {
+                    row("Light") {
+                        ThemePicker(
+                            selection: Binding(
+                                get: { settings.lightThemeName },
+                                set: { settings.lightThemeName = $0 }
+                            ),
+                            themes: SynaptySettings.builtinThemeNames,
+                            width: 150
+                        )
                     }
-
-                    // Font
-                    DSSectionBlock(title: "Font") {
-                        SettingsFontControls(settings: settings, families: fontFamilies)
+                    row("Dark") {
+                        ThemePicker(
+                            selection: Binding(
+                                get: { settings.darkThemeName },
+                                set: { settings.darkThemeName = $0 }
+                            ),
+                            themes: SynaptySettings.builtinThemeNames,
+                            width: 150
+                        )
                     }
-
-                    // Background opacity — debounced while dragging
-                    DSSectionBlock(title: "Background") {
-                        SettingsBackgroundOpacityControl(value: $localOpacity)
+                    row("Font") {
+                        FontFamilyPicker(
+                            selection: Binding(
+                                get: { settings.fontFamily },
+                                set: { settings.fontFamily = $0 }
+                            ),
+                            families: fontFamilies
+                        )
+                    }
+                    row("Size") {
+                        Stepper(
+                            "Size",
+                            value: Binding(
+                                get: { settings.fontSize ?? 12 },
+                                set: { settings.fontSize = $0 }
+                            ),
+                            in: 6...48,
+                            step: 1
+                        )
+                        .labelsHidden()
+                        if let size = settings.fontSize {
+                            Text("\(Int(size)) pt")
+                                .font(DS.Typography.monoCaption)
+                                .foregroundStyle(DS.textSecondary)
+                        }
+                    }
+                    row("Opacity") {
+                        Slider(value: $localOpacity, in: 0.1...1.0)
                             .onChange(of: localOpacity) { _, newValue in
                                 scheduleOpacityWrite(newValue)
                             }
+                        Text("\(Int(localOpacity * 100))%")
+                            .font(DS.Typography.monoCaption)
+                            .foregroundStyle(DS.textSecondary)
+                            .frame(width: 36, alignment: .trailing)
                     }
-
-                    // Cursor
-                    DSSectionBlock(title: "Cursor") {
-                        SettingsCursorControl(settings: settings)
+                    row("Cursor") {
+                        Picker(
+                            "Style",
+                            selection: Binding(
+                                get: { settings.cursorStyle },
+                                set: { settings.cursorStyle = $0 }
+                            )
+                        ) {
+                            Text("Default").tag(String?.none)
+                            ForEach(SynaptySettings.cursorStyleOptions, id: \.0) { value, label in
+                                Text(label).tag(String?.some(value))
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
                     }
                 }
-                .padding(.horizontal, DS.Space.lg)
-                .padding(.bottom, DS.Space.lg)
+                .padding(DS.Space.lg)
             }
         }
         .background(DS.surface)
@@ -81,6 +128,18 @@ struct TerminalSettingsPanel: View {
             // (WI-2026-08-08-033). The slider binding keeps localOpacity
             // current, so flushing it is always the right final write.
             flushOpacityWrite(localOpacity)
+        }
+    }
+
+    /// One compact row: fixed-width label + control.
+    private func row(_ label: String, @ViewBuilder control: () -> some View) -> some View {
+        HStack(spacing: DS.Space.md) {
+            Text(label)
+                .font(DS.Typography.detail)
+                .foregroundStyle(DS.textSecondary)
+                .frame(width: 52, alignment: .leading)
+            control()
+            Spacer(minLength: 0)
         }
     }
 

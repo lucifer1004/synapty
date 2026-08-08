@@ -107,10 +107,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                     if showSettingsPanel && page == .terminal {
-                        TerminalSettingsPanel(settings: settings) {
-                            showSettingsPanel = false
-                        }
-                        .frame(width: settingsPanelWidth)
+                        // Handle on the panel's LEFT edge (WI-2026-08-08-081).
                         DSDragDivider(
                             onDrag: { delta in
                                 let start = panelDragStart ?? settingsPanelWidth
@@ -119,6 +116,10 @@ struct ContentView: View {
                             },
                             onEnded: { panelDragStart = nil }
                         )
+                        TerminalSettingsPanel(settings: settings) {
+                            showSettingsPanel = false
+                        }
+                        .frame(width: settingsPanelWidth)
                     }
                 }
             }
@@ -175,23 +176,26 @@ struct ContentView: View {
                 // Settings-panel toggle — available on EVERY page
                 // (WI-2026-08-08-052). When the panel is visible it shifts
                 // left of the panel instead of covering its close button.
-                Button {
-                    showSettingsPanel.toggle()
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(showSettingsPanel ? DS.accent : DS.textSecondary)
-                        .frame(width: 26, height: 24)
-                        .background(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .fill(showSettingsPanel ? DS.accentSoft : DS.hover)
-                        )
+                // Hidden while the panel is open — the panel header has its
+                // own close button (WI-2026-08-08-081).
+                if !showSettingsPanel {
+                    Button {
+                        showSettingsPanel.toggle()
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DS.textSecondary)
+                            .frame(width: 26, height: 24)
+                            .background(
+                                RoundedRectangle(cornerRadius: DS.Radius.md)
+                                    .fill(DS.hover)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Terminal settings panel (⌘⌥P)")
+                    .accessibilityLabel("Terminal settings panel")
+                    .padding(DS.Space.sm)
                 }
-                .buttonStyle(.plain)
-                .help("Terminal settings panel (⌘⌥P)")
-                .accessibilityLabel("Terminal settings panel")
-                .padding(DS.Space.sm)
-                .padding(.trailing, showSettingsPanel ? 300 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DS.background)

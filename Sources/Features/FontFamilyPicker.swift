@@ -53,7 +53,7 @@ struct FontFamilyPicker: View {
             .padding(.horizontal, DS.Space.md)
             .padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: DS.Radius.sm).fill(DS.hover))
-            .frame(width: 260)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showPopover, arrowEdge: .bottom) {

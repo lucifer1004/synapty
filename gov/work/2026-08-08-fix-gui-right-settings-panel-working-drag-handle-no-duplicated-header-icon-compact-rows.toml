@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-081"
+title = "fix(gui): right settings panel — working drag handle, no duplicated header icon, compact rows"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: (1) the right panel cannot be dragged — in the docked form the resize handle sits at the window's right edge instead of the panel's left edge; (2) with the panel open, the top shows two icons — the global panel toggle (slider icon) next to the panel's own header icon+close; (3) the panel content is still not compact enough.
+
+Fix: move the docked handle to the panel's LEFT edge; hide the global toggle button while the panel is open (the panel's own close button suffices); rebuild the panel content as compact label+control rows (Theme/Font/Size/Opacity/Cursor on one line each) instead of stacked section blocks."""
+
+[[content.acceptance_criteria]]
+text = "docked panel drags from its LEFT edge (works like the floating form)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "only one icon row with the panel open (global toggle hidden while open)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "panel content is compact label+control rows, no stacked section blocks"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"
