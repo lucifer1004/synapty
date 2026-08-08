@@ -40,7 +40,7 @@ fn ipcRoundtrip(allocator: Allocator, request: protocol.IpcRequest) !bool {
 // Subcommand handlers
 // ---------------------------------------------------------------------------
 
-/// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
+/// Agent registration per [[RFC-0003]] (agent identity).
 /// Routes through IPC to daemon, which forwards agent_update to Hub.
 pub fn runRegister(allocator: Allocator, args: RegisterArgs) !void {
     const used_ipc = try ipcRoundtrip(allocator, .{
@@ -55,7 +55,7 @@ pub fn runRegister(allocator: Allocator, args: RegisterArgs) !void {
     }
 }
 
-/// Channel subcommand handler per [[RFC-0002:C-GROUP-CHAT]].
+/// Channel subcommand handler per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface).
 pub fn runChannel(allocator: Allocator, action: protocol.IpcAction, args: IpcArgs) !void {
     const used_ipc = try ipcRoundtrip(allocator, switch (action) {
         .channel_create => .{ .action = .channel_create, .channel = args.channel_create.name, .description = args.channel_create.description },
@@ -98,7 +98,7 @@ pub fn runSend(allocator: Allocator, args: SendArgs) !void {
 /// an unterminated frame is dropped at EOF while the sender still reports
 /// "sent to ...".
 fn writeSendEnvelope(allocator: Allocator, fd: sys.fd_t, source_id: []const u8, target: []const u8, text: []const u8) !void {
-    // Build the DM envelope per [[RFC-0002:C-DM]].
+    // Build the DM envelope per [[RFC-0003]] (direct message envelope, legacy chat surface).
     var payload_obj = json.ObjectMap.empty;
     try payload_obj.put(allocator, "text", .{ .string = text });
     const envelope = protocol.Envelope{

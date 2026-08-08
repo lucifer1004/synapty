@@ -3,7 +3,7 @@
 [govctl]
 id = "ADR-0004"
 title = "Single Binary — Merge Hub, Daemon, and CLI"
-status = "proposed"
+status = "accepted"
 date = "2026-03-31"
 refs = [
     "ADR-0001",
@@ -14,3 +14,11 @@ refs = [
 context = "Synapty builds three separate executables: synapty (CLI), synapty-hub (standalone A2A router), and synapty-daemon (remote agent wrapper). Per [[ADR-0001]], the Hub is now embedded in the GUI app, making the standalone Hub binary dev/test-only. The daemon (--id, --hub, -- child) is functionally equivalent to the CLI's 'run' subcommand (--id, -- child) with a hardcoded Hub address. All three share the same protocol/ipc/run modules and produce nearly identical ~1.8M binaries. The deploy scripts already scp only the CLI binary. Cross-compiling 3 binaries × 5 platforms is unnecessary when one binary with subcommands would suffice."
 decision = "Merge all three executables into a single 'synapty' binary with subcommands. The daemon becomes a --hub flag on the existing 'run' subcommand. The standalone Hub becomes a new 'hub' subcommand for development and testing. Remove synapty-hub and synapty-daemon build targets from build.zig. Cross-compilation deploy targets build only the unified binary."
 consequences = "Positive: build matrix drops from 15 artifacts (3×5) to 5 (1×5); deploy scripts simplified (already only deploy CLI); daemon/CLI code duplication eliminated; single binary for remote hosts. Negative: binary grows ~200K (hub code added); standalone hub no longer has a separate binary (mitigated by 'hub' subcommand). Alternatives considered: (1) keep three binaries — growing maintenance burden for identical functionality; (2) merge daemon into CLI only, keep hub separate — half-measure, hub is already dev-only. Risk: the GUI app's embedded Hub uses hub.zig as a library module — this continues to work unchanged since the merge only affects build targets, not the module itself."
+
+[[content.alternatives]]
+text = "Keep three separate executables (synapty-hub, synapty-daemon, synapty CLI) with their own build targets and deploy matrix"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Merge hub/daemon/CLI into a single synapty binary with subcommands (hub, run --hub, task, skills, github)"
+status = "accepted"

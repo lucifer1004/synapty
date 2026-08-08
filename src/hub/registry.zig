@@ -99,7 +99,7 @@ pub const RoutingTable = struct {
 };
 
 // ---------------------------------------------------------------------------
-// Agent Registry — per [[RFC-0002:C-AGENT-IDENTITY]]
+// Agent Registry — per [[RFC-0003]] (agent identity)
 // ---------------------------------------------------------------------------
 
 pub const AgentInfo = struct {
@@ -184,7 +184,7 @@ pub const AgentRegistry = struct {
 };
 
 // ---------------------------------------------------------------------------
-// Channel Registry — per [[RFC-0002:C-GROUP-CHAT]]
+// Channel Registry — per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface)
 // ---------------------------------------------------------------------------
 
 pub const Channel = struct {
@@ -347,7 +347,7 @@ pub const ChannelRegistry = struct {
 };
 
 // ---------------------------------------------------------------------------
-// Message Log — per [[RFC-0002:C-HUB-STATE]]
+// Message Log — per [[RFC-0003]] (hub state)
 // ---------------------------------------------------------------------------
 
 pub const LogEntry = struct {

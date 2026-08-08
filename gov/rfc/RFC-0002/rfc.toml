@@ -4,11 +4,11 @@
 id = "RFC-0002"
 title = "A2A Messaging Protocol — IM-Style DM and Group Chat"
 version = "0.1.0"
-status = "normative"
-phase = "impl"
+status = "deprecated"
+phase = "stable"
 owners = ["@lucifer1004"]
 created = "2026-03-28"
-updated = "2026-03-28"
+updated = "2026-08-08"
 signature = "bebefc80d0aaca56539e510abdb22c9bc88374c155da4830aa31319e1721898c"
 
 [[sections]]

@@ -212,7 +212,7 @@ fn handleToolsList(allocator: Allocator, id: json.Value) ![]const u8 {
     const id_str = try jsonValueToString(allocator, id);
     defer allocator.free(id_str);
 
-    // MCP tools per [[RFC-0002:C-CLI-MCP]] — built from tool_registry.
+    // MCP tools per [[RFC-0003:C-CLI-TOOLS]] (daemon socket) — built from tool_registry.
     var out = std.ArrayList(u8).empty;
     defer out.deinit(allocator);
     try out.appendSlice(allocator, "{\"jsonrpc\":\"2.0\",\"id\":");

@@ -13,7 +13,7 @@ The embedded hub is re-purposed:
 
 1. Connection registry — agents register/unregister as today; the routing
    table maps agent id -> pane/connection for supervision purposes.
-2. Issue-state aggregator — the hub owns the polled view of the hub repo
+2. Issue-state aggregator — the hub owns the issue-state view of the hub repo (aggregated from request-driven API calls; the GUI refreshes by polling the hub at sane intervals in V1, see C-EVENTS)
    (per-project task counts, per-agent assignments) and pushes updates to the
    GUI status bar.
 3. Terminal-event bridge endpoint — (V1.5) OSC sequences emitted by agents in

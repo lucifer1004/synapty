@@ -13,3 +13,18 @@ Implements [[RFC-0003]] (A2A reduction cleanup — mark RFC-0002 chat surface de
 Acceptance criteria:
 - TBD — detailed in the work item when started
 """
+
+[[content.acceptance_criteria]]
+text = "RFC-0003 documents the A2A reduction (C-A2A-REDUCTION) superseding the RFC-0002 chat surface"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "deprecated surfaces (mcp-serve) are marked deprecated in configs/README and the RFC-0003 changelog"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "RFC-0002 record reflects its deprecation (status/phase/changelog)"
+status = "done"
+category = "chore"

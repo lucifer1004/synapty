@@ -5,10 +5,10 @@ id = "RFC-0003"
 title = "GitHub Issues as the Collaboration Center — Event/State/Artifact Model"
 version = "0.1.0"
 status = "normative"
-phase = "spec"
+phase = "impl"
 owners = ["@lucifer1004"]
 created = "2026-08-05"
-signature = "efb81ce7fd1cadc1f46dc59751af94aa321b4d54cd6b41ced67ce223d9aee75c"
+signature = "d9bc5d5aabe62819f4100f809d2b3e6e50192fa313987555be044f81fb95ae5b"
 
 [[sections]]
 title = "Summary"
@@ -57,6 +57,7 @@ clauses = ["clauses/C-NON-GOALS.toml"]
 version = "0.1.0"
 date = "2026-08-05"
 notes = "Initial draft — collaboration model pivots from agent dialogue to GitHub Issues as the shared task center"
+changed = ["C-EVENTS and C-HUB-ROLE amended: the GUI refreshes its views by polling the hub (agents 5s, activity 5s, tasks 60s, a deliberate 2026-08-05 decision recorded in the work-item ledger) — the GitHub bridge itself stays request-driven (no poll tax on the API)"]
 
 [[changelog]]
 version = "0.2.0"

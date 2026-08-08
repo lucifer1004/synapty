@@ -3,15 +3,21 @@
 [govctl]
 id = "ADR-0002"
 title = "Module Structure — Hub Submodules and Action Consolidation"
-status = "proposed"
+status = "accepted"
 date = "2026-03-28"
 refs = ["RFC-0002"]
 
 [content]
 context = "hub.zig grew to 1432 lines with 4 distinct concerns (connection lifecycle, registries, message handlers, server). cli.zig mixed arg parsing with transport logic. IPC action definitions were duplicated across 4 files. build.zig had repeated test module wiring."
-decision = """
-Describe the decision that was made.
-What is the change that we're proposing and/or doing?"""
+decision = "Split hub.zig into per-concern submodules under src/hub/: connection.zig (connection lifecycle + outbound writer), registry.zig (routing table, agent registry, channel registry, activity/message logs), handlers.zig (message dispatch + response builders), server.zig (accept loop + background lifecycle), session.zig (reader/framing per connection). hub.zig re-exports the public surface (HubServer, Connection, HubState) so callers are unchanged. The CLI's IPC action definitions move to protocol.zig as the single source of truth, and build.zig's repeated test-module wiring is consolidated into a helper."
 consequences = """
 Describe the resulting context after applying the decision.
 What becomes easier or more difficult to do because of this change?"""
+
+[[content.alternatives]]
+text = "Keep hub.zig as a single 1400+ line file with all four concerns inline"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Split hub.zig into per-concern submodules (connection/registry/handlers/server/session) with the public surface re-exported"
+status = "accepted"

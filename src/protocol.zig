@@ -7,7 +7,7 @@ const Allocator = mem.Allocator;
 // A2A JSON Routing Envelope
 // ---------------------------------------------------------------------------
 
-/// Top-level message types per [[RFC-0002:C-MESSAGE-TYPES]].
+/// Top-level message types per [[RFC-0003]] (envelope types).
 pub const MessageType = enum {
     // Session lifecycle
     register,
@@ -92,7 +92,7 @@ pub fn parseEnvelope(allocator: Allocator, raw: []const u8) !json.Parsed(Envelop
 // IPC types (unix socket communication between CLI and daemon)
 // ---------------------------------------------------------------------------
 
-/// IPC actions per [[RFC-0002:C-CLI-MCP]].
+/// IPC actions per [[RFC-0003:C-CLI-TOOLS]] (the daemon socket the task CLI routes through).
 pub const IpcAction = enum {
     send,
     recv,
@@ -126,7 +126,7 @@ pub const IpcAction = enum {
     }
 };
 
-/// IPC request per [[RFC-0002:C-CLI-MCP]] — fields are action-specific.
+/// IPC request per [[RFC-0003:C-CLI-TOOLS]] — fields are action-specific.
 pub const IpcRequest = struct {
     action: IpcAction,
     // send

@@ -82,7 +82,7 @@ pub const TaskCreateArgs = struct {
     body: ?[]const u8 = null,
 };
 
-/// Agent registration per [[RFC-0002:C-AGENT-IDENTITY]].
+/// Agent registration per [[RFC-0003]] (agent identity).
 pub const RegisterArgs = struct {
     tool: []const u8,
     project: ?[]const u8 = null,

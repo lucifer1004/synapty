@@ -3,7 +3,7 @@
 [govctl]
 id = "ADR-0001"
 title = "V1 Scope — Happy-Path Agent Workbench"
-status = "proposed"
+status = "accepted"
 date = "2026-03-26"
 refs = ["RFC-0001"]
 
@@ -145,3 +145,9 @@ cons = [
     "High risk of V1 shipping late or incomplete",
 ]
 rejection_reason = "Scope compression. V1 must prove core value (agents talking, human seeing both) before investing in advanced introspection. Native GUI with libghostty is the enabling foundation; L2/L3 layer on additively in V2."
+
+[[content.alternatives]]
+text = "Native GUI workbench: a native macOS GUI application with libghostty (Metal-rendered terminal panes), Termius-style host management, and an embedded A2A hub. This is the chosen V1 scope."
+status = "accepted"
+pros = ["Delivers the human-experience pillar of [[RFC-0001]]: real terminal panes, visual supervision, and one-click agent management"]
+cons = ["Largest V1 scope — native GUI + libghostty integration + embedded hub"]

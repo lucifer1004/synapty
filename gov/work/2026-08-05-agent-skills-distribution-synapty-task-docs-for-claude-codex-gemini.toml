@@ -18,3 +18,28 @@ Acceptance criteria:
 - deprecated MCP templates in configs/ marked as such
 - GUI settings has "Connect GitHub" button; skills install is optional
 """
+
+[[content.acceptance_criteria]]
+text = "canonical skill doc at src/skills/synapty-task/SKILL.md teaching the synapty task CLI (embedded into the binary via @embedFile)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty skills install copies the skill to detected platform locations (Claude Code / Codex / Gemini CLI) — idempotent, overwrites to stay current"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "skills load on demand — never pollute global instruction files (AGENTS.md / GEMINI.md); install strips any previously appended sections"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "deprecated MCP templates in configs/ are marked as such"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the GUI surfaces the GitHub bridge connect state and guidance; skills install is optional"
+status = "done"
+category = "added"

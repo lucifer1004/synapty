@@ -123,7 +123,7 @@ pub fn readerThread(args: ReaderArgs) void {
         // owns agent_id now (WI-2026-08-08-016).
         if (state.routing_table.unregisterIfOwned(agent_id, conn)) {
             state.agent_registry.remove(agent_id);
-            // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
+            // Remove from all channels per [[RFC-0003]] (hub state).
             _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
         }
         // Signal writer to drain and stop, then wait for it.

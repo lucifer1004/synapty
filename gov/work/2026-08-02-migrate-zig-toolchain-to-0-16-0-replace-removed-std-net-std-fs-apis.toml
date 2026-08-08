@@ -39,3 +39,18 @@ Acceptance criteria:
 - docs/justfile updated for Homebrew toolchain
 - regression check of CLI (hub subcommand, IPC)
 """
+
+[[content.acceptance_criteria]]
+text = "project builds and links with zig 0.16.0 (Homebrew) against the Xcode 26.5 SDK"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "socket/fd layer lives in src/sys.zig on std.posix.system (libc) — no std.net or std.fs.File usage remains"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "all Zig tests pass on 0.16 (129 tests across 9 modules incl. 9 e2e)"
+status = "done"
+category = "chore"

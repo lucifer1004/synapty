@@ -2,14 +2,15 @@
 
 [govctl]
 id = "C-EVENTS"
-title = "Request-Driven Bridge — No Polling"
+title = "Request-Driven Bridge — GUI Polls the Hub, Never the GitHub API"
 kind = "normative"
 status = "active"
 since = "0.1.0"
 
 [content]
 text = """
-There is no polling. GitHub access is request-driven and single-homed:
+There is no GitHub-side polling. The GitHub API is request-driven and
+single-homed:
 
 - The device running Synapty (the "login device") holds the credential and
   hosts the GitHub bridge (an embedded hub service).
@@ -20,13 +21,23 @@ There is no polling. GitHub access is request-driven and single-homed:
 - Agents on other devices need no GitHub configuration at all; they only need
   a hub connection, which they already have.
 
+V1 GUI concession — the GUI polls the HUB, never the GitHub API: the status
+bar and task/activity views refresh by polling the hub via the synapty CLI
+(agents 5s, activity 5s, tasks 60s — a deliberate 2026-08-05 decision
+recorded in the work-item ledger). This polls the local hub, not the remote repository,
+so the no-poll-tax guarantee on GitHub quota is preserved. Hub-push events
+remain future work (the RFC-0002-era chat events were reduced away by
+[[RFC-0003]] C-A2A-REDUCTION).
+
 Consequences:
 
 - GitHub API quota is consumed only by real requests (no poll tax).
-- Latency is request/response, not poll-interval-bound.
+- GitHub API latency is request/response, not poll-interval-bound; the GUI
+  view refresh adds at most one poll interval.
 - Credentials never leave the login device.
-- The GUI status bar's activity view is driven by the hub's tool-request log
-  (who listed/claimed/updated which issue), not by a polled repo snapshot.
+- The GUI's activity view is fed by the hub's tool-request log (who
+  listed/claimed/updated which issue), polled from the hub at a sane
+  interval in V1.
 - Webhooks are unnecessary in V1 for the same reason: the bridge is invoked
   on demand, so there is no external change stream to watch.
 

@@ -457,7 +457,8 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
                 return;
             };
             const text_str = req.text orelse "";
-            // Detect channel target per [[RFC-0002:C-GROUP-CHAT]].
+            // Detect channel target (legacy group-chat surface, reduced away
+            // by [[RFC-0003:C-A2A-REDUCTION]]; kept for the daemon IPC compat).
             const envelope_type: []const u8 = if (mem.startsWith(u8, target, "channel:"))
                 "channel_msg"
             else

@@ -20,3 +20,28 @@ Acceptance criteria:
 - Settings gains "Connect GitHub" onboarding
 - terminal pane surface unchanged
 """
+
+[[content.acceptance_criteria]]
+text = "MessageLogView reworked into an activity log — tool-request/issue-change stream from the hub (ActivityLogView)"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "AgentStatusBar shows per-project task badges (todo/doing/done counts) and GitHub bridge state"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "task view: lightweight issue list grouped by project, filterable by state; clicking a task opens it on GitHub (no in-app detail panel)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the GUI surfaces GitHub bridge onboarding (hub status page: run synapty github login guidance)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "terminal pane surface unchanged"
+status = "done"
+category = "chore"

@@ -32,7 +32,7 @@ pub fn sendResponse(arena: Allocator, conn: *Connection, req_id: []const u8, tar
 }
 
 // ---------------------------------------------------------------------------
-// Handler: list_agents per [[RFC-0002:C-CLI-MCP]]
+// Handler: list_agents per [[RFC-0003:C-CLI-TOOLS]] (daemon socket)
 // ---------------------------------------------------------------------------
 
 pub fn handleListAgents(state: *HubState, arena: Allocator, conn: *Connection, req: protocol.Envelope) !void {
@@ -64,7 +64,7 @@ pub fn handleListAgents(state: *HubState, arena: Allocator, conn: *Connection, r
 }
 
 // ---------------------------------------------------------------------------
-// Handler: agent_update per [[RFC-0002:C-AGENT-IDENTITY]]
+// Handler: agent_update per [[RFC-0003]] (agent identity)
 // ---------------------------------------------------------------------------
 
 pub fn handleAgentUpdate(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -82,7 +82,7 @@ pub fn handleAgentUpdate(state: *HubState, conn: *Connection, arena: Allocator, 
 }
 
 // ---------------------------------------------------------------------------
-// Handler: dm per [[RFC-0002:C-DM]]
+// Handler: dm per [[RFC-0003]] (direct message envelope, legacy chat surface)
 // ---------------------------------------------------------------------------
 
 pub fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -102,7 +102,7 @@ pub fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope:
         break :blk "";
     };
 
-    // Log the message per [[RFC-0002:C-HUB-STATE]].
+    // Log the message per [[RFC-0003]] (hub state).
     state.message_log.append(state.allocator, .{
         .from = envelope.source,
         .to = target,
@@ -127,7 +127,7 @@ pub fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope:
 }
 
 // ---------------------------------------------------------------------------
-// Handler: channel_create per [[RFC-0002:C-GROUP-CHAT]]
+// Handler: channel_create per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface)
 // ---------------------------------------------------------------------------
 
 pub fn handleChannelCreate(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -155,7 +155,7 @@ pub fn handleChannelCreate(state: *HubState, conn: *Connection, arena: Allocator
 }
 
 // ---------------------------------------------------------------------------
-// Handler: channel_invite per [[RFC-0002:C-GROUP-CHAT]]
+// Handler: channel_invite per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface)
 // ---------------------------------------------------------------------------
 
 pub fn handleChannelInvite(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -211,7 +211,7 @@ pub fn handleChannelInvite(state: *HubState, conn: *Connection, arena: Allocator
 }
 
 // ---------------------------------------------------------------------------
-// Handler: channel_leave per [[RFC-0002:C-GROUP-CHAT]]
+// Handler: channel_leave per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface)
 // ---------------------------------------------------------------------------
 
 pub fn handleChannelLeave(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -252,7 +252,7 @@ pub fn handleChannelLeave(state: *HubState, conn: *Connection, arena: Allocator,
 }
 
 // ---------------------------------------------------------------------------
-// Handler: channel_msg per [[RFC-0002:C-GROUP-CHAT]]
+// Handler: channel_msg per [[RFC-0003:C-A2A-REDUCTION]] (legacy group-chat surface)
 // ---------------------------------------------------------------------------
 
 pub fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {
@@ -279,7 +279,7 @@ pub fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, e
         break :blk "";
     };
 
-    // Log per [[RFC-0002:C-HUB-STATE]].
+    // Log per [[RFC-0003]] (hub state).
     state.message_log.append(state.allocator, .{
         .from = envelope.source,
         .to = target,
@@ -307,7 +307,7 @@ pub fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, e
 }
 
 // ---------------------------------------------------------------------------
-// Handler: list_channels per [[RFC-0002:C-CLI-MCP]]
+// Handler: list_channels per [[RFC-0003:C-CLI-TOOLS]] (daemon socket)
 // ---------------------------------------------------------------------------
 
 pub fn handleListChannels(state: *HubState, conn: *Connection, arena: Allocator, envelope: protocol.Envelope) !void {

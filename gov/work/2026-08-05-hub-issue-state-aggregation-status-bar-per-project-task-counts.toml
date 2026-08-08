@@ -13,3 +13,18 @@ Implements [[RFC-0003]] (Hub issue-state aggregation + status bar per-project ta
 Acceptance criteria:
 - TBD — detailed in the work item when started
 """
+
+[[content.acceptance_criteria]]
+text = "per-project todo/doing/done counts aggregated from the task list (TaskMonitor.projectCounts)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AgentStatusBar shows per-project task badges with the aggregated counts and GitHub bridge state"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "counts refresh with the task polling cycle and change-detection (no re-render when unchanged)"
+status = "done"
+category = "added"
