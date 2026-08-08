@@ -70,6 +70,19 @@ enum AppearanceMode: String, Codable, CaseIterable {
         NotificationCenter.default.post(name: .synaptyAppearanceChanged, object: nil)
     }
 
+    // MARK: - UI chrome (app-level)
+
+    /// App UI font scale (0.85–1.3) — drives DS.Typography globally; the
+    /// terminal font size is separate (WI-2026-08-08-070).
+    var uiFontScale: Double = 1.0 {
+        didSet {
+            guard !isLoading else { return }
+            DS.uiFontScale = CGFloat(uiFontScale)
+            NotificationCenter.default.post(name: .synaptyUiScaleChanged, object: nil)
+            persistOnly()
+        }
+    }
+
     // MARK: - Terminal (appearance)
 
     /// Ghostty theme for light appearance; nil = ghostty default.
@@ -163,6 +176,7 @@ enum AppearanceMode: String, Codable, CaseIterable {
         var hubPort: Int?
         var tunnelPort: Int?
         var appearanceMode: AppearanceMode?
+        var uiFontScale: Double?
     }
 
     /// Test seam: redirect storage to a temp directory so tests never
@@ -200,6 +214,9 @@ enum AppearanceMode: String, Codable, CaseIterable {
         // Apply the persisted appearance exactly once — the didSet was
         // suppressed during load (WI-2026-08-08-011).
         applyAppearance()
+        // Push the persisted UI scale into the global DS (didSet was
+        // suppressed during load; WI-2026-08-08-070).
+        DS.uiFontScale = CGFloat(uiFontScale)
         // Ensure the fragment exists (first run or after changes).
         writeGhosttyFragment()
     }
@@ -227,6 +244,7 @@ enum AppearanceMode: String, Codable, CaseIterable {
         if let hubPort = payload.hubPort { self.hubPort = hubPort }
         if let tunnelPort = payload.tunnelPort { self.tunnelPort = tunnelPort }
         if let appearanceMode = payload.appearanceMode { self.appearanceMode = appearanceMode }
+        if let uiFontScale = payload.uiFontScale { self.uiFontScale = uiFontScale }
     }
 
     /// Debounced settings.json write (WI-2026-08-08-049): slider drags and
@@ -294,7 +312,8 @@ enum AppearanceMode: String, Codable, CaseIterable {
             clipboardWrite: clipboardWrite,
             hubPort: hubPort,
             tunnelPort: tunnelPort,
-            appearanceMode: appearanceMode
+            appearanceMode: appearanceMode,
+            uiFontScale: uiFontScale
         )
         guard let data = try? JSONEncoder().encode(payload) else { return }
         try? data.write(to: Self.settingsURL, options: .atomic)

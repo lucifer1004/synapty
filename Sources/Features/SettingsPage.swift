@@ -87,6 +87,21 @@ struct SettingsPage: View {
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.textTertiary)
             }
+
+            // App UI size (WI-2026-08-08-070): scales the app's own chrome.
+            groupBlock("UI Size") {
+                Picker("UI Size", selection: uiSizeBinding) {
+                    Text("Small").tag(0.85)
+                    Text("Standard").tag(1.0)
+                    Text("Large").tag(1.15)
+                    Text("Extra Large").tag(1.3)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+                Text("Scales the app's own interface (sidebar, lists, panels). The terminal font size is separate — see Terminal.")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textTertiary)
+            }
         }
     }
 
@@ -248,6 +263,10 @@ struct SettingsPage: View {
 
     private var appearanceBinding: Binding<AppearanceMode> {
         Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
+    }
+
+    private var uiSizeBinding: Binding<Double> {
+        Binding(get: { settings.uiFontScale }, set: { settings.uiFontScale = $0 })
     }
 
     private var opacityBinding: Binding<Double> {

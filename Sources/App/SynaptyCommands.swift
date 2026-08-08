@@ -152,4 +152,6 @@ extension Notification.Name {
     /// Go-to menu / clickable badges → page switch; userInfo["page"] is the
     /// AppPage raw value (WI-2026-08-08-053).
     static let synaptyShowPage = Notification.Name("synaptyShowPage")
+    /// App UI font scale changed — repaint chrome (WI-2026-08-08-070).
+    static let synaptyUiScaleChanged = Notification.Name("synaptyUiScaleChanged")
 }

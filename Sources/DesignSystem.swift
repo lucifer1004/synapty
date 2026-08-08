@@ -130,27 +130,32 @@ enum DS {
 
     // MARK: - Typography
 
+    /// Global UI font scale — kept in sync with SynaptySettings.uiFontScale
+    /// (WI-2026-08-08-070). Typography below reads it on every access, so a
+    /// change repaints whatever recomputes its body.
+    static var uiFontScale: CGFloat = 1.0
+
     enum Typography {
-        /// 10pt — metadata, timestamps, counts.
-        static let caption = SwiftUI.Font.system(size: 10)
-        /// 10pt semibold — section headers, badges.
-        static let captionStrong = SwiftUI.Font.system(size: 10, weight: .semibold)
-        /// 11pt — secondary rows, addresses.
-        static let detail = SwiftUI.Font.system(size: 11)
-        /// 11pt medium — labels in bars.
-        static let detailStrong = SwiftUI.Font.system(size: 11, weight: .medium)
-        /// 12pt — body rows.
-        static let body = SwiftUI.Font.system(size: 12)
-        /// 12pt medium — pane tabs.
-        static let bodyStrong = SwiftUI.Font.system(size: 12, weight: .medium)
-        /// 13pt — primary labels, session names.
-        static let title = SwiftUI.Font.system(size: 13, weight: .medium)
-        /// 15pt semibold — sheet titles.
-        static let titleLarge = SwiftUI.Font.system(size: 15, weight: .semibold)
+        /// 11pt — metadata, timestamps, counts.
+        static var caption: Font { .system(size: 11 * DS.uiFontScale) }
+        /// 11pt semibold — section headers, badges.
+        static var captionStrong: Font { .system(size: 11 * DS.uiFontScale, weight: .semibold) }
+        /// 12pt — secondary rows, addresses.
+        static var detail: Font { .system(size: 12 * DS.uiFontScale) }
+        /// 12pt medium — labels in bars.
+        static var detailStrong: Font { .system(size: 12 * DS.uiFontScale, weight: .medium) }
+        /// 13pt — body rows.
+        static var body: Font { .system(size: 13 * DS.uiFontScale) }
+        /// 13pt medium — pane tabs.
+        static var bodyStrong: Font { .system(size: 13 * DS.uiFontScale, weight: .medium) }
+        /// 14pt — primary labels, session names.
+        static var title: Font { .system(size: 14 * DS.uiFontScale, weight: .medium) }
+        /// 16pt semibold — sheet titles.
+        static var titleLarge: Font { .system(size: 16 * DS.uiFontScale, weight: .semibold) }
         /// Monospaced — IDs, addresses, logs, key caps.
-        static let mono = SwiftUI.Font.system(size: 11, design: .monospaced)
+        static var mono: Font { .system(size: 12 * DS.uiFontScale, design: .monospaced) }
         /// Monospaced caption — tiny IDs/timestamps.
-        static let monoCaption = SwiftUI.Font.system(size: 10, design: .monospaced)
+        static var monoCaption: Font { .system(size: 11 * DS.uiFontScale, design: .monospaced) }
     }
 
     // MARK: - Spacing

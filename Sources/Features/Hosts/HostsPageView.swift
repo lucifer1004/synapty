@@ -6,8 +6,22 @@ enum HostsPane: Hashable {
     case identities
 }
 
+/// Right-side inspector content (WI-2026-08-08-069): host editor (nil host
+/// = new) or group settings — one panel at a time.
+enum HostsInspector: Identifiable {
+    case host(HostEntry?)
+    case group(HostGroup)
+
+    var id: String {
+        switch self {
+        case .host(let host): return "host-\(host?.id.uuidString ?? "new")"
+        case .group(let group): return "group-\(group.id.uuidString)"
+        }
+    }
+}
+
 /// Host management page — Termius-style host management:
-/// nested groups in a sidebar, searchable host list with tags, and full
+/// flat groups + block sections, searchable host list with tags, and full
 /// CRUD for hosts, groups and reusable identities.
 struct HostsPageView: View {
     var hostStore: HostStore
@@ -26,10 +40,10 @@ struct HostsPageView: View {
     @State private var selectedTags: Set<String> = []
     /// Which sub-pane of the Hosts page is shown.
     @State private var pane: HostsPane = .hosts
-    @State private var showAddHost = false
+    /// Right-side inspector content: host editor (nil = new host) or group
+    /// settings — one panel at a time (WI-2026-08-08-069).
+    @State private var inspector: HostsInspector?
     @State private var showNewGroup = false
-    @State private var groupToEdit: HostGroup?
-    @State private var hostToEdit: HostEntry?
     @State private var hostToDelete: HostEntry?
     @State private var groupToDelete: HostGroup?
     @State private var identityToEdit: Identity?
@@ -82,37 +96,32 @@ struct HostsPageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
-        .sheet(isPresented: $showAddHost) {
-            AddHostSheet(
-                hostStore: hostStore,
-                tunnelManager: tunnelManager,
-                isPresented: $showAddHost,
-                presetGroupID: selectedGroup?.id
-            )
-        }
-        .sheet(item: $hostToEdit) { host in
-            AddHostSheet(
-                hostStore: hostStore,
-                tunnelManager: tunnelManager,
-                isPresented: Binding(
-                    get: { hostToEdit != nil },
-                    set: { if !$0 { hostToEdit = nil } }
-                ),
-                editingHost: host
-            )
-        }
         .sheet(isPresented: $showNewGroup) {
             NewGroupSheet(hostStore: hostStore, isPresented: $showNewGroup)
         }
-        .sheet(item: $groupToEdit) { group in
-            GroupEditSheet(
-                hostStore: hostStore,
-                isPresented: Binding(
-                    get: { groupToEdit != nil },
-                    set: { if !$0 { groupToEdit = nil } }
-                ),
-                editingGroup: group
-            )
+        // Right-side inspector for host/group settings (WI-2026-08-08-069).
+        .inspector(isPresented: Binding(
+            get: { inspector != nil },
+            set: { if !$0 { inspector = nil } }
+        )) {
+            switch inspector {
+            case .host(let host):
+                HostEditorPanel(
+                    hostStore: hostStore,
+                    tunnelManager: tunnelManager,
+                    onClose: { inspector = nil },
+                    editingHost: host,
+                    presetGroupID: selectedGroup?.id
+                )
+            case .group(let group):
+                GroupEditorPanel(
+                    hostStore: hostStore,
+                    onClose: { inspector = nil },
+                    editingGroup: group
+                )
+            case nil:
+                EmptyView()
+            }
         }
         .sheet(isPresented: $showNewIdentity) {
             IdentityEditSheet(hostStore: hostStore, isPresented: $showNewIdentity)
@@ -238,7 +247,7 @@ struct HostsPageView: View {
                         isSelected: selectedFilter == .group(group.id),
                         onSelect: { selectedFilter = .group(group.id) },
                         onDrop: { items in handleDrop(items, toGroup: group.id) },
-                        onGroupSettings: { groupToEdit = group },
+                        onGroupSettings: { inspector = .group(group) },
                         onDelete: { groupToDelete = group }
                     )
                 }
@@ -402,7 +411,7 @@ struct HostsPageView: View {
                             tunnelStatus: tunnelManager.status(for: host),
                             isSelected: selectedHostIDs.contains(host.id),
                             onOpenTerminal: { onOpenTerminal?(host) },
-                            onEdit: { hostToEdit = host },
+                            onEdit: { inspector = .host(host) },
                             onDelete: { hostToDelete = host },
                             onReconnect: { tunnelManager.reconnectTunnel(for: host) },
                             onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
@@ -468,7 +477,7 @@ struct HostsPageView: View {
                         .multilineTextAlignment(.center)
                     HStack(spacing: DS.Space.md) {
                         Button {
-                            showAddHost = true
+                            inspector = .host(nil)
                         } label: {
                             Label("New Host", systemImage: "plus")
                         }
@@ -509,7 +518,7 @@ struct HostsPageView: View {
                 // Footer
                 HStack(spacing: DS.Space.md) {
                     Button {
-                        showAddHost = true
+                        inspector = .host(nil)
                     } label: {
                         Label("New Host", systemImage: "plus")
                     }
@@ -744,14 +753,14 @@ struct NewGroupSheet: View {
     }
 }
 
-// MARK: - Group edit sheet (defaults)
+// MARK: - Group editor panel (defaults)
 
-/// Edit a group's defaults (WI-2026-08-08-067): hosts in the group fall
-/// back to these when they don't set their own values. Single-level groups:
-/// no parent, no identity.
-struct GroupEditSheet: View {
+/// Right-side inspector panel for a group's defaults (WI-2026-08-08-067/069):
+/// hosts in the group fall back to these when they don't set their own
+/// values. Single-level groups: no parent, no identity.
+struct GroupEditorPanel: View {
     var hostStore: HostStore
-    @Binding var isPresented: Bool
+    var onClose: () -> Void = {}
     var editingGroup: HostGroup
 
     @State private var label = ""
@@ -769,7 +778,29 @@ struct GroupEditSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DSSheetHeader(title: "Group Settings", icon: "folder", isPresented: $isPresented)
+            // Panel header (inspector form, WI-2026-08-08-069).
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: "folder")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text("Group Settings")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DS.textSecondary)
+                        .frame(width: 22, height: 22)
+                        .background(DS.hover, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close")
+                .accessibilityLabel("Close")
+            }
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.lg)
+
             Divider()
 
             ScrollView {
@@ -818,8 +849,6 @@ struct GroupEditSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { isPresented = false }
-                    .keyboardShortcut(.cancelAction)
                 Button("Save") {
                     save()
                 }
@@ -830,7 +859,7 @@ struct GroupEditSheet: View {
             }
             .padding(DS.Space.lg)
         }
-        .frame(width: 420)
+        .frame(width: 400)
         .background(DS.background)
         .onAppear {
             label = editingGroup.label
@@ -852,6 +881,6 @@ struct GroupEditSheet: View {
         updated.proxyJump = proxyJump.trimmingCharacters(in: .whitespaces).isEmpty ? nil : proxyJump.trimmingCharacters(in: .whitespaces)
         updated.forwardings = setForwardings ? forwardings : nil
         hostStore.updateGroup(updated)
-        isPresented = false
+        onClose()
     }
 }

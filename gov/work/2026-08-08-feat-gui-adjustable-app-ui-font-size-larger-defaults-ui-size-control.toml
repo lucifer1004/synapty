@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-070"
+title = "feat(gui): adjustable app UI font size — larger defaults + UI Size control"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: the app's own UI font size is too small and cannot be adjusted (the terminal font is configurable, the UI chrome is not).
+
+Fix: DS.Typography sizes move up one step (caption 10→11, detail 11→12, body 12→13, title 13→14, titleLarge 15→16, mono/monoCaption +1) and become computed properties scaled by DS.uiFontScale; SynaptySettings gains uiFontScale (0.85–1.3) with a UI Size control in Settings → Appearance (Small / Standard / Large / Extra Large); changing it repaints the whole UI via a tick notification. Terminal font size is untouched."""
+
+[[content.acceptance_criteria]]
+text = "UI chrome fonts are one step larger by default"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings → Appearance has a UI Size control (Small/Standard/Large/XL) persisting in settings"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "changing UI Size repaints all pages immediately; terminal fonts unaffected"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

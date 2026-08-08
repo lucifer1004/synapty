@@ -38,8 +38,14 @@ struct ContentView: View {
     @State private var findText = ""
     /// Right settings panel visibility — global, persisted (WI-2026-08-07-002).
     @AppStorage("synapty.settingsPanelVisible") private var showSettingsPanel = false
+    /// Bumped on .synaptyUiScaleChanged so every page recomputes with the
+    /// new DS.uiFontScale (WI-2026-08-08-070).
+    @State private var uiScaleTick = 0
 
     var body: some View {
+        // Reading the tick makes this body depend on UI-scale changes; the
+        // whole tree recomputes with the new global font scale.
+        let _ = uiScaleTick
         // Plain HStack instead of NavigationSplitView: the split view adds
         // ~10+ levels of internal hosting/NSView nesting, making every
         // layout pass (page switches, display cycles) expensive — the
@@ -234,6 +240,9 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
             showSettingsPanel.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyUiScaleChanged)) { _ in
+            uiScaleTick += 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .synaptyShowPage)) { note in
             // Go-to menu / clickable status-bar badges (WI-2026-08-08-053).

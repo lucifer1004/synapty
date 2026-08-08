@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Sheet for adding or editing a host entry — Termius-style: group
-/// membership, tags, and reusable credentials (Identity) or inline fields.
-struct AddHostSheet: View {
+/// Right-side inspector panel for adding or editing a host entry —
+/// Termius-style: group membership, tags, and reusable credentials
+/// (Identity) or inline fields (WI-2026-08-08-069).
+struct HostEditorPanel: View {
     var hostStore: HostStore
     var tunnelManager: TunnelManager
-    @Binding var isPresented: Bool
+    /// Called after Save (and by the close button) to dismiss the panel.
+    var onClose: () -> Void = {}
 
     /// If set, we're editing an existing host; otherwise adding a new one.
     var editingHost: HostEntry?
@@ -35,11 +37,28 @@ struct AddHostSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DSSheetHeader(
-                title: isEditing ? "Edit Host" : "Add Host",
-                icon: isEditing ? "pencil.circle" : "plus.circle",
-                isPresented: $isPresented
-            )
+            // Panel header (inspector form, WI-2026-08-08-069).
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: isEditing ? "pencil.circle" : "plus.circle")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.accent)
+                    .frame(width: 18)
+                Text(isEditing ? "Edit Host" : "Add Host")
+                    .font(DS.Typography.titleLarge)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DS.textSecondary)
+                        .frame(width: 22, height: 22)
+                        .background(DS.hover, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Close")
+                .accessibilityLabel("Close")
+            }
+            .padding(.horizontal, DS.Space.xl)
+            .padding(.vertical, DS.Space.lg)
 
             Divider()
 
@@ -143,11 +162,6 @@ struct AddHostSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") {
-                    isPresented = false
-                }
-                .keyboardShortcut(.cancelAction)
-
                 Button(isEditing ? "Save" : "Add") {
                     save()
                 }
@@ -158,7 +172,7 @@ struct AddHostSheet: View {
             }
             .padding(DS.Space.lg)
         }
-        .frame(width: 440, height: 560)
+        .frame(width: 400)
         .background(DS.background)
         .onAppear {
             if let host = editingHost {
@@ -237,6 +251,6 @@ struct AddHostSheet: View {
             )
             hostStore.addHost(entry)
         }
-        isPresented = false
+        onClose()
     }
 }
