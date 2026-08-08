@@ -22,7 +22,7 @@ pub fn connectAndRegister(allocator: Allocator, agent_id: []const u8) !sys.fd_t 
     const fd = try connectToHub(hub_addr, hub_port);
     errdefer sys.close(fd);
 
-    const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
+    const reg = try protocol.makeRegisterEnvelope(allocator, agent_id, &.{});
     const payload = try protocol.serializeEnvelope(allocator, reg);
     defer allocator.free(payload);
 

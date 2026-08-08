@@ -27,15 +27,24 @@ import AppKit
         }
     }
 
+    /// One hub log line with a stable sequence number (WI-2026-08-08-023).
+    struct HubLogLine: Identifiable, Equatable {
+        let id: Int
+        let text: String
+    }
+
     @Published var status: HubStatus = .stopped
-    @Published var logs: [String] = []
+    @Published var logs: [HubLogLine] = []
     @Published var port: Int = 9000
 
     private var process: Process?
     private var healthTimer: Timer?
     /// Pending log lines awaiting the next throttled publish.
-    private var pendingLogs: [String] = []
+    private var pendingLogs: [HubLogLine] = []
     private var logFlushTask: Task<Void, Never>?
+    /// Monotonic line sequence — rows keyed by array offset shift identity
+    /// when the 500-line cap trims (WI-2026-08-08-023).
+    private var nextLogID = 0
 
     // MARK: - Hub binary path
 
@@ -257,7 +266,8 @@ import AppKit
             return
         }
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        pendingLogs.append("[\(timestamp)] \(line)")
+        pendingLogs.append(HubLogLine(id: nextLogID, text: "[\(timestamp)] \(line)"))
+        nextLogID += 1
         if pendingLogs.count > 500 {
             pendingLogs.removeFirst(pendingLogs.count - 500)
         }

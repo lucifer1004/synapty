@@ -45,20 +45,24 @@ pub const IpcServer = struct {
 
     /// Read bytes from fd until '\n', returning the line without '\n'.
     /// Returns null on EOF. Returns error.StreamTooLong if line exceeds buf.
+    /// Reads in chunks — one byte per syscall made a 64KiB recv response
+    /// cost ~64k syscalls (WI-2026-08-08-028).
     pub fn readLine(fd: sys.fd_t, buf: []u8) !?[]const u8 {
         var i: usize = 0;
-        while (i < buf.len) {
-            var byte: [1]u8 = undefined;
-            const n = try sys.read(fd, &byte);
+        var chunk: [4096]u8 = undefined;
+        while (true) {
+            const n = try sys.read(fd, &chunk);
             if (n == 0) {
                 if (i == 0) return null; // EOF with no data
                 return buf[0..i]; // EOF after partial line
             }
-            if (byte[0] == '\n') return buf[0..i];
-            buf[i] = byte[0];
-            i += 1;
+            for (chunk[0..n]) |b| {
+                if (b == '\n') return buf[0..i];
+                if (i >= buf.len) return error.StreamTooLong;
+                buf[i] = b;
+                i += 1;
+            }
         }
-        return error.StreamTooLong;
     }
 
     /// Write data followed by '\n' to fd.

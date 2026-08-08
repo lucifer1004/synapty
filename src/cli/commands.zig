@@ -130,10 +130,11 @@ pub fn runRecv(allocator: Allocator, args: RecvArgs) !void {
     var buf: [64 * 1024]u8 = undefined;
 
     if (args.wait) {
-        // Block until a message arrives, then print it.
-        const n = try sys.read(fd, &buf);
-        if (n > 0) {
-            try io_mod.stdoutWriteAll(buf[0..n]);
+        // Block until a message arrives, then print it. Line-buffered so a
+        // frame split across TCP segments is not truncated (WI-2026-08-08-028).
+        const line = try readLineHub(fd, &buf);
+        if (line) |l| {
+            try io_mod.stdoutWriteAll(l);
             try io_mod.stdoutWriteAll("\n");
         }
     } else {
@@ -149,6 +150,26 @@ pub fn runRecv(allocator: Allocator, args: RecvArgs) !void {
             try io_mod.stdoutWriteAll("\n");
         } else {
             try io_mod.stdoutWriteAll("no messages\n");
+        }
+    }
+}
+
+/// Read one newline-terminated frame from the hub (chunked; a single read
+/// truncated frames split across TCP segments — WI-2026-08-08-028).
+fn readLineHub(fd: sys.fd_t, buf: []u8) !?[]const u8 {
+    var i: usize = 0;
+    var chunk: [4096]u8 = undefined;
+    while (true) {
+        const n = try sys.read(fd, &chunk);
+        if (n == 0) {
+            if (i == 0) return null;
+            return buf[0..i];
+        }
+        for (chunk[0..n]) |b| {
+            if (b == '\n') return buf[0..i];
+            if (i >= buf.len) return error.StreamTooLong;
+            buf[i] = b;
+            i += 1;
         }
     }
 }
@@ -179,10 +200,12 @@ pub fn runAgents(allocator: Allocator) !void {
     try sys.writeAll(fd, raw);
     try sys.writeAll(fd, "\n");
 
-    // Read the response (best-effort, no timeout in V1).
+    // Read the response (best-effort, no timeout in V1). Line-buffered so
+    // a frame split across TCP segments is not truncated (WI-2026-08-08-028).
     var buf: [64 * 1024]u8 = undefined;
-    const n = sys.read(fd, &buf) catch 0;
-    if (n > 0) {
+    const line = readLineHub(fd, &buf) catch null;
+    if (line) |l| {
+        const n = l.len;
         try io_mod.stdoutWriteAll(buf[0..n]);
         try io_mod.stdoutWriteAll("\n");
     } else {

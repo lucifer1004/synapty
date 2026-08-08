@@ -205,7 +205,10 @@ test "parseArgs: agents subcommand" {
 }
 
 test "register envelope has correct fields for agent-id" {
-    const env = protocol.makeRegisterEnvelope("test-agent", &.{});
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const env = try protocol.makeRegisterEnvelope(arena, "test-agent", &.{});
     try std.testing.expectEqualStrings("register", env.@"type");
     try std.testing.expectEqualStrings("test-agent", env.source);
     try std.testing.expectEqualStrings("", env.target);

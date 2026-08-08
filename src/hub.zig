@@ -20,21 +20,6 @@ comptime {
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
-pub fn main() !void {
-    io_mod.install(io_mod.get()); // standalone entry: default testing-style Io is not available; install a thread-safe instance
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-
-    var server = try HubServer.init(gpa.allocator());
-    defer server.deinit();
-
-    try server.run();
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

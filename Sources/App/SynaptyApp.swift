@@ -28,6 +28,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func applicationDidFinishLaunching(_ notification: Notification) {
         ghosttyApp = GhosttyApp()
 
+        // Font enumeration happens once, off the main thread, so the first
+        // Settings/panel open never hitches (WI-2026-08-08-026).
+        FontCatalog.warmUp()
+
         // Enforce a sensible minimum window size and clear any window title
         // (the app name lives in the menu bar; no in-window branding).
         for window in NSApplication.shared.windows {

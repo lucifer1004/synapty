@@ -7,6 +7,12 @@ struct AllPanesSplitView: View {
     @ObservedObject var paneManager: TerminalPaneManager
     let ghosttyApp: GhosttyApp
 
+    /// Last visible frame per leaf: hidden leaves keep their last size
+    /// instead of being re-framed to the full container on every switch,
+    /// which forced real PTY resizes (SIGWINCH) of invisible surfaces
+    /// (WI-2026-08-08-027).
+    @State private var lastFrames: [UUID: CGRect] = [:]
+
     var body: some View {
         GeometryReader { geo in
             let activePane = paneManager.activePane
@@ -20,7 +26,7 @@ struct AllPanesSplitView: View {
                 // All leaves from all panes — flat ForEach for stable identity
                 ForEach(paneManager.allLeaves, id: \.id) { leaf in
                     let isActive = activeLeafIDs.contains(leaf.id)
-                    let frame = activeFrames[leaf.id] ?? CGRect(origin: .zero, size: geo.size)
+                    let frame = activeFrames[leaf.id] ?? lastFrames[leaf.id] ?? CGRect(origin: .zero, size: geo.size)
 
                     TerminalView(
                         ghosttyApp: ghosttyApp,
@@ -32,12 +38,16 @@ struct AllPanesSplitView: View {
                         isVisiblePane: isActive,
                         isFocusedLeaf: isActive && leaf.id == focusedLeafID
                     )
-                    .frame(width: isActive ? frame.width : geo.size.width,
-                           height: isActive ? frame.height : geo.size.height)
+                    .frame(width: isActive ? frame.width : lastFrames[leaf.id]?.width ?? geo.size.width,
+                           height: isActive ? frame.height : lastFrames[leaf.id]?.height ?? geo.size.height)
                     .offset(x: isActive ? frame.minX : 0,
                             y: isActive ? frame.minY : 0)
                     .opacity(isActive ? 1 : 0)
                     .allowsHitTesting(isActive)
+                    .onAppear { if isActive { lastFrames[leaf.id] = frame } }
+                    .onChange(of: frame) { _, newFrame in
+                        if isActive { lastFrames[leaf.id] = newFrame }
+                    }
                 }
 
                 // Draw draggable dividers for the active pane's split tree
@@ -113,6 +123,9 @@ enum SplitLayout {
     }
 
     static func computeDividers(node: SplitNode, in rect: CGRect) -> [DividerInfo] {
+        // Same integral rounding as computeFrames — divider geometry must
+        // sit exactly on the rendered leaf edges (WI-2026-08-08-027).
+        let rounded = rect.integral
         switch node {
         case .leaf:
             return []
@@ -120,17 +133,17 @@ enum SplitLayout {
             let dividerSize: CGFloat = 4
             var dividers: [DividerInfo] = []
 
-            let (firstRect, secondRect) = splitRects(rect, direction: data.direction, ratio: data.ratio, dividerSize: dividerSize)
+            let (firstRect, secondRect) = splitRects(rounded, direction: data.direction, ratio: data.ratio, dividerSize: dividerSize)
 
             // This split's divider
             let dividerRect: CGRect
             switch data.direction {
             case .horizontal:
-                dividerRect = CGRect(x: firstRect.maxX, y: rect.minY, width: dividerSize, height: rect.height)
+                dividerRect = CGRect(x: firstRect.maxX, y: rounded.minY, width: dividerSize, height: rounded.height)
             case .vertical:
-                dividerRect = CGRect(x: rect.minX, y: firstRect.maxY, width: rect.width, height: dividerSize)
+                dividerRect = CGRect(x: rounded.minX, y: firstRect.maxY, width: rounded.width, height: dividerSize)
             }
-            dividers.append(DividerInfo(id: data.id, rect: dividerRect, direction: data.direction, parentRect: rect))
+            dividers.append(DividerInfo(id: data.id, rect: dividerRect, direction: data.direction, parentRect: rounded))
 
             // Recurse
             dividers += computeDividers(node: data.first, in: firstRect)

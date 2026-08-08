@@ -77,8 +77,6 @@ struct HostConfigSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
-        .onAppear {
-        }
         .sheet(isPresented: $showAddHost) {
             AddHostSheet(
                 hostStore: hostStore,
@@ -380,8 +378,11 @@ struct HostConfigSheet: View {
                         } label: {
                             Label("Delete Group", systemImage: "trash")
                         }
-                        .disabled(hostStore.childGroups(of: group.id).isEmpty && hostStore.hosts(inGroup: group.id).isEmpty)
-                        .help("Only empty groups can be deleted")
+                        // The model's removeGroup reparents subgroups and
+                        // ungroups hosts — the confirmation alert documents
+                        // exactly that, so non-empty groups are deletable
+                        // (WI-2026-08-08-025).
+                        .help("Hosts become ungrouped; subgroups move to the parent")
                     }
                 }
                 .padding(DS.Space.lg)
@@ -535,6 +536,7 @@ struct IdentityRow: View {
             }
             .buttonStyle(.borderless)
             .help("Edit")
+            .accessibilityLabel("Edit")
 
             Button(action: onDelete) {
                 Image(systemName: "trash")
@@ -542,6 +544,7 @@ struct IdentityRow: View {
             }
             .buttonStyle(.borderless)
             .help("Delete")
+            .accessibilityLabel("Delete")
         }
         .padding(.vertical, DS.Space.xs)
     }
@@ -615,10 +618,19 @@ struct GroupRow: View {
             }
         }
         .contextMenu {
-            Button("Rename") { editingGroupID = group.id }
+            Button("Rename") {
+                editText = group.label
+                editingGroupID = group.id
+            }
             Button("New Subgroup") { onNewSubgroup(group.id) }
             Divider()
             Button("Group Settings\u{2026}") { onEdit(group) }
+        }
+        // Also seed when the edit target changes (menu path vs keyboard).
+        .onChange(of: editingGroupID) { _, newID in
+            if newID == group.id && editText.isEmpty {
+                editText = group.label
+            }
         }
     }
 }
@@ -739,7 +751,7 @@ struct HostConfigRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Disconnect tunnel")
-            } else if tunnelStatus == .disconnected || tunnelStatus != .connecting {
+            } else if tunnelStatus.canReconnect {
                 Button {
                     onReconnect()
                 } label: {
@@ -748,6 +760,7 @@ struct HostConfigRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Reconnect tunnel")
+                .accessibilityLabel("Reconnect tunnel")
             }
 
             Button { onEdit() } label: {
@@ -756,6 +769,7 @@ struct HostConfigRow: View {
             }
             .buttonStyle(.borderless)
             .help("Edit")
+            .accessibilityLabel("Edit")
 
             Button { onDelete() } label: {
                 Image(systemName: "trash")
@@ -763,6 +777,7 @@ struct HostConfigRow: View {
             }
             .buttonStyle(.borderless)
             .help("Delete")
+            .accessibilityLabel("Delete")
         }
         .padding(.vertical, DS.Space.xs)
     }

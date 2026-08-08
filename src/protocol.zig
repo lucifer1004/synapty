@@ -7,49 +7,6 @@ const Allocator = mem.Allocator;
 // A2A JSON Routing Envelope
 // ---------------------------------------------------------------------------
 
-/// Top-level message types per [[RFC-0003]] (envelope types).
-pub const MessageType = enum {
-    // Session lifecycle
-    register,
-    agent_update,
-    // Direct messages
-    dm,
-    // Group chat
-    channel_create,
-    channel_invite,
-    channel_leave,
-    channel_msg,
-    channel_event,
-    // Queries
-    list_agents,
-    list_channels,
-    // Responses
-    response,
-
-    pub fn toString(self: MessageType) []const u8 {
-        return switch (self) {
-            .register => "register",
-            .agent_update => "agent_update",
-            .dm => "dm",
-            .channel_create => "channel_create",
-            .channel_invite => "channel_invite",
-            .channel_leave => "channel_leave",
-            .channel_msg => "channel_msg",
-            .channel_event => "channel_event",
-            .list_agents => "list_agents",
-            .list_channels => "list_channels",
-            .response => "response",
-        };
-    }
-
-    pub fn fromString(s: []const u8) ?MessageType {
-        inline for (@typeInfo(MessageType).@"enum".fields) |f| {
-            if (mem.eql(u8, s, f.name)) return @enumFromInt(f.value);
-        }
-        return null;
-    }
-};
-
 /// The canonical A2A routing envelope carried over WebSocket frames.
 /// `payload` uses deferred parsing (`json.Value`) so the Hub can route
 /// without deserializing application-layer contents.
@@ -179,19 +136,33 @@ pub fn parseIpcResponse(allocator: Allocator, raw: []const u8) !json.Parsed(IpcR
 }
 
 /// Build a Register envelope ready for serialization.
-pub fn makeRegisterEnvelope(agent_id: []const u8, capabilities: []const []const u8) Envelope {
-    // Build the payload as a json.Value manually is verbose; instead we
-    // keep it simple for V1 — the Hub inspects `type` == "register" and
-    // then re-parses `payload` as RegisterPayload when needed.
-    _ = capabilities;
+/// Build a register envelope. `capabilities` are honored: they are
+/// emitted into the payload (the hub parses `payload` when present).
+/// The envelope id is unique per call so multiple register frames from one
+/// connection stay distinguishable (WI-2026-08-08-028). `id_buf` receives
+/// the formatted id; the returned Envelope borrows it, so callers must
+/// keep it alive until the envelope is serialized.
+pub fn makeRegisterEnvelope(allocator: Allocator, agent_id: []const u8, capabilities: []const []const u8) !Envelope {
+    var payload_obj = json.ObjectMap.empty;
+    if (capabilities.len > 0) {
+        var caps = json.Array.init(allocator);
+        for (capabilities) |c| try caps.append(.{ .string = c });
+        try payload_obj.put(allocator, "capabilities", .{ .array = caps });
+    }
+    const seq = register_seq.fetchAdd(1, .monotonic);
+    // Caller-owned (arena pattern): registrations are rare and the
+    // envelope is serialized immediately (WI-2026-08-08-028).
+    const id = try std.fmt.allocPrint(allocator, "reg-{d}", .{seq});
     return Envelope{
         .@"type" = "register",
-        .id = "reg-0",
+        .id = id,
         .source = agent_id,
         .target = "",
-        .payload = .null,
+        .payload = if (payload_obj.count() > 0) .{ .object = payload_obj } else .null,
     };
 }
+
+var register_seq: std.atomic.Value(u32) = .init(0);
 
 // ---------------------------------------------------------------------------
 // OSC sequence constants
@@ -235,22 +206,6 @@ pub fn parseOsc99(data: []const u8) ?struct { agent_id: []const u8, status: []co
 // Tests
 // ---------------------------------------------------------------------------
 
-test "MessageType round-trip" {
-    const t = MessageType.dm;
-    const s = t.toString();
-    const back = MessageType.fromString(s);
-    try std.testing.expectEqual(MessageType.dm, back.?);
-}
-
-test "MessageType all variants round-trip" {
-    inline for (@typeInfo(MessageType).@"enum".fields) |f| {
-        const mt: MessageType = @enumFromInt(f.value);
-        const s = mt.toString();
-        const back = MessageType.fromString(s);
-        try std.testing.expectEqual(mt, back.?);
-    }
-}
-
 test "parseOsc99 valid" {
     const seq = "\x1b]99;id=agent-01;status=wait_human\x1b\\";
     const result = parseOsc99(seq) orelse unreachable;
@@ -264,9 +219,26 @@ test "parseOsc99 invalid" {
 }
 
 test "makeRegisterEnvelope fields" {
-    const env = makeRegisterEnvelope("my-agent", &.{});
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const env = try makeRegisterEnvelope(arena, "my-agent", &.{});
     try std.testing.expectEqualStrings("register", env.@"type");
     try std.testing.expectEqualStrings("my-agent", env.source);
+    // Unique ids: two frames from one connection stay distinguishable.
+    const env2 = try makeRegisterEnvelope(arena, "my-agent", &.{});
+    try std.testing.expect(!mem.eql(u8, env.id, env2.id));
+}
+
+test "makeRegisterEnvelope honors capabilities" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const env = try makeRegisterEnvelope(arena, "my-agent", &.{ "task", "skills" });
+    try std.testing.expect(env.payload == .object);
+    const caps = env.payload.object.get("capabilities") orelse return error.TestUnexpectedResult;
+    try std.testing.expect(caps == .array);
+    try std.testing.expectEqual(@as(usize, 2), caps.array.items.len);
 }
 
 test "IpcRequest send round-trip" {

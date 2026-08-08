@@ -100,7 +100,7 @@ struct HubStatusSheet: View {
                     DSSectionLabel(text: "Logs", count: hubManager.logs.count)
                     Spacer()
                     Button("Copy All") {
-                        let text = hubManager.logs.joined(separator: "\n")
+                        let text = hubManager.logs.map(\.text).joined(separator: "\n")
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(text, forType: .string)
                     }
@@ -111,19 +111,22 @@ struct HubStatusSheet: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 1) {
-                            ForEach(Array(hubManager.logs.enumerated()), id: \.offset) { idx, line in
-                                Text(line)
+                            ForEach(hubManager.logs) { line in
+                                Text(line.text)
                                     .font(DS.Typography.monoCaption)
                                     .foregroundStyle(DS.textPrimary)
                                     .textSelection(.enabled)
-                                    .id(idx)
+                                    .id(line.id)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .onChange(of: hubManager.logs.count) { _, _ in
-                        if let last = hubManager.logs.indices.last {
-                            proxy.scrollTo(last, anchor: .bottom)
+                    // Key on the last line's sequence id — at the 500-line
+                    // cap the count never changes and count-based scrolling
+                    // silently dies (WI-2026-08-08-023).
+                    .onChange(of: hubManager.logs.last?.id) { _, _ in
+                        if let last = hubManager.logs.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
                         }
                     }
                 }

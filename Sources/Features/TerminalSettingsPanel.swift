@@ -32,6 +32,7 @@ struct TerminalSettingsPanel: View {
                 }
                 .buttonStyle(.plain)
                 .help("Close panel (⌘⌥P)")
+                .accessibilityLabel("Close panel")
             }
             .padding(.horizontal, DS.Space.lg)
             .padding(.vertical, DS.Space.md)

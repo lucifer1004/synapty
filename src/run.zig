@@ -42,24 +42,26 @@ pub const MessageQueue = struct {
         try self.messages.append(self.allocator, copy);
     }
 
-    /// Drain all messages into a newly allocated slice.
+    /// Drain up to `max` messages into a newly allocated slice.
     /// Caller owns both the outer slice and each inner string — free each with
-    /// allocator.free(item) then allocator.free(slice).
-    pub fn drain(self: *MessageQueue, allocator: Allocator) ![][]const u8 {
+    /// allocator.free(item) then allocator.free(slice). The cap bounds the
+    /// serialized response so the 64KiB IPC line cannot truncate or hang the
+    /// client (WI-2026-08-08-028).
+    pub fn drain(self: *MessageQueue, allocator: Allocator, max: usize) ![][]const u8 {
         self.mutex.lock(io_mod.get()) catch unreachable;
         defer self.mutex.unlock(io_mod.get());
 
-        const count = self.messages.items.len;
+        const count = @min(self.messages.items.len, max);
         if (count == 0) {
             return try allocator.alloc([]const u8, 0);
         }
 
         const result = try allocator.alloc([]const u8, count);
-        for (self.messages.items, 0..) |item, i| {
+        for (self.messages.items[0..count], 0..) |item, i| {
             result[i] = item;
         }
-        // Clear without freeing items — ownership transferred to caller.
-        self.messages.clearRetainingCapacity();
+        // Remove without freeing — ownership transferred to caller.
+        for (0..count) |_| _ = self.messages.orderedRemove(0);
         return result;
     }
 };
@@ -114,7 +116,7 @@ pub const RunServer = struct {
         try sys.connect(hub_fd, &sa, @sizeOf(sys.sockaddr_in));
 
         // Send register envelope (newline-terminated for Hub's line framing).
-        const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
+        const reg = try protocol.makeRegisterEnvelope(allocator, agent_id, &.{});
         const reg_raw = try protocol.serializeEnvelope(allocator, reg);
         defer allocator.free(reg_raw);
         try sys.writeAll(hub_fd, reg_raw);
@@ -361,14 +363,23 @@ fn hubReaderThread(srv: *RunServer) void {
     }
 }
 
+/// Parse an envelope line and return true when its `id` field equals
+/// `expected_id` EXACTLY. Substring matching collided ('req-5' matched
+/// 'req-50'; WI-2026-08-08-028).
+fn responseIdMatches(line: []const u8, expected_id: []const u8) bool {
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const parsed = json.parseFromSlice(json.Value, arena, line, .{ .allocate = .alloc_always }) catch return false;
+    if (parsed.value != .object) return false;
+    const id_val = parsed.value.object.get("id") orelse return false;
+    return if (id_val == .string) mem.eql(u8, id_val.string, expected_id) else false;
+}
+
 /// Wait up to ~1 second for a hub response whose envelope ID matches `expected_id`.
 /// Stale responses with non-matching IDs are discarded.
 /// Caller owns the returned slice and must free it with std.heap.smp_allocator.
 fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
-    // Build pattern: "id":"<expected_id>" to match in JSON.
-    var pattern_buf: [64]u8 = undefined;
-    const pattern = std.fmt.bufPrint(&pattern_buf, "\"id\":\"{s}\"", .{expected_id}) catch return null;
-
     var attempts: usize = 0;
     while (attempts < 1000) : (attempts += 1) {
         srv.response_mutex.lock(io_mod.get()) catch unreachable;
@@ -376,7 +387,7 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
         var found: ?[]const u8 = null;
         while (srv.pending_responses.items.len > 0) {
             const data = srv.pending_responses.items[0];
-            if (mem.indexOf(u8, data, pattern) != null) {
+            if (responseIdMatches(data, expected_id)) {
                 // Match — remove from queue.
                 found = srv.pending_responses.orderedRemove(0);
                 break;
@@ -409,8 +420,19 @@ fn nextRequestId(srv: *RunServer, buf: *[32]u8) []const u8 {
 }
 
 /// Check if a hub response indicates success (payload.ok == true).
+/// Parse the envelope payload and return true only when
+/// payload.ok == true. Substring matching could false-positive on a
+/// nested data payload (WI-2026-08-08-028).
 fn parseHubOk(response: []const u8) bool {
-    return mem.indexOf(u8, response, "\"ok\":true") != null;
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const parsed = json.parseFromSlice(json.Value, arena, response, .{ .allocate = .alloc_always }) catch return false;
+    if (parsed.value != .object) return false;
+    const payload = parsed.value.object.get("payload") orelse return false;
+    if (payload != .object) return false;
+    const ok = payload.object.get("ok") orelse return false;
+    return ok == .bool and ok.bool;
 }
 
 fn ipcServerThread(srv: *RunServer) void {
@@ -489,7 +511,9 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
             try ipc.IpcServer.writeLine(client_fd, resp_raw);
         },
         .recv => {
-            const msgs = try srv.message_queue.drain(alloc);
+            // Bounded drain: the IPC line buffer is 64KiB and the response
+            // aggregates every queued message (WI-2026-08-08-028).
+            const msgs = try srv.message_queue.drain(alloc, 50);
             // drain() transfers ownership: inner strings were duped with
             // the queue's smp allocator — free them after serialization
             // (previously leaked for the daemon's lifetime; WI-2026-08-08-017).
@@ -615,7 +639,7 @@ test "MessageQueue push then drain returns messages in order" {
     try q.push("second");
     try q.push("third");
 
-    const msgs = try q.drain(std.testing.allocator);
+    const msgs = try q.drain(std.testing.allocator, 50);
     defer {
         for (msgs) |m| std.testing.allocator.free(m);
         std.testing.allocator.free(msgs);
@@ -631,7 +655,7 @@ test "MessageQueue drain returns empty slice when no messages" {
     var q = MessageQueue.init(std.testing.allocator);
     defer q.deinit();
 
-    const msgs = try q.drain(std.testing.allocator);
+    const msgs = try q.drain(std.testing.allocator, 50);
     defer std.testing.allocator.free(msgs);
 
     try std.testing.expectEqual(@as(usize, 0), msgs.len);
@@ -644,7 +668,7 @@ test "MessageQueue drain empties the queue" {
     try q.push("msg-a");
 
     // First drain returns the message.
-    const first = try q.drain(std.testing.allocator);
+    const first = try q.drain(std.testing.allocator, 50);
     defer {
         for (first) |m| std.testing.allocator.free(m);
         std.testing.allocator.free(first);
@@ -652,7 +676,7 @@ test "MessageQueue drain empties the queue" {
     try std.testing.expectEqual(@as(usize, 1), first.len);
 
     // Second drain returns empty.
-    const second = try q.drain(std.testing.allocator);
+    const second = try q.drain(std.testing.allocator, 50);
     defer std.testing.allocator.free(second);
     try std.testing.expectEqual(@as(usize, 0), second.len);
 }
@@ -684,7 +708,9 @@ test "MessageQueue is thread-safe: push from two threads drain gets all" {
     t1.join();
     t2.join();
 
-    const msgs = try q.drain(std.testing.allocator);
+    // Cap above the push count so the thread-safety assertion sees all
+    // messages (drain caps at `max` by design; WI-2026-08-08-028).
+    const msgs = try q.drain(std.testing.allocator, 200);
     defer {
         for (msgs) |m| std.testing.allocator.free(m);
         std.testing.allocator.free(msgs);
@@ -805,9 +831,11 @@ test "parseHubOk returns false for missing ok field" {
 }
 
 test "register envelope is newline-terminated" {
-    const reg = protocol.makeRegisterEnvelope("test-agent", &.{});
-    const raw = try protocol.serializeEnvelope(std.testing.allocator, reg);
-    defer std.testing.allocator.free(raw);
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const reg = try protocol.makeRegisterEnvelope(arena, "test-agent", &.{});
+    const raw = try protocol.serializeEnvelope(arena, reg);
     // The hub's handleClient expects newline-terminated frames.
     // RunServer.init() appends "\n" after writing raw — verify raw itself
     // does NOT contain a newline (so the explicit "\n" write is needed).

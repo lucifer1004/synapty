@@ -23,6 +23,15 @@ private extension Logger {
         case reconnecting
         case failed(String)
 
+        /// The reconnect action makes sense for every state except a live
+        /// connection and an in-flight connect (WI-2026-08-08-025).
+        var canReconnect: Bool {
+            switch self {
+            case .connected, .connecting: return false
+            case .disconnected, .reconnecting, .failed: return true
+            }
+        }
+
         var color: NSColor {
             switch self {
             case .disconnected: return .systemGray

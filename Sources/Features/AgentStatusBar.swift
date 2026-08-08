@@ -159,7 +159,11 @@ struct PulseAnimation: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .opacity(isPulsing ? 0.4 : 1.0)
+            // Under Reduce Motion the pulse is disabled entirely — the dot
+            // must stay FULLY visible, not stuck at the dimmed pulse value
+            // (the nil animation applies the onAppear change instantly;
+            // WI-2026-08-08-024).
+            .opacity(reduceMotion ? 1.0 : (isPulsing ? 0.4 : 1.0))
             .animation(
                 reduceMotion ? nil : .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
                 value: isPulsing

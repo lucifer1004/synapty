@@ -77,7 +77,7 @@ fn connectAndRegister(allocator: Allocator, port: u16, agent_id: []const u8) !sy
     const stream = try connectTcp(port);
     errdefer sys.close(stream);
 
-    const reg = protocol.makeRegisterEnvelope(agent_id, &.{});
+    const reg = try protocol.makeRegisterEnvelope(allocator, agent_id, &.{});
     const raw = try protocol.serializeEnvelope(allocator, reg);
     defer allocator.free(raw);
     try sys.writeAll(stream, raw);
@@ -709,7 +709,7 @@ test "e2e: line buffering — two frames in one write are both processed" {
     const fd = try connectTcp(h.port);
     defer sys.close(fd);
 
-    const reg = protocol.makeRegisterEnvelope("alice", &.{});
+    const reg = try protocol.makeRegisterEnvelope(alloc, "alice", &.{});
     const reg_raw = try protocol.serializeEnvelope(alloc, reg);
     defer alloc.free(reg_raw);
 

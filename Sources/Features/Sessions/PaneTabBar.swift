@@ -43,6 +43,7 @@ struct PaneTabBar: View {
             }
             .buttonStyle(.plain)
             .help("New pane in this session")
+            .accessibilityLabel("New pane in this session")
             .padding(.trailing, DS.Space.sm)
         }
         .padding(.leading, DS.Space.sm)
@@ -119,6 +120,7 @@ struct PaneTab: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(DS.textTertiary)
+                .accessibilityLabel("Close tab")
             }
         }
         .padding(.horizontal, DS.Space.lg)

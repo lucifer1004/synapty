@@ -21,8 +21,6 @@ struct TaskListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
-        .onAppear {
-        }
     }
 
     // MARK: - Filter bar

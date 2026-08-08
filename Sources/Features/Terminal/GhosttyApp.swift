@@ -69,6 +69,10 @@ import AppKit
         ghostty_app_update_config(app, newCfg)
         if let config { ghostty_config_free(config) }
         config = newCfg
+        // A hard reload re-resolves the config (theme conditionals etc.) —
+        // the scheme guard is a cache with no other invalidation hook, so
+        // it can go stale after a rebuild (WI-2026-08-08-027).
+        appliedScheme = nil
     }
 
     /// Coalesced reload scheduling (WI-2026-08-07-005): a single user

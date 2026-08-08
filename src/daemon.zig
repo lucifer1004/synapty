@@ -78,52 +78,6 @@ pub fn parseArgs(args: []const []const u8) ParseError!DaemonArgs {
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
-
-pub fn main(init: std.process.Init) !void {
-    io_mod.install(init.io);
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
-    var arg_list = std.ArrayList([]const u8).empty;
-    defer arg_list.deinit(allocator);
-    const argv = try init.minimal.args.toSlice(allocator);
-    for (argv[1..]) |arg| {
-        try arg_list.append(allocator, arg);
-    }
-
-    const daemon_args = parseArgs(arg_list.items) catch |err| {
-        switch (err) {
-            ParseError.MissingId => {
-                try io_mod.stderrWriteAll("error: missing --id <agent-id>\n");
-            },
-            ParseError.MissingHub => {
-                try io_mod.stderrWriteAll("error: missing --hub <host:port>\n");
-            },
-            ParseError.InvalidHubFormat => {
-                try io_mod.stderrWriteAll("error: --hub must be in <host:port> format\n");
-            },
-            ParseError.MissingChildCommand => {
-                try io_mod.stderrWriteAll("error: missing -- <command> after arguments\n");
-            },
-        }
-        std.process.exit(1);
-    };
-
-    var server = try run.RunServer.init(
-        allocator,
-        daemon_args.agent_id,
-        daemon_args.hub_addr,
-        daemon_args.hub_port,
-    );
-    defer server.deinit();
-
-    try server.run(daemon_args.child_argv);
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 

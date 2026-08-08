@@ -11,12 +11,35 @@ enum FontCatalog {
         var id: String { name }
     }
 
-    /// Enumerate every installed font family, tagging monospace families.
+    /// Load-once cache (WI-2026-08-08-026): enumerating every installed
+    /// family instantiates several hundred NSFonts — re-running it per
+    /// Settings/panel open hitched the UI every time. The lock makes the
+    /// one-time enumeration safe to trigger from the background warm-up
+    /// and a racing first view.
+    private static var cached: [Family]?
+    private static let loadLock = NSLock()
+
+    /// Synchronous, cached enumeration. The first call performs the
+    /// (one-time) enumeration; every later call is a cache hit.
     static func load() -> [Family] {
+        if let cached { return cached }
+        loadLock.lock()
+        defer { loadLock.unlock() }
+        if let cached { return cached }
         let names = NSFontManager.shared.availableFontFamilies
-        return names.map { name in
+        let families = names.map { name in
             let isMono = NSFont(name: name, size: 12)?.isFixedPitch ?? false
             return Family(name: name, isMonospace: isMono)
+        }
+        cached = families
+        return families
+    }
+
+    /// Warm the cache off the main thread at launch so the first picker
+    /// open never hitches (WI-2026-08-08-026). Call once at app start.
+    static func warmUp() {
+        DispatchQueue.global(qos: .utility).async {
+            _ = load()
         }
     }
 

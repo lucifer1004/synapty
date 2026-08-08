@@ -280,6 +280,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Terminal settings panel (⌘⌥P)")
+                    .accessibilityLabel("Terminal settings panel")
                     .padding(DS.Space.sm)
                 }
             } else {

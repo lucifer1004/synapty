@@ -78,6 +78,7 @@ struct HostSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .help("New Session")
+                .accessibilityLabel("New Session")
                 .popover(isPresented: $showHostPicker, arrowEdge: .bottom) {
                     HostPickerPopover(
                         hostStore: hostStore,
@@ -251,10 +252,9 @@ struct SessionRow: View {
         session.panes.reduce(0) { $0 + $1.splitRoot.leaves.count }
     }
 
-    /// Human-readable duration string from session creation. Sessions don't carry a
-    /// `createdAt` timestamp in V1 data model, so we derive from `agentID` presence
-    /// as a proxy and fall back to the `now` ticker for display only.
-    /// NOTE: When `Session` gains a `createdAt: Date` field this should use that directly.
+    /// Human-readable duration string from session creation. Session DOES
+    /// carry createdAt (TerminalPaneManager.Session) — the `now` ticker is
+    /// only for live elapsed-time updates (WI-2026-08-08-025).
     private func durationString(from date: Date) -> String {
         let elapsed = Int(now.timeIntervalSince(date))
         if elapsed < 60 { return "< 1m" }

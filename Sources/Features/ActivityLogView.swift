@@ -34,8 +34,6 @@ struct ActivityLogView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
-        .onAppear {
-        }
     }
 
     // MARK: - Empty state
@@ -70,7 +68,10 @@ struct ActivityLogView: View {
                 }
                 .padding(DS.Space.lg)
             }
-            .onChange(of: taskMonitor.activities.count) { _, _ in
+            // Key on the LAST ITEM's identity, not the array count: once
+            // the stream is at its 100-item cap the count never changes
+            // and count-based auto-scroll silently dies (WI-2026-08-08-023).
+            .onChange(of: taskMonitor.activities.last?.id) { _, _ in
                 if let last = taskMonitor.activities.last {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -86,11 +87,16 @@ struct ActivityLogView: View {
 struct ActivityRow: View {
     let item: ActivityItem
 
+    /// Hoisted: DateFormatter allocation is notoriously expensive, and
+    /// this row re-renders on every 5s activity poll (WI-2026-08-08-023).
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
     private var timeText: String {
-        let date = Date(timeIntervalSince1970: TimeInterval(item.ts))
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        return formatter.string(from: date)
+        Self.timeFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(item.ts)))
     }
 
     private var icon: String {

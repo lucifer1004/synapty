@@ -135,21 +135,20 @@ pub const AgentRegistry = struct {
         self.mutex.lock(io_mod.get()) catch unreachable;
         defer self.mutex.unlock(io_mod.get());
         const owned_key = try self.allocator.dupe(u8, agent_id);
-        errdefer self.allocator.free(owned_key);
-        const owned = AgentInfo{
-            .tool = if (info.tool) |t| try self.allocator.dupe(u8, t) else null,
-            .project = if (info.project) |p| try self.allocator.dupe(u8, p) else null,
-            .session = if (info.session) |s| try self.allocator.dupe(u8, s) else null,
-        };
-        // fetchPut overwrites both key and value; returns old pair if existed.
-        const prev = self.map.fetchPut(owned_key, owned) catch |err| {
+        var owned = AgentInfo{ .tool = null, .project = null, .session = null };
+        // Partial-failure cleanup: frees exactly what was allocated — the
+        // previous code leaked partially-duped strings (WI-2026-08-08-028).
+        errdefer {
             self.allocator.free(owned_key);
             self.freeInfo(owned);
-            return err;
-        };
-        if (prev) |old| {
-            self.allocator.free(old.key); // free replaced key
-            self.freeInfo(old.value);
+        }
+        if (info.tool) |t| owned.tool = try self.allocator.dupe(u8, t);
+        if (info.project) |p| owned.project = try self.allocator.dupe(u8, p);
+        if (info.session) |s| owned.session = try self.allocator.dupe(u8, s);
+        // fetchPut overwrites both key and value; returns old pair if existed.
+        if (try self.map.fetchPut(owned_key, owned)) |prev| {
+            self.allocator.free(prev.key); // free replaced key
+            self.freeInfo(prev.value);
         }
         log.info("agent metadata updated: {s} tool={s}", .{ agent_id, info.tool orelse "-" });
     }
@@ -221,6 +220,8 @@ pub const ChannelRegistry = struct {
         defer self.mutex.unlock(io_mod.get());
         if (self.map.contains(name)) return error.ChannelExists;
         // Dupe all strings — channel data outlives the creating connection.
+        // Single cleanup block frees every partial allocation when any dupe
+        // or insert fails (WI-2026-08-08-028).
         const owned_name = try self.allocator.dupe(u8, name);
         errdefer self.allocator.free(owned_name);
         const owned_desc = try self.allocator.dupe(u8, description);
@@ -230,6 +231,7 @@ pub const ChannelRegistry = struct {
         const member_key = try self.allocator.dupe(u8, creator);
         errdefer self.allocator.free(member_key);
         var members = std.StringHashMap(void).init(self.allocator);
+        errdefer members.deinit();
         try members.put(member_key, {});
         try self.map.put(owned_name, .{
             .name = owned_name,

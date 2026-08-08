@@ -130,22 +130,36 @@ fn runSecurity(allocator: Allocator, argv: []const []const u8) !std.process.RunR
 }
 
 /// Store the token for the given account (owner/repo). Upserts.
+/// The token is fed through STDIN (`security -w` with no value reads a
+/// line from stdin) — passing it via argv exposed it to any local user
+/// through `ps` while the process ran (WI-2026-08-08-028).
 pub fn storeToken(allocator: Allocator, account: []const u8, token: []const u8) !void {
-    const result = try runSecurity(allocator, &.{
-        "security", "add-generic-password",
-        "-U", // update if exists
-        "-a", account,
-        "-s", keychain_service,
-        "-w", token,
+    var child = try std.process.spawn(io_mod.get(), .{
+        .argv = &.{
+            "security", "add-generic-password",
+            "-U", // update if exists
+            "-a", account,
+            "-s", keychain_service,
+            "-w", // no value: read the secret from stdin
+        },
+        .stdin = .pipe,
+        .stdout = .ignore,
+        .stderr = .ignore,
     });
-    defer {
-        allocator.free(result.stdout);
-        allocator.free(result.stderr);
+    errdefer std.process.Child.kill(&child, io_mod.get());
+
+    if (child.stdin) |stdin| {
+        defer stdin.close(io_mod.get());
+        try stdin.writeStreamingAll(io_mod.get(), token);
+        try stdin.writeStreamingAll(io_mod.get(), "\n");
     }
-    switch (result.term) {
+
+    const term = try std.process.Child.wait(&child, io_mod.get());
+    switch (term) {
         .exited => |code| if (code != 0) return error.KeychainStoreFailed,
         else => return error.KeychainStoreFailed,
     }
+    _ = allocator;
 }
 
 /// Load the token for the given account. Returns null when absent.
