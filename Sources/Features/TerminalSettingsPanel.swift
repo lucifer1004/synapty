@@ -40,7 +40,7 @@ struct TerminalSettingsPanel: View {
             ScrollView {
                 // Compact label+control rows (WI-2026-08-08-081).
                 VStack(alignment: .leading, spacing: DS.Space.lg) {
-                    row("Light") {
+                    row(icon: "sun.max", label: "Light theme") {
                         ThemePicker(
                             selection: Binding(
                                 get: { settings.lightThemeName },
@@ -50,7 +50,7 @@ struct TerminalSettingsPanel: View {
                             width: 150
                         )
                     }
-                    row("Dark") {
+                    row(icon: "moon", label: "Dark theme") {
                         ThemePicker(
                             selection: Binding(
                                 get: { settings.darkThemeName },
@@ -60,7 +60,7 @@ struct TerminalSettingsPanel: View {
                             width: 150
                         )
                     }
-                    row("Font") {
+                    row(icon: "textformat", label: "Font family") {
                         FontFamilyPicker(
                             selection: Binding(
                                 get: { settings.fontFamily },
@@ -69,7 +69,7 @@ struct TerminalSettingsPanel: View {
                             families: fontFamilies
                         )
                     }
-                    row("Size") {
+                    row(icon: "textformat.size", label: "Font size") {
                         Stepper(
                             "Size",
                             value: Binding(
@@ -86,7 +86,7 @@ struct TerminalSettingsPanel: View {
                                 .foregroundStyle(DS.textSecondary)
                         }
                     }
-                    row("Opacity") {
+                    row(icon: "opacity", label: "Background opacity") {
                         Slider(value: $localOpacity, in: 0.1...1.0)
                             .onChange(of: localOpacity) { _, newValue in
                                 scheduleOpacityWrite(newValue)
@@ -96,7 +96,7 @@ struct TerminalSettingsPanel: View {
                             .foregroundStyle(DS.textSecondary)
                             .frame(width: 36, alignment: .trailing)
                     }
-                    row("Cursor") {
+                    row(icon: "cursorarrow", label: "Cursor style") {
                         Picker(
                             "Style",
                             selection: Binding(
@@ -131,13 +131,17 @@ struct TerminalSettingsPanel: View {
         }
     }
 
-    /// One compact row: fixed-width label + control.
-    private func row(_ label: String, @ViewBuilder control: () -> some View) -> some View {
+    /// One compact row: fixed-width icon + control. Icons do not scale
+    /// with the UI font, so rows never wrap at large UI sizes
+    /// (WI-2026-08-08-082).
+    private func row(icon: String, label: String, @ViewBuilder control: () -> some View) -> some View {
         HStack(spacing: DS.Space.md) {
-            Text(label)
-                .font(DS.Typography.detail)
+            Image(systemName: icon)
+                .font(.system(size: 12))
                 .foregroundStyle(DS.textSecondary)
-                .frame(width: 52, alignment: .leading)
+                .frame(width: 18, alignment: .leading)
+                .help(label)
+                .accessibilityLabel(label)
             control()
             Spacer(minLength: 0)
         }
