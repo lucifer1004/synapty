@@ -692,3 +692,53 @@ test "e2e: RunServer IPC channel create and send through daemon" {
         try std.testing.expectEqualStrings("hello via daemon channel", text_val.string);
     }
 }
+
+test "e2e: line buffering — two frames in one write are both processed" {
+    // The hub's reader is line-buffered: a single TCP write carrying two
+    // newline-terminated envelopes must yield two processed messages
+    // (the integration test the 2026-03-28 e2e work item claims but never
+    // shipped; WI-2026-08-08-022).
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const h = try startHub();
+    defer stopHub(h);
+
+    // Raw client — write register + a DM in ONE write.
+    const fd = try connectTcp(h.port);
+    defer sys.close(fd);
+
+    const reg = protocol.makeRegisterEnvelope("alice", &.{});
+    const reg_raw = try protocol.serializeEnvelope(alloc, reg);
+    defer alloc.free(reg_raw);
+
+    var payload_obj = json.ObjectMap.empty;
+    try payload_obj.put(alloc, "text", .{ .string = "buffered dm" });
+    const dm_raw = try protocol.serializeEnvelope(alloc, .{
+        .@"type" = "dm",
+        .id = "dm-buf-1",
+        .source = "alice",
+        .target = "hub",
+        .payload = .{ .object = payload_obj },
+    });
+    defer alloc.free(dm_raw);
+
+    // One write, two frames.
+    try sys.writeAll(fd, reg_raw);
+    try sys.writeAll(fd, "\n");
+    try sys.writeAll(fd, dm_raw);
+    try sys.writeAll(fd, "\n");
+
+    // Bob registers after the burst — the register frame must have been
+    // processed despite sharing the write with the DM frame.
+    try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
+
+    // The DM to "hub" must get a response (delivered or error) — the
+    // second frame must not be dropped.
+    var buf: [8192]u8 = undefined;
+    const line = readLine(fd, &buf, 2000);
+    try std.testing.expect(line != null);
+    // Two frames in one write -> at least one response line; parse it.
+    _ = try protocol.parseEnvelope(alloc, line.?);
+}

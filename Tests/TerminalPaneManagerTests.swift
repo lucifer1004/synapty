@@ -4,6 +4,22 @@ import XCTest
 @MainActor
 final class TerminalPaneManagerTests: XCTestCase {
 
+    /// Established explicitly — addLocalSession() consults
+    /// TunnelManager.shared for the local command; riding the hosted
+    /// app's ContentView.onAppear made these tests pass by accident
+    /// (WI-2026-08-08-020).
+    private var tunnelManager: TunnelManager!
+
+    override func setUpWithError() throws {
+        tunnelManager = TunnelManager()
+        TunnelManager.shared = tunnelManager
+    }
+
+    override func tearDownWithError() throws {
+        TunnelManager.shared = nil
+        tunnelManager = nil
+    }
+
     /// Helper: creates a manager with one local session (mimics ContentView.onAppear).
     private func makeManager() -> TerminalPaneManager {
         let m = TerminalPaneManager()

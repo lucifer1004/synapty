@@ -191,7 +191,7 @@ struct ChatMessage: Identifiable, Equatable {
     /// IPC path returns JSON: {"success":true,"data":"<hub-response-json>"}
     /// The Hub response contains: {"ok":true,"agents":[{"id":"...","tool":"...","project":"...","session":"..."},...]}
     /// Fallback (direct TCP) returns raw Hub JSON envelope.
-    nonisolated private static func parseAgentsOutput(_ output: String) -> [AgentInfo] {
+    nonisolated static func parseAgentsOutput(_ output: String) -> [AgentInfo] {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
@@ -215,7 +215,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 
     /// Extract agent list from various JSON response shapes.
-    nonisolated private static func parseAgentsJSON(_ json: [String: Any]) -> [AgentInfo] {
+    nonisolated static func parseAgentsJSON(_ json: [String: Any]) -> [AgentInfo] {
         // Shape 1: IPC response {"success":true,"data":"<json-string>"}
         if let dataStr = json["data"] as? String,
            let innerData = dataStr.data(using: .utf8),
@@ -237,7 +237,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 
     /// Extract [AgentInfo] from a dict containing "agents" array.
-    nonisolated private static func extractAgents(from dict: [String: Any]) -> [AgentInfo] {
+    nonisolated static func extractAgents(from dict: [String: Any]) -> [AgentInfo] {
         guard let agentArray = dict["agents"] as? [[String: Any]] else { return [] }
         return agentArray.compactMap { obj -> AgentInfo? in
             guard let id = obj["id"] as? String else { return nil }

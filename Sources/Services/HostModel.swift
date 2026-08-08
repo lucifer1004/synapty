@@ -158,8 +158,12 @@ struct HostEntry: Identifiable, Codable, Equatable {
     @Published var groups: [HostGroup] = []
     @Published var identities: [Identity] = []
 
+    /// Test seam: redirect storage to a temp directory so tests never
+    /// read/write the real ~/.synapty/hosts.json (WI-2026-08-08-020).
+    static var storageOverride: URL?
+
     private static var storageURL: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
+        let dir = storageOverride ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".synapty")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("hosts.json")
@@ -178,7 +182,7 @@ struct HostEntry: Identifiable, Codable, Equatable {
     // MARK: - Persistence
 
     /// Versioned payload so the old flat [HostEntry] format keeps loading.
-    private struct Payload: Codable {
+    struct Payload: Codable {
         var version: Int = 2
         var hosts: [HostEntry]
         var groups: [HostGroup]

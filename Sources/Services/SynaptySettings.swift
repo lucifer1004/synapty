@@ -164,7 +164,14 @@ enum AppearanceMode: String, Codable, CaseIterable {
         var appearanceMode: AppearanceMode?
     }
 
+    /// Test seam: redirect storage to a temp directory so tests never
+    /// touch the real ~/.config/synapty (WI-2026-08-08-020).
+    static var storageOverride: URL?
+
     private static var settingsDir: URL {
+        if let storageOverride {
+            return storageOverride
+        }
         let home = FileManager.default.homeDirectoryForCurrentUser
         let dir = home.appendingPathComponent(".config/synapty")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -197,12 +197,22 @@ enum BridgeStatus: Equatable {
     private var activityInFlight = false
 
     /// Extract the tool_response envelope payload dict from CLI stdout.
-    private func parseEnvelopePayload(_ output: String) -> [String: Any]? {
+    func parseEnvelopePayload(_ output: String) -> [String: Any]? {
         guard let data = output.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let payload = root["payload"] as? [String: Any]
         else { return nil }
         return payload
+    }
+
+    /// Drop self-generated polling noise (cli-tmp- agents' own
+    /// activity.list/task.list calls) from the activity stream. Pure —
+    /// unit-tested (WI-2026-08-08-021).
+    nonisolated static func filterActivityNoise(_ items: [ActivityItem]) -> [ActivityItem] {
+        items.filter { item in
+            guard item.agent.hasPrefix("cli-tmp-") else { return true }
+            return !(item.tool == "activity.list" || item.tool == "task.list")
+        }
     }
 
     // MARK: - Fetch tasks
@@ -270,10 +280,7 @@ enum BridgeStatus: Equatable {
             // activity.list/task.list call as an activity event, so the
             // stream never stabilizes and the change-detection below would
             // always fire (re-render + layout every poll). WI-2026-08-07-006.
-            let real = items.filter { item in
-                guard item.agent.hasPrefix("cli-tmp-") else { return true }
-                return !(item.tool == "activity.list" || item.tool == "task.list")
-            }
+            let real = Self.filterActivityNoise(items)
             // Publish only on change (see fetchTasks).
             let suffix = Array(real.suffix(100))
             if suffix != self.activities {

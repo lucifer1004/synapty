@@ -65,7 +65,7 @@ private extension Logger {
 
     /// Single-quote a string for safe shell interpolation.
     /// Handles embedded single quotes by ending the quote, adding an escaped quote, and reopening.
-    private func shellEscape(_ s: String) -> String {
+    nonisolated func shellEscape(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 

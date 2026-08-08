@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-020"
+title = "fix(test): injectable storage seams — isolate tests from real user config"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review test findings: SynaptySettings.settingsDir and HostStore.storageURL are private static hard-coded to the developer's real home (~/.config/synapty, ~/.synapty/hosts.json) — any persistence test would read/write real user data (HostStoreTests currently do: HostStore() calls load() and can even write .bak backups during tests). TerminalPaneManagerTests depend on app-host side effects: TunnelManager.shared is set only in ContentView.onAppear, so tests pass by accident of the hosted-app lifecycle. Fix: add test seams (static override points used by the storage path resolution) and make the affected tests self-contained with temp directories and explicit setUp."
+notes = ["Completed (2026-08-08): storageOverride seams added to SynaptySettings.settingsDir and HostStore.storageURL (tests redirect to temp dirs, never the real home). HostStoreTests rewritten: temp-dir isolation, real assertions, save/reload round-trip, legacy flat-array migration, rolling-backup content check. TerminalPaneManagerTests now establish TunnelManager.shared explicitly in setUpWithError. HostStore.Payload made internal for the migration test."]
+
+[[content.acceptance_criteria]]
+text = "SynaptySettings and HostStore resolve their storage paths through an override seam (test-only) so tests never touch the real ~/.config/synapty or ~/.synapty"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HostStore tests use a temp directory and assert real behavior (no tautological assertions, no writes to the real home)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "TerminalPaneManager tests establish TunnelManager.shared explicitly in setUp instead of riding the hosted app's view lifecycle"
+status = "done"
+category = "fixed"

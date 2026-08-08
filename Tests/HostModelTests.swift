@@ -71,33 +71,53 @@ final class HostEntryTests: XCTestCase {
 @MainActor
 final class HostStoreTests: XCTestCase {
 
-    // MARK: - CRUD operations (in-memory only, no disk I/O)
+    /// Temp storage dir — HostStoreTests must never touch the developer's
+    /// real ~/.synapty/hosts.json (WI-2026-08-08-020).
+    private var tempDir: URL!
+
+    override func setUpWithError() throws {
+        tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("synapty-hosts-tests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        HostStore.storageOverride = tempDir
+    }
+
+    override func tearDownWithError() throws {
+        HostStore.storageOverride = nil
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    private func makeStore() -> HostStore {
+        HostStore()
+    }
+
+    // MARK: - CRUD operations (isolated, no real-home I/O)
 
     func testInitiallyEmpty() {
-        let store = HostStore()
-        // Store loads from ~/.synapty/hosts.json; in test env this may or may not exist.
-        // We just verify it doesn't crash and returns an array.
-        XCTAssertNotNil(store.hosts)
+        let store = makeStore()
+        XCTAssertTrue(store.hosts.isEmpty)
+        XCTAssertTrue(store.groups.isEmpty)
+        XCTAssertTrue(store.identities.isEmpty)
     }
 
     func testAddHostIncreasesCount() {
-        let store = HostStore()
-        let initial = store.hosts.count
+        let store = makeStore()
+        XCTAssertTrue(store.hosts.isEmpty)
         store.hosts.append(HostEntry(label: "Test", address: "1.2.3.4", username: "u"))
-        XCTAssertEqual(store.hosts.count, initial + 1)
+        XCTAssertEqual(store.hosts.count, 1)
     }
 
     func testRemoveHostDecreasesCount() {
-        let store = HostStore()
+        let store = makeStore()
         let host = HostEntry(label: "Temp", address: "1.2.3.4", username: "u")
         store.hosts.append(host)
-        let count = store.hosts.count
+        XCTAssertEqual(store.hosts.count, 1)
         store.hosts.removeAll { $0.id == host.id }
-        XCTAssertEqual(store.hosts.count, count - 1)
+        XCTAssertTrue(store.hosts.isEmpty)
     }
 
     func testUpdateHostByID() {
-        let store = HostStore()
+        let store = makeStore()
         var host = HostEntry(label: "Old", address: "1.2.3.4", username: "u")
         store.hosts.append(host)
         host.label = "New"
@@ -105,6 +125,62 @@ final class HostStoreTests: XCTestCase {
             store.hosts[idx] = host
         }
         XCTAssertEqual(store.hosts.first(where: { $0.id == host.id })?.label, "New")
+    }
+
+    // MARK: - Persistence (temp dir)
+
+    func testSaveThenReloadRoundTrip() throws {
+        let store = makeStore()
+        store.hosts.append(HostEntry(label: "GPU Box", address: "10.0.1.5", port: 2222, username: "ml", sshKeyPath: "~/.ssh/gpu_key"))
+        store.groups.append(HostGroup(id: UUID(), label: "Lab", parentID: nil))
+        store.identities.append(Identity(id: UUID(), label: "ml", username: "ml", sshKeyPath: "~/.ssh/ml_key"))
+        store.save()
+
+        // A fresh store over the same temp dir must load everything back.
+        let reloaded = makeStore()
+        XCTAssertEqual(reloaded.hosts.count, 1)
+        XCTAssertEqual(reloaded.hosts[0].label, "GPU Box")
+        XCTAssertEqual(reloaded.hosts[0].address, "10.0.1.5")
+        XCTAssertEqual(reloaded.hosts[0].port, 2222)
+        XCTAssertEqual(reloaded.hosts[0].sshKeyPath, "~/.ssh/gpu_key")
+        XCTAssertEqual(reloaded.groups.count, 1)
+        XCTAssertEqual(reloaded.groups[0].label, "Lab")
+        XCTAssertEqual(reloaded.identities.count, 1)
+        XCTAssertEqual(reloaded.identities[0].username, "ml")
+    }
+
+    func testLegacyFlatArrayMigration() throws {
+        // Old v1 format: a plain [HostEntry] array. load() must migrate it
+        // to the versioned payload (and rewrite the file).
+        let legacy = [
+            HostEntry(label: "A", address: "1.1.1.1", username: "u1"),
+            HostEntry(label: "B", address: "2.2.2.2", port: 3000, username: "u2", sshKeyPath: "/key"),
+        ]
+        let data = try JSONEncoder().encode(legacy)
+        try data.write(to: tempDir.appendingPathComponent("hosts.json"))
+
+        let store = makeStore()
+        XCTAssertEqual(store.hosts.count, 2)
+        XCTAssertEqual(store.hosts[1].port, 3000)
+        // The migration re-saves in the versioned format.
+        let onDisk = try Data(contentsOf: tempDir.appendingPathComponent("hosts.json"))
+        let payload = try JSONDecoder().decode(HostStore.Payload.self, from: onDisk)
+        XCTAssertEqual(payload.hosts.count, 2)
+    }
+
+    func testSaveWritesRollingBackup() throws {
+        let store = makeStore()
+        store.hosts.append(HostEntry(label: "First", address: "1.1.1.1", username: "u"))
+        store.save()
+
+        store.hosts.append(HostEntry(label: "Second", address: "2.2.2.2", username: "u"))
+        store.save()
+
+        let backupURL = tempDir.appendingPathComponent("hosts.json.bak")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backupURL.path))
+        let backup = try JSONDecoder().decode(HostStore.Payload.self, from: Data(contentsOf: backupURL))
+        // The backup holds the state BEFORE the latest save.
+        XCTAssertEqual(backup.hosts.map(\.label), ["First"])
     }
 
     // MARK: - Groups (Termius-style)
