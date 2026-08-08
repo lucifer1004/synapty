@@ -95,7 +95,7 @@ struct ContentView: View {
                     case .hub:
                         HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
                     case .settings:
-                        SettingsPage(settings: settings)
+                        SettingsPage(settings: settings, taskMonitor: taskMonitor)
                     case .terminal:
                         EmptyView()
                     }

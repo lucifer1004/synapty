@@ -4,6 +4,7 @@ import SwiftUI
 /// Appearance (app-level), Terminal, Scrolling, Clipboard, Network (Synapty).
 struct SettingsPage: View {
     @ObservedObject var settings: SynaptySettings
+    @ObservedObject var taskMonitor: TaskMonitor
 
     enum SettingsPane: Hashable {
         case appearance
@@ -11,6 +12,7 @@ struct SettingsPage: View {
         case scrolling
         case clipboard
         case network
+        case github
     }
 
     @State private var pane: SettingsPane = .terminal
@@ -42,6 +44,7 @@ struct SettingsPage: View {
                 paneChip(.scrolling, title: "Scrolling", icon: "arrow.up.to.line")
                 paneChip(.clipboard, title: "Clipboard", icon: "doc.on.doc")
                 paneChip(.network, title: "Network", icon: "network")
+                paneChip(.github, title: "GitHub", icon: "link")
                 Spacer()
             }
             .padding(.horizontal, DS.Space.xl)
@@ -57,6 +60,7 @@ struct SettingsPage: View {
                     case .scrolling: scrollingSection
                     case .clipboard: clipboardSection
                     case .network: networkSection
+                    case .github: githubSection
                     }
                 }
                 .padding(DS.Space.xl)
@@ -360,6 +364,123 @@ struct SettingsPage: View {
             get: { settings.clipboardWrite ?? true },
             set: { settings.clipboardWrite = $0 }
         )
+    }
+
+    // MARK: - GitHub bridge (WI-2026-08-08-043 round follow-up)
+
+    /// Binding state shown in Settings: the current binding (from
+    /// `synapty github status`) + the Connect/Disconnect sheet.
+    @State private var binding: GithubBridgeInfo?
+    @State private var showConnectSheet = false
+
+    /// Parsed `synapty github status` output (mirrors HubStatusSheet).
+    struct GithubBridgeInfo {
+        var owner: String
+        var repo: String
+        var username: String?
+        var hasToken: Bool
+        var configured: Bool { hasToken }
+    }
+
+    private var githubSection: some View {
+        VStack(alignment: .leading, spacing: DS.Space.md) {
+            if let binding {
+                if binding.configured {
+                    HStack(spacing: DS.Space.sm) {
+                        DSStatusDot(color: DS.success, size: 8)
+                        Text("\(binding.owner)/\(binding.repo)")
+                            .font(DS.Typography.bodyStrong)
+                        if let username = binding.username, !username.isEmpty {
+                            Text("· \(username)")
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.textSecondary)
+                        }
+                    }
+                } else if binding.owner.isEmpty {
+                    Text("Not connected — agents route task tools through this device once a hub repo is bound.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textSecondary)
+                } else {
+                    Text("Credential missing for \(binding.owner)/\(binding.repo) — reconnect to restore it.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.warning)
+                }
+            } else {
+                Text("Checking GitHub bridge…")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textSecondary)
+            }
+
+            HStack(spacing: DS.Space.sm) {
+                Button {
+                    showConnectSheet = true
+                } label: {
+                    Label(binding?.configured == true ? "Change" : "Connect GitHub", systemImage: "link.badge.plus")
+                }
+                .controlSize(.small)
+                if binding?.owner.isEmpty == false {
+                    Button {
+                        disconnect()
+                    } label: {
+                        Label("Disconnect", systemImage: "link.slash")
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.vertical, DS.Space.md)
+        .sheet(isPresented: $showConnectSheet) {
+            GithubConnectSheet(
+                isPresented: $showConnectSheet,
+                onConnected: {
+                    taskMonitor.refreshTasks()
+                    refreshBinding()
+                }
+            )
+        }
+        .onAppear {
+            refreshBinding()
+        }
+    }
+
+    private func refreshBinding() {
+        guard let binary = SynaptyBinary.resolve() else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let output = SubprocessRunner.run(
+                executable: binary,
+                arguments: ["github", "status"],
+                timeout: 15
+            )
+            DispatchQueue.main.async {
+                guard output.error == nil, !output.timedOut,
+                      let data = output.stdout.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let configured = json["configured"] as? Bool
+                else { return }
+                binding = GithubBridgeInfo(
+                    owner: json["owner"] as? String ?? "",
+                    repo: json["repo"] as? String ?? "",
+                    username: json["username"] as? String,
+                    hasToken: configured
+                )
+            }
+        }
+    }
+
+    private func disconnect() {
+        guard let binary = SynaptyBinary.resolve() else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = SubprocessRunner.run(
+                executable: binary,
+                arguments: ["github", "logout"],
+                timeout: 20
+            )
+            DispatchQueue.main.async {
+                binding = nil
+                taskMonitor.refreshTasks()
+                refreshBinding()
+            }
+        }
     }
 
     private var hubPortBinding: Binding<Int> {
