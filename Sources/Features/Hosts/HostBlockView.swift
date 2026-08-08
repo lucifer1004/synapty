@@ -29,7 +29,8 @@ struct HostBlockView: View {
     var store: HostStore
     let tunnelStatus: TunnelManager.TunnelStatus
     let isSelected: Bool
-    /// One-click session start from the Hosts list (WI-2026-08-08-064).
+    /// Terminal open on double-click (WI-2026-08-08-075); also exposed as an
+    /// accessibility action.
     let onOpenTerminal: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
@@ -112,17 +113,6 @@ struct HostBlockView: View {
 
             // Actions
             HStack(spacing: DS.Space.sm) {
-                // One-click terminal open (WI-2026-08-08-064) — the primary
-                // action of a host block.
-                Button(action: onOpenTerminal) {
-                    Image(systemName: "terminal")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(DS.accent)
-                .help("Open terminal")
-                .accessibilityLabel("Open terminal for \(host.label)")
-
                 if tunnelStatus == .connected {
                     Button(action: onDisconnect) {
                         Image(systemName: "bolt.slash")
@@ -199,6 +189,11 @@ struct HostBlockView: View {
         )
         .contentShape(Rectangle())
         .onHover { hovering in isHovered = hovering }
+        // Double-click affordance (WI-2026-08-08-075).
+        .help("Double-click to open terminal")
+        .accessibilityAction(named: "Open Terminal") {
+            onOpenTerminal()
+        }
     }
 }
 

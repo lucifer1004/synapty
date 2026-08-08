@@ -411,7 +411,8 @@ struct HostsPageView: View {
                             onReconnect: { tunnelManager.reconnectTunnel(for: host) },
                             onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
                         )
-                        .onTapGesture { selectHost(host.id) }
+                        .onTapGesture(count: 2) { onOpenTerminal?(host) }
+                        .onTapGesture(count: 1) { selectHost(host.id) }
                         .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
                     }
                 }
