@@ -27,23 +27,39 @@ struct HostSidebar: View {
     /// Called when the user selects a session in the list (switch to terminal page).
     var onSessionSelect: (() -> Void)?
 
-    /// Navigation items, in display order. Icon-only rail (Termius style):
+    /// Navigation items, grouped by layer (WI-2026-08-08-053): workspace /
+    /// management / configuration — visually separated in the rail so the
+    /// hierarchy is visible, not just implied. Icon-only (Termius style):
     /// no section headers, no text labels — compact and scroll-free.
-    private static let navItems: [(page: AppPage, icon: String, label: String)] = [
-        (.terminal, "terminal", "Terminal"),
-        (.hosts, "server.rack", "Hosts"),
-        (.tasks, "checklist", "Tasks"),
-        (.activity, "tray.full", "Activity"),
-        (.hub, "dot.radiowaves.left.and.right", "Hub"),
-        (.settings, "gearshape", "Settings"),
+    private static let railGroups: [[(page: AppPage, icon: String, label: String)]] = [
+        // Workspace
+        [(.terminal, "terminal", "Terminal")],
+        // Management
+        [
+            (.hosts, "server.rack", "Hosts"),
+            (.tasks, "checklist", "Tasks"),
+            (.activity, "tray.full", "Activity"),
+            (.hub, "dot.radiowaves.left.and.right", "Hub"),
+        ],
+        // Configuration
+        [(.settings, "gearshape", "Settings")],
     ]
 
     var body: some View {
         VStack(spacing: 0) {
-            // Icon navigation rail — single row, tooltips only.
+            // Icon navigation rail — three layered groups, tooltips only.
             HStack(spacing: DS.Space.xs) {
-                ForEach(Self.navItems, id: \.page) { item in
-                    navButton(item)
+                ForEach(Self.railGroups.indices, id: \.self) { groupIndex in
+                    if groupIndex > 0 {
+                        // Hairline separator between layers.
+                        Rectangle()
+                            .fill(DS.separator)
+                            .frame(width: 1, height: 16)
+                            .padding(.horizontal, DS.Space.xxs)
+                    }
+                    ForEach(Self.railGroups[groupIndex], id: \.page) { item in
+                        navButton(item)
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -226,6 +242,9 @@ private struct NavRailButton: View {
         }
         .buttonStyle(.plain)
         .help(item.label)
+        // Icon-only button: the text label must be exposed to assistive
+        // tech, not just the tooltip (WI-2026-08-08-053).
+        .accessibilityLabel(item.label)
         .onHover { hovering in isHovered = hovering }
     }
 }

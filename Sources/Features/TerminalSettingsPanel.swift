@@ -41,81 +41,34 @@ struct TerminalSettingsPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
-                    Text("Changes apply live to the terminal")
+                    // Quick subset note: the app-level Appearance mode lives
+                    // on the Settings page only (WI-2026-08-08-052).
+                    Text("Quick settings — apply live. Full set in Settings → Terminal.")
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textTertiary)
                         .padding(.top, DS.Space.sm)
 
-                    // Appearance
-                    section("Appearance") {
-                        Picker("Appearance", selection: appearanceBinding) {
-                            ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                    }
-
                     // Theme — light/dark pair side by side
                     section("Theme") {
-                        HStack(spacing: DS.Space.md) {
-                            VStack(alignment: .leading, spacing: DS.Space.xs) {
-                                Text("Light")
-                                    .font(DS.Typography.captionStrong)
-                                    .foregroundStyle(DS.textSecondary)
-                                ThemePicker(selection: lightThemeBinding, themes: SynaptySettings.builtinThemeNames, width: 118)
-                            }
-                            VStack(alignment: .leading, spacing: DS.Space.xs) {
-                                Text("Dark")
-                                    .font(DS.Typography.captionStrong)
-                                    .foregroundStyle(DS.textSecondary)
-                                ThemePicker(selection: darkThemeBinding, themes: SynaptySettings.builtinThemeNames, width: 118)
-                            }
-                        }
-                        Text("Follows the Appearance mode above")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textTertiary)
+                        SettingsThemeControls(settings: settings, pickerWidth: 118)
                     }
 
                     // Font
                     section("Font") {
-                        FontFamilyPicker(selection: fontFamilyBinding, families: fontFamilies)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        HStack(spacing: DS.Space.md) {
-                            Stepper("Size", value: fontSizeBinding, in: 6...48, step: 1)
-                            if let size = settings.fontSize {
-                                Text("\(Int(size)) pt")
-                                    .font(DS.Typography.monoCaption)
-                                    .foregroundStyle(DS.textSecondary)
-                            }
-                        }
+                        SettingsFontControls(settings: settings, families: fontFamilies)
                     }
 
                     // Background opacity — debounced while dragging
                     section("Background") {
-                        HStack(spacing: DS.Space.md) {
-                            Slider(value: $localOpacity, in: 0.1...1.0)
-                            Text("\(Int(localOpacity * 100))%")
-                                .font(DS.Typography.monoCaption)
-                                .foregroundStyle(DS.textSecondary)
-                                .frame(width: 36, alignment: .trailing)
-                        }
-                        .onChange(of: localOpacity) { _, newValue in
-                            scheduleOpacityWrite(newValue)
-                        }
+                        SettingsBackgroundOpacityControl(value: $localOpacity)
+                            .onChange(of: localOpacity) { _, newValue in
+                                scheduleOpacityWrite(newValue)
+                            }
                     }
 
                     // Cursor
                     section("Cursor") {
-                        Picker("Cursor", selection: cursorStyleBinding) {
-                            Text("Default").tag(String?.none)
-                            ForEach(SynaptySettings.cursorStyleOptions, id: \.0) { value, label in
-                                Text(label).tag(String?.some(value))
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
+                        SettingsCursorControl(settings: settings)
                     }
                 }
                 .padding(.horizontal, DS.Space.lg)
@@ -165,34 +118,5 @@ struct TerminalSettingsPanel: View {
         debounceTask?.cancel()
         debounceTask = nil
         settings.backgroundOpacity = value
-    }
-
-    // MARK: - Bindings
-
-    private var appearanceBinding: Binding<AppearanceMode> {
-        Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
-    }
-
-    private var lightThemeBinding: Binding<String?> {
-        Binding(get: { settings.lightThemeName }, set: { settings.lightThemeName = $0 })
-    }
-
-    private var darkThemeBinding: Binding<String?> {
-        Binding(get: { settings.darkThemeName }, set: { settings.darkThemeName = $0 })
-    }
-
-    private var fontFamilyBinding: Binding<String?> {
-        Binding(get: { settings.fontFamily }, set: { settings.fontFamily = $0 })
-    }
-
-    private var fontSizeBinding: Binding<Double> {
-        Binding(
-            get: { settings.fontSize ?? 12 },
-            set: { settings.fontSize = $0 }
-        )
-    }
-
-    private var cursorStyleBinding: Binding<String?> {
-        Binding(get: { settings.cursorStyle }, set: { settings.cursorStyle = $0 })
     }
 }

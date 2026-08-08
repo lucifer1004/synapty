@@ -9,22 +9,28 @@ struct PaneTabBar: View {
         HStack(spacing: DS.Space.sm) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: DS.Space.xs) {
-                    ForEach(session.panes) { pane in
-                        PaneTab(
-                            pane: pane,
-                            isActive: session.activePaneID == pane.id,
-                            editingPaneID: $editingPaneID,
-                            onSelect: { paneManager.activatePane(pane) },
-                            onClose: { paneManager.removePane(pane) },
-                            onRename: { newName in paneManager.renamePane(pane.id, to: newName) }
-                        )
-                        .contextMenu {
-                            Button("Rename") {
-                                editingPaneID = pane.id
-                            }
-                            Divider()
-                            Button("Close Tab") {
-                                paneManager.removePane(pane)
+                    if session.panes.isEmpty {
+                        // Connecting placeholder — one non-closable tab so
+                        // the chrome stays stable (WI-2026-08-08-056).
+                        PlaceholderTab(label: session.label)
+                    } else {
+                        ForEach(session.panes) { pane in
+                            PaneTab(
+                                pane: pane,
+                                isActive: session.activePaneID == pane.id,
+                                editingPaneID: $editingPaneID,
+                                onSelect: { paneManager.activatePane(pane) },
+                                onClose: { paneManager.removePane(pane) },
+                                onRename: { newName in paneManager.renamePane(pane.id, to: newName) }
+                            )
+                            .contextMenu {
+                                Button("Rename") {
+                                    editingPaneID = pane.id
+                                }
+                                Divider()
+                                Button("Close Tab") {
+                                    paneManager.removePane(pane)
+                                }
                             }
                         }
                     }
@@ -44,6 +50,7 @@ struct PaneTabBar: View {
             .buttonStyle(.plain)
             .help("New pane in this session")
             .accessibilityLabel("New pane in this session")
+            .disabled(session.panes.isEmpty)
             .padding(.trailing, DS.Space.sm)
         }
         .padding(.leading, DS.Space.sm)
@@ -59,6 +66,33 @@ struct PaneTabBar: View {
             editingPaneID = activePaneID
             return .handled
         }
+    }
+}
+
+/// Non-interactive tab shown while a session is a connecting placeholder
+/// (no panes yet) — keeps the tab bar height stable (WI-2026-08-08-056).
+private struct PlaceholderTab: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: DS.Space.xs) {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(DS.textTertiary)
+            Text(label)
+                .font(DS.Typography.bodyStrong)
+                .lineLimit(1)
+            Text("connecting")
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.textTertiary)
+        }
+        .padding(.horizontal, DS.Space.lg)
+        .frame(height: 24)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(DS.hover)
+        )
+        .opacity(0.7)
     }
 }
 

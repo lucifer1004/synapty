@@ -82,6 +82,22 @@ struct SynaptyCommands: Commands {
             .keyboardShortcut("/", modifiers: [.command, .shift])
         }
 
+        // Go to menu — keyboard navigation for every page
+        // (WI-2026-08-08-053): the sidebar rail is icon-only, so the menu
+        // is the discoverable text path (Cmd-Shift-1..6).
+        CommandMenu("Go to") {
+            ForEach(Array(AppPage.allCases.enumerated()), id: \.element) { index, page in
+                Button(page.title) {
+                    NotificationCenter.default.post(
+                        name: .synaptyShowPage,
+                        object: nil,
+                        userInfo: ["page": page.rawValue]
+                    )
+                }
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: [.command, .shift])
+            }
+        }
+
         // View menu — terminal text size and search. Key equivalents are
         // also handled directly in TerminalSurface when the terminal has
         // focus; these menu items cover the unfocused case.
@@ -133,4 +149,7 @@ extension Notification.Name {
     static let synaptyReloadRequested = Notification.Name("synaptyReloadRequested")
     static let synaptyToggleSettingsPanel = Notification.Name("synaptyToggleSettingsPanel")
     static let synaptyShowHubPage = Notification.Name("synaptyShowHubPage")
+    /// Go-to menu / clickable badges → page switch; userInfo["page"] is the
+    /// AppPage raw value (WI-2026-08-08-053).
+    static let synaptyShowPage = Notification.Name("synaptyShowPage")
 }

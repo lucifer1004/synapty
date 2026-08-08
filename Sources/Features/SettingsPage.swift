@@ -9,8 +9,6 @@ struct SettingsPage: View {
     enum SettingsPane: Hashable {
         case appearance
         case terminal
-        case scrolling
-        case clipboard
         case network
         case github
     }
@@ -37,12 +35,11 @@ struct SettingsPage: View {
 
             Divider()
 
-            // Sub-navigation
+            // Sub-navigation (WI-2026-08-08-052): Scrolling + Clipboard live
+            // inside the Terminal pane — 4 balanced panes, not a 6-chip row.
             HStack(spacing: DS.Space.sm) {
                 paneChip(.appearance, title: "Appearance", icon: "circle.lefthalf.filled")
                 paneChip(.terminal, title: "Terminal", icon: "textformat")
-                paneChip(.scrolling, title: "Scrolling", icon: "arrow.up.to.line")
-                paneChip(.clipboard, title: "Clipboard", icon: "doc.on.doc")
                 paneChip(.network, title: "Network", icon: "network")
                 paneChip(.github, title: "GitHub", icon: "link")
                 Spacer()
@@ -57,8 +54,6 @@ struct SettingsPage: View {
                     switch pane {
                     case .appearance: appearanceSection
                     case .terminal: terminalSection
-                    case .scrolling: scrollingSection
-                    case .clipboard: clipboardSection
                     case .network: networkSection
                     case .github: githubSection
                     }
@@ -95,43 +90,19 @@ struct SettingsPage: View {
         }
     }
 
-    // MARK: - Terminal (appearance)
+    // MARK: - Terminal (appearance + behavior)
 
+    /// Complete terminal surface (WI-2026-08-08-052): the quick panel and
+    /// this pane share the control components; fallback fonts, scrolling
+    /// and clipboard are Settings-page-only.
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
             groupBlock("Theme") {
-                HStack(spacing: DS.Space.xl) {
-                    VStack(alignment: .leading, spacing: DS.Space.xs) {
-                        Text("Light")
-                            .font(DS.Typography.captionStrong)
-                            .foregroundStyle(DS.textSecondary)
-                        ThemePicker(selection: lightThemeBinding, themes: SynaptySettings.builtinThemeNames)
-                    }
-                    VStack(alignment: .leading, spacing: DS.Space.xs) {
-                        Text("Dark")
-                            .font(DS.Typography.captionStrong)
-                            .foregroundStyle(DS.textSecondary)
-                        ThemePicker(selection: darkThemeBinding, themes: SynaptySettings.builtinThemeNames)
-                    }
-                }
-                Text("Each theme applies to its appearance mode (Settings → Appearance). Terminal colors switch live with the mode.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
+                SettingsThemeControls(settings: settings)
             }
 
             groupBlock("Font") {
-                FontFamilyPicker(selection: fontFamilyBinding, families: fontFamilies)
-                    .frame(maxWidth: 380)
-
-                HStack(spacing: DS.Space.md) {
-                    Stepper("Size", value: fontSizeBinding, in: 6...48, step: 1)
-                        .frame(width: 150)
-                    if let fontSize = settings.fontSize {
-                        Text("\(Int(fontSize)) pt")
-                            .font(DS.Typography.monoCaption)
-                            .foregroundStyle(DS.textSecondary)
-                    }
-                }
+                SettingsFontControls(settings: settings, families: fontFamilies)
 
                 // Fallback fonts for codepoints missing from the primary
                 // (unicode symbols, Nerd Font icons, etc.).
@@ -170,35 +141,13 @@ struct SettingsPage: View {
             }
 
             groupBlock("Background") {
-                HStack(spacing: DS.Space.md) {
-                    Text("Opacity")
-                        .font(DS.Typography.detail)
-                    Slider(value: opacityBinding, in: 0.1...1.0)
-                        .frame(maxWidth: 260)
-                    Text(String(format: "%.0f%%", (settings.backgroundOpacity ?? 1.0) * 100))
-                        .font(DS.Typography.monoCaption)
-                        .foregroundStyle(DS.textSecondary)
-                        .frame(width: 40, alignment: .trailing)
-                }
+                SettingsBackgroundOpacityControl(value: opacityBinding)
             }
 
             groupBlock("Cursor") {
-                Picker("Style", selection: cursorStyleBinding) {
-                    Text("Default").tag(String?.none)
-                    ForEach(SynaptySettings.cursorStyleOptions, id: \.0) { value, label in
-                        Text(label).tag(String?.some(value))
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 320)
+                SettingsCursorControl(settings: settings)
             }
-        }
-    }
 
-    // MARK: - Scrolling
-
-    private var scrollingSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.xl) {
             groupBlock("Scrollback") {
                 Picker("Limit", selection: scrollbackBinding) {
                     Text("Default (10,000)").tag(Int?.none)
@@ -209,27 +158,17 @@ struct SettingsPage: View {
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 380)
-            }
-            groupBlock("Behavior") {
                 Text("Scroll position is preserved (keystrokes and new output never snap to the bottom).")
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.textTertiary)
             }
-        }
-    }
 
-    // MARK: - Clipboard
-
-    private var clipboardSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.xl) {
-            groupBlock("Selection") {
+            groupBlock("Clipboard") {
                 Toggle("Copy on select", isOn: copyOnSelectBinding)
                     .toggleStyle(.switch)
                 Text("Selecting text copies it to the clipboard immediately.")
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.textTertiary)
-            }
-            groupBlock("Applications (OSC 52)") {
                 Toggle("Allow apps to read clipboard", isOn: clipboardReadBinding)
                     .toggleStyle(.switch)
                 Toggle("Allow apps to write clipboard", isOn: clipboardWriteBinding)
@@ -311,34 +250,11 @@ struct SettingsPage: View {
         Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
     }
 
-    private var lightThemeBinding: Binding<String?> {
-        Binding(get: { settings.lightThemeName }, set: { settings.lightThemeName = $0 })
-    }
-
-    private var darkThemeBinding: Binding<String?> {
-        Binding(get: { settings.darkThemeName }, set: { settings.darkThemeName = $0 })
-    }
-
-    private var fontFamilyBinding: Binding<String?> {
-        Binding(get: { settings.fontFamily }, set: { settings.fontFamily = $0 })
-    }
-
-    private var fontSizeBinding: Binding<Double> {
-        Binding(
-            get: { settings.fontSize ?? 12 },
-            set: { settings.fontSize = $0 }
-        )
-    }
-
     private var opacityBinding: Binding<Double> {
         Binding(
             get: { settings.backgroundOpacity ?? 1.0 },
             set: { settings.backgroundOpacity = $0 }
         )
-    }
-
-    private var cursorStyleBinding: Binding<String?> {
-        Binding(get: { settings.cursorStyle }, set: { settings.cursorStyle = $0 })
     }
 
     private var scrollbackBinding: Binding<Int?> {
@@ -368,23 +284,14 @@ struct SettingsPage: View {
 
     // MARK: - GitHub bridge (WI-2026-08-08-043 round follow-up)
 
-    /// Binding state shown in Settings: the current binding (from
-    /// `synapty github status`) + the Connect/Disconnect sheet.
-    @State private var binding: GithubBridgeInfo?
+    /// Shared GitHub bridge state (WI-2026-08-08-056) — one model +
+    /// refresh/disconnect path for the Hub page and the Settings page.
+    @State private var bridge = GithubBridgeController()
     @State private var showConnectSheet = false
-
-    /// Parsed `synapty github status` output (mirrors HubStatusSheet).
-    struct GithubBridgeInfo {
-        var owner: String
-        var repo: String
-        var username: String?
-        var hasToken: Bool
-        var configured: Bool { hasToken }
-    }
 
     private var githubSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.md) {
-            if let binding {
+            if let binding = bridge.binding {
                 if binding.configured {
                     HStack(spacing: DS.Space.sm) {
                         DSStatusDot(color: DS.success, size: 8)
@@ -415,16 +322,18 @@ struct SettingsPage: View {
                 Button {
                     showConnectSheet = true
                 } label: {
-                    Label(binding?.configured == true ? "Change" : "Connect GitHub", systemImage: "link.badge.plus")
+                    Label(bridge.binding?.configured == true ? "Change" : "Connect GitHub", systemImage: "link.badge.plus")
                 }
                 .controlSize(.small)
-                if binding?.owner.isEmpty == false {
+                if bridge.binding?.owner.isEmpty == false {
                     Button {
-                        disconnect()
+                        bridge.disconnect()
+                        taskMonitor.refreshTasks()
                     } label: {
-                        Label("Disconnect", systemImage: "link.slash")
+                        Label(bridge.isDisconnecting ? "Disconnecting…" : "Disconnect", systemImage: "link.slash")
                     }
                     .controlSize(.small)
+                    .disabled(bridge.isDisconnecting)
                 }
             }
         }
@@ -434,52 +343,12 @@ struct SettingsPage: View {
                 isPresented: $showConnectSheet,
                 onConnected: {
                     taskMonitor.refreshTasks()
-                    refreshBinding()
+                    bridge.refresh()
                 }
             )
         }
         .onAppear {
-            refreshBinding()
-        }
-    }
-
-    private func refreshBinding() {
-        guard let binary = SynaptyBinary.resolve() else { return }
-        DispatchQueue.global(qos: .utility).async {
-            let output = SubprocessRunner.run(
-                executable: binary,
-                arguments: ["github", "status"],
-                timeout: 15
-            )
-            DispatchQueue.main.async {
-                guard output.error == nil, !output.timedOut,
-                      let data = output.stdout.data(using: .utf8),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let configured = json["configured"] as? Bool
-                else { return }
-                binding = GithubBridgeInfo(
-                    owner: json["owner"] as? String ?? "",
-                    repo: json["repo"] as? String ?? "",
-                    username: json["username"] as? String,
-                    hasToken: configured
-                )
-            }
-        }
-    }
-
-    private func disconnect() {
-        guard let binary = SynaptyBinary.resolve() else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = SubprocessRunner.run(
-                executable: binary,
-                arguments: ["github", "logout"],
-                timeout: 20
-            )
-            DispatchQueue.main.async {
-                binding = nil
-                taskMonitor.refreshTasks()
-                refreshBinding()
-            }
+            bridge.refresh()
         }
     }
 

@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-053"
+title = "feat(gui): layered sidebar navigation — grouped rail, a11y labels, Go-to menu, clickable badges"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Audit follow-up (UI/UX hierarchy round): the sidebar nav rail claims "grouped navigation (workspace / infrastructure / collaboration / system)" in its doc comment but is a flat 6-icon row — Settings (config) sits at the same level as Terminal (workspace); icon-only buttons expose no accessibility label (tooltip only); there is no keyboard/menu path to switch pages; the bottom status bar's project badges are pure display, can grow unbounded, and duplicate the Tasks page.
+
+Fix: group the rail into workspace / management / configuration with visual separators; add accessibility labels to rail buttons; add a "Go to" menu (⌘⇧1-6) that navigates pages; make project badges clickable (jump to Tasks page) and cap the visible badge count."""
+
+[[content.acceptance_criteria]]
+text = "the sidebar rail shows workspace/management/configuration groups with visual separation"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "rail buttons expose accessibility labels (VoiceOver-readable)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a Go-to menu (Cmd-Shift-1..6) switches pages from the keyboard"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "status-bar project badges are clickable (open Tasks) and capped to a bounded width"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

@@ -19,16 +19,8 @@ struct GithubConnectSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.lg) {
-            HStack {
-                Text("Connect GitHub")
-                    .font(DS.Typography.title)
-                Spacer()
-                Button("Cancel") {
-                    isPresented.wrappedValue = false
-                }
-                .buttonStyle(.borderless)
+            DSSheetHeader(title: "Connect GitHub", icon: "link.badge.plus", isPresented: isPresented)
                 .disabled(isRunning)
-            }
 
             Text("The login device holds a fine-grained PAT (Issues: Read/Write on the hub repo). Agents route task tools through this device — the credential stays in your Keychain.")
                 .font(DS.Typography.caption)

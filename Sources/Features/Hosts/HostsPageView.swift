@@ -9,7 +9,7 @@ enum HostsPane: Hashable {
 /// Host management page — Termius-style host management:
 /// nested groups in a sidebar, searchable host list with tags, and full
 /// CRUD for hosts, groups and reusable identities.
-struct HostConfigSheet: View {
+struct HostsPageView: View {
     var hostStore: HostStore
     var tunnelManager: TunnelManager
 

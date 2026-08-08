@@ -3,13 +3,25 @@ import SwiftUI
 /// Top-level application pages. Terminal is the default workspace; the
 /// management surfaces (hosts/tasks/activity/hub) are full pages, not
 /// modal popovers, so they can use the whole window.
-enum AppPage: Hashable {
+enum AppPage: String, CaseIterable, Hashable {
     case terminal
     case hosts
     case tasks
     case activity
     case hub
     case settings
+
+    /// Menu label — Go-to menu (WI-2026-08-08-053).
+    var title: String {
+        switch self {
+        case .terminal: return "Terminal"
+        case .hosts: return "Hosts"
+        case .tasks: return "Tasks"
+        case .activity: return "Activity"
+        case .hub: return "Hub"
+        case .settings: return "Settings"
+        }
+    }
 }
 
 struct ContentView: View {
@@ -86,13 +98,13 @@ struct ContentView: View {
                 if page != .terminal {
                     switch page {
                     case .hosts:
-                        HostConfigSheet(hostStore: hostStore, tunnelManager: tunnelManager)
+                        HostsPageView(hostStore: hostStore, tunnelManager: tunnelManager)
                     case .tasks:
                         TaskListView(taskMonitor: taskMonitor)
                     case .activity:
                         ActivityLogView(taskMonitor: taskMonitor)
                     case .hub:
-                        HubStatusSheet(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
+                        HubPageView(hubManager: hubManager, agentMonitor: agentMonitor, taskMonitor: taskMonitor)
                     case .settings:
                         SettingsPage(settings: settings, taskMonitor: taskMonitor)
                     case .terminal:
@@ -110,6 +122,28 @@ struct ContentView: View {
                     .background(Color.clear)
                     .shadow(color: .black.opacity(0.15), radius: 8, x: -2, y: 0)
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                // Settings-panel toggle — available on EVERY page
+                // (WI-2026-08-08-052). When the panel is visible it shifts
+                // left of the panel instead of covering its close button.
+                Button {
+                    showSettingsPanel.toggle()
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(showSettingsPanel ? DS.accent : DS.textSecondary)
+                        .frame(width: 26, height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .fill(showSettingsPanel ? DS.accentSoft : DS.hover)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Terminal settings panel (⌘⌥P)")
+                .accessibilityLabel("Terminal settings panel")
+                .padding(DS.Space.sm)
+                .padding(.trailing, showSettingsPanel ? 300 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DS.background)
@@ -198,6 +232,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
             showSettingsPanel.toggle()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .synaptyShowPage)) { note in
+            // Go-to menu / clickable status-bar badges (WI-2026-08-08-053).
+            guard let raw = note.userInfo?["page"] as? String,
+                  let target = AppPage(rawValue: raw) else { return }
+            page = target
+        }
         .onAppear {
             TunnelManager.shared = tunnelManager
             tunnelManager.hostStore = hostStore
@@ -247,7 +287,10 @@ struct ContentView: View {
     private var terminalPage: some View {
         VStack(spacing: 0) {
             if let ghosttyApp = GhosttyApp.shared {
-                if let session = paneManager.activeSession, session.panes.count > 0 {
+                if let session = paneManager.activeSession {
+                    // Always visible for the active session — even while a
+                    // connecting placeholder has no panes yet, so the
+                    // terminal chrome does not jump (WI-2026-08-08-056).
                     PaneTabBar(paneManager: paneManager, session: session)
                 }
 
@@ -275,25 +318,8 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .overlay(alignment: .topTrailing) {
-                    // Right settings panel toggle (WI-2026-08-07-002).
-                    Button {
-                        showSettingsPanel.toggle()
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(showSettingsPanel ? DS.accent : DS.textSecondary)
-                            .frame(width: 26, height: 24)
-                            .background(
-                                RoundedRectangle(cornerRadius: DS.Radius.md)
-                                    .fill(showSettingsPanel ? DS.accentSoft : DS.hover)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .help("Terminal settings panel (⌘⌥P)")
-                    .accessibilityLabel("Terminal settings panel")
-                    .padding(DS.Space.sm)
-                }
+                // The settings-panel toggle lives at ContentView level now
+                // (WI-2026-08-08-052) — available on every page.
             } else {
                 VStack(spacing: DS.Space.sm) {
                     ProgressView()

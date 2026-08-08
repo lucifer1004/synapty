@@ -74,37 +74,66 @@ struct ContextStatusBar: View {
 
     // MARK: - Project task badges (RFC-0003 C-UI)
 
+    /// Clickable per-project task badges, capped at 3 with a "+N" overflow
+    /// so a long project list cannot crowd the 30pt bar (WI-2026-08-08-053).
+    /// Clicking a badge opens the Tasks page.
     private var projectBadges: some View {
         let counts = taskMonitor.projectCounts
+        let visible = counts.keys.sorted().prefix(3)
+        let overflow = counts.keys.count - visible.count
         return HStack(spacing: DS.Space.sm) {
-            ForEach(counts.keys.sorted(), id: \.self) { project in
+            ForEach(visible, id: \.self) { project in
                 if let c = counts[project] {
-                    HStack(spacing: DS.Space.xs) {
-                        Text(project.replacingOccurrences(of: "p:", with: ""))
-                            .font(DS.Typography.captionStrong)
-                        if c.doing > 0 {
-                            Text("\(c.doing)")
+                    Button {
+                        NotificationCenter.default.post(
+                            name: .synaptyShowPage,
+                            object: nil,
+                            userInfo: ["page": AppPage.tasks.rawValue]
+                        )
+                    } label: {
+                        HStack(spacing: DS.Space.xs) {
+                            Text(project.replacingOccurrences(of: "p:", with: ""))
                                 .font(DS.Typography.captionStrong)
-                                .foregroundStyle(DS.info)
+                            if c.doing > 0 {
+                                Text("\(c.doing)")
+                                    .font(DS.Typography.captionStrong)
+                                    .foregroundStyle(DS.info)
+                            }
+                            if c.todo > 0 {
+                                Text("\(c.todo)")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.textSecondary)
+                            }
+                            if c.done > 0 {
+                                Text("\(c.done)✓")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.textSecondary)
+                            }
                         }
-                        if c.todo > 0 {
-                            Text("\(c.todo)")
-                                .font(DS.Typography.caption)
-                                .foregroundStyle(DS.textSecondary)
-                        }
-                        if c.done > 0 {
-                            Text("\(c.done)✓")
-                                .font(DS.Typography.caption)
-                                .foregroundStyle(DS.textSecondary)
-                        }
+                        .padding(.horizontal, DS.Space.sm)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: DS.Radius.pill)
+                                .fill(DS.hover)
+                        )
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .help("Open Tasks")
+                    .accessibilityLabel("\(project) tasks — open Tasks page")
+                }
+            }
+            if overflow > 0 {
+                Text("+\(overflow)")
+                    .font(DS.Typography.captionStrong)
+                    .foregroundStyle(DS.textTertiary)
                     .padding(.horizontal, DS.Space.sm)
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: DS.Radius.pill)
                             .fill(DS.hover)
                     )
-                }
+                    .help("\(overflow) more projects — open the Tasks page")
             }
         }
     }

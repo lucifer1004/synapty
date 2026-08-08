@@ -8,6 +8,7 @@ struct TaskListView: View {
 
     @State private var stateFilter: TaskStatus? = nil
     @State private var isRefreshing = false
+    @State private var showConnectSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +22,14 @@ struct TaskListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DS.background)
+        .sheet(isPresented: $showConnectSheet) {
+            GithubConnectSheet(
+                isPresented: $showConnectSheet,
+                onConnected: {
+                    taskMonitor.refreshTasks()
+                }
+            )
+        }
     }
 
     // MARK: - Filter bar
@@ -107,21 +116,87 @@ struct TaskListView: View {
 
     // MARK: - Empty state
 
+    /// Empty-state guide branches on the bridge state — connect first,
+    /// create second (WI-2026-08-08-055).
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: DS.Space.lg) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 36))
-                .foregroundStyle(DS.textTertiary)
-            Text(stateFilter == nil ? "No open tasks" : "Nothing \(stateFilter!.rawValue)")
-                .font(DS.Typography.titleLarge)
-                .foregroundStyle(DS.textSecondary)
-            Text("Tasks are issues in your hub repo, grouped by p: labels.\nCreate one with `synapty task create`.")
-                .font(DS.Typography.caption)
-                .foregroundStyle(DS.textTertiary)
-                .multilineTextAlignment(.center)
+        if stateFilter != nil {
+            // Filtered view is empty — not a bridge problem.
+            VStack(spacing: DS.Space.lg) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 36))
+                    .foregroundStyle(DS.textTertiary)
+                Text("Nothing \(stateFilter!.rawValue)")
+                    .font(DS.Typography.titleLarge)
+                    .foregroundStyle(DS.textSecondary)
+                Text("No tasks match the current filter.")
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.textTertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DS.background)
+        } else {
+            switch taskMonitor.bridgeStatus {
+            case .notConfigured:
+                VStack(spacing: DS.Space.lg) {
+                    Image(systemName: "link.badge.plus")
+                        .font(.system(size: 36))
+                        .foregroundStyle(DS.warning)
+                    Text("Connect GitHub to get started")
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
+                    Text("Tasks are issues in your hub repo. Connect a repo first —\nthe credential stays in your Keychain.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        showConnectSheet = true
+                    } label: {
+                        Label("Connect GitHub", systemImage: "link.badge.plus")
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DS.background)
+            case .error(let msg):
+                VStack(spacing: DS.Space.lg) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 36))
+                        .foregroundStyle(DS.danger)
+                    Text("Tasks unavailable")
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
+                    Text(msg)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    Button {
+                        // The Hub page's bridge section shows the error AND
+                        // offers Connect/Change/Disconnect.
+                        NotificationCenter.default.post(name: .synaptyShowHubPage, object: nil)
+                    } label: {
+                        Label("Open Hub", systemImage: "dot.radiowaves.left.and.right")
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DS.background)
+            case .configured, .unknown:
+                VStack(spacing: DS.Space.lg) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 36))
+                        .foregroundStyle(DS.textTertiary)
+                    Text("No open tasks")
+                        .font(DS.Typography.titleLarge)
+                        .foregroundStyle(DS.textSecondary)
+                    Text("Tasks are issues in your hub repo, grouped by p: labels.\nCreate one with `synapty task create`.")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.textTertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(DS.background)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DS.background)
     }
 
     // MARK: - Grouped list
