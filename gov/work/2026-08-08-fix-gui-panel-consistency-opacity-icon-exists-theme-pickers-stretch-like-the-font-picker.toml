@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-083"
+title = "fix(gui): panel consistency — opacity icon exists, theme pickers stretch like the font picker"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: (1) the opacity row shows no icon — the "opacity" SF Symbol does not exist in the current system (verified via NSImage: MISSING), so it renders blank; (2) the theme pickers are 150pt wide while the font picker stretches — inconsistent.
+
+Fix: use the "drop" symbol for opacity (verified present); ThemePicker gains a nil-width mode (stretch to the row width) and the panel's Light/Dark pickers use it, matching the font picker. The Settings page keeps the fixed 150pt pair (SettingsThemeControls passes it explicitly)."""
+
+[[content.acceptance_criteria]]
+text = "opacity row shows the drop icon (present on this system)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "panel theme pickers stretch to the same width as the font picker"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings page theme pair stays 150pt each"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

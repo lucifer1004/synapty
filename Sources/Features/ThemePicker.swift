@@ -9,7 +9,9 @@ struct ThemePicker: View {
     @Binding var selection: String?
     let themes: [String]
     /// Button width (the right panel is narrow — use a compact width there).
-    var width: CGFloat = 150
+    /// Fixed picker width; nil = stretch to the available row width
+    /// (WI-2026-08-08-083).
+    var width: CGFloat? = 150
 
     @State private var showPopover = false
     @State private var search = ""
@@ -38,7 +40,7 @@ struct ThemePicker: View {
             .padding(.horizontal, DS.Space.md)
             .padding(.vertical, 5)
             .background(RoundedRectangle(cornerRadius: DS.Radius.sm).fill(DS.hover))
-            .frame(width: width)
+            .frame(maxWidth: width ?? .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showPopover, arrowEdge: .bottom) {

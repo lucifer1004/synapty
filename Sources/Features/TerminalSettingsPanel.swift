@@ -47,7 +47,7 @@ struct TerminalSettingsPanel: View {
                                 set: { settings.lightThemeName = $0 }
                             ),
                             themes: SynaptySettings.builtinThemeNames,
-                            width: 150
+                            width: nil
                         )
                     }
                     row(icon: "moon", label: "Dark theme") {
@@ -57,7 +57,7 @@ struct TerminalSettingsPanel: View {
                                 set: { settings.darkThemeName = $0 }
                             ),
                             themes: SynaptySettings.builtinThemeNames,
-                            width: 150
+                            width: nil
                         )
                     }
                     row(icon: "textformat", label: "Font family") {
@@ -86,7 +86,7 @@ struct TerminalSettingsPanel: View {
                                 .foregroundStyle(DS.textSecondary)
                         }
                     }
-                    row(icon: "opacity", label: "Background opacity") {
+                    row(icon: "drop", label: "Background opacity") {
                         Slider(value: $localOpacity, in: 0.1...1.0)
                             .onChange(of: localOpacity) { _, newValue in
                                 scheduleOpacityWrite(newValue)
