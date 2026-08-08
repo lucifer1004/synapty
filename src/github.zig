@@ -154,9 +154,19 @@ pub fn storeToken(allocator: Allocator, account: []const u8, token: []const u8) 
     }
 
     if (child.stdin) |stdin| {
-        defer stdin.close(io_mod.get());
+        // `security -w` without a value reads the password from stdin as
+        // TWO prompts (password + retype) — a single line made it store an
+        // EMPTY password ("passwords don't match"), silently breaking the
+        // whole bridge (WI-2026-08-08-047).
         try stdin.writeStreamingAll(io_mod.get(), token);
         try stdin.writeStreamingAll(io_mod.get(), "\n");
+        try stdin.writeStreamingAll(io_mod.get(), token);
+        try stdin.writeStreamingAll(io_mod.get(), "\n");
+        // Close the write end (EOF for the child's prompts) and detach the
+        // File BEFORE wait: wait()'s cleanup would close the same fd a
+        // second time (BADF panic in Zig 0.16).
+        stdin.close(io_mod.get());
+        child.stdin = null;
     }
 
     const term = try std.process.Child.wait(&child, io_mod.get());
@@ -206,6 +216,10 @@ pub fn loadToken(allocator: Allocator, account: []const u8) !?[]const u8 {
         .exited => |code| {
             if (code != 0) return null;
             const token = std.mem.trim(u8, result.stdout, "\r\n");
+            // An empty password is NOT a credential — a botched store (or a
+            // manual delete) must read as 'no token', not as a valid empty
+            // one (hasToken false positive; WI-2026-08-08-047).
+            if (token.len == 0) return null;
             const t = try allocator.dupe(u8, token);
             return @as(?[]const u8, t);
         },
