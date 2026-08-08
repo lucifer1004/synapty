@@ -352,11 +352,6 @@ struct SessionRow: View {
                 // Primary row: label + duration
                 HStack(spacing: DS.Space.xs) {
                     labelView
-                    if case .connecting = session.state {
-                        Text("connecting")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textTertiary)
-                    }
                     Spacer(minLength: DS.Space.xs)
                     if case .connected = session.state {
                         Text(durationString(from: session.createdAt))

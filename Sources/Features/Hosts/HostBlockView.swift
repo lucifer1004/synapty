@@ -108,11 +108,6 @@ struct HostBlockView: View {
                 }
             }
 
-            // Tunnel state
-            Text(tunnelStatus.label)
-                .font(DS.Typography.caption)
-                .foregroundStyle(Color(tunnelStatus.color))
-
             Divider()
 
             // Actions
