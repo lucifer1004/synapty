@@ -304,6 +304,13 @@ import AppKit
                 self?.applyColorScheme()
             }
         }
+
+        // Cold start (WI-2026-08-08-086): the appearance-changed notification
+        // and the KVO may both have fired BEFORE this init (settings init
+        // runs before GhosttyApp under window restoration), so the persisted
+        // appearance would never reach ghostty — the terminal would stay
+        // light while the UI chrome is dark. Push it once now.
+        applyColorScheme()
     }
 
     /// Push the resolved color scheme (settings override, else OS) to ghostty.
