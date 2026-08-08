@@ -24,7 +24,6 @@ struct HubPageView: View {
                 Text("Hub")
                     .font(DS.Typography.titleLarge)
                 Spacer()
-                DSStatusDot(color: statusColor, size: 9)
             }
             .padding(.horizontal, DS.Space.xl)
             .padding(.vertical, DS.Space.lg)
@@ -178,9 +177,8 @@ struct HubPageView: View {
 
     @ViewBuilder
     private var githubBridgeSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.md) {
-            DSSectionLabel(text: "GitHub Bridge")
-
+        DSSectionBlock(title: "GitHub Bridge") {
+            VStack(alignment: .leading, spacing: DS.Space.md) {
             HStack(spacing: DS.Space.sm) {
                 switch taskMonitor.bridgeStatus {
                 case .configured:
@@ -253,6 +251,7 @@ struct HubPageView: View {
                     .controlSize(.small)
                     .disabled(bridge.isDisconnecting)
                 }
+            }
             }
         }
         .padding(DS.Space.lg)

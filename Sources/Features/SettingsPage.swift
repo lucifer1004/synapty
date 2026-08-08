@@ -38,10 +38,10 @@ struct SettingsPage: View {
             // Sub-navigation (WI-2026-08-08-052): Scrolling + Clipboard live
             // inside the Terminal pane — 4 balanced panes, not a 6-chip row.
             HStack(spacing: DS.Space.sm) {
-                paneChip(.appearance, title: "Appearance", icon: "circle.lefthalf.filled")
-                paneChip(.terminal, title: "Terminal", icon: "textformat")
-                paneChip(.network, title: "Network", icon: "network")
-                paneChip(.github, title: "GitHub", icon: "link")
+                DSPaneChip(title: "Appearance", icon: "circle.lefthalf.filled", isActive: pane == .appearance) { pane = .appearance }
+                DSPaneChip(title: "Terminal", icon: "textformat", isActive: pane == .terminal) { pane = .terminal }
+                DSPaneChip(title: "Network", icon: "network", isActive: pane == .network) { pane = .network }
+                DSPaneChip(title: "GitHub", icon: "link", isActive: pane == .github) { pane = .github }
                 Spacer()
             }
             .padding(.horizontal, DS.Space.xl)
@@ -75,21 +75,25 @@ struct SettingsPage: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
-            groupBlock("Mode") {
+            DSSectionBlock(
+                title: "Mode",
+                help: "Applies to the whole app — sidebar, settings and terminal chrome. In System mode Synapty follows macOS, including live changes."
+            ) {
                 Picker("Appearance", selection: appearanceBinding) {
                     ForEach(AppearanceMode.allCases, id: \.self) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .frame(maxWidth: 320)
-                Text("Applies to the whole app — sidebar, settings and terminal chrome. In System mode Synapty follows macOS, including live changes.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
             }
 
             // App UI size (WI-2026-08-08-070): scales the app's own chrome.
-            groupBlock("UI Size") {
+            DSSectionBlock(
+                title: "UI Size",
+                help: "Scales the app's own interface (sidebar, lists, panels). The terminal font size is separate — see Terminal."
+            ) {
                 Picker("UI Size", selection: uiSizeBinding) {
                     Text("Small").tag(0.85)
                     Text("Standard").tag(1.0)
@@ -97,10 +101,8 @@ struct SettingsPage: View {
                     Text("Extra Large").tag(1.3)
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .frame(maxWidth: 360)
-                Text("Scales the app's own interface (sidebar, lists, panels). The terminal font size is separate — see Terminal.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
             }
         }
     }
@@ -112,17 +114,23 @@ struct SettingsPage: View {
     /// and clipboard are Settings-page-only.
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
-            groupBlock("Theme") {
+            DSSectionBlock(
+                title: "Theme",
+                help: "Each theme applies to its appearance mode (Settings → Appearance). Terminal colors switch live with the mode."
+            ) {
                 SettingsThemeControls(settings: settings)
             }
 
-            groupBlock("Font") {
+            DSSectionBlock(title: "Font") {
                 SettingsFontControls(settings: settings, families: fontFamilies)
 
                 // Fallback fonts for codepoints missing from the primary
                 // (unicode symbols, Nerd Font icons, etc.).
                 VStack(alignment: .leading, spacing: DS.Space.sm) {
-                    DSSectionLabel(text: "Fallback Fonts")
+                    HStack(spacing: DS.Space.xs) {
+                        DSSectionLabel(text: "Fallback Fonts")
+                        DSHelpButton(text: "Used for glyphs missing from the primary font (e.g. Nerd Font icons, box drawing).")
+                    }
                     ForEach(settings.fontFallbackFamilies, id: \.self) { family in
                         HStack(spacing: DS.Space.sm) {
                             Image(systemName: "textformat")
@@ -149,21 +157,21 @@ struct SettingsPage: View {
                         onAdd: { settings.fontFallbackFamilies.append($0) }
                     )
                     .disabled(settings.fontFamily == nil)
-                    Text("Used for glyphs missing from the primary font (e.g. Nerd Font icons, box drawing).")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textTertiary)
                 }
             }
 
-            groupBlock("Background") {
+            DSSectionBlock(title: "Background") {
                 SettingsBackgroundOpacityControl(value: opacityBinding)
             }
 
-            groupBlock("Cursor") {
+            DSSectionBlock(title: "Cursor") {
                 SettingsCursorControl(settings: settings)
             }
 
-            groupBlock("Scrollback") {
+            DSSectionBlock(
+                title: "Scrollback",
+                help: "Scroll position is preserved — keystrokes and new output never snap to the bottom."
+            ) {
                 Picker("Limit", selection: scrollbackBinding) {
                     Text("Default (10,000)").tag(Int?.none)
                     Text("1,000").tag(Int?.some(1000))
@@ -173,24 +181,18 @@ struct SettingsPage: View {
                 }
                 .pickerStyle(.menu)
                 .frame(maxWidth: 380)
-                Text("Scroll position is preserved (keystrokes and new output never snap to the bottom).")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
             }
 
-            groupBlock("Clipboard") {
+            DSSectionBlock(
+                title: "Clipboard",
+                help: "Lets terminal programs (e.g. vim, tmux, agent tools) read or write the system clipboard."
+            ) {
                 Toggle("Copy on select", isOn: copyOnSelectBinding)
                     .toggleStyle(.switch)
-                Text("Selecting text copies it to the clipboard immediately.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
                 Toggle("Allow apps to read clipboard", isOn: clipboardReadBinding)
                     .toggleStyle(.switch)
                 Toggle("Allow apps to write clipboard", isOn: clipboardWriteBinding)
                     .toggleStyle(.switch)
-                Text("Lets terminal programs (e.g. vim, tmux, agent tools) read or write the system clipboard.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
             }
         }
     }
@@ -199,7 +201,10 @@ struct SettingsPage: View {
 
     private var networkSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.xl) {
-            groupBlock("Ports") {
+            DSSectionBlock(
+                title: "Ports",
+                help: "Applied on the next Hub start / tunnel connection. SSH connection robustness is automatic — fail-fast timeouts, keepalive probes and auto-reconnect."
+            ) {
                 HStack(spacing: DS.Space.md) {
                     Text("Hub port")
                         .font(DS.Typography.detail)
@@ -216,48 +221,11 @@ struct SettingsPage: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 100)
                 }
-                Text("Applied on the next Hub start / tunnel connection.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
-            }
-            groupBlock("SSH") {
-                Text("Connection robustness is managed automatically: fail-fast timeouts, keepalive probes and auto-reconnect.")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.textTertiary)
             }
         }
     }
 
     // MARK: - Helpers
-
-    private func groupBlock(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.md) {
-            DSSectionLabel(text: title)
-            content()
-        }
-    }
-
-    private func paneChip(_ target: SettingsPane, title: String, icon: String) -> some View {
-        let isActive = pane == target
-        return Button {
-            pane = target
-        } label: {
-            HStack(spacing: DS.Space.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                Text(title)
-                    .font(DS.Typography.detailStrong)
-            }
-            .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
-            .padding(.horizontal, DS.Space.lg)
-            .padding(.vertical, DS.Space.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.pill)
-                    .fill(isActive ? DS.accentSoft : DS.hover)
-            )
-        }
-        .buttonStyle(.plain)
-    }
 
     // MARK: - Bindings
 
@@ -309,7 +277,8 @@ struct SettingsPage: View {
     @State private var showConnectSheet = false
 
     private var githubSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.md) {
+        DSSectionBlock(title: "GitHub") {
+            VStack(alignment: .leading, spacing: DS.Space.md) {
             if let binding = bridge.binding {
                 if binding.configured {
                     HStack(spacing: DS.Space.sm) {
@@ -355,19 +324,20 @@ struct SettingsPage: View {
                     .disabled(bridge.isDisconnecting)
                 }
             }
-        }
-        .padding(.vertical, DS.Space.md)
-        .sheet(isPresented: $showConnectSheet) {
-            GithubConnectSheet(
-                isPresented: $showConnectSheet,
-                onConnected: {
-                    taskMonitor.refreshTasks()
-                    bridge.refresh()
-                }
-            )
-        }
-        .onAppear {
-            bridge.refresh()
+            }
+            .padding(.vertical, DS.Space.md)
+            .sheet(isPresented: $showConnectSheet) {
+                GithubConnectSheet(
+                    isPresented: $showConnectSheet,
+                    onConnected: {
+                        taskMonitor.refreshTasks()
+                        bridge.refresh()
+                    }
+                )
+            }
+            .onAppear {
+                bridge.refresh()
+            }
         }
     }
 

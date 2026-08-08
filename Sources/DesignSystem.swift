@@ -199,9 +199,12 @@ enum DS {
 // MARK: - Sheet header (title + close)
 
 /// Uniform sheet header: leading icon + title, trailing close button.
+/// An optional help popover can carry the sheet's explanation
+/// (WI-2026-08-08-072).
 struct DSSheetHeader: View {
     let title: String
     var icon: String? = nil
+    var help: String? = nil
     @Binding var isPresented: Bool
 
     var body: some View {
@@ -214,6 +217,9 @@ struct DSSheetHeader: View {
             }
             Text(title)
                 .font(DS.Typography.titleLarge)
+            if let help {
+                DSHelpButton(text: help)
+            }
             Spacer()
             Button {
                 isPresented = false
@@ -254,6 +260,88 @@ struct DSSectionLabel: View {
     }
 }
 
+// MARK: - Help button (on-demand explanation)
+
+/// "?" button + popover carrying a section's explanation — keeps forms
+/// clean; the text appears only when asked (WI-2026-08-08-071).
+struct DSHelpButton: View {
+    let text: String
+    @State private var showHelp = false
+
+    var body: some View {
+        Button {
+            showHelp.toggle()
+        } label: {
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 11))
+                .foregroundStyle(DS.textTertiary)
+        }
+        .buttonStyle(.plain)
+        .help("Help")
+        .accessibilityLabel("Help")
+        .popover(isPresented: $showHelp, arrowEdge: .bottom) {
+            Text(text)
+                .font(DS.Typography.detail)
+                .foregroundStyle(DS.textPrimary)
+                .frame(maxWidth: 260, alignment: .leading)
+                .padding(DS.Space.md)
+        }
+    }
+}
+
+// MARK: - Section block (title row + content)
+
+/// Section with a title row (title + optional help) and content — the one
+/// shared section construct (WI-2026-08-08-073), replacing the private
+/// groupBlock / formSection / section copies.
+struct DSSectionBlock<Content: View>: View {
+    let title: String
+    var help: String? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.md) {
+            HStack(spacing: DS.Space.xs) {
+                DSSectionLabel(text: title)
+                if let help {
+                    DSHelpButton(text: help)
+                }
+            }
+            content
+        }
+    }
+}
+
+// MARK: - Pane chip (sub-navigation)
+
+/// Pill-shaped sub-navigation chip — shared by the Settings and Hosts pages
+/// (WI-2026-08-08-073).
+struct DSPaneChip: View {
+    let title: String
+    let icon: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Space.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                Text(title)
+                    .font(DS.Typography.detailStrong)
+            }
+            .foregroundStyle(isActive ? DS.accent : DS.textSecondary)
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.vertical, DS.Space.xs)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.pill)
+                    .fill(isActive ? DS.accentSoft : DS.hover)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Status dot
 
 /// Semantic status dot with optional pulse.
@@ -274,61 +362,6 @@ struct DSStatusDot: View {
                 .fill(color)
                 .frame(width: size, height: size)
         }
-    }
-}
-
-// MARK: - Badge
-
-/// Small capsule badge (project counts, tags).
-struct DSBadge: View {
-    let text: String
-    var color: Color = DS.textSecondary
-    var highlighted: Bool = false
-
-    var body: some View {
-        Text(text)
-            .font(DS.Typography.captionStrong)
-            .foregroundStyle(highlighted ? color : DS.textSecondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(
-                highlighted ? color.opacity(0.16) : DS.hover,
-                in: Capsule()
-            )
-    }
-}
-
-// MARK: - Row hover background
-
-/// Adds a subtle rounded hover/selection background to list rows.
-struct DSRowBackground: ViewModifier {
-    var isSelected: Bool = false
-    var cornerRadius: CGFloat = DS.Radius.md
-
-    func body(content: Content) -> some View {
-        content
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(isSelected ? DS.selection : DS.hover)
-            )
-    }
-}
-
-// MARK: - Card
-
-/// Elevated rounded surface for grouped content.
-struct DSCard<Content: View>: View {
-    var padding: CGFloat = DS.Space.lg
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        content
-            .padding(padding)
-            .background(DS.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .stroke(DS.border, lineWidth: 1)
-            )
     }
 }
 

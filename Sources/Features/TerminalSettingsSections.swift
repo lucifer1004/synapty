@@ -44,9 +44,6 @@ struct SettingsThemeControls: View {
                 )
             }
         }
-        Text("Each theme applies to its appearance mode (Settings → Appearance). Terminal colors switch live with the mode.")
-            .font(DS.Typography.caption)
-            .foregroundStyle(DS.textTertiary)
     }
 }
 

@@ -19,13 +19,13 @@ struct GithubConnectSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.lg) {
-            DSSheetHeader(title: "Connect GitHub", icon: "link.badge.plus", isPresented: isPresented)
-                .disabled(isRunning)
-
-            Text("The login device holds a fine-grained PAT (Issues: Read/Write on the hub repo). Agents route task tools through this device — the credential stays in your Keychain.")
-                .font(DS.Typography.caption)
-                .foregroundStyle(DS.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            DSSheetHeader(
+                title: "Connect GitHub",
+                icon: "link.badge.plus",
+                help: "The login device holds a fine-grained PAT (Issues: Read/Write on the hub repo). Agents route task tools through this device — the credential stays in your Keychain.",
+                isPresented: isPresented
+            )
+            .disabled(isRunning)
 
             VStack(alignment: .leading, spacing: DS.Space.sm) {
                 TextField("Owner (GitHub username or org)", text: $owner)

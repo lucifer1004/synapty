@@ -61,11 +61,6 @@ struct HostsPageView: View {
                 Text("Hosts")
                     .font(DS.Typography.titleLarge)
                 Spacer()
-                if !hostStore.hosts.isEmpty {
-                    Text("\(hostStore.hosts.count) hosts")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textSecondary)
-                }
             }
             .padding(.horizontal, DS.Space.xl)
             .padding(.vertical, DS.Space.lg)
@@ -73,8 +68,8 @@ struct HostsPageView: View {
 
             // Sub-navigation: Hosts | Identities
             HStack(spacing: DS.Space.sm) {
-                paneChip(.hosts, title: "Hosts", icon: "server.rack")
-                paneChip(.identities, title: "Identities", icon: "key")
+                DSPaneChip(title: "Hosts", icon: "server.rack", isActive: pane == .hosts) { pane = .hosts }
+                DSPaneChip(title: "Identities", icon: "key", isActive: pane == .identities) { pane = .identities }
                 Spacer()
                 if pane == .hosts {
                     Text("\(hostStore.hosts.count) hosts · \(hostStore.groups.count) groups")
@@ -805,19 +800,16 @@ struct GroupEditorPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
-                    VStack(alignment: .leading, spacing: DS.Space.md) {
-                        DSSectionLabel(text: "Group")
+                    DSSectionBlock(title: "Group") {
                         TextField("Label", text: $label)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
                     }
 
-                    VStack(alignment: .leading, spacing: DS.Space.md) {
-                        DSSectionLabel(text: "Defaults")
-                        Text("Hosts in this group use these when they don't set their own values.")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textTertiary)
-
+                    DSSectionBlock(
+                        title: "Defaults",
+                        help: "Hosts in this group use these when they don't set their own values."
+                    ) {
                         TextField("Username (default)", text: $username)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
@@ -832,8 +824,7 @@ struct GroupEditorPanel: View {
                     }
 
                     // Port forwardings (WI-2026-08-08-060/067)
-                    VStack(alignment: .leading, spacing: DS.Space.md) {
-                        DSSectionLabel(text: "Port Forwarding")
+                    DSSectionBlock(title: "Port Forwarding") {
                         Toggle("Set forwarding rules for this group", isOn: $setForwardings)
                             .toggleStyle(.switch)
                             .font(DS.Typography.detail)

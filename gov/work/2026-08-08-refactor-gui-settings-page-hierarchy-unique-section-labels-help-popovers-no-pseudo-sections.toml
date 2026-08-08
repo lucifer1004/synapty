@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-071"
+title = "refactor(gui): settings page hierarchy — unique section labels, help popovers, no pseudo sections"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Hierarchy audit (settings page): section titles duplicate row labels (UI Size section + UI Size picker label; Mode section + Appearance picker label under an Appearance pane); every section carries a caption line that should be an on-demand help popover; SSH is a pseudo-section with no controls; the GitHub pane has no section title at all.
+
+Fix: section title is the single label (controls labelsHidden); new DSHelpButton (? icon + popover) holds all explanatory text; SSH pseudo-section removed (explanation merged into the Ports help); GitHub pane gets a section title; Theme/Scrollback/Clipboard/Ports/Fallback-Fonts captions move into help popovers."""
+
+[[content.acceptance_criteria]]
+text = "no section title duplicates a control label (labels hidden on labelled controls)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "all explanatory captions moved into DSHelpButton popovers; sections render clean"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SSH pseudo-section removed; GitHub pane has a section title"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

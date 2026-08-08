@@ -22,6 +22,7 @@ struct TerminalSettingsPanel: View {
                     .foregroundStyle(DS.accent)
                 Text("Terminal")
                     .font(DS.Typography.title)
+                DSHelpButton(text: "Quick settings — apply live to the terminal. The full set lives in Settings → Terminal.")
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -41,25 +42,18 @@ struct TerminalSettingsPanel: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
-                    // Quick subset note: the app-level Appearance mode lives
-                    // on the Settings page only (WI-2026-08-08-052).
-                    Text("Quick settings — apply live. Full set in Settings → Terminal.")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textTertiary)
-                        .padding(.top, DS.Space.sm)
-
                     // Theme — light/dark pair side by side
-                    section("Theme") {
+                    DSSectionBlock(title: "Theme") {
                         SettingsThemeControls(settings: settings, pickerWidth: 118)
                     }
 
                     // Font
-                    section("Font") {
+                    DSSectionBlock(title: "Font") {
                         SettingsFontControls(settings: settings, families: fontFamilies)
                     }
 
                     // Background opacity — debounced while dragging
-                    section("Background") {
+                    DSSectionBlock(title: "Background") {
                         SettingsBackgroundOpacityControl(value: $localOpacity)
                             .onChange(of: localOpacity) { _, newValue in
                                 scheduleOpacityWrite(newValue)
@@ -67,7 +61,7 @@ struct TerminalSettingsPanel: View {
                     }
 
                     // Cursor
-                    section("Cursor") {
+                    DSSectionBlock(title: "Cursor") {
                         SettingsCursorControl(settings: settings)
                     }
                 }
@@ -88,15 +82,6 @@ struct TerminalSettingsPanel: View {
             // (WI-2026-08-08-033). The slider binding keeps localOpacity
             // current, so flushing it is always the right final write.
             flushOpacityWrite(localOpacity)
-        }
-    }
-
-    // MARK: - Sections
-
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.md) {
-            DSSectionLabel(text: title)
-            content()
         }
     }
 

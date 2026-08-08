@@ -65,7 +65,7 @@ struct HostEditorPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
                     // Connection
-                    formSection("Connection") {
+                    DSSectionBlock(title: "Connection") {
                         TextField("Label", text: $label)
                         TextField("Address", text: $address)
                         TextField("Port", text: $portText)
@@ -80,12 +80,12 @@ struct HostEditorPanel: View {
                     }
 
                     // Port forwardings (shared editor, WI-2026-08-08-060)
-                    formSection("Port Forwarding") {
+                    DSSectionBlock(title: "Port Forwarding") {
                         ForwardingsEditor(forwardings: $forwardings)
                     }
 
                     // Group
-                    formSection("Group") {
+                    DSSectionBlock(title: "Group") {
                         Picker("Group", selection: $groupID) {
                             Text("Ungrouped").tag(Optional<UUID>.none)
                             ForEach(hostStore.groups.sorted { $0.label < $1.label }) { group in
@@ -96,7 +96,7 @@ struct HostEditorPanel: View {
                     }
 
                     // Credentials
-                    formSection("Credentials") {
+                    DSSectionBlock(title: "Credentials") {
                         Picker("Identity", selection: $identityID) {
                             Text("Inline (below)").tag(Optional<UUID>.none)
                             ForEach(hostStore.identities) { identity in
@@ -125,7 +125,7 @@ struct HostEditorPanel: View {
                     }
 
                     // Tags
-                    formSection("Tags") {
+                    DSSectionBlock(title: "Tags") {
                         TextField("prod, gpu, ubuntu…", text: $tagsText)
                             .font(DS.Typography.detail)
                         if !hostStore.allTags.isEmpty {
@@ -198,16 +198,6 @@ struct HostEditorPanel: View {
             if case .success(let urls) = result, let url = urls.first {
                 sshKeyPath = url.path
             }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.md) {
-            DSSectionLabel(text: title)
-            content()
-                .font(DS.Typography.body)
         }
     }
 
