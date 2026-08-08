@@ -204,6 +204,33 @@ final class HostStoreTests: XCTestCase {
         XCTAssertEqual(store.hosts(inGroup: nil).count, 1)
     }
 
+    /// Batch group-membership change used by drag-and-drop
+    /// (WI-2026-08-08-057).
+    func testMoveHostsToGroupAndBack() {
+        let store = HostStore()
+        let group = HostGroup(label: "Prod")
+        store.groups = [group]
+        let h1 = HostEntry(label: "db", address: "1.1.1.1", username: "u")
+        let h2 = HostEntry(label: "web", address: "2.2.2.2", username: "u")
+        let h3 = HostEntry(label: "other", address: "3.3.3.3", username: "u")
+        store.hosts = [h1, h2, h3]
+
+        // Move two hosts into the group in one batch.
+        store.moveHosts([h1.id, h2.id], toGroup: group.id)
+        XCTAssertEqual(store.hosts(inGroup: group.id).count, 2)
+        XCTAssertEqual(store.hosts(inGroup: nil).count, 1)
+
+        // Moving back out (Ungrouped drop target) clears membership.
+        store.moveHosts([h1.id], toGroup: nil)
+        XCTAssertEqual(store.hosts(inGroup: group.id).count, 1)
+        XCTAssertTrue(store.hosts(inGroup: nil).contains { $0.id == h1.id })
+
+        // No-op moves do not corrupt state.
+        store.moveHosts([h3.id], toGroup: nil)
+        XCTAssertEqual(store.hosts(inGroup: nil).count, 2)
+        XCTAssertNil(store.hosts.first { $0.id == h3.id }?.groupID)
+    }
+
     func testGroupPath() {
         let store = HostStore()
         let root = HostGroup(label: "Prod")

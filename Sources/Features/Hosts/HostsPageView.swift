@@ -17,6 +17,11 @@ struct HostsPageView: View {
     @State private var selectedFilter: HostFilter = .all
     /// Host search text.
     @State private var searchText = ""
+    /// Multi-selection for drag-and-drop (WI-2026-08-08-057): Cmd-click
+    /// toggles; dragging a selected block drags the whole selection.
+    @State private var selectedHostIDs: Set<UUID> = []
+    /// Hover highlight for the Ungrouped drop target.
+    @State private var ungroupedDropTargeted = false
     /// Which sub-pane of the Hosts page is shown.
     @State private var pane: HostsPane = .hosts
     @State private var showAddHost = false
@@ -235,11 +240,28 @@ struct HostsPageView: View {
                     .font(DS.Typography.detailStrong)
                     .tag(HostFilter.all)
 
-                // Ungrouped pseudo-group
+                // Ungrouped pseudo-group — also a drop target: dropping
+                // here clears group membership (WI-2026-08-08-057).
                 if !hostStore.hosts(inGroup: nil).isEmpty {
                     Label("Ungrouped", systemImage: "tray")
                         .font(DS.Typography.detail)
                         .foregroundStyle(DS.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, DS.Space.xs)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .fill(ungroupedDropTargeted ? DS.accentSoft : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                        .dropDestination(for: HostDragPayload.self) { items, _ in
+                            let ids = items.flatMap(\.hostIDs)
+                            guard !ids.isEmpty else { return false }
+                            hostStore.moveHosts(ids, toGroup: nil)
+                            return true
+                        } isTargeted: { targeted in
+                            ungroupedDropTargeted = targeted
+                        }
                         .tag(HostFilter.ungrouped)
                 }
 
@@ -298,23 +320,68 @@ struct HostsPageView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(visibleHosts) { host in
-                        HostConfigRow(
-                            host: host,
-                            store: hostStore,
-                            tunnelStatus: tunnelManager.status(for: host),
-                            onEdit: { hostToEdit = host },
-                            onDelete: { hostToDelete = host },
-                            onReconnect: { tunnelManager.reconnectTunnel(for: host) },
-                            onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
-                        )
+                ScrollView {
+                    // Host BLOCKS in a responsive grid (WI-2026-08-08-057):
+                    // cards are the drag source; the group tree is the
+                    // drop target.
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: DS.Space.md)],
+                        alignment: .leading,
+                        spacing: DS.Space.md
+                    ) {
+                        ForEach(visibleHosts) { host in
+                            HostBlockView(
+                                host: host,
+                                store: hostStore,
+                                tunnelStatus: tunnelManager.status(for: host),
+                                isSelected: selectedHostIDs.contains(host.id),
+                                onEdit: { hostToEdit = host },
+                                onDelete: { hostToDelete = host },
+                                onReconnect: { tunnelManager.reconnectTunnel(for: host) },
+                                onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
+                            )
+                            .onTapGesture { selectHost(host.id) }
+                            .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
+                        }
                     }
+                    .padding(DS.Space.lg)
                 }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
+                .contentShape(Rectangle())
+                .onTapGesture { selectedHostIDs = [] }
             }
         }
+    }
+
+    // MARK: - Block selection (drag-and-drop support)
+
+    /// Cmd-click toggles membership; plain click selects just this host.
+    private func selectHost(_ id: UUID) {
+        if NSEvent.modifierFlags.contains(.command) {
+            if selectedHostIDs.contains(id) {
+                selectedHostIDs.remove(id)
+            } else {
+                selectedHostIDs.insert(id)
+            }
+        } else {
+            selectedHostIDs = [id]
+        }
+    }
+
+    /// Dragging a selected block carries the whole selection; an unselected
+    /// block drags alone (WI-2026-08-08-057).
+    private func dragIDs(for host: HostEntry) -> [UUID] {
+        if selectedHostIDs.contains(host.id) {
+            return Array(selectedHostIDs)
+        }
+        return [host.id]
+    }
+
+    /// Shared drop handler for group rows and the Ungrouped row.
+    private func handleDrop(_ items: [HostDragPayload], toGroup groupID: UUID?) -> Bool {
+        let ids = items.flatMap(\.hostIDs)
+        guard !ids.isEmpty else { return false }
+        hostStore.moveHosts(ids, toGroup: groupID)
+        return true
     }
 
     // MARK: - Hosts pane (group tree + list + footer)
@@ -578,6 +645,9 @@ struct GroupRow: View {
 
     @State private var isExpanded = true
     @State private var editText = ""
+    /// Drop-target highlight while host blocks are dragged over this row
+    /// (WI-2026-08-08-057).
+    @State private var isDropTargeted = false
 
     private var children: [HostGroup] {
         hostStore.childGroups(of: group.id)
@@ -623,6 +693,22 @@ struct GroupRow: View {
                             .foregroundStyle(DS.textTertiary)
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DS.Space.xs)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .fill(isDropTargeted ? DS.accentSoft : Color.clear)
+            )
+            .contentShape(Rectangle())
+            .dropDestination(for: HostDragPayload.self) { items, _ in
+                let ids = items.flatMap(\.hostIDs)
+                guard !ids.isEmpty else { return false }
+                hostStore.moveHosts(ids, toGroup: group.id)
+                return true
+            } isTargeted: { targeted in
+                isDropTargeted = targeted
             }
         }
         .contextMenu {
@@ -690,157 +776,6 @@ struct NewGroupSheet: View {
         .frame(width: 340)
         .background(DS.background)
         .onAppear { focused = true }
-    }
-}
-
-// MARK: - Host row
-
-struct HostConfigRow: View {
-    let host: HostEntry
-    var store: HostStore
-    let tunnelStatus: TunnelManager.TunnelStatus
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-    let onReconnect: () -> Void
-    let onDisconnect: () -> Void
-
-    // Test-connection state (WI-2026-08-08-045): nil = idle, true = ok,
-    // false = failed.
-    @State private var testResult: Bool?
-    @State private var isTesting = false
-
-    private var effectiveUsername: String { store.effectiveUsername(for: host) }
-    private var effectivePort: Int { store.effectivePort(for: host) }
-
-    /// ssh -o BatchMode=yes -o ConnectTimeout=5 ... true — no password
-    /// prompts, bounded time, key used when configured.
-    private func testConnection() {
-        guard !isTesting, let binary = "/usr/bin/ssh" as String? else { return }
-        isTesting = true
-        testResult = nil
-        var args = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-p", "\(effectivePort)"]
-        if let key = store.effectiveKeyPath(for: host), !key.isEmpty {
-            args += ["-i", key]
-        }
-        args += ["\(effectiveUsername)@\(host.address)", "true"]
-        DispatchQueue.global(qos: .userInitiated).async {
-            let ok = SubprocessRunner.runQuiet(
-                executable: binary,
-                arguments: args,
-                timeout: 8
-            )
-            DispatchQueue.main.async {
-                isTesting = false
-                testResult = ok
-            }
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: DS.Space.md) {
-            // Status dot
-            DSStatusDot(
-                color: Color(tunnelStatus.color),
-                size: 8,
-                pulsing: tunnelStatus == .connecting || tunnelStatus == .reconnecting
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: DS.Space.sm) {
-                    Text(host.label)
-                        .font(DS.Typography.bodyStrong)
-                        .lineLimit(1)
-                    // Tags
-                    ForEach(host.tags.prefix(3), id: \.self) { tag in
-                        Text(tag)
-                            .font(DS.Typography.captionStrong)
-                            .foregroundStyle(DS.accent)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(DS.accentSoft, in: Capsule())
-                    }
-                }
-                HStack(spacing: DS.Space.xs) {
-                    Text("\(effectiveUsername)@\(host.address):\(effectivePort)")
-                        .font(DS.Typography.monoCaption)
-                        .foregroundStyle(DS.textSecondary)
-                    // Group path (if grouped)
-                    if let gid = host.groupID, !store.groupPath(for: gid).isEmpty {
-                        Text(store.groupPath(for: gid).joined(separator: " / "))
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textTertiary)
-                    }
-                    Text("· \(tunnelStatus.label)")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(Color(tunnelStatus.color))
-                }
-            }
-
-            Spacer()
-
-            // Tunnel actions
-            if tunnelStatus == .connected {
-                Button {
-                    onDisconnect()
-                } label: {
-                    Image(systemName: "bolt.slash")
-                        .foregroundStyle(DS.textSecondary)
-                }
-                .buttonStyle(.borderless)
-                .help("Disconnect tunnel")
-            } else if tunnelStatus.canReconnect {
-                Button {
-                    onReconnect()
-                } label: {
-                    Image(systemName: "bolt")
-                        .foregroundStyle(DS.accent)
-                }
-                .buttonStyle(.borderless)
-                .help("Reconnect tunnel")
-                .accessibilityLabel("Reconnect tunnel")
-            }
-
-            // Test connection (WI-2026-08-08-045): BatchMode ssh with a
-            // short timeout — pass/fail feedback without trial-and-error
-            // connects.
-            Button {
-                testConnection()
-            } label: {
-                if isTesting {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else if testResult == true {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(DS.success)
-                } else if testResult == false {
-                    Image(systemName: "xmark.circle")
-                        .foregroundStyle(DS.danger)
-                } else {
-                    Image(systemName: "waveform")
-                        .foregroundStyle(DS.textSecondary)
-                }
-            }
-            .buttonStyle(.borderless)
-            .help(testResult == true ? "Connection OK" : (testResult == false ? "Connection failed" : "Test connection"))
-            .accessibilityLabel("Test connection")
-
-            Button { onEdit() } label: {
-                Image(systemName: "pencil")
-                    .foregroundStyle(DS.textSecondary)
-            }
-            .buttonStyle(.borderless)
-            .help("Edit")
-            .accessibilityLabel("Edit")
-
-            Button { onDelete() } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(DS.danger)
-            }
-            .buttonStyle(.borderless)
-            .help("Delete")
-            .accessibilityLabel("Delete")
-        }
-        .padding(.vertical, DS.Space.xs)
     }
 }
 

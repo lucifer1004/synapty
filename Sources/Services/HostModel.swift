@@ -264,6 +264,20 @@ struct HostEntry: Identifiable, Codable, Equatable {
         save()
     }
 
+    /// Batch group-membership change (drag-and-drop, WI-2026-08-08-057):
+    /// moves the given hosts into `groupID`, or out of groups when nil.
+    /// No-op hosts already in the target state are skipped.
+    func moveHosts(_ ids: [UUID], toGroup groupID: UUID?) {
+        var changed = false
+        for i in hosts.indices where ids.contains(hosts[i].id) {
+            if hosts[i].groupID != groupID {
+                hosts[i].groupID = groupID
+                changed = true
+            }
+        }
+        if changed { save() }
+    }
+
     /// All hosts in a group, including those in descendant subgroups.
     func hosts(inGroup groupID: UUID?) -> [HostEntry] {
         var descendantIDs = Set<UUID>()
