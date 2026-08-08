@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-065"
+title = "refactor(gui): flat single-level groups — Groups bar above Hosts (Termius layout), drop nesting"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: group nesting is a false need. Adopt the Termius-style single-level layout rendered as TWO SECTIONS of equally sized blocks: a GROUPS section (group blocks: All Hosts / Ungrouped / groups / New Group) above a HOSTS section (host blocks), same block sizing in the same grid columns. Drag a host block onto a group block to assign membership, onto Ungrouped to clear it.
+
+Fix: remove nesting end to end — HostGroup.parentID retired (legacy hosts.json with parentID still loads: synthesized Decodable ignores unknown keys); the group tree/DisclosureGroup/recursive GroupRow are replaced by group blocks (selectable filter, context menu Rename / Group Settings / Delete, drop targets); inheritance simplifies to host → group → identity → default (no parent chain); group-to-group drag and reparenting removed."""
+
+[[content.acceptance_criteria]]
+text = "Hosts page is two sections — GROUPS (group blocks incl. All Hosts / Ungrouped / New Group) above HOSTS (host blocks), same block sizing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "nesting removed end to end — parentID retired, legacy JSON still loads"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "host blocks drop onto group blocks (assign) and Ungrouped (clear); group-to-group drag removed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "inheritance resolves host → group → identity → default (no parent chain)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: model tests updated to flat semantics + suite green"
+status = "done"
+category = "chore"

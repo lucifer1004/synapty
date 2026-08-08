@@ -128,7 +128,7 @@ final class HostStoreTests: XCTestCase {
     func testSaveThenReloadRoundTrip() throws {
         let store = makeStore()
         store.hosts.append(HostEntry(label: "GPU Box", address: "10.0.1.5", port: 2222, username: "ml", sshKeyPath: "~/.ssh/gpu_key"))
-        store.groups.append(HostGroup(id: UUID(), label: "Lab", parentID: nil))
+        store.groups.append(HostGroup(id: UUID(), label: "Lab"))
         store.identities.append(Identity(id: UUID(), label: "ml", username: "ml", sshKeyPath: "~/.ssh/ml_key"))
         store.save()
 
@@ -181,26 +181,15 @@ final class HostStoreTests: XCTestCase {
 
     // MARK: - Groups (Termius-style)
 
-    func testChildGroupsSorted() {
+    /// Flat membership (single-level groups, WI-2026-08-08-065).
+    func testHostsInGroupFlat() {
         let store = HostStore()
-        let parent = HostGroup(label: "Prod")
-        let childB = HostGroup(label: "B", parentID: parent.id)
-        let childA = HostGroup(label: "A", parentID: parent.id)
-        store.groups = [parent, childB, childA]
-        let children = store.childGroups(of: parent.id)
-        XCTAssertEqual(children.map(\.label), ["A", "B"])
-    }
-
-    func testHostsInGroupIncludesSubgroups() {
-        let store = HostStore()
-        let parent = HostGroup(label: "Prod")
-        let child = HostGroup(label: "GPU", parentID: parent.id)
-        store.groups = [parent, child]
-        let h1 = HostEntry(label: "db", address: "1.1.1.1", username: "u", groupID: parent.id)
-        let h2 = HostEntry(label: "gpu1", address: "2.2.2.2", username: "u", groupID: child.id)
-        let h3 = HostEntry(label: "unassigned", address: "3.3.3.3", username: "u")
-        store.hosts = [h1, h2, h3]
-        XCTAssertEqual(store.hosts(inGroup: parent.id).count, 2)
+        let group = HostGroup(label: "Prod")
+        store.groups = [group]
+        let h1 = HostEntry(label: "db", address: "1.1.1.1", username: "u", groupID: group.id)
+        let h2 = HostEntry(label: "unassigned", address: "2.2.2.2", username: "u")
+        store.hosts = [h1, h2]
+        XCTAssertEqual(store.hosts(inGroup: group.id).count, 1)
         XCTAssertEqual(store.hosts(inGroup: nil).count, 1)
     }
 
@@ -231,58 +220,32 @@ final class HostStoreTests: XCTestCase {
         XCTAssertNil(store.hosts.first { $0.id == h3.id }?.groupID)
     }
 
-    /// Cycle guard for group reparenting (drag-and-drop + settings sheet,
-    /// WI-2026-08-08-060/062).
-    func testCanReparentAndMoveGroup() {
+    /// Deleting a group ungroups its hosts; no reparenting exists in the
+    /// flat model (WI-2026-08-08-065).
+    func testRemoveGroupUngroupsHosts() {
         let store = HostStore()
-        let root = HostGroup(label: "Prod")
-        let child = HostGroup(label: "GPU", parentID: root.id)
-        let grandchild = HostGroup(label: "Cluster", parentID: child.id)
-        store.groups = [root, child, grandchild]
+        let group = HostGroup(label: "Prod")
+        let other = HostGroup(label: "Dev")
+        store.groups = [group, other]
+        let h1 = HostEntry(label: "db", address: "1.1.1.1", username: "u", groupID: group.id)
+        let h2 = HostEntry(label: "web", address: "2.2.2.2", username: "u", groupID: other.id)
+        store.hosts = [h1, h2]
 
-        // Root cannot move under its own descendant (would cycle) or itself.
-        XCTAssertFalse(store.canReparent(root, to: child.id))
-        XCTAssertFalse(store.canReparent(root, to: root.id))
-        XCTAssertTrue(store.canReparent(root, to: nil))
-
-        // A group cannot move under itself or its descendants.
-        XCTAssertFalse(store.canReparent(child, to: child.id))
-        XCTAssertFalse(store.canReparent(child, to: grandchild.id))
-        XCTAssertTrue(store.canReparent(child, to: root.id))
-        XCTAssertTrue(store.canReparent(child, to: nil))
-
-        // moveGroup: valid moves apply and persist.
-        XCTAssertTrue(store.moveGroup(child.id, toParent: nil))
-        XCTAssertNil(store.groups.first { $0.id == child.id }?.parentID)
-
-        // Cycle moves are rejected without state change.
-        XCTAssertFalse(store.moveGroup(grandchild.id, toParent: grandchild.id))
-        XCTAssertEqual(store.groups.first { $0.id == grandchild.id }?.parentID, child.id)
-
-        // Unknown group rejected.
-        XCTAssertFalse(store.moveGroup(UUID(), toParent: root.id))
+        store.removeGroup(group)
+        XCTAssertNil(store.groups.first(where: { $0.id == group.id }))
+        XCTAssertEqual(store.groups.count, 1)
+        XCTAssertNil(store.hosts.first { $0.id == h1.id }?.groupID)
+        XCTAssertEqual(store.hosts.first { $0.id == h2.id }?.groupID, other.id)
     }
 
-    func testGroupPath() {
-        let store = HostStore()
-        let root = HostGroup(label: "Prod")
-        let child = HostGroup(label: "GPU", parentID: root.id)
-        store.groups = [root, child]
-        XCTAssertEqual(store.groupPath(for: child.id), ["Prod", "GPU"])
-        XCTAssertEqual(store.groupPath(for: nil), [])
-    }
-
-    func testRemoveGroupReparentsDescendants() {
-        let store = HostStore()
-        let root = HostGroup(label: "Root")
-        let mid = HostGroup(label: "Mid", parentID: root.id)
-        let leaf = HostGroup(label: "Leaf", parentID: mid.id)
-        store.groups = [root, mid, leaf]
-        store.removeGroup(mid)
-        // mid's children (leaf) reparent to mid's parent (root).
-        XCTAssertEqual(store.groups.first(where: { $0.id == leaf.id })?.parentID, root.id)
-        XCTAssertNil(store.groups.first(where: { $0.id == mid.id }))
-        XCTAssertEqual(store.groups.count, 2) // root + leaf
+    /// Legacy nested-era hosts.json carries a parentID key; the synthesized
+    /// Decodable ignores unknown keys, so old data still loads flat
+    /// (WI-2026-08-08-065).
+    func testLegacyGroupJSONWithParentIDLoads() throws {
+        let json = #"[{"id":"11111111-1111-1111-1111-111111111111","label":"Prod","parentID":"22222222-2222-2222-2222-222222222222"}]"#
+        let groups = try JSONDecoder().decode([HostGroup].self, from: Data(json.utf8))
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].label, "Prod")
     }
 
     // MARK: - Credential inheritance
@@ -296,12 +259,13 @@ final class HostStoreTests: XCTestCase {
         XCTAssertEqual(store.effectiveKeyPath(for: host), "/keys/gpu")
     }
 
-    func testEffectiveUsernameFromGroupChain() {
+    /// Host in a group inherits the group's own defaults — flat, no parent
+    /// chain (WI-2026-08-08-065).
+    func testEffectiveUsernameFromGroup() {
         let store = HostStore()
-        let parent = HostGroup(label: "Prod", username: "deploy")
-        let child = HostGroup(label: "GPU", parentID: parent.id)
-        store.groups = [parent, child]
-        let host = HostEntry(label: "gpu1", address: "10.0.1.5", username: "", groupID: child.id)
+        let group = HostGroup(label: "GPU", username: "deploy")
+        store.groups = [group]
+        let host = HostEntry(label: "gpu1", address: "10.0.1.5", username: "", groupID: group.id)
         XCTAssertEqual(store.effectiveUsername(for: host), "deploy")
         XCTAssertEqual(store.effectivePort(for: host), 22)
     }

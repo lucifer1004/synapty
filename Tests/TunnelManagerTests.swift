@@ -123,7 +123,7 @@ final class TunnelManagerTests: XCTestCase {
 
     func testEffectiveResolutionFromGroupChain() {
         let store = HostStore()
-        let group = HostGroup(id: UUID(), label: "Lab", parentID: nil)
+        let group = HostGroup(id: UUID(), label: "Lab")
         store.groups.append(group)
         let m = TunnelManager()
         m.hostStore = store

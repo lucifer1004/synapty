@@ -2,10 +2,11 @@ import Foundation
 import Observation
 
 // ===========================================================================
-// Host management data model — Termius-style organization.
+// Host management data model — Termius-style organization (flat, single
+// level; nesting was a false need — WI-2026-08-08-065).
 //
-// - HostGroup: nested groups; groups can carry default credentials (via an
-//   Identity) and connection settings inherited by hosts and subgroups.
+// - HostGroup: single-level groups; a group can carry default credentials
+//   (via an Identity) and connection settings inherited by its hosts.
 // - Identity: reusable credentials (username + SSH key path). A host, group,
 //   or the app default can reference an identity.
 // - HostEntry: a connectable host with optional group membership, tags and
@@ -48,13 +49,14 @@ struct PortForward: Identifiable, Codable, Equatable {
     }
 }
 
-// MARK: - HostGroup (nested, with inherited settings)
+// MARK: - HostGroup (single level, with inherited settings)
 
+/// Single-level group (WI-2026-08-08-065): hosts in the group inherit its
+/// defaults. Legacy `parentID` keys from nested-era JSON are ignored by the
+/// synthesized Decodable (unknown keys), so old hosts.json still loads.
 struct HostGroup: Identifiable, Codable, Equatable {
     var id = UUID()
     var label: String
-    /// Parent group ID; nil for root-level groups.
-    var parentID: UUID?
     /// Optional identity applied to hosts in this group (inherited).
     var identityID: UUID?
     /// Optional default port inherited by hosts in this group.
@@ -278,27 +280,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
         if changed { save() }
     }
 
-    /// All hosts in a group, including those in descendant subgroups.
+    /// All hosts in a group — flat membership (single level,
+    /// WI-2026-08-08-065); nil = ungrouped hosts.
     func hosts(inGroup groupID: UUID?) -> [HostEntry] {
-        var descendantIDs = Set<UUID>()
-        collectGroupIDs(groupID, into: &descendantIDs)
-        return hosts.filter { host in
-            guard let gid = host.groupID else { return groupID == nil }
-            return descendantIDs.contains(gid)
-        }
-    }
-
-    private func collectGroupIDs(_ groupID: UUID?, into set: inout Set<UUID>) {
-        guard let groupID else { return }
-        set.insert(groupID)
-        for child in groups where child.parentID == groupID {
-            collectGroupIDs(child.id, into: &set)
-        }
-    }
-
-    /// Immediate children of a group.
-    func childGroups(of groupID: UUID?) -> [HostGroup] {
-        groups.filter { $0.parentID == groupID }.sorted { $0.label < $1.label }
+        hosts.filter { $0.groupID == groupID }
     }
 
     // MARK: - Groups
@@ -316,19 +301,9 @@ struct HostEntry: Identifiable, Codable, Equatable {
     }
 
     func removeGroup(_ group: HostGroup) {
-        // Descendants move to the deleted group's parent.
-        let parent = group.parentID
-        var affected = Set<UUID>()
-        collectGroupIDs(group.id, into: &affected)
-        for gid in affected {
-            if let idx = groups.firstIndex(where: { $0.id == gid }) {
-                groups[idx].parentID = parent
-            }
-        }
         groups.removeAll { $0.id == group.id }
-
-        // Hosts in the deleted group (and subgroups) become ungrouped.
-        for i in hosts.indices where affected.contains(hosts[i].groupID ?? UUID()) {
+        // Hosts in the deleted group become ungrouped.
+        for i in hosts.indices where hosts[i].groupID == group.id {
             hosts[i].groupID = nil
         }
         save()
@@ -339,40 +314,6 @@ struct HostEntry: Identifiable, Codable, Equatable {
         var updated = group
         updated.label = newLabel
         updateGroup(updated)
-    }
-
-    /// True if `group` may be reparented under `parentID`: the parent must
-    /// not be the group itself nor one of its descendants (cycle guard,
-    /// WI-2026-08-08-060/062). nil parent = top level, always allowed.
-    func canReparent(_ group: HostGroup, to parentID: UUID?) -> Bool {
-        guard let parentID else { return true }
-        guard parentID != group.id else { return false }
-        var descendants = Set<UUID>()
-        collectGroupIDs(group.id, into: &descendants)
-        return !descendants.contains(parentID)
-    }
-
-    /// Reparents a group (drag-and-drop / settings sheet). Returns false
-    /// without changing state when the move would create a cycle or the
-    /// group is unknown (WI-2026-08-08-062).
-    @discardableResult
-    func moveGroup(_ groupID: UUID, toParent parentID: UUID?) -> Bool {
-        guard let idx = groups.firstIndex(where: { $0.id == groupID }) else { return false }
-        guard canReparent(groups[idx], to: parentID) else { return false }
-        guard groups[idx].parentID != parentID else { return false }
-        groups[idx].parentID = parentID
-        save()
-        return true
-    }
-
-    /// The chain of group labels from the root down to (and including) the
-    /// given group — used for display like "Prod / GPU Box".
-    func groupPath(for groupID: UUID?) -> [String] {
-        guard let groupID else { return [] }
-        guard let group = groups.first(where: { $0.id == groupID }) else { return [] }
-        var path = groupPath(for: group.parentID)
-        path.append(group.label)
-        return path
     }
 
     // MARK: - Identities
@@ -398,7 +339,7 @@ struct HostEntry: Identifiable, Codable, Equatable {
     // MARK: - Resolution
 
     /// Resolved effective username for a host: host field → identity →
-    /// group (walking up) → default.
+    /// group → default (flat, no parent chain — WI-2026-08-08-065).
     func effectiveUsername(for host: HostEntry) -> String {
         if !host.username.isEmpty { return host.username }
         if let identityID = host.identityID,
@@ -406,7 +347,8 @@ struct HostEntry: Identifiable, Codable, Equatable {
             return identity.username
         }
         if let groupID = host.groupID,
-           let username = inheritedGroupValue(groupID, keyPath: \.username) {
+           let group = groups.first(where: { $0.id == groupID }),
+           let username = group.username, !username.isEmpty {
             return username
         }
         return NSUserName()
@@ -421,10 +363,11 @@ struct HostEntry: Identifiable, Codable, Equatable {
             return key
         }
         if let groupID = host.groupID,
-           let key = inheritedGroupValue(groupID, keyPath: \.identityID),
-           let identity = identities.first(where: { $0.id == key }),
-           let keyPath = identity.sshKeyPath, !keyPath.isEmpty {
-            return keyPath
+           let group = groups.first(where: { $0.id == groupID }),
+           let identityID = group.identityID,
+           let identity = identities.first(where: { $0.id == identityID }),
+           let key = identity.sshKeyPath, !key.isEmpty {
+            return key
         }
         return nil
     }
@@ -433,17 +376,19 @@ struct HostEntry: Identifiable, Codable, Equatable {
     func effectivePort(for host: HostEntry) -> Int {
         if host.port != 22 { return host.port }
         if let groupID = host.groupID,
-           let port = inheritedGroupValue(groupID, keyPath: \.port) {
+           let group = groups.first(where: { $0.id == groupID }),
+           let port = group.port {
             return port
         }
         return 22
     }
 
-    /// Resolved jump host (ProxyJump) for a host: host-level → group chain.
+    /// Resolved jump host (ProxyJump) for a host: host-level → group.
     func effectiveProxyJump(for host: HostEntry) -> String? {
         if let jump = host.proxyJump, !jump.isEmpty { return jump }
-        guard let groupID = host.groupID else { return nil }
-        return inheritedGroupValue(groupID, keyPath: \.proxyJump)
+        guard let groupID = host.groupID,
+              let group = groups.first(where: { $0.id == groupID }) else { return nil }
+        return group.proxyJump
     }
 
     /// Effective forwarding rules: host-level rules, or the group's if the
@@ -451,30 +396,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
     /// command line predictable.)
     func effectiveForwardings(for host: HostEntry) -> [PortForward] {
         if !host.forwardings.isEmpty { return host.forwardings }
-        guard let groupID = host.groupID else { return [] }
-        return groupForwardings(groupID)
-    }
-
-    /// Forwardings declared on the group chain (nearest group wins).
-    private func groupForwardings(_ groupID: UUID) -> [PortForward] {
-        var current: UUID? = groupID
-        while let gid = current {
-            guard let group = groups.first(where: { $0.id == gid }) else { break }
-            if group.forwardings != nil { return group.forwardings! }
-            current = group.parentID
-        }
-        return []
-    }
-
-    /// Walks up the group chain looking for the nearest non-nil value.
-    private func inheritedGroupValue<T>(_ groupID: UUID, keyPath: KeyPath<HostGroup, T?>) -> T? {
-        var current: UUID? = groupID
-        while let gid = current {
-            guard let group = groups.first(where: { $0.id == gid }) else { break }
-            if let value = group[keyPath: keyPath] { return value }
-            current = group.parentID
-        }
-        return nil
+        guard let groupID = host.groupID,
+              let group = groups.first(where: { $0.id == groupID }),
+              let forwardings = group.forwardings else { return [] }
+        return forwardings
     }
 
     /// All tags currently in use, sorted, deduplicated.
@@ -486,20 +411,22 @@ struct HostEntry: Identifiable, Codable, Equatable {
         return set.sorted()
     }
 
-    /// Hosts filtered by search text (label, address, tags, group path).
-    /// - `.all`: every host; `.ungrouped`: no group; `.group(id)`: that
-    ///   group and its subgroups.
+    /// Hosts filtered by search text (label, address, tags, group label).
+    /// - `.all`: every host; `.ungrouped`: no group; `.group(id)`: that group.
     func searchHosts(_ query: String, in filter: HostFilter) -> [HostEntry] {
         let base = hosts(inFilter: filter)
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return base }
         let needle = trimmed.lowercased()
         return base.filter { host in
-            host.label.lowercased().contains(needle) ||
+            let groupLabel = host.groupID
+                .flatMap { gid in groups.first(where: { $0.id == gid }) }?
+                .label.lowercased() ?? ""
+            return host.label.lowercased().contains(needle) ||
             host.address.lowercased().contains(needle) ||
             host.username.lowercased().contains(needle) ||
             host.tags.contains { $0.lowercased().contains(needle) } ||
-            groupPath(for: host.groupID).joined(separator: "/").lowercased().contains(needle)
+            groupLabel.contains(needle)
         }
     }
 

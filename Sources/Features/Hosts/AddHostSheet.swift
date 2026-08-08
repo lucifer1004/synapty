@@ -69,9 +69,8 @@ struct AddHostSheet: View {
                     formSection("Group") {
                         Picker("Group", selection: $groupID) {
                             Text("Ungrouped").tag(Optional<UUID>.none)
-                            ForEach(hostStore.groups) { group in
-                                Text(hostStore.groupPath(for: group.id).joined(separator: " / "))
-                                    .tag(Optional(group.id))
+                            ForEach(hostStore.groups.sorted { $0.label < $1.label }) { group in
+                                Text(group.label).tag(Optional(group.id))
                             }
                         }
                         .pickerStyle(.menu)

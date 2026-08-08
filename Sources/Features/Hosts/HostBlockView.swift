@@ -20,18 +20,6 @@ struct HostDragPayload: Codable, Transferable {
 
 extension UTType {
     static let hostDragPayload = UTType(exportedAs: "dev.synapty.host-drag")
-    /// Group-tree drags (reparenting, WI-2026-08-08-062) use a distinct
-    /// type so group rows can be both sources and targets.
-    static let groupDragPayload = UTType(exportedAs: "dev.synapty.group-drag")
-}
-
-/// Drag payload for group rows (WI-2026-08-08-062): reparenting a group.
-struct GroupDragPayload: Codable, Transferable {
-    let groupIDs: [UUID]
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .groupDragPayload)
-    }
 }
 
 /// Card block for one host. Self-contained hover/selection visuals; the
@@ -111,8 +99,9 @@ struct HostBlockView: View {
                     .foregroundStyle(DS.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if let gid = host.groupID, !store.groupPath(for: gid).isEmpty {
-                    Text(store.groupPath(for: gid).joined(separator: " / "))
+                if let gid = host.groupID,
+                   let group = store.groups.first(where: { $0.id == gid }) {
+                    Text(group.label)
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textTertiary)
                         .lineLimit(1)
@@ -215,5 +204,91 @@ struct HostBlockView: View {
         )
         .contentShape(Rectangle())
         .onHover { hovering in isHovered = hovering }
+    }
+}
+
+// ===========================================================================
+// Group BLOCK — the same card spec as host blocks (WI-2026-08-08-065):
+// the Hosts page is two sections of equally sized blocks (GROUPS above,
+// HOSTS below); group blocks are drop targets for host blocks.
+// ===========================================================================
+
+/// One block in the GROUPS section: All Hosts / Ungrouped pseudo-blocks,
+/// real groups, or the New Group action block.
+struct GroupBlockView: View {
+    enum Kind: Hashable {
+        case all
+        case ungrouped
+        case group(UUID)
+        case new
+    }
+
+    let kind: Kind
+    let label: String
+    let icon: String
+    /// Host count shown on the block (nil for the New Group block).
+    var count: Int? = nil
+    let isSelected: Bool
+    var onSelect: () -> Void = {}
+    /// Host-block drop target (group + Ungrouped blocks).
+    var onDrop: (([HostDragPayload]) -> Bool)? = nil
+    /// Context menu (real groups only).
+    var onGroupSettings: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
+
+    @State private var isHovered = false
+    @State private var isDropTargeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            HStack(spacing: DS.Space.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(kind == .new ? DS.textSecondary : (isSelected ? DS.accent : DS.textSecondary))
+                Text(label)
+                    .font(kind == .new ? DS.Typography.body : DS.Typography.bodyStrong)
+                    .foregroundStyle(kind == .new ? DS.textSecondary : DS.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: DS.Space.xs)
+            }
+            if let count {
+                Text("\(count) host\(count == 1 ? "" : "s")")
+                    .font(DS.Typography.monoCaption)
+                    .foregroundStyle(DS.textSecondary)
+            }
+        }
+        .padding(DS.Space.md)
+        .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.lg)
+                .fill(DS.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.Radius.lg)
+                .stroke(
+                    kind == .new ? DS.border :
+                        ((isSelected || isDropTargeted) ? DS.accent : (isHovered ? DS.border : DS.border.opacity(0.6))),
+                    style: kind == .new
+                        ? StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        : StrokeStyle(lineWidth: (isSelected || isDropTargeted) ? 1.5 : 1)
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onSelect() }
+        .onHover { hovering in isHovered = hovering }
+        .contextMenu {
+            if onGroupSettings != nil {
+                Button("Group Settings\u{2026}") { onGroupSettings?() }
+            }
+            if onDelete != nil {
+                Divider()
+                Button("Delete Group", role: .destructive) { onDelete?() }
+            }
+        }
+        .dropDestination(for: HostDragPayload.self) { items, _ in
+            onDrop?(items) ?? false
+        } isTargeted: { targeted in
+            isDropTargeted = targeted
+        }
     }
 }

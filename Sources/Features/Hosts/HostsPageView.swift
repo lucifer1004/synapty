@@ -22,23 +22,16 @@ struct HostsPageView: View {
     /// Multi-selection for drag-and-drop (WI-2026-08-08-057): Cmd-click
     /// toggles; dragging a selected block drags the whole selection.
     @State private var selectedHostIDs: Set<UUID> = []
-    /// Hover highlight for the Ungrouped drop target.
-    @State private var ungroupedDropTargeted = false
-    /// Hover highlight for the All Hosts root drop target (group reparent
-    /// to top level, WI-2026-08-08-062).
-    @State private var allHostsDropTargeted = false
     /// Tag filter (WI-2026-08-08-059): hosts must have ALL selected tags.
     @State private var selectedTags: Set<String> = []
     /// Which sub-pane of the Hosts page is shown.
     @State private var pane: HostsPane = .hosts
     @State private var showAddHost = false
     @State private var showNewGroup = false
-    @State private var subgroupRequest: GroupSubgroupRequest?
     @State private var groupToEdit: HostGroup?
     @State private var hostToEdit: HostEntry?
     @State private var hostToDelete: HostEntry?
     @State private var groupToDelete: HostGroup?
-    @State private var editingGroupID: UUID?
     @State private var identityToEdit: Identity?
     @State private var identityToDelete: Identity?
     @State private var showNewIdentity = false
@@ -109,17 +102,7 @@ struct HostsPageView: View {
             )
         }
         .sheet(isPresented: $showNewGroup) {
-            NewGroupSheet(hostStore: hostStore, parentID: selectedGroup?.id, isPresented: $showNewGroup)
-        }
-        .sheet(item: $subgroupRequest) { request in
-            NewGroupSheet(
-                hostStore: hostStore,
-                parentID: request.parentID,
-                isPresented: Binding(
-                    get: { subgroupRequest != nil },
-                    set: { if !$0 { subgroupRequest = nil } }
-                )
-            )
+            NewGroupSheet(hostStore: hostStore, isPresented: $showNewGroup)
         }
         .sheet(item: $groupToEdit) { group in
             GroupEditSheet(
@@ -159,7 +142,7 @@ struct HostsPageView: View {
                 }
             }
         } message: {
-            Text("Delete \"\(groupToDelete?.label ?? "")\"? Hosts become ungrouped; subgroups move to its parent.")
+            Text("Delete \"\(groupToDelete?.label ?? "")\"? Hosts in the group become ungrouped.")
         }
         .alert("Delete Host", isPresented: Binding(
             get: { hostToDelete != nil },
@@ -225,87 +208,70 @@ struct HostsPageView: View {
         }
     }
 
-    // MARK: - Group sidebar
+    // MARK: - Group blocks section
 
     private var selectedGroup: HostGroup? {
         guard case .group(let id) = selectedFilter else { return nil }
         return hostStore.groups.first(where: { $0.id == id })
     }
 
-    private var groupSidebar: some View {
-        VStack(spacing: 0) {
-            HStack {
-                DSSectionLabel(text: "Groups")
-                Spacer()
-            }
-            .padding(.horizontal, DS.Space.lg)
-            .padding(.vertical, DS.Space.md)
+    /// Block grid columns shared by the GROUPS and HOSTS sections — group
+    /// and host blocks are the same size (WI-2026-08-08-065).
+    private static let blockColumns = [
+        GridItem(.adaptive(minimum: 230, maximum: 320), spacing: DS.Space.md),
+    ]
 
-            List(selection: $selectedFilter) {
-                // "All hosts" pseudo-group — also the root drop target:
-                // dropping a group here moves it to the top level
-                // (WI-2026-08-08-062).
-                Label("All Hosts", systemImage: "square.grid.2x2")
-                    .font(DS.Typography.detailStrong)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DS.Space.xs)
-                    .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: DS.Radius.md)
-                            .fill(allHostsDropTargeted ? DS.accent.opacity(0.18) : Color.clear)
+    private var groupsSection: some View {
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            DSSectionLabel(text: "Groups", count: hostStore.groups.count)
+            LazyVGrid(columns: Self.blockColumns, alignment: .leading, spacing: DS.Space.md) {
+                // All Hosts — clear the group filter.
+                GroupBlockView(
+                    kind: .all,
+                    label: "All Hosts",
+                    icon: "square.grid.2x2",
+                    count: hostStore.hosts.count,
+                    isSelected: selectedFilter == .all,
+                    onSelect: { selectedFilter = .all }
+                )
+
+                // Ungrouped — also a drop target: dropping here clears
+                // group membership (WI-2026-08-08-057).
+                GroupBlockView(
+                    kind: .ungrouped,
+                    label: "Ungrouped",
+                    icon: "tray",
+                    count: hostStore.hosts(inGroup: nil).count,
+                    isSelected: selectedFilter == .ungrouped,
+                    onSelect: { selectedFilter = .ungrouped },
+                    onDrop: { items in handleDrop(items, toGroup: nil) }
+                )
+
+                // Real groups — drop targets for host blocks.
+                ForEach(hostStore.groups.sorted { $0.label < $1.label }) { group in
+                    GroupBlockView(
+                        kind: .group(group.id),
+                        label: group.label,
+                        icon: "folder",
+                        count: hostStore.hosts(inGroup: group.id).count,
+                        isSelected: selectedFilter == .group(group.id),
+                        onSelect: { selectedFilter = .group(group.id) },
+                        onDrop: { items in handleDrop(items, toGroup: group.id) },
+                        onGroupSettings: { groupToEdit = group },
+                        onDelete: { groupToDelete = group }
                     )
-                    .contentShape(Rectangle())
-                    .dropDestination(for: GroupDragPayload.self) { items, _ in
-                        let ids = items.flatMap(\.groupIDs)
-                        guard let first = ids.first, ids.count == 1 else { return false }
-                        return hostStore.moveGroup(first, toParent: nil)
-                    } isTargeted: { targeted in
-                        allHostsDropTargeted = targeted
-                    }
-                    .tag(HostFilter.all)
-
-                // Ungrouped pseudo-group — also a drop target: dropping
-                // here clears group membership (WI-2026-08-08-057).
-                if !hostStore.hosts(inGroup: nil).isEmpty {
-                    Label("Ungrouped", systemImage: "tray")
-                        .font(DS.Typography.detail)
-                        .foregroundStyle(DS.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, DS.Space.xs)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .fill(ungroupedDropTargeted ? DS.accentSoft : Color.clear)
-                        )
-                        .contentShape(Rectangle())
-                        .dropDestination(for: HostDragPayload.self) { items, _ in
-                            let ids = items.flatMap(\.hostIDs)
-                            guard !ids.isEmpty else { return false }
-                            hostStore.moveHosts(ids, toGroup: nil)
-                            return true
-                        } isTargeted: { targeted in
-                            ungroupedDropTargeted = targeted
-                        }
-                        .tag(HostFilter.ungrouped)
                 }
 
-                // Group tree
-                ForEach(hostStore.groups.filter { $0.parentID == nil }.sorted { $0.label < $1.label }) { group in
-                    GroupRow(
-                        group: group,
-                        hostStore: hostStore,
-                        indent: 0,
-                        editingGroupID: $editingGroupID,
-                        onNewSubgroup: { parentID in subgroupRequest = GroupSubgroupRequest(parentID: parentID) },
-                        onEdit: { group in groupToEdit = group }
-                    )
-                    .tag(HostFilter.group(group.id))
-                }
+                // New Group action block.
+                GroupBlockView(
+                    kind: .new,
+                    label: "New Group",
+                    icon: "plus",
+                    isSelected: false,
+                    onSelect: { showNewGroup = true }
+                )
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
         }
-        .background(DS.sidebar)
     }
 
     // MARK: - Host list
@@ -319,9 +285,9 @@ struct HostsPageView: View {
         }
     }
 
-    private var hostListPane: some View {
+    /// Search + tag filter row (WI-2026-08-08-059).
+    private var searchRow: some View {
         VStack(spacing: 0) {
-            // Search bar + tag filter (WI-2026-08-08-059)
             HStack(spacing: DS.Space.sm) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
@@ -408,52 +374,43 @@ struct HostsPageView: View {
                     .frame(height: DS.Space.md)
                     .padding(.bottom, DS.Space.sm)
             }
+        }
+    }
 
-            Divider()
-
+    /// HOSTS section — host blocks in the same grid as the GROUPS section
+    /// (WI-2026-08-08-065).
+    private var hostsSection: some View {
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            DSSectionLabel(text: "Hosts", count: visibleHosts.count)
             if visibleHosts.isEmpty {
-                VStack(spacing: DS.Space.lg) {
+                VStack(spacing: DS.Space.sm) {
                     Image(systemName: "server.rack")
-                        .font(.system(size: 32))
+                        .font(.system(size: 24))
                         .foregroundStyle(DS.textTertiary)
-                    Text(hostStore.hosts.isEmpty ? "No hosts configured" : "No hosts match")
-                        .font(DS.Typography.titleLarge)
+                    Text(hostStore.hosts.isEmpty ? "No hosts yet — add one below." : "No hosts match the current filter.")
+                        .font(DS.Typography.detail)
                         .foregroundStyle(DS.textSecondary)
-                    Text("Add a host with the button below.")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textTertiary)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DS.Space.xl)
             } else {
-                ScrollView {
-                    // Host BLOCKS in a responsive grid (WI-2026-08-08-057):
-                    // cards are the drag source; the group tree is the
-                    // drop target.
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 230, maximum: 320), spacing: DS.Space.md)],
-                        alignment: .leading,
-                        spacing: DS.Space.md
-                    ) {
-                        ForEach(visibleHosts) { host in
-                            HostBlockView(
-                                host: host,
-                                store: hostStore,
-                                tunnelStatus: tunnelManager.status(for: host),
-                                isSelected: selectedHostIDs.contains(host.id),
-                                onOpenTerminal: { onOpenTerminal?(host) },
-                                onEdit: { hostToEdit = host },
-                                onDelete: { hostToDelete = host },
-                                onReconnect: { tunnelManager.reconnectTunnel(for: host) },
-                                onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
-                            )
-                            .onTapGesture { selectHost(host.id) }
-                            .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
-                        }
+                LazyVGrid(columns: Self.blockColumns, alignment: .leading, spacing: DS.Space.md) {
+                    ForEach(visibleHosts) { host in
+                        HostBlockView(
+                            host: host,
+                            store: hostStore,
+                            tunnelStatus: tunnelManager.status(for: host),
+                            isSelected: selectedHostIDs.contains(host.id),
+                            onOpenTerminal: { onOpenTerminal?(host) },
+                            onEdit: { hostToEdit = host },
+                            onDelete: { hostToDelete = host },
+                            onReconnect: { tunnelManager.reconnectTunnel(for: host) },
+                            onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
+                        )
+                        .onTapGesture { selectHost(host.id) }
+                        .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
                     }
-                    .padding(DS.Space.lg)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { selectedHostIDs = [] }
             }
         }
     }
@@ -490,11 +447,13 @@ struct HostsPageView: View {
         return true
     }
 
-    // MARK: - Hosts pane (group tree + list + footer)
+    // MARK: - Hosts pane (GROUPS + HOSTS block sections + footer)
 
+    /// Two sections of equally sized blocks (WI-2026-08-08-065): GROUPS
+    /// above, HOSTS below.
     private var hostsPane: some View {
         VStack(spacing: 0) {
-            if hostStore.hosts.isEmpty {
+            if hostStore.hosts.isEmpty && hostStore.groups.isEmpty {
                 // First-run empty state (WI-2026-08-07-004).
                 VStack(spacing: DS.Space.lg) {
                     Image(systemName: "server.rack")
@@ -523,14 +482,19 @@ struct HostsPageView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HStack(spacing: 0) {
-                    groupSidebar
-                        .frame(width: 200)
+                searchRow
 
-                    Divider()
+                Divider()
 
-                    hostListPane
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DS.Space.xl) {
+                        groupsSection
+                        hostsSection
+                    }
+                    .padding(DS.Space.lg)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { selectedHostIDs = [] }
 
                 Divider()
 
@@ -559,11 +523,9 @@ struct HostsPageView: View {
                         } label: {
                             Label("Delete Group", systemImage: "trash")
                         }
-                        // The model's removeGroup reparents subgroups and
-                        // ungroups hosts — the confirmation alert documents
-                        // exactly that, so non-empty groups are deletable
-                        // (WI-2026-08-08-025).
-                        .help("Hosts become ungrouped; subgroups move to the parent")
+                        // The confirmation alert documents that hosts
+                        // become ungrouped (WI-2026-08-08-025).
+                        .help("Hosts in the group become ungrouped")
                     }
                 }
                 .padding(DS.Space.lg)
@@ -731,158 +693,11 @@ struct IdentityRow: View {
     }
 }
 
-// MARK: - Group tree row (recursive)
-
-/// Identifiable request for creating a subgroup via context menu.
-struct GroupSubgroupRequest: Identifiable {
-    let id = UUID()
-    let parentID: UUID
-}
-
-struct GroupRow: View {
-    let group: HostGroup
-    var hostStore: HostStore
-    let indent: Int
-    @Binding var editingGroupID: UUID?
-    /// Request a new subgroup under this group.
-    let onNewSubgroup: (UUID) -> Void
-    /// Open the group settings sheet.
-    let onEdit: (HostGroup) -> Void
-
-    /// Persisted collapsed groups (WI-2026-08-08-061): JSON-encoded set of
-    /// group IDs in UserDefaults; expansion defaults to open. Each row owns
-    /// its own entry — recursive rows must not share a binding.
-    @AppStorage("synapty.collapsedGroupIDs") private var collapsedData = Data()
-
-    @State private var editText = ""
-    /// Drop-target highlight while host blocks are dragged over this row
-    /// (WI-2026-08-08-057).
-    @State private var isDropTargeted = false
-    /// Drop-target highlight while a GROUP is dragged over this row
-    /// (reparenting, WI-2026-08-08-062) — distinct from host drops.
-    @State private var isGroupDropTargeted = false
-
-    private var collapsedGroupIDs: Set<UUID> {
-        (try? JSONDecoder().decode(Set<UUID>.self, from: collapsedData)) ?? []
-    }
-
-    /// Expansion binding — persisted, defaults open (WI-2026-08-08-061).
-    private var isExpandedBinding: Binding<Bool> {
-        Binding(
-            get: { !collapsedGroupIDs.contains(group.id) },
-            set: { expanded in
-                var set = collapsedGroupIDs
-                if expanded {
-                    set.remove(group.id)
-                } else {
-                    set.insert(group.id)
-                }
-                collapsedData = (try? JSONEncoder().encode(set)) ?? Data()
-            }
-        )
-    }
-
-    private var children: [HostGroup] {
-        hostStore.childGroups(of: group.id)
-    }
-
-    private var isEditing: Bool { editingGroupID == group.id }
-
-    var body: some View {
-        DisclosureGroup(isExpanded: isExpandedBinding) {
-            if !children.isEmpty {
-                ForEach(children) { child in
-                    GroupRow(
-                        group: child,
-                        hostStore: hostStore,
-                        indent: indent + 1,
-                        editingGroupID: $editingGroupID,
-                        onNewSubgroup: onNewSubgroup,
-                        onEdit: onEdit
-                    )
-                }
-            }
-        } label: {
-            HStack(spacing: DS.Space.xs) {
-                Image(systemName: "folder")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DS.accent)
-                if isEditing {
-                    TextField("Group name", text: $editText)
-                        .textFieldStyle(.plain)
-                        .font(DS.Typography.detailStrong)
-                        .onSubmit {
-                            hostStore.renameGroup(group, to: editText)
-                            editingGroupID = nil
-                        }
-                        .onExitCommand { editingGroupID = nil }
-                } else {
-                    Text(group.label)
-                        .font(DS.Typography.detailStrong)
-                        .lineLimit(1)
-                    if !hostStore.hosts(inGroup: group.id).isEmpty {
-                        Text("\(hostStore.hosts(inGroup: group.id).count)")
-                            .font(DS.Typography.monoCaption)
-                            .foregroundStyle(DS.textTertiary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DS.Space.xs)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .fill(isDropTargeted ? DS.accentSoft : (isGroupDropTargeted ? DS.accent.opacity(0.18) : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isGroupDropTargeted ? DS.accent : Color.clear, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
-            // Drop target for host blocks (move hosts into this group).
-            .dropDestination(for: HostDragPayload.self) { items, _ in
-                let ids = items.flatMap(\.hostIDs)
-                guard !ids.isEmpty else { return false }
-                hostStore.moveHosts(ids, toGroup: group.id)
-                return true
-            } isTargeted: { targeted in
-                isDropTargeted = targeted
-            }
-            // Drop target for group rows (reparent under this group,
-            // cycle-safe; WI-2026-08-08-062).
-            .dropDestination(for: GroupDragPayload.self) { items, _ in
-                let ids = items.flatMap(\.groupIDs)
-                guard let first = ids.first, ids.count == 1 else { return false }
-                return hostStore.moveGroup(first, toParent: group.id)
-            } isTargeted: { targeted in
-                isGroupDropTargeted = targeted
-            }
-            // Group rows are draggable themselves (WI-2026-08-08-062).
-            .draggable(GroupDragPayload(groupIDs: [group.id]))
-        }
-        .contextMenu {
-            Button("Rename") {
-                editText = group.label
-                editingGroupID = group.id
-            }
-            Button("New Subgroup") { onNewSubgroup(group.id) }
-            Divider()
-            Button("Group Settings\u{2026}") { onEdit(group) }
-        }
-        // Also seed when the edit target changes (menu path vs keyboard).
-        .onChange(of: editingGroupID) { _, newID in
-            if newID == group.id && editText.isEmpty {
-                editText = group.label
-            }
-        }
-    }
-}
 
 // MARK: - New group sheet
 
 struct NewGroupSheet: View {
     var hostStore: HostStore
-    var parentID: UUID?
     @Binding var isPresented: Bool
 
     @State private var label = ""
@@ -897,19 +712,13 @@ struct NewGroupSheet: View {
                     .textFieldStyle(.roundedBorder)
                     .font(DS.Typography.body)
                     .focused($focused)
-                if let parentID, hostStore.groups.contains(where: { $0.id == parentID }) {
-                    Text("Inside: \(hostStore.groupPath(for: parentID).joined(separator: " / "))")
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(DS.textSecondary)
-                }
                 HStack {
                     Spacer()
                     Button("Cancel") { isPresented = false }
                         .keyboardShortcut(.cancelAction)
                     Button("Create") {
                         let group = HostGroup(
-                            label: label.trimmingCharacters(in: .whitespaces),
-                            parentID: parentID
+                            label: label.trimmingCharacters(in: .whitespaces)
                         )
                         hostStore.addGroup(group)
                         isPresented = false
@@ -930,8 +739,9 @@ struct NewGroupSheet: View {
 
 // MARK: - Group edit sheet (inherited settings)
 
-/// Edit a group's inherited defaults (Termius-style): hosts and subgroups
-/// inherit these unless they override them explicitly.
+/// Edit a group's inherited defaults (Termius-style): hosts inherit these
+/// unless they override them explicitly. Single-level groups — no parent
+/// (WI-2026-08-08-065).
 struct GroupEditSheet: View {
     var hostStore: HostStore
     @Binding var isPresented: Bool
@@ -942,8 +752,6 @@ struct GroupEditSheet: View {
     @State private var portText = ""
     @State private var username = ""
     @State private var proxyJump = ""
-    /// Parent group picker (WI-2026-08-08-060): nil = top level.
-    @State private var parentID: UUID?
     /// Inherited forwardings (WI-2026-08-08-060): nil = inherit from parent;
     /// when override is on, `forwardings` replaces the chain.
     @State private var inheritForwardings = true
@@ -951,13 +759,6 @@ struct GroupEditSheet: View {
 
     private var canSave: Bool {
         !label.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    /// Reparent candidates: every group except this one and its descendants
-    /// (cycle-safe, WI-2026-08-08-060).
-    private var parentCandidates: [HostGroup] {
-        hostStore.groups.filter { hostStore.canReparent(editingGroup, to: $0.id) }
-            .sorted { $0.label < $1.label }
     }
 
     var body: some View {
@@ -972,24 +773,11 @@ struct GroupEditSheet: View {
                         TextField("Label", text: $label)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
-
-                        // Parent group (WI-2026-08-08-060)
-                        Picker("Parent Group", selection: $parentID) {
-                            Text("Top level").tag(Optional<UUID>.none)
-                            ForEach(parentCandidates) { group in
-                                Text(hostStore.groupPath(for: group.id).joined(separator: " / "))
-                                    .tag(Optional(group.id))
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        Text("Hosts and subgroups inherit defaults from the parent chain.")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textTertiary)
                     }
 
                     VStack(alignment: .leading, spacing: DS.Space.md) {
                         DSSectionLabel(text: "Inherited Defaults")
-                        Text("Hosts and subgroups inherit these unless they set their own values.")
+                        Text("Hosts inherit these unless they set their own values.")
                             .font(DS.Typography.caption)
                             .foregroundStyle(DS.textTertiary)
 
@@ -1051,7 +839,6 @@ struct GroupEditSheet: View {
             identityID = editingGroup.identityID
             username = editingGroup.username ?? ""
             proxyJump = editingGroup.proxyJump ?? ""
-            parentID = editingGroup.parentID
             inheritForwardings = editingGroup.forwardings == nil
             forwardings = editingGroup.forwardings ?? []
             if let port = editingGroup.port {
@@ -1068,7 +855,6 @@ struct GroupEditSheet: View {
         updated.port = Int(portText)
         updated.proxyJump = proxyJump.trimmingCharacters(in: .whitespaces).isEmpty ? nil : proxyJump.trimmingCharacters(in: .whitespaces)
         updated.forwardings = inheritForwardings ? nil : forwardings
-        updated.parentID = parentID
         hostStore.updateGroup(updated)
         isPresented = false
     }
