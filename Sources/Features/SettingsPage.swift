@@ -7,7 +7,6 @@ struct SettingsPage: View {
     var taskMonitor: TaskMonitor
 
     enum SettingsPane: Hashable {
-        case appearance
         case terminal
         case network
         case github
@@ -38,7 +37,6 @@ struct SettingsPage: View {
             // Sub-navigation (WI-2026-08-08-052): Scrolling + Clipboard live
             // inside the Terminal pane — 4 balanced panes, not a 6-chip row.
             HStack(spacing: DS.Space.sm) {
-                DSPaneChip(title: "Appearance", icon: "circle.lefthalf.filled", isActive: pane == .appearance) { pane = .appearance }
                 DSPaneChip(title: "Terminal", icon: "textformat", isActive: pane == .terminal) { pane = .terminal }
                 DSPaneChip(title: "Network", icon: "network", isActive: pane == .network) { pane = .network }
                 DSPaneChip(title: "GitHub", icon: "link", isActive: pane == .github) { pane = .github }
@@ -52,7 +50,6 @@ struct SettingsPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl) {
                     switch pane {
-                    case .appearance: appearanceSection
                     case .terminal: terminalSection
                     case .network: networkSection
                     case .github: githubSection
@@ -67,42 +64,6 @@ struct SettingsPage: View {
         .onAppear {
             if fontFamilies.isEmpty {
                 fontFamilies = FontCatalog.load()
-            }
-        }
-    }
-
-    // MARK: - Appearance (app-level)
-
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.xl) {
-            DSSectionBlock(
-                title: "Mode",
-                help: "Applies to the whole app — sidebar, settings and terminal chrome. In System mode Synapty follows macOS, including live changes."
-            ) {
-                Picker("Appearance", selection: appearanceBinding) {
-                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 320)
-            }
-
-            // App UI size (WI-2026-08-08-070): scales the app's own chrome.
-            DSSectionBlock(
-                title: "UI Size",
-                help: "Scales the app's own interface (sidebar, lists, panels). The terminal font size is separate — see Terminal."
-            ) {
-                Picker("UI Size", selection: uiSizeBinding) {
-                    Text("Small").tag(0.85)
-                    Text("Standard").tag(1.0)
-                    Text("Large").tag(1.15)
-                    Text("Extra Large").tag(1.3)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 360)
             }
         }
     }
@@ -228,14 +189,6 @@ struct SettingsPage: View {
     // MARK: - Helpers
 
     // MARK: - Bindings
-
-    private var appearanceBinding: Binding<AppearanceMode> {
-        Binding(get: { settings.appearanceMode }, set: { settings.appearanceMode = $0 })
-    }
-
-    private var uiSizeBinding: Binding<Double> {
-        Binding(get: { settings.uiFontScale }, set: { settings.uiFontScale = $0 })
-    }
 
     private var opacityBinding: Binding<Double> {
         Binding(

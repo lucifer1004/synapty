@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-085"
+title = "fix(gui): first dark switch overridden by a re-created settings instance loading stale disk value"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Reproduced (log evidence): switching Light→Dark the FIRST time creates a second SynaptySettings instance (init log, different self pointer) that loads the disk state — which still holds the old light value because appearanceMode persistence is debounced (500ms) — and its init applyAppearance(light) overrides the just-applied dark appearance; ghostty then receives LIGHT. The second Dark switch works because the disk now has dark.
+
+Fix: appearanceMode persists IMMEDIATELY (cancel debounce + synchronous save in its didSet) so any re-created instance loads the fresh mode; also log the init call stack to identify the instance re-creation source."""
+
+[[content.acceptance_criteria]]
+text = "first Light→Dark switch applies dark immediately (no stale-instance override)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "appearanceMode persists immediately on change"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import AppKit
 
+
 // ===========================================================================
 // SynaptySettings — persisted app settings (~/.config/synapty/settings.json).
 //
@@ -36,6 +37,12 @@ enum AppearanceMode: String, Codable, CaseIterable {
 }
 
 @MainActor @Observable final class SynaptySettings {
+    /// Shared instance — SwiftUI can re-create the ContentView (window
+    /// restoration rebuilds the WindowGroup content, WI-2026-08-08-085);
+    /// @State would then construct a fresh settings object that reloads the
+    /// disk and can override live state. A shared instance survives
+    /// view re-creation.
+    static let shared = SynaptySettings()
 
     // MARK: - Appearance (app-level)
 
@@ -45,7 +52,12 @@ enum AppearanceMode: String, Codable, CaseIterable {
         didSet {
             guard !isLoading else { return }
             applyAppearance()
-            persistOnly()
+            // IMMEDIATE write (WI-2026-08-08-085): a re-created settings
+            // instance (window restoration) loads the disk value in its
+            // init and re-applies it — if the mode were still debounced,
+            // the stale value would override this switch.
+            persistenceDebounceTask?.cancel()
+            save()
         }
     }
 

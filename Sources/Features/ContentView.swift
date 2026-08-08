@@ -31,7 +31,7 @@ struct ContentView: View {
     @State private var tunnelManager = TunnelManager()
     @State private var hubManager = HubManager()
     @State private var taskMonitor = TaskMonitor()
-    @State private var settings = SynaptySettings()
+    @State private var settings = SynaptySettings.shared
     @State private var page: AppPage = .terminal
     @State private var showShortcuts = false
     @State private var showFindBar = false

@@ -17,9 +17,9 @@ struct TerminalSettingsPanel: View {
         VStack(spacing: 0) {
             // Panel header
             HStack(spacing: DS.Space.sm) {
-                Text("Terminal")
+                Text("Appearance")
                     .font(DS.Typography.title)
-                DSHelpButton(text: "Quick settings — apply live to the terminal. The full set lives in Settings → Terminal.")
+                DSHelpButton(text: "Display settings — apply live. Mode and UI Size affect the whole app; the rest affect the terminal. The full terminal set lives in Settings → Terminal.")
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -40,6 +40,37 @@ struct TerminalSettingsPanel: View {
             ScrollView {
                 // Compact label+control rows (WI-2026-08-08-081).
                 VStack(alignment: .leading, spacing: DS.Space.lg) {
+                    row(icon: "circle.lefthalf.filled", label: "Appearance mode") {
+                        Picker(
+                            "Appearance",
+                            selection: Binding(
+                                get: { settings.appearanceMode },
+                                set: { settings.appearanceMode = $0 }
+                            )
+                        ) {
+                            ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+                    row(icon: "a.magnify", label: "UI size") {
+                        Picker(
+                            "UI Size",
+                            selection: Binding(
+                                get: { settings.uiFontScale },
+                                set: { settings.uiFontScale = $0 }
+                            )
+                        ) {
+                            Text("Small").tag(0.85)
+                            Text("Standard").tag(1.0)
+                            Text("Large").tag(1.15)
+                            Text("Extra Large").tag(1.3)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
                     row(icon: "sun.max", label: "Light theme") {
                         ThemePicker(
                             selection: Binding(
