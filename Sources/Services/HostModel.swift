@@ -341,6 +341,30 @@ struct HostEntry: Identifiable, Codable, Equatable {
         updateGroup(updated)
     }
 
+    /// True if `group` may be reparented under `parentID`: the parent must
+    /// not be the group itself nor one of its descendants (cycle guard,
+    /// WI-2026-08-08-060/062). nil parent = top level, always allowed.
+    func canReparent(_ group: HostGroup, to parentID: UUID?) -> Bool {
+        guard let parentID else { return true }
+        guard parentID != group.id else { return false }
+        var descendants = Set<UUID>()
+        collectGroupIDs(group.id, into: &descendants)
+        return !descendants.contains(parentID)
+    }
+
+    /// Reparents a group (drag-and-drop / settings sheet). Returns false
+    /// without changing state when the move would create a cycle or the
+    /// group is unknown (WI-2026-08-08-062).
+    @discardableResult
+    func moveGroup(_ groupID: UUID, toParent parentID: UUID?) -> Bool {
+        guard let idx = groups.firstIndex(where: { $0.id == groupID }) else { return false }
+        guard canReparent(groups[idx], to: parentID) else { return false }
+        guard groups[idx].parentID != parentID else { return false }
+        groups[idx].parentID = parentID
+        save()
+        return true
+    }
+
     /// The chain of group labels from the root down to (and including) the
     /// given group — used for display like "Prod / GPU Box".
     func groupPath(for groupID: UUID?) -> [String] {

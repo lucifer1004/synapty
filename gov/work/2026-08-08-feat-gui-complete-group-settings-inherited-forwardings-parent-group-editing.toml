@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-060"
+title = "feat(gui): complete group settings — inherited forwardings + parent group editing"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius parity (groups round): the group settings sheet is incomplete — HostGroup supports inherited forwardings and a parent, but GroupEditSheet can neither edit port-forwarding rules nor change the parent group (reparenting requires delete + recreate).
+
+Fix: GroupEditSheet gains a parent-group picker (Top level + all groups except itself and its descendants — cycle-safe) and an editable inherited-forwardings list (shared ForwardingsEditor component, same UX as AddHostSheet). Saving persists via HostStore."""
+
+[[content.acceptance_criteria]]
+text = "GroupEditSheet can change the parent group (Top level or another group; itself/descendants excluded)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "GroupEditSheet can edit inherited port-forwarding rules (shared ForwardingsEditor)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HostStore.canReparent guards against cycles (unit-tested)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

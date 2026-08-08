@@ -231,6 +231,38 @@ final class HostStoreTests: XCTestCase {
         XCTAssertNil(store.hosts.first { $0.id == h3.id }?.groupID)
     }
 
+    /// Cycle guard for group reparenting (drag-and-drop + settings sheet,
+    /// WI-2026-08-08-060/062).
+    func testCanReparentAndMoveGroup() {
+        let store = HostStore()
+        let root = HostGroup(label: "Prod")
+        let child = HostGroup(label: "GPU", parentID: root.id)
+        let grandchild = HostGroup(label: "Cluster", parentID: child.id)
+        store.groups = [root, child, grandchild]
+
+        // Root cannot move under its own descendant (would cycle) or itself.
+        XCTAssertFalse(store.canReparent(root, to: child.id))
+        XCTAssertFalse(store.canReparent(root, to: root.id))
+        XCTAssertTrue(store.canReparent(root, to: nil))
+
+        // A group cannot move under itself or its descendants.
+        XCTAssertFalse(store.canReparent(child, to: child.id))
+        XCTAssertFalse(store.canReparent(child, to: grandchild.id))
+        XCTAssertTrue(store.canReparent(child, to: root.id))
+        XCTAssertTrue(store.canReparent(child, to: nil))
+
+        // moveGroup: valid moves apply and persist.
+        XCTAssertTrue(store.moveGroup(child.id, toParent: nil))
+        XCTAssertNil(store.groups.first { $0.id == child.id }?.parentID)
+
+        // Cycle moves are rejected without state change.
+        XCTAssertFalse(store.moveGroup(grandchild.id, toParent: grandchild.id))
+        XCTAssertEqual(store.groups.first { $0.id == grandchild.id }?.parentID, child.id)
+
+        // Unknown group rejected.
+        XCTAssertFalse(store.moveGroup(UUID(), toParent: root.id))
+    }
+
     func testGroupPath() {
         let store = HostStore()
         let root = HostGroup(label: "Prod")

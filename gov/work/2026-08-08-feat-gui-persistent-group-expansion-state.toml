@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-061"
+title = "feat(gui): persistent group expansion state"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius parity (groups round): group tree expansion state is per-view @State (all expanded by default) and resets every time the Hosts page is re-entered; deep trees become tedious.
+
+Fix: persist collapsed groups in UserDefaults (AppStorage, JSON-encoded set of group IDs); expansion defaults to open and survives leaving/re-entering the Hosts page and app restarts."""
+
+[[content.acceptance_criteria]]
+text = "collapsed/expanded state of groups persists across page switches and app restarts"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "groups default to expanded (no behavior change for existing users)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

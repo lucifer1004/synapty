@@ -20,6 +20,18 @@ struct HostDragPayload: Codable, Transferable {
 
 extension UTType {
     static let hostDragPayload = UTType(exportedAs: "dev.synapty.host-drag")
+    /// Group-tree drags (reparenting, WI-2026-08-08-062) use a distinct
+    /// type so group rows can be both sources and targets.
+    static let groupDragPayload = UTType(exportedAs: "dev.synapty.group-drag")
+}
+
+/// Drag payload for group rows (WI-2026-08-08-062): reparenting a group.
+struct GroupDragPayload: Codable, Transferable {
+    let groupIDs: [UUID]
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .groupDragPayload)
+    }
 }
 
 /// Card block for one host. Self-contained hover/selection visuals; the

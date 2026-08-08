@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-058"
+title = "feat(gui): group Quick Connect — connect to all hosts in a group (Termius parity)"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius parity (groups round): right-clicking a group offers Quick Connect — a new tab/session per host in the group (including subgroups). We currently connect only one host at a time from the session picker.
+
+Fix: GroupRow context menu gains Quick Connect (enabled when the group has hosts, including descendants); it opens one placeholder session per host and starts the tunnel chain for each, switching to the Terminal page. Reuses the existing onHostConnect flow via a shared ContentView handler."""
+
+[[content.acceptance_criteria]]
+text = "group context menu offers Quick Connect (disabled for empty groups)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Quick Connect opens one session per host in the group incl. subgroups and starts each tunnel"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "reuses the single-host connect path (no duplicated session logic)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

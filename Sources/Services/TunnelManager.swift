@@ -166,6 +166,19 @@ import os
         let command = connectCommand(for: host)
         pendingCallbacks[host.id, default: []].append((command.0, command.1, completion))
 
+        // FAST PATH (WI-2026-08-08-063): a host whose tunnel is already
+        // connected opens a new session immediately — no setup-host run
+        // (5-6 SSH round trips + terminfo scp even with a live master),
+        // no .connecting status flicker. The ControlMaster is verified
+        // off-main; a dead master reconnects in the background. connect.sh
+        // falls back to a fresh tunnel when no master exists, so the
+        // session is safe either way. Binary/terminfo freshness stays on
+        // the slow path (first connect / reconnect).
+        if tunnelStates[host.id] == .connected {
+            verifyLiveMaster(for: host)
+            return
+        }
+
         // Only start setup if not already in progress
         let currentStatus = tunnelStates[host.id]
         if currentStatus == .connecting || currentStatus == .reconnecting {
@@ -174,6 +187,30 @@ import os
 
         tunnelStates[host.id] = .connecting
         runSetup(for: host)
+    }
+
+    /// Fast-path master verification (WI-2026-08-08-063): fire every queued
+    /// callback immediately, then check the ControlMaster off-main. Alive →
+    /// nothing more to do. Dead → background reconnect so the next session
+    /// is fast again.
+    private func verifyLiveMaster(for host: HostEntry) {
+        let socket = socketPath(for: host)
+        let userAtHost = "\(effectiveUsername(for: host))@\(host.address)"
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let alive = Self.sshControl(socket: socket, userAtHost: userAtHost, ctl: "check")
+            DispatchQueue.main.async {
+                guard let self else { return }
+                // Fire ALL queued callbacks — the sessions start now; the
+                // master check only decides whether to reconnect.
+                let callbacks = self.pendingCallbacks.removeValue(forKey: host.id) ?? []
+                for cb in callbacks {
+                    cb.onReady((cb.command, cb.agentID))
+                }
+                if !alive && self.tunnelStates[host.id] == .connected {
+                    self.reconnectTunnel(for: host)
+                }
+            }
+        }
     }
 
     // MARK: - Connect command

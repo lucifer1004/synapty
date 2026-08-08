@@ -52,12 +52,7 @@ struct ContentView: View {
                 agentMonitor: agentMonitor,
                 page: $page,
                 onHostConnect: { host in
-                    // Create placeholder immediately, update when tunnel is ready.
-                    page = .terminal
-                    let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
-                    tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
-                        paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
-                    }
+                    handleHostConnect(host)
                 },
                 onNewLocalPane: {
                     page = .terminal
@@ -98,7 +93,18 @@ struct ContentView: View {
                 if page != .terminal {
                     switch page {
                     case .hosts:
-                        HostsPageView(hostStore: hostStore, tunnelManager: tunnelManager)
+                        HostsPageView(
+                            hostStore: hostStore,
+                            tunnelManager: tunnelManager,
+                            onQuickConnect: { hosts in
+                                // Termius parity: one session per host in
+                                // the group (WI-2026-08-08-058).
+                                page = .terminal
+                                for host in hosts {
+                                    handleHostConnect(host)
+                                }
+                            }
+                        )
                     case .tasks:
                         TaskListView(taskMonitor: taskMonitor)
                     case .activity:
@@ -363,6 +369,17 @@ struct ContentView: View {
               let host = session.hostEntry else { return }
         let sessionID = session.id
         paneManager.markSessionConnecting(id: sessionID)
+        tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
+            paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
+        }
+    }
+
+    /// Shared single-host connect path (session picker, Quick Connect):
+    /// create the placeholder immediately, wire the tunnel when ready
+    /// (WI-2026-08-08-058).
+    private func handleHostConnect(_ host: HostEntry) {
+        page = .terminal
+        let sessionID = paneManager.addRemoteSessionPlaceholder(label: host.label, hostEntry: host)
         tunnelManager.ensureTunnel(for: host) { [weak paneManager] result in
             paneManager?.connectSession(id: sessionID, command: result.command, agentID: result.agentID)
         }
