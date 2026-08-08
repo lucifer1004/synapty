@@ -226,6 +226,8 @@ struct ContentView: View {
             if let window = NSApp.keyWindow {
                 window.minSize = NSSize(width: 760, height: 480)
             }
+            // Initial activity-poll state (WI-2026-08-08-041).
+            taskMonitor.setActivityPollingEnabled(page == .activity)
         }
         .onDisappear {
             agentMonitor.stopMonitoring()
@@ -233,10 +235,11 @@ struct ContentView: View {
             tunnelManager.stopHeartbeat()
             hubManager.shutdown()
         }
-        // Pause vsync rendering of hidden terminal surfaces while on other
-        // pages — keeps the window compositor light (WI-2026-08-07-006).
+        // Page switch: pause hidden terminal surfaces (WI-2026-08-07-006)
+        // and the Activity-page poll (WI-2026-08-08-041).
         .onChange(of: page) { _, newPage in
             appDelegate.ghosttyApp?.setSurfacesPaused(newPage != .terminal)
+            taskMonitor.setActivityPollingEnabled(newPage == .activity)
         }
     }
 

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-040"
+title = "perf(gui): lazy session rows and precomputed agent lookup in the sidebar"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Perf: the sidebar's session ForEach (HostSidebar.swift:125) renders eagerly inside a VStack, and each row body computes `agentMonitor.agents.first(where:)` — O(sessions × agents) per render, per second with the shared ticker. Make the list lazy and precompute the agent lookup once per body."
+notes = ["Sidebar session rows already render through SwiftUI List (lazy); the per-row O(agents) lookup (agentMonitor.agents.first(where:)) is replaced by one Dictionary built per body — O(agents) total per render instead of per row. 128/128 Swift tests."]
+
+[[content.acceptance_criteria]]
+text = "fix: session rows render lazily (LazyVStack)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: agent-by-id lookup is computed once per sidebar body, not per row"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

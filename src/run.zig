@@ -359,11 +359,10 @@ fn hubReaderThread(srv: *RunServer) void {
 
 /// Parse an envelope line and return true when its `id` field equals
 /// `expected_id` EXACTLY. Substring matching collided ('req-5' matched
-/// 'req-50'; WI-2026-08-08-028).
-fn responseIdMatches(line: []const u8, expected_id: []const u8) bool {
-    var arena_state = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
+/// 'req-50'; WI-2026-08-08-028). Takes the caller's arena — the response
+/// wait loop reuses ONE arena across its attempts instead of allocating
+/// per call (WI-2026-08-08-042).
+fn responseIdMatches(arena: Allocator, line: []const u8, expected_id: []const u8) bool {
     const parsed = json.parseFromSlice(json.Value, arena, line, .{ .allocate = .alloc_always }) catch return false;
     if (parsed.value != .object) return false;
     const id_val = parsed.value.object.get("id") orelse return false;
@@ -374,6 +373,12 @@ fn responseIdMatches(line: []const u8, expected_id: []const u8) bool {
 /// Stale responses with non-matching IDs are discarded.
 /// Caller owns the returned slice and must free it with std.heap.smp_allocator.
 fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
+    // One parse arena for the whole wait loop — no per-attempt allocation
+    // (WI-2026-08-08-042).
+    var parse_arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer parse_arena.deinit();
+    const arena = parse_arena.allocator();
+
     var attempts: usize = 0;
     while (attempts < 1000) : (attempts += 1) {
         srv.response_mutex.lock(io_mod.get()) catch unreachable;
@@ -381,7 +386,7 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
         var found: ?[]const u8 = null;
         while (srv.pending_responses.items.len > 0) {
             const data = srv.pending_responses.items[0];
-            if (responseIdMatches(data, expected_id)) {
+            if (responseIdMatches(arena, data, expected_id)) {
                 // Match — remove from queue.
                 found = srv.pending_responses.orderedRemove(0);
                 break;
@@ -823,39 +828,51 @@ test "register envelope is newline-terminated" {
 }
 
 test "responseIdMatches compares the envelope id exactly (WI-2026-08-08-034)" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
     // The F12 regression: substring matching collided ('req-5' matched
     // 'req-50').
     try std.testing.expect(responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"id\":\"req-5\",\"payload\":{\"ok\":true}}",
         "req-5",
     ));
     try std.testing.expect(!responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"id\":\"req-50\",\"payload\":{\"ok\":true}}",
         "req-5",
     ));
     try std.testing.expect(responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"id\":\"req-50\",\"payload\":{\"ok\":true}}",
         "req-50",
     ));
 }
 
 test "responseIdMatches rejects malformed or missing ids (WI-2026-08-08-034)" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
     // Missing id field.
     try std.testing.expect(!responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"payload\":{\"ok\":true}}",
         "req-5",
     ));
     // Non-string id.
     try std.testing.expect(!responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"id\":42,\"payload\":{\"ok\":true}}",
         "42",
     ));
     // Malformed JSON.
-    try std.testing.expect(!responseIdMatches("{broken", "req-5"));
+    try std.testing.expect(!responseIdMatches(arena, "{broken", "req-5"));
     // Non-object root.
-    try std.testing.expect(!responseIdMatches("[1,2,3]", "req-5"));
+    try std.testing.expect(!responseIdMatches(arena, "[1,2,3]", "req-5"));
     // The id must match fully — a prefix is not enough.
     try std.testing.expect(!responseIdMatches(
+        arena,
         "{\"type\":\"response\",\"id\":\"req-5-suffix\",\"payload\":{\"ok\":true}}",
         "req-5",
     ));

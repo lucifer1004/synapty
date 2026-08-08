@@ -1,0 +1,23 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-042"
+title = "perf(zig): daemon response-wait arena reuse and measured hot paths"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Perf (Zig): measure the daemon's response-wait path — waitForHubResponse allocates a fresh parse arena per responseIdMatches/parseHubOk call per 1ms attempt. Confirm or dismiss with a measurement; if real, reuse one arena across the loop. Also re-verify the hub reader/LineBuffer hot path (copyForwards per line) for pathological batch shapes."
+notes = ["waitForHubResponse now creates ONE parse arena for the whole 1000-attempt wait loop and passes it to responseIdMatches — no per-attempt arena allocation. parseHubOk is called once per request (not in a loop) so it keeps its own arena. Measured: idle app CPU 0.2-0.5%; no other hot path found in the daemon/hub (LineBuffer carries, per-line arena resets, bounded queues all verified). 124/124 Zig tests."]
+
+[[content.acceptance_criteria]]
+text = "fix: response-wait loop reuses one parse arena (no per-attempt allocation) — or the measurement shows it is negligible and the finding is documented"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 124 Zig tests still green"
+status = "done"
+category = "chore"

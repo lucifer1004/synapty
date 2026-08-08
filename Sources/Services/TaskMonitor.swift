@@ -128,6 +128,23 @@ enum BridgeStatus: Equatable {
         tasksTimer = nil
     }
 
+    /// Whether the 5s activity poll should run. The activity stream is
+    /// only consumed by the Activity page — while it is hidden the poll is
+    /// pure waste (a process spawn + parse per 5s), and pausing loses
+    /// nothing because re-showing refetches the hub's recent log
+    /// (WI-2026-08-08-041). The agents/task polls are unaffected (the
+    /// status bar needs them).
+    private var activityPollingEnabled = true
+
+    func setActivityPollingEnabled(_ enabled: Bool) {
+        guard activityPollingEnabled != enabled else { return }
+        activityPollingEnabled = enabled
+        if enabled {
+            // Resume with an immediate fetch so the page is fresh on show.
+            fetchActivity()
+        }
+    }
+
     /// Manual refresh of the task list (Tasks page refresh button).
     func refreshTasks() {
         fetchTasks()
@@ -240,7 +257,7 @@ enum BridgeStatus: Equatable {
     // MARK: - Fetch activity
 
     private func fetchActivity() {
-        guard !activityInFlight else { return }
+        guard activityPollingEnabled, !activityInFlight else { return }
         activityInFlight = true
         runCLI(["activity"]) { [weak self] output in
             defer { self?.activityInFlight = false }

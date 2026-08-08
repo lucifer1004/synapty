@@ -14,6 +14,9 @@ struct HostSidebar: View {
     @State private var showHostPicker = false
     /// ID of the session currently being renamed inline.
     @State private var editingSessionID: UUID?
+    /// ONE shared ticker for all session rows (WI-2026-08-08-039) — the
+    /// per-row Timer.publish churned a timer per row per parent render.
+    @State private var sessionNow = Date()
 
     /// Called when the user picks a remote host from the picker.
     var onHostConnect: ((HostEntry) -> Void)?
@@ -127,8 +130,13 @@ struct HostSidebar: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DS.Space.xxl)
                     } else {
+                        // Agent lookup once per body — O(agents) total, not
+                        // O(agents) per row (WI-2026-08-08-040).
+                        let agentsByID = Dictionary(
+                            uniqueKeysWithValues: agentMonitor.agents.map { ($0.id, $0) }
+                        )
                         ForEach(paneManager.sessions) { session in
-                            let agent = agentMonitor.agents.first(where: { $0.id == session.agentID })
+                            let agent = session.agentID.flatMap { agentsByID[$0] }
                             let attention = agent.map { agentMonitor.needsAttention.contains($0.id) } ?? false
                             SessionRow(
                                 session: session,
@@ -136,6 +144,7 @@ struct HostSidebar: View {
                                 editingSessionID: $editingSessionID,
                                 agent: agent,
                                 agentNeedsAttention: attention,
+                                now: sessionNow,
                                 onTap: {
                                     // Explicit tap handler: List selection's
                                     // set: does NOT fire when the clicked
@@ -169,6 +178,15 @@ struct HostSidebar: View {
                       let id = paneManager.activeSessionID else { return .ignored }
                 editingSessionID = id
                 return .handled
+            }
+            // ONE shared ticker for every session row's live duration
+            // (WI-2026-08-08-039): one Timer-style loop, not one Timer per
+            // row per render.
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    sessionNow = Date()
+                }
             }
         }
     }
@@ -220,15 +238,16 @@ struct SessionRow: View {
     /// Agent registered on this session, if any.
     let agent: AgentInfo?
     let agentNeedsAttention: Bool
+    /// Shared sidebar ticker value (WI-2026-08-08-039) — one ticker for
+    /// all rows instead of a per-row Timer.publish that churned on every
+    /// parent render.
+    let now: Date
     /// Fired on row tap (selects session + returns to terminal page).
     var onTap: (() -> Void)? = nil
 
     @State private var editText = ""
     @FocusState private var isTextFieldFocused: Bool
-    @State private var now = Date()
     @State private var isHovered = false
-
-    private let timer = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
     private var isEditing: Bool { editingSessionID == session.id }
 
@@ -357,7 +376,6 @@ struct SessionRow: View {
             onTap?()
         }
         .opacity(session.state == .connecting ? 0.7 : 1.0)
-        .onReceive(timer) { date in now = date }
     }
 
     // MARK: - Subviews
