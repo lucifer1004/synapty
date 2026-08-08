@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-003"
+title = "fix(hub): validate wire-supplied issue numbers; fix ActivityLog.toJson use-after-free"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review findings F1+F2 (Zig core). F1: ActivityLog.toJson (src/hub/registry.zig:447-461) returns json.Value whose .string fields are borrowed slices into the log's owned storage; the mutex is released on return and a concurrent append past max_entries frees those strings (orderedRemove + free), so handleActivityList serializes freed memory — heap UAF whenever >=2 agents are connected. F2: handleTaskClaim/Update/Comment (src/hub/handlers.zig:572-579,610-616,647-653) cast client-supplied 'number' with unchecked @intCast (i64->u32) / @intFromFloat; a negative, >u32::MAX, or 1e30/NaN value panics (safety-checked cast) and aborts the whole hub process in Debug builds."
+
+[[content.journal]]
+date = "2026-08-08"
+content = "F1: ActivityLog.toJson now dupes agent/tool/detail into the caller's arena while holding the mutex — the returned json.Value no longer borrows log storage that a concurrent append can free (128/128 Zig tests green, incl. new eviction regression test). F2: new parseIssueNumber() bounds-checks wire-supplied 'number' (std.math.cast for integers; magnitude-bounded float path rejecting NaN/Inf/non-integral) — no safety-checked cast can panic the hub (3 new tests: valid/invalid/boundary)."
+
+[[content.acceptance_criteria]]
+text = "ActivityLog.toJson dupes agent/tool/detail into the caller's arena while holding the mutex (no borrowed pointers past unlock)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "task.claim/update/comment reject out-of-range or non-integral number with a tool_response error instead of panicking"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hub unit tests cover toJson-during-append and negative/overflow number rejection"
+status = "done"
+category = "chore"

@@ -18,8 +18,27 @@ class GhosttyNSView: NSView, NSTextInputClient {
 
     override var acceptsFirstResponder: Bool { true }
 
+    /// Belongs to the visible (active) pane. Hidden background panes must
+    /// never take keyboard focus, ghostty focus, or the global activeSurface
+    /// (WI-2026-08-08-007). Kept in sync by TerminalView.updateNSView.
+    var isVisiblePane = true
+    /// Is this the focused leaf of the visible pane (split focus).
+    var isFocusedLeaf = true
+
     override func becomeFirstResponder() -> Bool {
+        guard isVisiblePane else {
+            // A hidden/background surface (e.g. a background session's pane
+            // materializing) must never steal keyboard focus — redirect to
+            // the visible focused surface (WI-2026-08-08-007).
+            if let activeView = ghosttyApp?.activeView, activeView !== self {
+                DispatchQueue.main.async {
+                    activeView.window?.makeFirstResponder(activeView)
+                }
+            }
+            return false
+        }
         ghosttyApp?.activeSurface = surface
+        ghosttyApp?.activeView = self
         if let surface {
             ghostty_surface_set_focus(surface, true)
             if let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
@@ -68,22 +87,29 @@ class GhosttyNSView: NSView, NSTextInputClient {
         if surface == nil, let app = ghosttyApp?.app, window != nil {
             layer?.contentsScale = window?.backingScaleFactor ?? 2.0
             createSurface(app: app)
-            ghosttyApp?.activeSurface = surface
 
-            // Set display ID so ghostty can use CVDisplayLink for vsync-driven
-            // rendering. Without this, ghostty renders immediately on every wakeup
-            // which causes visible re-render churn (e.g., during paste).
-            if let surface,
-               let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
-               displayID != 0 {
-                ghostty_surface_set_display_id(surface, displayID)
-            }
-
-            updateSurfaceSize()
             if let surface {
-                ghostty_surface_set_focus(surface, true)
+                // Set display ID so ghostty can use CVDisplayLink for vsync-driven
+                // rendering. Without this, ghostty renders immediately on every wakeup
+                // which causes visible re-render churn (e.g., during paste).
+                if let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
+                   displayID != 0 {
+                    ghostty_surface_set_display_id(surface, displayID)
+                }
+
+                updateSurfaceSize()
+
+                // Only the visible focused leaf may steal focus: a background
+                // session's pane attaching to the window must not yank
+                // keyboard focus, ghostty focus, or the global activeSurface
+                // from the terminal the user is working in (WI-2026-08-08-007).
+                if isVisiblePane && isFocusedLeaf {
+                    ghosttyApp?.activeSurface = surface
+                    ghosttyApp?.activeView = self
+                    ghostty_surface_set_focus(surface, true)
+                    window?.makeFirstResponder(self)
+                }
             }
-            window?.makeFirstResponder(self)
         }
     }
 
@@ -135,8 +161,10 @@ class GhosttyNSView: NSView, NSTextInputClient {
         }
 
         if let surface {
-            // Register for per-surface color scheme updates (WI-2026-08-07-005).
-            ghosttyApp?.registerSurface(surface)
+            // Register for per-surface color scheme updates (WI-2026-08-07-005)
+            // and leaf-ID → surface lookup for the clipboard callbacks
+            // (WI-2026-08-08-008).
+            ghosttyApp?.registerSurface(surface, leafID: leafID)
         }
         if surface == nil {
             print("Failed to create Ghostty surface")
@@ -574,8 +602,13 @@ class GhosttyNSView: NSView, NSTextInputClient {
     func destroySurface() {
         if let surface {
             // Clear activeSurface if it points to this surface (prevents stale clipboard callbacks)
-            if let app = ghosttyApp, app.activeSurface == surface {
-                app.activeSurface = nil
+            if let app = ghosttyApp {
+                if app.activeSurface == surface {
+                    app.activeSurface = nil
+                }
+                if app.activeView === self {
+                    app.activeView = nil
+                }
             }
             ghosttyApp?.unregisterSurface(surface)
             ghostty_surface_free(surface)
@@ -600,13 +633,33 @@ struct TerminalView: NSViewRepresentable {
     var command: String?
     /// The leaf ID in the split tree for focus tracking.
     var leafID: UUID?
+    /// Belongs to the visible (active) pane — hidden panes must not steal
+    /// keyboard focus (WI-2026-08-08-007).
+    var isVisiblePane: Bool = true
+    /// Is the focused leaf of the visible pane (split focus).
+    var isFocusedLeaf: Bool = true
 
     func makeNSView(context: Context) -> GhosttyNSView {
-        return GhosttyNSView(ghosttyApp: ghosttyApp, command: command, leafID: leafID)
+        let nsView = GhosttyNSView(ghosttyApp: ghosttyApp, command: command, leafID: leafID)
+        nsView.isVisiblePane = isVisiblePane
+        nsView.isFocusedLeaf = isFocusedLeaf
+        return nsView
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {
+        let wasFocused = nsView.isVisiblePane && nsView.isFocusedLeaf
         nsView.leafID = leafID
+        nsView.isVisiblePane = isVisiblePane
+        nsView.isFocusedLeaf = isFocusedLeaf
+        let nowFocused = isVisiblePane && isFocusedLeaf
+        if nowFocused && !wasFocused {
+            // This leaf just became the focused terminal (pane/session/split
+            // switch) — take keyboard focus so keystrokes land here instead
+            // of on the hidden previous surface (WI-2026-08-08-007).
+            DispatchQueue.main.async {
+                nsView.window?.makeFirstResponder(nsView)
+            }
+        }
     }
 }
 

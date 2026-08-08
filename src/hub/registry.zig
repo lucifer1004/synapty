@@ -444,6 +444,10 @@ pub const ActivityLog = struct {
     }
 
     /// Copy the newest `limit` entries as JSON (caller allocates via arena).
+    /// agent/tool/detail are duped into `arena` while the mutex is still
+    /// held: a concurrent append past max_entries evicts and FREES the
+    /// log's own strings, so returning borrowed slices would leave the
+    /// caller serializing freed memory (WI-2026-08-08-003).
     pub fn toJson(self: *ActivityLog, arena: Allocator, limit: usize) !json.Value {
         self.mutex.lock(io_mod.get()) catch unreachable;
         defer self.mutex.unlock(io_mod.get());
@@ -452,9 +456,9 @@ pub const ActivityLog = struct {
         for (self.entries.items[start..]) |entry| {
             var obj = json.ObjectMap.empty;
             try obj.put(arena, "ts", .{ .integer = entry.ts });
-            try obj.put(arena, "agent", .{ .string = entry.agent });
-            try obj.put(arena, "tool", .{ .string = entry.tool });
-            try obj.put(arena, "detail", .{ .string = entry.detail });
+            try obj.put(arena, "agent", .{ .string = try arena.dupe(u8, entry.agent) });
+            try obj.put(arena, "tool", .{ .string = try arena.dupe(u8, entry.tool) });
+            try obj.put(arena, "detail", .{ .string = try arena.dupe(u8, entry.detail) });
             try arr.append(.{ .object = obj });
         }
         return .{ .array = arr };
@@ -631,4 +635,37 @@ test "MessageLog append and FIFO eviction" {
     try std.testing.expectEqual(@as(usize, 3), ml.entries.items.len);
     try std.testing.expectEqualStrings("msg2", ml.entries.items[0].text);
     try std.testing.expectEqualStrings("msg4", ml.entries.items[2].text);
+}
+
+test "ActivityLog toJson survives eviction after snapshot (WI-2026-08-08-003)" {
+    // Regression: toJson must dupe into the caller's arena while holding
+    // the mutex; a later append past max_entries evicts (frees) the log's
+    // own strings, so the returned value must not borrow them.
+    var al = ActivityLog.init(2);
+    defer al.deinit(std.testing.allocator);
+
+    try al.append(std.testing.allocator, .{ .ts = 1, .agent = "agent-a", .tool = "task.list", .detail = "list #1" });
+    try al.append(std.testing.allocator, .{ .ts = 2, .agent = "agent-b", .tool = "task.claim", .detail = "claim #2" });
+
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const snapshot = try al.toJson(arena, 50);
+
+    // Evict both entries that the snapshot borrowed from.
+    try al.append(std.testing.allocator, .{ .ts = 3, .agent = "agent-c", .tool = "task.update", .detail = "update #3" });
+    try al.append(std.testing.allocator, .{ .ts = 4, .agent = "agent-d", .tool = "task.comment", .detail = "comment #4" });
+
+    // Serialize the snapshot AFTER the eviction — must still be valid and
+    // complete (would be a use-after-free with the borrowed-slice version).
+    const text = try json.Stringify.valueAlloc(arena, snapshot, .{});
+
+    try std.testing.expect(mem.indexOf(u8, text, "claim #2") != null);
+    try std.testing.expect(mem.indexOf(u8, text, "list #1") != null);
+    try std.testing.expect(mem.indexOf(u8, text, "agent-a") != null);
+    try std.testing.expect(mem.indexOf(u8, text, "agent-b") != null);
+    // The snapshot predates entries 3-4: they must not appear.
+    try std.testing.expect(mem.indexOf(u8, text, "comment #4") == null);
+    try std.testing.expect(mem.indexOf(u8, text, "update #3") == null);
 }

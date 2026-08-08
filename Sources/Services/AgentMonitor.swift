@@ -1,5 +1,10 @@
 import Foundation
 import SwiftUI
+import os
+
+private extension Logger {
+    static let agentMonitor = Logger(subsystem: "com.synapty.app", category: "AgentMonitor")
+}
 
 // MARK: - Data Models per [[RFC-0002:C-AGENT-IDENTITY]]
 
@@ -153,26 +158,25 @@ struct ChatMessage: Identifiable, Equatable {
                     self?.refreshInFlight = false
                 }
             }
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: binary)
-            process.arguments = ["agents"]
-
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = Pipe()
-
-            do {
-                try process.run()
-                process.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                // parseAgentsOutput is pure — safe off the main actor.
-                let parsed = Self.parseAgentsOutput(output)
-                DispatchQueue.main.async {
-                    self?.mergeAgents(parsed)
-                }
-            } catch {
-                // Binary not available yet — stay silent
+            // Drains both pipes concurrently and enforces a timeout — a
+            // full pipe used to block the child forever and silently kill
+            // all future polls (WI-2026-08-08-005).
+            let output = SubprocessRunner.run(
+                executable: binary,
+                arguments: ["agents"],
+                timeout: 15
+            )
+            if let error = output.error {
+                Logger.agentMonitor.error("launch failed: \(error, privacy: .public)")
+            } else if output.timedOut {
+                Logger.agentMonitor.error("`synapty agents` timed out after 15s")
+            } else if !output.stderr.isEmpty {
+                Logger.agentMonitor.error("stderr: \(output.stderr, privacy: .public)")
+            }
+            // parseAgentsOutput is pure — safe off the main actor.
+            let parsed = Self.parseAgentsOutput(output.stdout)
+            DispatchQueue.main.async {
+                self?.mergeAgents(parsed)
             }
         }
     }

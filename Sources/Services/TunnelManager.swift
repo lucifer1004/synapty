@@ -1,5 +1,10 @@
 import Foundation
 import AppKit
+import os
+
+private extension Logger {
+    static let tunnelManager = Logger(subsystem: "com.synapty.app", category: "TunnelManager")
+}
 
 /// Manages SSH ControlMaster tunnels to remote hosts.
 /// Provides auto-setup on first connect, heartbeat monitoring, and auto-reconnect.
@@ -206,8 +211,6 @@ import AppKit
 
     private func runSetup(for host: HostEntry) {
         let script = scriptPath("setup-host")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
         // Process.arguments are passed as argv (no shell interpolation), so no escaping needed here.
         // The script itself uses $1, $2 etc. which are safe in bash.
         // Fixed layout: <host> <port> <user> <tunnel-port> <hub-port> <key|''> <jump|''> [forwards...]
@@ -221,17 +224,21 @@ import AppKit
             args.append(fwd.targetHost)
             args.append("\(fwd.targetPort)")
         }
-        process.arguments = args
 
-        // Capture output for error reporting
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        process.terminationHandler = { [weak self] proc in
+        // Runs on a background queue: both pipes are drained concurrently
+        // and a hard timeout bounds a stuck ssh — previously the setup
+        // output pipe was never drained while running, so a >64KB burst
+        // blocked the child and the session hung in .connecting forever
+        // (WI-2026-08-08-005).
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let output = SubprocessRunner.run(
+                executable: "/bin/bash",
+                arguments: args,
+                timeout: 60
+            )
             DispatchQueue.main.async {
                 guard let self else { return }
-                if proc.terminationStatus == 0 {
+                if output.error == nil && !output.timedOut {
                     self.tunnelStates[host.id] = .connected
                     // Fire all pending callbacks
                     let callbacks = self.pendingCallbacks.removeValue(forKey: host.id) ?? []
@@ -239,9 +246,14 @@ import AppKit
                         cb(self.connectCommand(for: host))
                     }
                 } else {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    let output = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    let lastLine = output.split(separator: "\n").last.map(String.init) ?? "Setup failed"
+                    if let error = output.error {
+                        Logger.tunnelManager.error("setup launch failed: \(error, privacy: .public)")
+                    } else if output.timedOut {
+                        Logger.tunnelManager.error("setup for \(host.address, privacy: .public) timed out after 60s")
+                    }
+                    let lastLine = output.stderr.split(separator: "\n").last.map(String.init)
+                        ?? output.stdout.split(separator: "\n").last.map(String.init)
+                        ?? (output.error ?? "Setup failed")
                     self.tunnelStates[host.id] = .failed(lastLine)
                     self.pendingCallbacks.removeValue(forKey: host.id)
                     // Tell the UI so the connecting placeholder shows the error
@@ -253,13 +265,6 @@ import AppKit
                     )
                 }
             }
-        }
-
-        do {
-            try process.run()
-        } catch {
-            tunnelStates[host.id] = .failed(error.localizedDescription)
-            pendingCallbacks.removeValue(forKey: host.id)
         }
     }
 

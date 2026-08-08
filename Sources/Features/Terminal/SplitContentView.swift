@@ -11,6 +11,7 @@ struct AllPanesSplitView: View {
         GeometryReader { geo in
             let activePane = paneManager.activePane
             let activeLeafIDs: Set<UUID> = activePane.map { Set($0.splitRoot.leafIDs) } ?? []
+            let focusedLeafID = activePane?.focusedLeafID
             let activeFrames: [UUID: CGRect] = activePane.map {
                 SplitLayout.computeFrames(node: $0.splitRoot, in: CGRect(origin: .zero, size: geo.size))
             } ?? [:]
@@ -21,13 +22,22 @@ struct AllPanesSplitView: View {
                     let isActive = activeLeafIDs.contains(leaf.id)
                     let frame = activeFrames[leaf.id] ?? CGRect(origin: .zero, size: geo.size)
 
-                    TerminalView(ghosttyApp: ghosttyApp, command: leaf.command, leafID: leaf.id)
-                        .frame(width: isActive ? frame.width : geo.size.width,
-                               height: isActive ? frame.height : geo.size.height)
-                        .offset(x: isActive ? frame.minX : 0,
-                                y: isActive ? frame.minY : 0)
-                        .opacity(isActive ? 1 : 0)
-                        .allowsHitTesting(isActive)
+                    TerminalView(
+                        ghosttyApp: ghosttyApp,
+                        command: leaf.command,
+                        leafID: leaf.id,
+                        // Hidden panes must never steal keyboard focus
+                        // (WI-2026-08-08-007); within the visible pane only
+                        // the focused leaf may.
+                        isVisiblePane: isActive,
+                        isFocusedLeaf: isActive && leaf.id == focusedLeafID
+                    )
+                    .frame(width: isActive ? frame.width : geo.size.width,
+                           height: isActive ? frame.height : geo.size.height)
+                    .offset(x: isActive ? frame.minX : 0,
+                            y: isActive ? frame.minY : 0)
+                    .opacity(isActive ? 1 : 0)
+                    .allowsHitTesting(isActive)
                 }
 
                 // Draw draggable dividers for the active pane's split tree

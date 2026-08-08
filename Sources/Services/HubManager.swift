@@ -131,7 +131,14 @@ import AppKit
                     self.status = .failed("Hub exited (code \(proc.terminationStatus))")
                     self.appendLog("Hub exited with code \(proc.terminationStatus)")
                 }
-                self.process = nil
+                // Identity check: only clear the reference when the exiting
+                // process IS the current one — a stale handler from a
+                // restarted hub must not nil out the NEW process (which
+                // would orphan a running hub the UI can no longer stop;
+                // WI-2026-08-08-006).
+                if self.process === proc {
+                    self.process = nil
+                }
             }
         }
 
@@ -158,9 +165,35 @@ import AppKit
     }
 
     func restartHub() {
-        stopHub()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.launchHub()
+        let old = process
+        healthTimer?.invalidate()
+        healthTimer = nil
+        status = .stopped
+        appendLog("Hub stopping for restart...")
+
+        // Terminate the old process and relaunch only after it has FULLY
+        // exited, so the port is actually free when the new hub binds it.
+        // The old process's stale terminationHandler cannot clobber the
+        // new reference (identity check in the handler). A SIGTERM that is
+        // ignored for 2s is force-killed so the restart can never hang
+        // (WI-2026-08-08-006).
+        guard let old else {
+            launchHub()
+            return
+        }
+        process = nil
+        old.terminate()
+        old.terminationHandler = { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.launchHub()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak old, weak self] in
+            guard let old, old.isRunning else { return }
+            // The old hub ignored SIGTERM — force-kill so the relaunch
+            // (already pending on its terminationHandler) can proceed.
+            kill(old.processIdentifier, SIGKILL)
+            self?.appendLog("Hub did not stop on SIGTERM — force-killed")
         }
     }
 

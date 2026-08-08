@@ -563,19 +563,35 @@ fn handleTaskList(arena: Allocator, conn: *Connection, req_id: []const u8, sourc
     try sendToolResponse(arena, conn, req_id, source, true, .{ .array = out }, null);
 }
 
+/// Validate a wire-supplied issue number (WI-2026-08-08-003).
+/// Returns null for out-of-range or non-integral values; the caller
+/// rejects with a tool_response error. The magnitude is bounded BEFORE
+/// any float->int conversion so the safety-checked @intFromFloat /
+/// @intCast can never panic (a panicking reader thread aborts the whole
+/// hub process in Debug builds).
+fn parseIssueNumber(number_val: json.Value) ?u32 {
+    return switch (number_val) {
+        .integer => |i| std.math.cast(u32, i),
+        .float => |f| blk: {
+            if (std.math.isNan(f) or std.math.isInf(f)) break :blk null;
+            if (f < 0 or f >= 4294967296.0) break :blk null; // outside u32 range
+            const i: i64 = @intFromFloat(f); // safe: |f| < 2^32
+            if (@as(f64, @floatFromInt(i)) != f) break :blk null; // must be integral
+            break :blk @intCast(i);
+        },
+        else => null,
+    };
+}
+
 /// task.claim — s:todo -> s:doing, self-assign.
 fn handleTaskClaim(arena: Allocator, conn: *Connection, req_id: []const u8, source: []const u8, args: json.ObjectMap) !void {
     const number_val = args.get("number") orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
         return;
     };
-    const number: u32 = switch (number_val) {
-        .integer => |i| @intCast(i),
-        .float => |f| @intCast(@as(i64, @intFromFloat(f))),
-        else => {
-            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
-            return;
-        },
+    const number: u32 = parseIssueNumber(number_val) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer in range");
+        return;
     };
     var err_msg: ?[]const u8 = null;
     const bridge = loadBridge(arena, &err_msg) orelse {
@@ -607,12 +623,9 @@ fn handleTaskUpdate(arena: Allocator, conn: *Connection, req_id: []const u8, sou
         try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
         return;
     };
-    const number: u32 = switch (number_val) {
-        .integer => |i| @intCast(i),
-        else => {
-            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
-            return;
-        },
+    const number: u32 = parseIssueNumber(number_val) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer in range");
+        return;
     };
     const status = objGetString(args, "status") orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, "missing status (todo|doing|done)");
@@ -644,12 +657,9 @@ fn handleTaskComment(arena: Allocator, conn: *Connection, req_id: []const u8, so
         try sendToolResponse(arena, conn, req_id, source, false, null, "missing number");
         return;
     };
-    const number: u32 = switch (number_val) {
-        .integer => |i| @intCast(i),
-        else => {
-            try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer");
-            return;
-        },
+    const number: u32 = parseIssueNumber(number_val) orelse {
+        try sendToolResponse(arena, conn, req_id, source, false, null, "number must be an integer in range");
+        return;
     };
     const body_text = objGetString(args, "body") orelse {
         try sendToolResponse(arena, conn, req_id, source, false, null, "missing body");
@@ -784,4 +794,25 @@ fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, enve
         try sendToolResponse(arena, conn, req_id, source, false, null, "unknown tool");
         return;
     }
+}
+
+test "parseIssueNumber rejects out-of-range and non-integral values (WI-2026-08-08-003)" {
+    // Valid values pass through.
+    try std.testing.expectEqual(@as(?u32, 0), parseIssueNumber(.{ .integer = 0 }));
+    try std.testing.expectEqual(@as(?u32, 1), parseIssueNumber(.{ .integer = 1 }));
+    try std.testing.expectEqual(@as(?u32, 4294967295), parseIssueNumber(.{ .integer = 4294967295 }));
+    try std.testing.expectEqual(@as(?u32, 12), parseIssueNumber(.{ .float = 12.0 }));
+    try std.testing.expectEqual(@as(?u32, 0), parseIssueNumber(.{ .float = 0.0 }));
+
+    // Wire-hostile values must be rejected, never panic.
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .integer = -1 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .integer = 4294967296 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .integer = -4294967296 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = -1.0 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = 1e30 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = 3.5 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = 4294967296.0 }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = std.math.nan(f64) }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .float = std.math.inf(f64) }));
+    try std.testing.expectEqual(@as(?u32, null), parseIssueNumber(.{ .string = "12" }));
 }

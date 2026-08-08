@@ -86,24 +86,33 @@ pub fn runSend(allocator: Allocator, args: SendArgs) !void {
     const fd = try transport.connectAndRegister(allocator, source_id);
     defer sys.close(fd);
 
+    try writeSendEnvelope(allocator, fd, source_id, args.target, args.text);
+
+    const msg = try std.fmt.allocPrint(allocator, "sent to {s}: {s}\n", .{ args.target, args.text });
+    defer allocator.free(msg);
+    try io_mod.stdoutWriteAll(msg);
+}
+
+/// Build and write a DM envelope with its newline terminator to `fd`
+/// (WI-2026-08-08-004). The hub only processes newline-terminated lines;
+/// an unterminated frame is dropped at EOF while the sender still reports
+/// "sent to ...".
+fn writeSendEnvelope(allocator: Allocator, fd: sys.fd_t, source_id: []const u8, target: []const u8, text: []const u8) !void {
     // Build the DM envelope per [[RFC-0002:C-DM]].
     var payload_obj = json.ObjectMap.empty;
-    try payload_obj.put(allocator, "text", .{ .string = args.text });
+    try payload_obj.put(allocator, "text", .{ .string = text });
     const envelope = protocol.Envelope{
         .@"type" = "dm",
         .id = "send-0",
         .source = source_id,
-        .target = args.target,
+        .target = target,
         .payload = .{ .object = payload_obj },
     };
     const raw = try protocol.serializeEnvelope(allocator, envelope);
     defer allocator.free(raw);
 
     try sys.writeAll(fd, raw);
-
-    const msg = try std.fmt.allocPrint(allocator, "sent to {s}: {s}\n", .{ args.target, args.text });
-    defer allocator.free(msg);
-    try io_mod.stdoutWriteAll(msg);
+    try sys.writeAll(fd, "\n");
 }
 
 pub fn runRecv(allocator: Allocator, args: RecvArgs) !void {
@@ -418,4 +427,51 @@ pub fn runSkillsInstall(allocator: Allocator) !void {
 
 pub fn runActivity(allocator: Allocator) !void {
     try toolRoundtrip(allocator, "activity.list", json.ObjectMap.empty);
+}
+
+test "writeSendEnvelope writes a newline-terminated dm frame (WI-2026-08-08-004)" {
+    // Loopback listener mimics the hub's line-framed reader: without the
+    // trailing newline the frame would be dropped at EOF (the regression
+    // this test guards against).
+    // Arena: json.ObjectMap.put allocates its key via the allocator, and
+    // the envelope payload lives until the write completes.
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const allocator = arena_state.allocator();
+
+    const listener = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+    defer sys.close(listener);
+    const addr4 = std.Io.net.Ip4Address.loopback(0);
+    var sa = sys.sockaddr_in.init(@bitCast(addr4.bytes), 0);
+    try sys.bind(listener, &sa, @sizeOf(sys.sockaddr_in));
+    try sys.listen(listener, 1);
+    const port = try sys.boundPort(listener);
+
+    const client = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+    defer sys.close(client);
+    const ca4 = std.Io.net.Ip4Address.loopback(port);
+    const csa = sys.sockaddr_in.init(@bitCast(ca4.bytes), port);
+    try sys.connect(client, &csa, @sizeOf(sys.sockaddr_in));
+
+    const server_fd = try sys.accept(listener);
+    defer sys.close(server_fd);
+
+    try writeSendEnvelope(allocator, client, "cli-tmp-test", "bob", "hello direct");
+
+    var buf: [4096]u8 = undefined;
+    var filled: usize = 0;
+    while (filled < buf.len) {
+        const n = try sys.read(server_fd, buf[filled..]);
+        if (n == 0) break;
+        filled += n;
+        if (buf[filled - 1] == '\n') break;
+    }
+    try std.testing.expect(filled > 0);
+    try std.testing.expectEqual(@as(u8, '\n'), buf[filled - 1]);
+
+    var parsed = try protocol.parseEnvelope(allocator, buf[0 .. filled - 1]);
+    try std.testing.expectEqualStrings("dm", parsed.value.@"type");
+    try std.testing.expectEqualStrings("cli-tmp-test", parsed.value.source);
+    try std.testing.expectEqualStrings("bob", parsed.value.target);
+    try std.testing.expectEqualStrings("hello direct", parsed.value.payload.object.get("text").?.string);
 }

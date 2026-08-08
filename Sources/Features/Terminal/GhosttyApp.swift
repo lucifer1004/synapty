@@ -9,11 +9,19 @@ import AppKit
 
     private(set) var app: ghostty_app_t?
     private(set) var config: ghostty_config_t?
-    /// The currently focused surface. Updated by GhosttyNSView when it becomes first responder.
+    /// The currently focused surface. Updated by GhosttyNSView when it
+    /// becomes first responder (visible focused leaf only).
     var activeSurface: ghostty_surface_t?
+    /// The GhosttyNSView currently holding keyboard focus — the redirect
+    /// target when a hidden surface tries to steal focus (WI-2026-08-08-007).
+    weak var activeView: GhosttyNSView?
     /// All live surfaces, registered by GhosttyNSView (main-thread only).
     /// Needed for per-surface color scheme updates (WI-2026-08-07-005).
     private(set) var liveSurfaces: [ghostty_surface_t] = []
+    /// Surface lookup by leaf UUID — the per-surface userdata pointer.
+    /// Lets the clipboard callbacks resolve the REQUESTING surface instead
+    /// of the global activeSurface (WI-2026-08-08-008).
+    private var surfaceByLeafID: [UUID: ghostty_surface_t] = [:]
 
     /// Settings-change observer (live config apply).
     private var settingsObserver: NSObjectProtocol?
@@ -202,9 +210,12 @@ import AppKit
         }
 
         // read_clipboard_cb: ghostty requests clipboard content for paste/OSC 52.
-        // Uses GhosttyApp.shared.activeSurface (avoids userdata which may be per-surface).
-        runtime.read_clipboard_cb = { _, location, state in
-            guard let surface = GhosttyApp.shared?.activeSurface else { return false }
+        // The userdata argument is the PER-SURFACE leaf-UUID pointer — resolve
+        // the requesting surface from it so the request completes on the
+        // surface that asked, never on the global activeSurface (which a
+        // hidden background surface may hold; WI-2026-08-08-008).
+        runtime.read_clipboard_cb = { userdata, location, state in
+            guard let surface = GhosttyApp.surface(for: userdata) else { return false }
             let pb: NSPasteboard
             if location == GHOSTTY_CLIPBOARD_SELECTION {
                 pb = NSPasteboard(name: .find)
@@ -219,10 +230,11 @@ import AppKit
         }
 
         // confirm_read_clipboard_cb: ghostty has content and wants user confirmation.
-        // Auto-confirm in V1 (no confirmation dialog).
-        runtime.confirm_read_clipboard_cb = { _, content, state, _ in
+        // Auto-confirm in V1 (no confirmation dialog). Same per-surface
+        // userdata resolution as read_clipboard_cb (WI-2026-08-08-008).
+        runtime.confirm_read_clipboard_cb = { userdata, content, state, _ in
             guard let content else { return }
-            guard let surface = GhosttyApp.shared?.activeSurface else { return }
+            guard let surface = GhosttyApp.surface(for: userdata) else { return }
             ghostty_surface_complete_clipboard_request(surface, content, state, true)
         }
 
@@ -301,9 +313,27 @@ import AppKit
     }
 
     /// Register a live surface (called by GhosttyNSView on creation).
-    func registerSurface(_ surface: ghostty_surface_t) {
+    func registerSurface(_ surface: ghostty_surface_t, leafID: UUID?) {
         guard !liveSurfaces.contains(where: { $0 == surface }) else { return }
         liveSurfaces.append(surface)
+        if let leafID {
+            surfaceByLeafID[leafID] = surface
+        }
+    }
+
+    /// Resolve the surface a clipboard callback's userdata refers to.
+    /// The userdata is the per-surface leaf-UUID pointer (allocated by
+    /// GhosttyNSView and passed through the surface config); the callback
+    /// must complete the request on THAT surface, not on the global
+    /// activeSurface (WI-2026-08-08-008). Surfaces without a leaf ID
+    /// (none in practice) fall back to the focused surface.
+    private static func surface(for userdata: UnsafeMutableRawPointer?) -> ghostty_surface_t? {
+        guard let userdata else { return GhosttyApp.shared?.activeSurface }
+        let leafID = userdata.assumingMemoryBound(to: UUID.self).pointee
+        if let surface = GhosttyApp.shared?.surfaceByLeafID[leafID] {
+            return surface
+        }
+        return GhosttyApp.shared?.activeSurface
     }
 
     /// Pause vsync-driven rendering for all surfaces (WI-2026-08-07-006):
@@ -324,6 +354,7 @@ import AppKit
     /// Unregister a destroyed surface (called by GhosttyNSView on destroy).
     func unregisterSurface(_ surface: ghostty_surface_t) {
         liveSurfaces.removeAll { $0 == surface }
+        surfaceByLeafID = surfaceByLeafID.filter { $0.value != surface }
     }
 
     /// Schedule a tick if one isn't already pending. Multiple wakeups between

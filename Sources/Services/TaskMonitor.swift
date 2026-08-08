@@ -1,5 +1,10 @@
 import Foundation
 import SwiftUI
+import os
+
+private extension Logger {
+    static let taskMonitor = Logger(subsystem: "com.synapty.app", category: "TaskMonitor")
+}
 
 // MARK: - Data Models (RFC-0003 task-center model)
 
@@ -166,21 +171,23 @@ enum BridgeStatus: Equatable {
             return
         }
         DispatchQueue.global(qos: .utility).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: binary)
-            process.arguments = arguments
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = Pipe()
-            do {
-                try process.run()
-                process.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)
-                Task { @MainActor in completion(output) }
-            } catch {
-                Task { @MainActor in completion(nil) }
+            // Drains both pipes concurrently and enforces a timeout — a
+            // full pipe used to wedge the child (and with it all future
+            // polls) forever (WI-2026-08-08-005).
+            let output = SubprocessRunner.run(
+                executable: binary,
+                arguments: arguments,
+                timeout: 60
+            )
+            if let error = output.error {
+                Logger.taskMonitor.error("launch failed: \(error, privacy: .public)")
+            } else if output.timedOut {
+                Logger.taskMonitor.error("`synapty \(arguments.joined(separator: " "), privacy: .public)` timed out after 60s")
+            } else if !output.stderr.isEmpty {
+                Logger.taskMonitor.error("stderr: \(output.stderr, privacy: .public)")
             }
+            let result = output.error == nil && !output.timedOut ? output.stdout : nil
+            Task { @MainActor in completion(result) }
         }
     }
 
