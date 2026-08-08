@@ -1,20 +1,26 @@
 import Foundation
 
 /// Run a subprocess while draining stdout/stderr CONCURRENTLY, with a hard
-/// timeout (WI-2026-08-08-005).
+/// timeout (WI-2026-08-08-005, hardened WI-2026-08-08-030).
 ///
 /// Why this exists: a pipe nobody drains blocks the child the moment the
 /// ~64KB kernel pipe buffer fills. The old call sites read stdout only
 /// after `waitUntilExit()` (or never read stderr at all), so a chatty
 /// child wedged forever: monitoring silently died, tunnel sessions hung in
 /// .connecting, and no error ever surfaced. The readability handlers drain
-/// both pipes on a private dispatch queue while the child runs, and the
-/// timeout guarantees a stuck child cannot hang the caller.
+/// both pipes on a private dispatch queue while the child runs.
+///
+/// Timeout semantics (hardened): on timeout the whole PROCESS GROUP is
+/// SIGKILLed — SIGTERM alone left orphaned grandchildren (ssh/scp under a
+/// timed-out bash) holding the pipe write-ends open, so EOF never arrived
+/// and the unbounded drainGroup.wait() hung the caller forever. The drain
+/// wait is ALSO bounded, so a stuck EOF handler can never wedge the caller
+/// (in-flight polling guards always reset).
 enum SubprocessRunner {
     struct Output {
         var stdout: String
         var stderr: String
-        /// True when the process had to be SIGTERMed after `timeout`.
+        /// True when the process had to be killed after `timeout`.
         var timedOut: Bool
         /// Launch failure description, if the process could not start.
         var error: String?
@@ -78,8 +84,16 @@ enum SubprocessRunner {
         if launchError == nil {
             if exited.wait(timeout: .now() + timeout) == .timedOut {
                 timedOut = true
+                // SIGTERM the child, then kill the whole process group:
+                // a timed-out bash commonly leaves ssh/scp grandchildren
+                // running — they keep the pipe write-ends open, so without
+                // this the EOF handlers never fire (WI-2026-08-08-030).
                 process.terminate()
-                _ = exited.wait(timeout: .now() + 5)
+                _ = exited.wait(timeout: .now() + 3)
+                if process.isRunning {
+                    killProcessGroup(of: process)
+                    _ = exited.wait(timeout: .now() + 2)
+                }
             }
         } else {
             // The pipes never close for a process that never ran; drop the
@@ -90,8 +104,11 @@ enum SubprocessRunner {
         }
 
         if launchError == nil {
-            // EOF handlers have run by the time the child exited.
-            drainGroup.wait()
+            // BOUNDED wait: after the kill paths above the pipes are closed
+            // (or the child ignored everything), so this returns quickly in
+            // practice — but a stubborn descendant must never be able to
+            // hang the caller (WI-2026-08-08-030).
+            _ = drainGroup.wait(timeout: .now() + 2)
         }
 
         return Output(
@@ -100,5 +117,18 @@ enum SubprocessRunner {
             timedOut: timedOut,
             error: launchError
         )
+    }
+
+    /// SIGKILL every process in the child's group. `Process` doesn't expose
+    /// setpgid, so we signal the child's pid and its group via kill(-pid).
+    /// If the child was not a group leader this still kills the child, and
+    /// the grandchildren inherit the pipe ends only while they survive —
+    /// the bounded drain wait below caps the exposure regardless.
+    private static func killProcessGroup(of process: Process) {
+        let pid = process.processIdentifier
+        if pid > 0 {
+            kill(pid, SIGKILL)             // the child itself
+            kill(-pid, SIGKILL)            // its process group, if leader
+        }
     }
 }

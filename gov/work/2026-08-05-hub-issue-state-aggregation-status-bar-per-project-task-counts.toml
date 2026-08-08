@@ -7,12 +7,7 @@ status = "done"
 created = "2026-08-05"
 
 [content]
-description = """
-Implements [[RFC-0003]] (Hub issue-state aggregation + status bar per-project task counts).
-
-Acceptance criteria:
-- TBD — detailed in the work item when started
-"""
+description = "Implements [[RFC-0003]] (Hub issue-state aggregation + status bar per-project task counts)."
 
 [[content.acceptance_criteria]]
 text = "per-project todo/doing/done counts aggregated from the task list (TaskMonitor.projectCounts)"

@@ -34,12 +34,14 @@ pub const RoutingTable = struct {
         defer self.mutex.unlock(io_mod.get());
         if (try self.map.fetchPut(agent_id, conn)) |old| {
             // Duplicate registration (WI-2026-08-08-016): the new
-            // connection atomically replaces the old one. Close the old
-            // stream so its reader unblocks and exits; its eventual
-            // unregisterIfOwned is a no-op because the entry now points
-            // at the NEW connection.
+            // connection atomically replaces the old one. Interrupt the
+            // old stream's blocked read (EOF, fd NOT closed) so its reader
+            // exits and its teardown closes the fd after the writer joined
+            // — closing the fd here would race a concurrent writer and
+            // could reuse the number for a new connection's socket
+            // (WI-2026-08-08-029).
             log.warn("duplicate registration for {s} — replacing previous connection", .{agent_id});
-            old.value.closeStream();
+            old.value.interruptStream();
         } else {
             log.info("registered agent: {s}", .{agent_id});
         }
@@ -505,6 +507,26 @@ pub const HubState = struct {
     all_connections: std.ArrayList(*Connection),
     all_connections_mutex: std.Io.Mutex,
 
+    /// Atomically remove `agent_id` from the routing table AND the derived
+    /// registries (agent metadata, channels) when the routing entry still
+    /// belongs to `conn`. All three registries are touched while holding
+    /// the ROUTING lock — a re-register of the same id also takes the
+    /// routing lock, so it can never interleave between the ownership
+    /// check and the cleanup (closes the TOCTOU where an old connection
+    /// tore down a new connection's metadata; WI-2026-08-08-029). Lock
+    /// order is routing -> registry/channel; no path takes the reverse.
+    pub fn teardownAgent(self: *HubState, agent_id: []const u8, conn: *Connection, conn_alloc: Allocator) bool {
+        self.routing_table.mutex.lock(io_mod.get()) catch unreachable;
+        defer self.routing_table.mutex.unlock(io_mod.get());
+        if (self.routing_table.map.get(agent_id)) |current| {
+            if (current != conn) return false;
+        }
+        _ = self.routing_table.map.remove(agent_id);
+        self.agent_registry.remove(agent_id);
+        _ = self.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
+        return true;
+    }
+
     pub fn init(allocator: Allocator) HubState {
         return .{
             .routing_table = RoutingTable.init(allocator),
@@ -708,10 +730,13 @@ test "RoutingTable duplicate registration replaces old connection (WI-2026-08-08
     try table.register("agent-a", &conn1);
     try std.testing.expect(table.lookup("agent-a") == &conn1);
 
-    // Duplicate: new connection replaces the old one and closes its stream.
+    // Duplicate: new connection replaces the old one; the old fd is
+    // INTERRUPTED (EOF to unblock the reader) but NOT closed — closing it
+    // under a concurrent writer could reuse the number for a new
+    // connection's socket (WI-2026-08-08-029).
     try table.register("agent-a", &conn2);
     try std.testing.expect(table.lookup("agent-a") == &conn2);
-    try std.testing.expect(conn1.fd_closed);
+    try std.testing.expect(!conn1.fd_closed);
 
     // The old reader's cleanup is a no-op: the entry belongs to conn2.
     try std.testing.expect(!table.unregisterIfOwned("agent-a", &conn1));

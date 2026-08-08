@@ -96,7 +96,9 @@ struct ActivityRow: View {
     }()
 
     private var timeText: String {
-        Self.timeFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(item.ts)))
+        // Hub timestamps are milliseconds since epoch (WI-2026-08-08-032).
+        let seconds = TimeInterval(item.ts) / 1000
+        return Self.timeFormatter.string(from: Date(timeIntervalSince1970: seconds))
     }
 
     private var icon: String {

@@ -724,21 +724,27 @@ test "e2e: line buffering — two frames in one write are both processed" {
     });
     defer alloc.free(dm_raw);
 
-    // One write, two frames.
-    try sys.writeAll(fd, reg_raw);
-    try sys.writeAll(fd, "\n");
-    try sys.writeAll(fd, dm_raw);
-    try sys.writeAll(fd, "\n");
+    // LITERALLY one write carrying both newline-terminated frames
+    // (WI-2026-08-08-034): the hub's line-buffered reader must process
+    // both, including a frame split mid-buffer.
+    var burst = std.ArrayList(u8).empty;
+    defer burst.deinit(alloc);
+    try burst.appendSlice(alloc, reg_raw);
+    try burst.append(alloc, '\n');
+    try burst.appendSlice(alloc, dm_raw);
+    try burst.append(alloc, '\n');
+    try sys.writeAll(fd, burst.items);
 
-    // Bob registers after the burst — the register frame must have been
-    // processed despite sharing the write with the DM frame.
+    // The register frame must have been processed despite sharing the
+    // write with the DM frame.
     try std.testing.expect(waitForRegistered(h.server, "alice", 2000));
 
-    // The DM to "hub" must get a response (delivered or error) — the
-    // second frame must not be dropped.
+    // The DM frame must be processed too: read the response line and
+    // assert its envelope id is dm-buf-1 — a vacuous pass (any line)
+    // would not prove the DM was handled (WI-2026-08-08-034).
     var buf: [8192]u8 = undefined;
     const line = readLine(fd, &buf, 2000);
     try std.testing.expect(line != null);
-    // Two frames in one write -> at least one response line; parse it.
-    _ = try protocol.parseEnvelope(alloc, line.?);
+    const parsed = try protocol.parseEnvelope(alloc, line.?);
+    try std.testing.expectEqualStrings("dm-buf-1", parsed.value.id);
 }

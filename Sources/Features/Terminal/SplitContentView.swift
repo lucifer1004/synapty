@@ -6,6 +6,9 @@ import SwiftUI
 struct AllPanesSplitView: View {
     @ObservedObject var paneManager: TerminalPaneManager
     let ghosttyApp: GhosttyApp
+    /// Whether the Terminal page is the shown page (focus gating,
+    /// WI-2026-08-08-032).
+    var isTerminalPageVisible: Bool = true
 
     /// Last visible frame per leaf: hidden leaves keep their last size
     /// instead of being re-framed to the full container on every switch,
@@ -34,9 +37,11 @@ struct AllPanesSplitView: View {
                         leafID: leaf.id,
                         // Hidden panes must never steal keyboard focus
                         // (WI-2026-08-08-007); within the visible pane only
-                        // the focused leaf may.
+                        // the focused leaf may; and only when the Terminal
+                        // page is actually shown (WI-2026-08-08-032).
                         isVisiblePane: isActive,
-                        isFocusedLeaf: isActive && leaf.id == focusedLeafID
+                        isFocusedLeaf: isActive && leaf.id == focusedLeafID,
+                        isTerminalPageVisible: isTerminalPageVisible
                     )
                     .frame(width: isActive ? frame.width : lastFrames[leaf.id]?.width ?? geo.size.width,
                            height: isActive ? frame.height : lastFrames[leaf.id]?.height ?? geo.size.height)
@@ -83,6 +88,12 @@ struct AllPanesSplitView: View {
         .onAppear { syncSurfaceVisibility() }
         .onChange(of: paneManager.visibleLeafID) { _, _ in
             syncSurfaceVisibility()
+        }
+        // Prune lastFrames when leaves close — otherwise the dictionary
+        // grows for every split ever created (WI-2026-08-08-033).
+        .onChange(of: paneManager.allLeaves.map(\.id)) { _, newIDs in
+            let live = Set(newIDs)
+            lastFrames = lastFrames.filter { live.contains($0.key) }
         }
     }
 

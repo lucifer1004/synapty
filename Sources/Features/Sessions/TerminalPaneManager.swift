@@ -330,8 +330,10 @@ import Foundation
             return
         }
 
-        // Remove the leaf and collapse the parent split
-        if let newRoot = root.removeLeaf(focusedID) {
+        // Remove the leaf and collapse the parent split. notFound is
+        // impossible here (focusedLeafID always exists in the tree), but
+        // the API distinguishes it explicitly (WI-2026-08-08-033).
+        if case .removed(let newRoot) = root.removeLeaf(focusedID) {
             sessions[sIdx].panes[pIdx].splitRoot = newRoot
             // Focus the first remaining leaf
             sessions[sIdx].panes[pIdx].focusedLeafID = newRoot.leaves.first?.id
@@ -380,8 +382,10 @@ import Foundation
                         }
                         return
                     }
-                    // Remove the leaf and collapse
-                    if let newRoot = root.removeLeaf(leafID) {
+                    // Remove the leaf and collapse (the findLeaf guard
+                    // above makes notFound impossible — the API still
+                    // distinguishes it; WI-2026-08-08-033).
+                    if case .removed(let newRoot) = root.removeLeaf(leafID) {
                         sessions[sIdx].panes[pIdx].splitRoot = newRoot
                         if sessions[sIdx].panes[pIdx].focusedLeafID == leafID {
                             sessions[sIdx].panes[pIdx].focusedLeafID = newRoot.leaves.first?.id

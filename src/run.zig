@@ -316,8 +316,35 @@ fn hubReaderThread(srv: *RunServer) void {
 
     while (@atomicLoad(bool, &srv.running, .acquire)) {
         if (filled >= line_buf.len) {
-            log.err("hub message exceeds buffer", .{});
-            break;
+            // An oversized line (e.g. a huge list_agents response) must
+            // not kill the reader permanently — every later IPC request
+            // would hang then time out. Drop through the next newline and
+            // keep serving (WI-2026-08-08-029).
+            log.err("hub message exceeds buffer — dropping oversized line", .{});
+            var resynced = false;
+            while (!resynced) {
+                if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
+                    const drop = nl + 1;
+                    const remaining = filled - drop;
+                    mem.copyForwards(u8, line_buf[0..remaining], line_buf[drop..filled]);
+                    filled = remaining;
+                    resynced = true;
+                } else {
+                    const n2 = sys.read(srv.hub_fd, line_buf[0..]) catch {
+                        // Read error / EOF while draining — stop.
+                        filled = 0;
+                        resynced = true;
+                        break;
+                    };
+                    if (n2 == 0) {
+                        filled = 0;
+                        resynced = true;
+                    } else {
+                        filled = n2;
+                    }
+                }
+            }
+            continue;
         }
         const n = sys.read(srv.hub_fd, line_buf[filled..]) catch break;
         if (n == 0) break;
@@ -840,4 +867,43 @@ test "register envelope is newline-terminated" {
     // RunServer.init() appends "\n" after writing raw — verify raw itself
     // does NOT contain a newline (so the explicit "\n" write is needed).
     try std.testing.expect(mem.indexOfScalar(u8, raw, '\n') == null);
+}
+
+test "responseIdMatches compares the envelope id exactly (WI-2026-08-08-034)" {
+    // The F12 regression: substring matching collided ('req-5' matched
+    // 'req-50').
+    try std.testing.expect(responseIdMatches(
+        "{\"type\":\"response\",\"id\":\"req-5\",\"payload\":{\"ok\":true}}",
+        "req-5",
+    ));
+    try std.testing.expect(!responseIdMatches(
+        "{\"type\":\"response\",\"id\":\"req-50\",\"payload\":{\"ok\":true}}",
+        "req-5",
+    ));
+    try std.testing.expect(responseIdMatches(
+        "{\"type\":\"response\",\"id\":\"req-50\",\"payload\":{\"ok\":true}}",
+        "req-50",
+    ));
+}
+
+test "responseIdMatches rejects malformed or missing ids (WI-2026-08-08-034)" {
+    // Missing id field.
+    try std.testing.expect(!responseIdMatches(
+        "{\"type\":\"response\",\"payload\":{\"ok\":true}}",
+        "req-5",
+    ));
+    // Non-string id.
+    try std.testing.expect(!responseIdMatches(
+        "{\"type\":\"response\",\"id\":42,\"payload\":{\"ok\":true}}",
+        "42",
+    ));
+    // Malformed JSON.
+    try std.testing.expect(!responseIdMatches("{broken", "req-5"));
+    // Non-object root.
+    try std.testing.expect(!responseIdMatches("[1,2,3]", "req-5"));
+    // The id must match fully — a prefix is not enough.
+    try std.testing.expect(!responseIdMatches(
+        "{\"type\":\"response\",\"id\":\"req-5-suffix\",\"payload\":{\"ok\":true}}",
+        "req-5",
+    ));
 }

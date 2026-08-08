@@ -105,7 +105,12 @@ pub fn main(init: std.process.Init) !void {
             };
         },
         .hub => |h| {
-            var hub_server = try hub.HubServer.initWithAddress("0.0.0.0", h.port);
+            // Loopback only: the hub carries the login device's GitHub PAT
+            // and task tools mutate the remote repo — binding 0.0.0.0 with
+            // zero auth exposed it to every reachable host (impersonation,
+            // agent kicking, repo mutation; WI-2026-08-08-029). Remote
+            // agents reach the hub through the SSH reverse tunnel.
+            var hub_server = try hub.HubServer.initWithAddress("127.0.0.1", h.port);
             defer hub_server.deinit();
             try hub_server.run();
         },

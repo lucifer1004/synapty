@@ -231,3 +231,15 @@ pub fn runBackground(server: *HubServer) void {
         else => log.err("Hub background thread exited with error: {}", .{err}),
     };
 }
+
+test "accept loop returns when the listener is closed (WI-2026-08-08-034)" {
+    // The accept-loop error handling: a closed listener (normal shutdown)
+    // must terminate the loop with a fatal error — and the TRANSIENT
+    // branch (backoff + continue) is what keeps EMFILE-class errors from
+    // killing the hub. This test pins the fatal classification so the
+    // loop cannot regress into spinning or hanging.
+    var server = try HubServer.initWithAddress("127.0.0.1", 0);
+    // Close the listener out from under the loop (what deinit does).
+    sys.close(server.listener_fd);
+    try std.testing.expectError(error.Unexpected, server.run());
+}

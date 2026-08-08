@@ -118,14 +118,11 @@ pub fn readerThread(args: ReaderArgs) void {
     };
 
     defer {
-        // Tear down state ONLY while it still belongs to this connection:
-        // a duplicate registration replaced us, and the new connection
-        // owns agent_id now (WI-2026-08-08-016).
-        if (state.routing_table.unregisterIfOwned(agent_id, conn)) {
-            state.agent_registry.remove(agent_id);
-            // Remove from all channels per [[RFC-0003]] (hub state).
-            _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
-        }
+        // Tear down routing + derived state ATOMICALLY while it still
+        // belongs to this connection (WI-2026-08-08-029): the routing lock
+        // serializes this against a re-register of the same id, so the old
+        // connection can never delete the new connection's metadata.
+        _ = state.teardownAgent(agent_id, conn, conn_alloc);
         // Signal writer to drain and stop, then wait for it.
         conn.shutdown();
         writer.join();

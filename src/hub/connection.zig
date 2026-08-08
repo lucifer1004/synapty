@@ -111,6 +111,14 @@ pub const Connection = struct {
         self.cond.signal(io);
         self.mutex.unlock(io);
     }
+
+    /// Unblock a reader blocked in read() WITHOUT closing the fd: shutdown
+    /// delivers EOF to the reader while the fd number stays valid, so a
+    /// concurrent writer cannot race an fd reuse (WI-2026-08-08-029). The
+    /// fd itself is closed later by the reader teardown, after writer.join.
+    pub fn interruptStream(self: *Connection) void {
+        sys.shutdown(self.fd, sys.SHUT.RDWR);
+    }
 };
 
 /// Writer thread: drains the outbound queue until closed and empty.

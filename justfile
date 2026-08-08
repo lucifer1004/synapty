@@ -7,13 +7,8 @@ default: build
 build:
     zig build
 
-# Build individual targets
-hub:
-    zig build hub
-
-daemon:
-    zig build daemon
-
+# Build individual targets (ADR-0004: single unified binary — only the
+# cli step exists; hub/daemon steps were removed with the merge)
 cli:
     zig build cli
 

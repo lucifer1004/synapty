@@ -36,6 +36,13 @@ import AppKit
     @Published var status: HubStatus = .stopped
     @Published var logs: [HubLogLine] = []
     @Published var port: Int = 9000
+    /// True while restartHub waits for the old process to exit — the UI
+    /// must not offer Start/Restart in this window (a second launch would
+    /// orphan the real hub from `process`; WI-2026-08-08-031).
+    @Published private(set) var isRestarting = false
+    /// Bumped per restart; a superseded relaunch closure bails
+    /// (WI-2026-08-08-031).
+    private var restartGeneration = 0
 
     private var process: Process?
     private var healthTimer: Timer?
@@ -170,11 +177,22 @@ import AppKit
         healthTimer?.invalidate()
         healthTimer = nil
         status = .stopped
+        isRestarting = false
+        restartGeneration += 1 // supersede any pending relaunch
         appendLog("Hub stopped")
     }
 
     func restartHub() {
-        let old = process
+        // Re-entrancy guard: a second click during the wait must not
+        // launch another hub (WI-2026-08-08-031).
+        guard !isRestarting else { return }
+        guard let old = process else {
+            launchHub()
+            return
+        }
+        isRestarting = true
+        restartGeneration += 1
+        let generation = restartGeneration
         healthTimer?.invalidate()
         healthTimer = nil
         status = .stopped
@@ -182,19 +200,21 @@ import AppKit
 
         // Terminate the old process and relaunch only after it has FULLY
         // exited, so the port is actually free when the new hub binds it.
-        // The old process's stale terminationHandler cannot clobber the
-        // new reference (identity check in the handler). A SIGTERM that is
-        // ignored for 2s is force-killed so the restart can never hang
-        // (WI-2026-08-08-006).
-        guard let old else {
-            launchHub()
-            return
-        }
+        // A SIGTERM that is ignored for 2s is force-killed so the restart
+        // can never hang (WI-2026-08-08-006).
         process = nil
         old.terminate()
-        old.terminationHandler = { [weak self] _ in
+        old.terminationHandler = { [weak self] proc in
             DispatchQueue.main.async {
-                self?.launchHub()
+                guard let self else { return }
+                if proc.terminationStatus != 0 {
+                    self.appendLog("Hub (old instance) exited with code \(proc.terminationStatus)")
+                }
+                // A newer restart superseded this one — only the current
+                // generation relaunches (WI-2026-08-08-031).
+                guard self.restartGeneration == generation else { return }
+                self.isRestarting = false
+                self.launchHub()
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak old, weak self] in
@@ -275,9 +295,9 @@ import AppKit
         // output don't re-render the whole UI on every line.
         guard logFlushTask == nil else { return }
         logFlushTask = Task { @MainActor in
+            defer { self.logFlushTask = nil }
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled else { return }
-            self.logFlushTask = nil
             guard !self.pendingLogs.isEmpty else { return }
             self.logs.append(contentsOf: self.pendingLogs)
             self.pendingLogs.removeAll()

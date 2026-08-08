@@ -234,17 +234,14 @@ pub fn build(b: *std.Build) void {
         .{ .name = "sys", .module = mods.sys },
     }, target, optimize);
 
-    // hub: protocol + io + sys
+    // hub: protocol + io + sys + github (handlers.zig imports github for
+    // the task tools; the missing import silently broke this module's
+    // compile behind the zig cache — WI-2026-08-08-034)
     addTestModule(b, test_step, "src/hub.zig", &.{
         .{ .name = "protocol", .module = mods.protocol },
         .{ .name = "io", .module = mods.io },
         .{ .name = "sys", .module = mods.sys },
-    }, target, optimize);
-
-    // daemon: io + run
-    addTestModule(b, test_step, "src/daemon.zig", &.{
-        .{ .name = "io", .module = mods.io },
-        .{ .name = "run", .module = mods.run },
+        .{ .name = "github", .module = mods.github },
     }, target, optimize);
 
     // run and mcp: protocol + ipc + io + sys

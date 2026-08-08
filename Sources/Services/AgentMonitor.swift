@@ -6,7 +6,7 @@ private extension Logger {
     static let agentMonitor = Logger(subsystem: "com.synapty.app", category: "AgentMonitor")
 }
 
-// MARK: - Data Models per [[RFC-0002:C-AGENT-IDENTITY]]
+// MARK: - Data Models per [[RFC-0003]] (agent identity, kept from RFC-0002 C-AGENT-IDENTITY)
 
 enum ToolType: String, CaseIterable {
     case claude, codex, gemini, human, unknown
@@ -79,8 +79,6 @@ struct ChatMessage: Identifiable, Equatable {
     @Published var needsAttention: Set<String> = []
 
     private var timer: Timer?
-    /// Stable agent map keyed by ID — prevents ordering jumps on re-poll.
-    private var knownAgents: [String: AgentInfo] = [:]
 
     func startMonitoring() {
         refresh()
@@ -111,7 +109,6 @@ struct ChatMessage: Identifiable, Equatable {
         let sorted = Array(newMap.values).sorted { $0.id < $1.id }
         // Only publish if changed — avoids unnecessary SwiftUI re-renders.
         if sorted != agents {
-            knownAgents = newMap
             agents = sorted
         }
         // Prune attention for agents that disappeared — publish only on change.

@@ -335,16 +335,15 @@ import AppKit
     /// Resolve the surface a clipboard callback's userdata refers to.
     /// The userdata is the per-surface leaf-UUID pointer (allocated by
     /// GhosttyNSView and passed through the surface config); the callback
-    /// must complete the request on THAT surface, not on the global
-    /// activeSurface (WI-2026-08-08-008). Surfaces without a leaf ID
-    /// (none in practice) fall back to the focused surface.
+    /// must complete the request on THAT surface — never on the global
+    /// activeSurface (completing on the wrong surface consumes the
+    /// requester's clipboard state; WI-2026-08-08-008, WI-2026-08-08-032).
+    /// An unregistered/unowned leaf resolves to nil and the callback
+    /// refuses (ghostty then frees the request state).
     private static func surface(for userdata: UnsafeMutableRawPointer?) -> ghostty_surface_t? {
-        guard let userdata else { return GhosttyApp.shared?.activeSurface }
+        guard let userdata else { return nil }
         let leafID = userdata.assumingMemoryBound(to: UUID.self).pointee
-        if let surface = GhosttyApp.shared?.surfaceByLeafID[leafID] {
-            return surface
-        }
-        return GhosttyApp.shared?.activeSurface
+        return GhosttyApp.shared?.surfaceByLeafID[leafID]
     }
 
     /// Page-level pause: the terminal page is not visible (WI-2026-08-07-006).
@@ -433,6 +432,13 @@ import AppKit
             ghostty_app_free(app)
             self.app = nil
         }
+        // app_free destroyed every surface — the registries must not keep
+        // dangling pointers that a late applyDisplayIds could touch
+        // (WI-2026-08-08-032).
+        liveSurfaces.removeAll()
+        surfaceByLeafID.removeAll()
+        activeSurface = nil
+        activeView = nil
         if let config {
             ghostty_config_free(config)
             self.config = nil

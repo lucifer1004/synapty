@@ -13,7 +13,7 @@ description = "The installed latest govctl (0.19.0, ~/.cargo/bin) refuses the pr
 notes = ["Upgrade complete (2026-08-08): govctl migrated v2 -> v3 (0.14.0 migrate: RFC content signatures + schema sync) -> v4 -> v5 (0.19.0 migrate: conformance cases + source-scan ignore files). Latest govctl 0.19.0 now runs check/status/render with ZERO diagnostics. Work items: govctl removed the legacy content.journal field in schema v3 — 56 files carrying journals were silently dropped by the loader; journal content was preserved 1:1 by folding each entry into content.notes with its date/scope prefix (scripted conversion; govctl itself has no journal->notes migration). Follow-ups surfaced by 0.19.0 and fixed: E0107 unknown refs (resolved by the conversion), W0112 inline [[...]] refs in ADR-0001/ADR-0003 (two minimal hand-edits where govctl's adr/clause edit tooling refuses: ADR-0003 has no alternatives for projection validation; clause content.text is not exposed), E0112 RFC->ADR mention rephrased in C-SKILLS, W0108 placeholder description replaced with the real scope. The .devenv 0.7.4 binary is retired; ~/.cargo/bin/govctl 0.19.0 is canonical."]
 
 [[content.acceptance_criteria]]
-text = "gov/config.toml schema version is 3 and govctl 0.19.0 runs check/status/render without E0505"
+text = "gov/config.toml schema version is 5 (migrated v2->v3->v4->v5) and govctl 0.19.0 runs check/status/render without E0505"
 status = "done"
 category = "fixed"
 

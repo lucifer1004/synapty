@@ -99,10 +99,12 @@ final class SplitTreeTests: XCTestCase {
 
     // MARK: - Removing
 
-    func testRemoveOnlyLeafReturnsNil() {
+    func testRemoveOnlyLeafReturnsNotFound() {
+        // Single-leaf removal is the caller's job (close the pane) —
+        // removeLeaf reports not-found for leaf nodes (WI-2026-08-08-033).
         let leaf = SplitNode.LeafData()
         let node = SplitNode.leaf(leaf)
-        XCTAssertNil(node.removeLeaf(leaf.id))
+        XCTAssertEqual(node.removeLeaf(leaf.id), .notFound)
     }
 
     func testRemoveFirstChildReturnsSibling() {
@@ -113,10 +115,11 @@ final class SplitTreeTests: XCTestCase {
             first: .leaf(leafA),
             second: .leaf(leafB)
         ))
-        let result = node.removeLeaf(leafA.id)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.leaves.count, 1)
-        XCTAssertEqual(result?.leaves.first?.id, leafB.id)
+        guard case .removed(let result) = node.removeLeaf(leafA.id) else {
+            return XCTFail("expected removal")
+        }
+        XCTAssertEqual(result.leaves.count, 1)
+        XCTAssertEqual(result.leaves.first?.id, leafB.id)
     }
 
     func testRemoveSecondChildReturnsSibling() {
@@ -127,18 +130,20 @@ final class SplitTreeTests: XCTestCase {
             first: .leaf(leafA),
             second: .leaf(leafB)
         ))
-        let result = node.removeLeaf(leafB.id)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.leaves.first?.id, leafA.id)
+        guard case .removed(let result) = node.removeLeaf(leafB.id) else {
+            return XCTFail("expected removal")
+        }
+        XCTAssertEqual(result.leaves.first?.id, leafA.id)
     }
 
-    func testRemoveNonexistentLeafReturnsSameTree() {
+    func testRemoveNonexistentLeafReturnsNotFound() {
+        // The old API returned a structurally identical copy for a missing
+        // leaf, so callers treated "not found" as "removed" and moved
+        // focus anyway — the contract now distinguishes them
+        // (WI-2026-08-08-033).
         let leaf = SplitNode.LeafData()
         let node = SplitNode.leaf(leaf)
-        // Removing a UUID that doesn't exist on a leaf returns self
-        let result = node.removeLeaf(UUID())
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.id, leaf.id)
+        XCTAssertEqual(node.removeLeaf(UUID()), .notFound)
     }
 
     func testRemoveFromThreeLeavesCollapsesCorrectly() {
@@ -156,11 +161,12 @@ final class SplitTreeTests: XCTestCase {
             first: inner,
             second: .leaf(leafC)
         ))
-        let result = root.removeLeaf(leafA.id)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.leaves.count, 2)
+        guard case .removed(let result) = root.removeLeaf(leafA.id) else {
+            return XCTFail("expected removal")
+        }
+        XCTAssertEqual(result.leaves.count, 2)
         // B and C should remain
-        let ids = result?.leafIDs ?? []
+        let ids = result.leafIDs
         XCTAssertTrue(ids.contains(leafB.id))
         XCTAssertTrue(ids.contains(leafC.id))
     }

@@ -219,6 +219,14 @@ struct ContentView: View {
         .onChange(of: settings.tunnelPort) { _, newPort in
             tunnelManager.tunnelPort = newPort
         }
+        .onAppear {
+            // The SwiftUI WindowGroup window often does not exist yet at
+            // applicationDidFinishLaunching — enforce the min size on the
+            // real window here (WI-2026-08-08-033).
+            if let window = NSApp.keyWindow {
+                window.minSize = NSSize(width: 760, height: 480)
+            }
+        }
         .onDisappear {
             agentMonitor.stopMonitoring()
             taskMonitor.stop()
@@ -250,7 +258,8 @@ struct ContentView: View {
                 ZStack {
                     AllPanesSplitView(
                         paneManager: paneManager,
-                        ghosttyApp: ghosttyApp
+                        ghosttyApp: ghosttyApp,
+                        isTerminalPageVisible: page == .terminal
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .opacity(showPlaceholder ? 0 : 1)

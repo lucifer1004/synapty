@@ -108,7 +108,7 @@ pub fn handleDm(state: *HubState, conn: *Connection, arena: Allocator, envelope:
         .to = target,
         .channel = null,
         .text = text,
-        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds(),
     }) catch {};
 
     // Route to target — lookupAndRetain ensures pointer is alive until release.
@@ -285,7 +285,7 @@ pub fn handleChannelMsg(state: *HubState, conn: *Connection, arena: Allocator, e
         .to = target,
         .channel = ch_name,
         .text = text,
-        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds(),
     }) catch {};
 
     // Fan-out to connected members except sender.
@@ -772,7 +772,7 @@ fn handleToolRequest(state: *HubState, arena: Allocator, conn: *Connection, enve
     // Record the tool request in the activity stream (C-HUB-ROLE).
     const detail = summarizeToolArgs(arena, tool, args);
     state.activity_log.append(state.allocator, .{
-        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toSeconds(),
+        .ts = std.Io.Timestamp.now(io_mod.get(), .real).toMilliseconds(),
         .agent = source,
         .tool = tool,
         .detail = detail,

@@ -21,14 +21,20 @@ enum FontCatalog {
 
     /// Synchronous, cached enumeration. The first call performs the
     /// (one-time) enumeration; every later call is a cache hit.
+    /// Uses the thread-safe CoreText API — NSFontManager is not safe to
+    /// touch off the main thread, and the warm-up runs on a background
+    /// queue (WI-2026-08-08-026, WI-2026-08-08-033).
     static func load() -> [Family] {
         if let cached { return cached }
         loadLock.lock()
         defer { loadLock.unlock() }
         if let cached { return cached }
-        let names = NSFontManager.shared.availableFontFamilies
+        let names = CTFontManagerCopyAvailableFontFamilyNames() as? [String] ?? []
         let families = names.map { name in
-            let isMono = NSFont(name: name, size: 12)?.isFixedPitch ?? false
+            let font = CTFontCreateWithName(name as CFString, 12, nil)
+            let traits = CTFontGetSymbolicTraits(font)
+            // kCTFontTraitMonoSpace (1 << 10) — fixed-pitch glyphs.
+            let isMono = traits.contains(.init(rawValue: 1 << 10))
             return Family(name: name, isMonospace: isMono)
         }
         cached = families

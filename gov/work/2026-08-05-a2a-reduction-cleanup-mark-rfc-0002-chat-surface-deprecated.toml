@@ -7,12 +7,7 @@ status = "done"
 created = "2026-08-05"
 
 [content]
-description = """
-Implements [[RFC-0003]] (A2A reduction cleanup — mark RFC-0002 chat surface deprecated).
-
-Acceptance criteria:
-- TBD — detailed in the work item when started
-"""
+description = "Implements [[RFC-0003]] (A2A reduction cleanup — mark RFC-0002 chat surface deprecated)."
 
 [[content.acceptance_criteria]]
 text = "RFC-0003 documents the A2A reduction (C-A2A-REDUCTION) superseding the RFC-0002 chat surface"

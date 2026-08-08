@@ -43,3 +43,4 @@ clauses = ["clauses/C-CLI-MCP.toml"]
 version = "0.1.0"
 date = "2026-03-28"
 notes = "Initial draft"
+deprecated = ["superseded by [[RFC-0003]] — the chat/DM+channel surface was reduced to the task-center model (C-A2A-REDUCTION, 2026-08-05); record finalized 2026-08-08"]

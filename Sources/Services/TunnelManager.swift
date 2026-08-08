@@ -24,11 +24,13 @@ private extension Logger {
         case failed(String)
 
         /// The reconnect action makes sense for every state except a live
-        /// connection and an in-flight connect (WI-2026-08-08-025).
+        /// connection and an in-flight connect (WI-2026-08-08-025,
+        /// WI-2026-08-08-031): .reconnecting means a setup is already
+        /// running — offering Reconnect would allow double setups.
         var canReconnect: Bool {
             switch self {
-            case .connected, .connecting: return false
-            case .disconnected, .reconnecting, .failed: return true
+            case .connected, .connecting, .reconnecting: return false
+            case .disconnected, .failed: return true
             }
         }
 
@@ -67,8 +69,11 @@ private extension Logger {
     /// Heartbeat timer.
     private var heartbeatTimer: Timer?
 
-    /// Pending connection callbacks (queued while setup is running).
-    private var pendingCallbacks: [UUID: [((command: String, agentID: String)) -> Void]] = [:]
+    /// Pending connection callbacks (queued while setup is running), each
+    /// with the connect command CAPTURED AT REQUEST TIME — recomputing it
+    /// at completion could drift from the tunnel actually established if
+    /// ports/hosts changed mid-setup (WI-2026-08-08-031).
+    private var pendingCallbacks: [UUID: [(command: String, agentID: String, onReady: ((command: String, agentID: String)) -> Void)]] = [:]
 
     // MARK: - Shell escaping
 
@@ -149,8 +154,10 @@ private extension Logger {
     func ensureTunnel(for host: HostEntry, completion: @escaping ((command: String, agentID: String)) -> Void) {
         trackedHosts[host.id] = host
 
-        // Queue the callback and run setup
-        pendingCallbacks[host.id, default: []].append(completion)
+        // Queue the callback with the command captured NOW
+        // (WI-2026-08-08-031).
+        let command = connectCommand(for: host)
+        pendingCallbacks[host.id, default: []].append((command.0, command.1, completion))
 
         // Only start setup if not already in progress
         let currentStatus = tunnelStates[host.id]
@@ -241,10 +248,11 @@ private extension Logger {
                 guard let self else { return }
                 if output.error == nil && !output.timedOut {
                     self.tunnelStates[host.id] = .connected
-                    // Fire all pending callbacks
+                    // Fire all pending callbacks with the command captured
+                    // at request time (WI-2026-08-08-031).
                     let callbacks = self.pendingCallbacks.removeValue(forKey: host.id) ?? []
                     for cb in callbacks {
-                        cb(self.connectCommand(for: host))
+                        cb.onReady((cb.command, cb.agentID))
                     }
                 } else {
                     if let error = output.error {
@@ -257,6 +265,8 @@ private extension Logger {
                         ?? (output.error ?? "Setup failed")
                     self.tunnelStates[host.id] = .failed(lastLine)
                     self.pendingCallbacks.removeValue(forKey: host.id)
+                    // Note: the callbacks are dropped — the connecting
+                    // placeholder was told to show the error instead.
                     // Tell the UI so the connecting placeholder shows the error
                     // instead of spinning forever (WI-2026-03-31-003).
                     NotificationCenter.default.post(
@@ -272,6 +282,12 @@ private extension Logger {
     // MARK: - Reconnect
 
     func reconnectTunnel(for host: HostEntry) {
+        // In-flight guard: two concurrent setups fight over one ControlPath
+        // and a failing second one can flip a good .connected to .failed
+        // (WI-2026-08-08-031).
+        if tunnelStates[host.id] == .reconnecting || tunnelStates[host.id] == .connecting {
+            return
+        }
         trackedHosts[host.id] = host
         tunnelStates[host.id] = .reconnecting
         runSetup(for: host)
@@ -315,18 +331,24 @@ private extension Logger {
         heartbeatTimer = nil
     }
 
+    /// Hosts whose ssh -O check is still in flight — a wedged master must
+    /// not pile up one blocked check per 10s tick (WI-2026-08-08-031).
+    private var checksInFlight: Set<UUID> = []
+
     private func runHeartbeat() {
         let hostsToCheck = trackedHosts.filter { tunnelStates[$0.key] == .connected }
 
-        for (hostID, host) in hostsToCheck {
+        for (hostID, host) in hostsToCheck where !checksInFlight.contains(hostID) {
             // Resolve everything the check needs on the main actor; the
             // blocking ssh spawn then runs off-main (WI-2026-08-08-009).
             let socket = socketPath(for: host)
             let userAtHost = "\(effectiveUsername(for: host))@\(host.address)"
+            checksInFlight.insert(hostID)
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 let alive = Self.sshControl(socket: socket, userAtHost: userAtHost, ctl: "check")
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    self.checksInFlight.remove(hostID)
                     if !alive && self.tunnelStates[hostID] == .connected {
                         self.reconnectTunnel(for: host)
                     }
@@ -344,12 +366,24 @@ private extension Logger {
         process.arguments = ["-S", socket, "-O", ctl, userAtHost]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         do {
             try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
         } catch {
             return false
         }
+        // Bounded: a wedged master (blocking DNS etc.) must not stall a
+        // utility thread forever (WI-2026-08-08-031).
+        if exited.wait(timeout: .now() + 10) == .timedOut {
+            process.terminate()
+            _ = exited.wait(timeout: .now() + 2)
+            if process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 2)
+            }
+            return false
+        }
+        return process.terminationStatus == 0
     }
 }

@@ -3,11 +3,11 @@ import CoreGraphics
 
 /// Binary tree representing the split layout within a single pane/tab.
 /// Leaves are terminal surfaces; internal nodes are horizontal or vertical splits.
-indirect enum SplitNode: Identifiable {
+indirect enum SplitNode: Identifiable, Equatable {
     case leaf(LeafData)
     case split(SplitData)
 
-    struct LeafData: Identifiable {
+    struct LeafData: Identifiable, Equatable {
         let id: UUID
         let command: String?
 
@@ -17,7 +17,7 @@ indirect enum SplitNode: Identifiable {
         }
     }
 
-    struct SplitData: Identifiable {
+    struct SplitData: Identifiable, Equatable {
         let id: UUID
         let direction: SplitDirection
         /// Split ratio (0.0–1.0). First child gets `ratio` of the space.
@@ -103,30 +103,50 @@ indirect enum SplitNode: Identifiable {
         }
     }
 
+    /// Result of removing a leaf: the tree collapsed to its sibling, or the
+    /// leaf was NOT present (callers must not treat "not found" as a
+    /// successful removal — the old API returned a structurally identical
+    /// copy for the not-found case and callers moved focus anyway;
+    /// WI-2026-08-08-033).
+    enum RemoveResult: Equatable {
+        case removed(SplitNode)
+        case notFound
+    }
+
     /// Remove a leaf and return the sibling (collapsing the parent split).
-    /// Returns nil if this node IS the leaf being removed (caller handles).
-    func removeLeaf(_ leafID: UUID) -> SplitNode? {
+    func removeLeaf(_ leafID: UUID) -> RemoveResult {
         switch self {
         case .leaf(let data):
-            return data.id == leafID ? nil : self
+            // The caller handles the single-leaf case; a not-found leaf
+            // in a leaf node is the not-found result.
+            return data.id == leafID ? .notFound : .notFound
 
         case .split(let data):
             // Check if either direct child is the leaf to remove
             if case .leaf(let firstLeaf) = data.first, firstLeaf.id == leafID {
-                return data.second // Collapse: return sibling
+                return .removed(data.second) // Collapse: return sibling
             }
             if case .leaf(let secondLeaf) = data.second, secondLeaf.id == leafID {
-                return data.first // Collapse: return sibling
+                return .removed(data.first) // Collapse: return sibling
             }
             // Recurse into children
             var newData = data
-            if let newFirst = data.first.removeLeaf(leafID) {
+            var changed = false
+            switch data.first.removeLeaf(leafID) {
+            case .removed(let newFirst):
                 newData.first = newFirst
+                changed = true
+            case .notFound:
+                break
             }
-            if let newSecond = data.second.removeLeaf(leafID) {
+            switch data.second.removeLeaf(leafID) {
+            case .removed(let newSecond):
                 newData.second = newSecond
+                changed = true
+            case .notFound:
+                break
             }
-            return .split(newData)
+            return changed ? .removed(.split(newData)) : .notFound
         }
     }
 

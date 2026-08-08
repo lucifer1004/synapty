@@ -45,7 +45,14 @@ struct HubStatusSheet: View {
 
                 // Controls
                 HStack(spacing: DS.Space.sm) {
-                    if case .running(let owned) = hubManager.status {
+                    if hubManager.isRestarting {
+                        // The restart wait window: Start/Restart must not
+                        // be offered — a second launch would orphan the
+                        // real hub (WI-2026-08-08-031).
+                        Text("Restarting…")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.textSecondary)
+                    } else if case .running(let owned) = hubManager.status {
                         if owned {
                             Button("Stop") { hubManager.stopHub() }
                                 .controlSize(.small)

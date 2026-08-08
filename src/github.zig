@@ -146,7 +146,12 @@ pub fn storeToken(allocator: Allocator, account: []const u8, token: []const u8) 
         .stdout = .ignore,
         .stderr = .ignore,
     });
-    errdefer std.process.Child.kill(&child, io_mod.get());
+    errdefer {
+        // Kill AND reap — a killed-but-unwaited child lingers as a zombie
+        // (WI-2026-08-08-029).
+        std.process.Child.kill(&child, io_mod.get());
+        _ = std.process.Child.wait(&child, io_mod.get()) catch {};
+    }
 
     if (child.stdin) |stdin| {
         defer stdin.close(io_mod.get());

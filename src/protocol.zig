@@ -135,30 +135,22 @@ pub fn parseIpcResponse(allocator: Allocator, raw: []const u8) !json.Parsed(IpcR
     );
 }
 
-/// Build a Register envelope ready for serialization.
-/// Build a register envelope. `capabilities` are honored: they are
-/// emitted into the payload (the hub parses `payload` when present).
-/// The envelope id is unique per call so multiple register frames from one
-/// connection stay distinguishable (WI-2026-08-08-028). `id_buf` receives
-/// the formatted id; the returned Envelope borrows it, so callers must
-/// keep it alive until the envelope is serialized.
+/// Build a register envelope with a UNIQUE id so multiple register frames
+/// from one connection stay distinguishable (WI-2026-08-08-028). The id is
+/// allocator-owned (arena pattern — callers serialize immediately). The
+/// payload is null: the hub's register path reads only the source field
+/// and does not consume a capabilities payload — the earlier emission was
+/// dead code with a false contract (WI-2026-08-08-029).
 pub fn makeRegisterEnvelope(allocator: Allocator, agent_id: []const u8, capabilities: []const []const u8) !Envelope {
-    var payload_obj = json.ObjectMap.empty;
-    if (capabilities.len > 0) {
-        var caps = json.Array.init(allocator);
-        for (capabilities) |c| try caps.append(.{ .string = c });
-        try payload_obj.put(allocator, "capabilities", .{ .array = caps });
-    }
+    _ = capabilities;
     const seq = register_seq.fetchAdd(1, .monotonic);
-    // Caller-owned (arena pattern): registrations are rare and the
-    // envelope is serialized immediately (WI-2026-08-08-028).
     const id = try std.fmt.allocPrint(allocator, "reg-{d}", .{seq});
     return Envelope{
         .@"type" = "register",
         .id = id,
         .source = agent_id,
         .target = "",
-        .payload = if (payload_obj.count() > 0) .{ .object = payload_obj } else .null,
+        .payload = .null,
     };
 }
 
@@ -230,16 +222,6 @@ test "makeRegisterEnvelope fields" {
     try std.testing.expect(!mem.eql(u8, env.id, env2.id));
 }
 
-test "makeRegisterEnvelope honors capabilities" {
-    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena_state.deinit();
-    const arena = arena_state.allocator();
-    const env = try makeRegisterEnvelope(arena, "my-agent", &.{ "task", "skills" });
-    try std.testing.expect(env.payload == .object);
-    const caps = env.payload.object.get("capabilities") orelse return error.TestUnexpectedResult;
-    try std.testing.expect(caps == .array);
-    try std.testing.expectEqual(@as(usize, 2), caps.array.items.len);
-}
 
 test "IpcRequest send round-trip" {
     const req = IpcRequest{

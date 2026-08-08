@@ -131,7 +131,10 @@ struct TerminalSettingsPanel: View {
             localOpacity = settings.backgroundOpacity ?? 1.0
         }
         .onDisappear {
-            debounceTask?.cancel()
+            // Persist the pending value instead of dropping it
+            // (WI-2026-08-08-033). The slider binding keeps localOpacity
+            // current, so flushing it is always the right final write.
+            flushOpacityWrite(localOpacity)
         }
     }
 
@@ -153,6 +156,15 @@ struct TerminalSettingsPanel: View {
             guard !Task.isCancelled else { return }
             settings.backgroundOpacity = value
         }
+    }
+
+    /// Flush any pending debounced write — closing the panel within the
+    /// debounce window used to DROP the last slider change (it snapped
+    /// back on reopen; WI-2026-08-08-033).
+    private func flushOpacityWrite(_ value: Double) {
+        debounceTask?.cancel()
+        debounceTask = nil
+        settings.backgroundOpacity = value
     }
 
     // MARK: - Bindings

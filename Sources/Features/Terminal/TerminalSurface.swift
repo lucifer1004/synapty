@@ -24,9 +24,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
     var isVisiblePane = true
     /// Is this the focused leaf of the visible pane (split focus).
     var isFocusedLeaf = true
+    /// The Terminal PAGE itself is shown (not Hosts/Settings/...): focus
+    /// gates include page visibility so a background page's surface can
+    /// never steal focus, and returning to the page restores it
+    /// (WI-2026-08-08-032).
+    var isTerminalPageVisible = true
 
     override func becomeFirstResponder() -> Bool {
-        guard isVisiblePane else {
+        guard isVisiblePane, isTerminalPageVisible else {
             // A hidden/background surface (e.g. a background session's pane
             // materializing) must never steal keyboard focus — redirect to
             // the visible focused surface (WI-2026-08-08-007).
@@ -89,21 +94,19 @@ class GhosttyNSView: NSView, NSTextInputClient {
             createSurface(app: app)
 
             if let surface {
-                // Set display ID so ghostty can use CVDisplayLink for vsync-driven
-                // rendering. Without this, ghostty renders immediately on every wakeup
-                // which causes visible re-render churn (e.g., during paste).
-                if let displayID = window?.screen?.displayID ?? NSScreen.main?.displayID,
-                   displayID != 0 {
-                    ghostty_surface_set_display_id(surface, displayID)
-                }
-
+                // NO display-id write here: registerSurface -> applyDisplayIds
+                // is the single source of truth for vsync pausing. Writing
+                // the screen id here would un-pause a surface created while
+                // hidden (WI-2026-08-08-032).
                 updateSurfaceSize()
 
-                // Only the visible focused leaf may steal focus: a background
-                // session's pane attaching to the window must not yank
-                // keyboard focus, ghostty focus, or the global activeSurface
-                // from the terminal the user is working in (WI-2026-08-08-007).
-                if isVisiblePane && isFocusedLeaf {
+                // Only the visible focused leaf of the SHOWN terminal page
+                // may steal focus: a background session's pane attaching to
+                // the window — or any surface materializing while the user
+                // is on another page — must not yank keyboard focus,
+                // ghostty focus, or the global activeSurface
+                // (WI-2026-08-08-007, WI-2026-08-08-032).
+                if isVisiblePane && isFocusedLeaf && isTerminalPageVisible {
                     ghosttyApp?.activeSurface = surface
                     ghosttyApp?.activeView = self
                     ghostty_surface_set_focus(surface, true)
@@ -216,6 +219,29 @@ class GhosttyNSView: NSView, NSTextInputClient {
         guard let fr = window?.firstResponder as? NSView,
               fr === self || fr.isDescendant(of: self) else { return false }
         guard let surface else { return false }
+
+        // Ghostty-domain shortcuts (clipboard, font, search) must respect
+        // ghostty's OWN keybinding config first: if the key is bound there
+        // (including a rebind or a noop), do NOT intercept — let the event
+        // take the normal path so the user's keybind wins
+        // (WI-2026-08-08-032).
+        if event.modifierFlags.contains(.command),
+           let chars = event.charactersIgnoringModifiers?.lowercased(),
+           ["c", "v", "f", "=", "0", "-"].contains(chars) {
+            var bindingKey = ghostty_input_key_s()
+            bindingKey.keycode = UInt32(event.keyCode)
+            bindingKey.mods = translateModifiers(event.modifierFlags)
+            if let baseChars = event.characters(byApplyingModifiers: []),
+               let scalar = baseChars.unicodeScalars.first {
+                bindingKey.unshifted_codepoint = scalar.value
+            }
+            bindingKey.consumed_mods = translateModifiers(
+                event.modifierFlags.subtracting([.control, .command])
+            )
+            if ghostty_surface_key_is_binding(surface, bindingKey, nil) {
+                return false
+            }
+        }
 
         // Handle Cmd+C and Cmd+V directly via ghostty binding actions.
         // Going through keyDown → ghostty_surface_key doesn't reliably trigger
@@ -656,25 +682,34 @@ struct TerminalView: NSViewRepresentable {
     var isVisiblePane: Bool = true
     /// Is the focused leaf of the visible pane (split focus).
     var isFocusedLeaf: Bool = true
+    /// The Terminal page is the shown page (WI-2026-08-08-032).
+    var isTerminalPageVisible: Bool = true
 
     func makeNSView(context: Context) -> GhosttyNSView {
         let nsView = GhosttyNSView(ghosttyApp: ghosttyApp, command: command, leafID: leafID)
         nsView.isVisiblePane = isVisiblePane
         nsView.isFocusedLeaf = isFocusedLeaf
+        nsView.isTerminalPageVisible = isTerminalPageVisible
         return nsView
     }
 
     func updateNSView(_ nsView: GhosttyNSView, context: Context) {
-        let wasFocused = nsView.isVisiblePane && nsView.isFocusedLeaf
+        let wasFocused = nsView.isVisiblePane && nsView.isFocusedLeaf && nsView.isTerminalPageVisible
         nsView.leafID = leafID
         nsView.isVisiblePane = isVisiblePane
         nsView.isFocusedLeaf = isFocusedLeaf
-        let nowFocused = isVisiblePane && isFocusedLeaf
+        nsView.isTerminalPageVisible = isTerminalPageVisible
+        let nowFocused = isVisiblePane && isFocusedLeaf && isTerminalPageVisible
         if nowFocused && !wasFocused {
             // This leaf just became the focused terminal (pane/session/split
-            // switch) — take keyboard focus so keystrokes land here instead
-            // of on the hidden previous surface (WI-2026-08-08-007).
-            DispatchQueue.main.async {
+            // switch, or RETURNING to the Terminal page) — take keyboard
+            // focus so keystrokes land here instead of on the hidden
+            // previous surface (WI-2026-08-08-007, WI-2026-08-08-032).
+            DispatchQueue.main.async { [weak nsView] in
+                guard let nsView else { return }
+                // Re-check: the user may have clicked elsewhere in the
+                // meantime (WI-2026-08-08-032).
+                guard nsView.isVisiblePane, nsView.isTerminalPageVisible else { return }
                 nsView.window?.makeFirstResponder(nsView)
             }
         }
