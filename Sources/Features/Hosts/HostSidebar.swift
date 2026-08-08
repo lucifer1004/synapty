@@ -338,61 +338,68 @@ struct SessionRow: View {
 
     // MARK: - Body
 
+    /// ONE line for every session (WI-2026-08-08-077): uniform height —
+    /// dot, label, agent icon, drift warning, then right-aligned address /
+    /// count / duration (or the failure message).
     var body: some View {
-        HStack(alignment: .top, spacing: DS.Space.sm) {
+        HStack(spacing: DS.Space.sm) {
             // Status dot
             DSStatusDot(
                 color: statusColor,
                 size: 8,
                 pulsing: session.state == .connecting
             )
-            .padding(.top, 5)
 
-            VStack(alignment: .leading, spacing: 2) {
-                // Primary row: label + duration
-                HStack(spacing: DS.Space.xs) {
-                    labelView
-                    Spacer(minLength: DS.Space.xs)
-                    if case .connected = session.state {
-                        Text(durationString(from: session.createdAt))
-                            .font(DS.Typography.monoCaption)
-                            .foregroundStyle(DS.textTertiary)
-                    }
+            // Label (or inline edit field)
+            labelView
+
+            // Agent — compact icon, attention via color + pulse
+            if let agent {
+                Image(systemName: agent.tool.sfSymbol)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(agentNeedsAttention ? DS.warning : agent.tool.accentColor)
+                    .help(agent.session != "-" ? "\(agent.tool.displayName) · \(agent.session)" : agent.tool.displayName)
+                    .accessibilityLabel(agent.tool.displayName)
+                if agentNeedsAttention {
+                    DSStatusDot(color: DS.warning, size: 5, pulsing: true)
                 }
+            }
 
-                // Host address — remote sessions only
+            // Config drift warning
+            if configDrifted {
+                Image(systemName: "arrow.triangle.2.circlepath.circle")
+                    .font(.system(size: 9))
+                    .foregroundStyle(DS.warning)
+                    .help("Host config changed after this session started — reconnect to apply")
+            }
+
+            Spacer(minLength: DS.Space.xs)
+
+            // Right side: failure message, or address · count · duration.
+            if case .failed(let msg) = session.state {
+                Text(msg)
+                    .font(DS.Typography.caption)
+                    .foregroundColor(DS.danger)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
                 if let addr = hostAddress {
                     Text(addr)
                         .font(DS.Typography.monoCaption)
                         .foregroundStyle(DS.textSecondary)
                         .lineLimit(1)
-                    if configDrifted {
-                        Image(systemName: "arrow.triangle.2.circlepath.circle")
-                            .font(.system(size: 9))
-                            .foregroundStyle(DS.warning)
-                            .help("Host config changed after this session started — reconnect to apply")
-                    }
+                        .truncationMode(.middle)
                 }
-
-                // Count summary — only when there is something notable
                 if let summary = countSummary {
                     Text(summary)
                         .font(DS.Typography.caption)
                         .foregroundStyle(DS.textTertiary)
+                        .lineLimit(1)
                 }
-
-                // Error message
-                if case .failed(let msg) = session.state {
-                    Text(msg)
-                        .font(DS.Typography.caption)
-                        .foregroundColor(DS.danger)
-                        .lineLimit(2)
-                }
-
-                // Agent sub-row — only when an agent is registered
-                if let agent {
-                    AgentSubRow(agent: agent, needsAttention: agentNeedsAttention)
-                        .padding(.top, DS.Space.xs)
+                if case .connected = session.state {
+                    Text(durationString(from: session.createdAt))
+                        .font(DS.Typography.monoCaption)
+                        .foregroundStyle(DS.textTertiary)
                 }
             }
         }
@@ -421,6 +428,7 @@ struct SessionRow: View {
             TextField("Name", text: $editText)
                 .textFieldStyle(.plain)
                 .font(DS.Typography.title)
+                .frame(minWidth: 80, alignment: .leading)
                 .focused($isTextFieldFocused)
                 .onAppear {
                     editText = session.label
@@ -437,69 +445,6 @@ struct SessionRow: View {
             Text(session.label)
                 .font(DS.Typography.title)
                 .lineLimit(1)
-        }
-    }
-}
-
-// MARK: - Agent Sub-Row
-
-/// Nested agent display within a session row.
-/// A 2pt vertical rule in the tool's accent color (amber when attention) visually
-/// anchors the agent to its parent session.
-struct AgentSubRow: View {
-    let agent: AgentInfo
-    let needsAttention: Bool
-
-    private var ruleColor: Color {
-        needsAttention ? DS.warning : agent.tool.accentColor
-    }
-
-    private var iconColor: Color {
-        needsAttention ? DS.warning : agent.tool.accentColor
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            // Accent rule
-            RoundedRectangle(cornerRadius: 1)
-                .fill(ruleColor)
-                .frame(width: 2.5)
-
-            HStack(alignment: .center, spacing: DS.Space.sm) {
-                Image(systemName: agent.tool.sfSymbol)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(iconColor)
-                    .frame(width: 14, alignment: .center)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: DS.Space.xs) {
-                        Text(agent.tool.displayName)
-                            .font(DS.Typography.detailStrong)
-                            .foregroundStyle(DS.textPrimary)
-                            .lineLimit(1)
-
-                        Spacer(minLength: DS.Space.xs)
-
-                        if needsAttention {
-                            DSStatusDot(color: DS.warning, size: 5, pulsing: true)
-                        }
-                    }
-
-                    if agent.session != "-" {
-                        Text(agent.session)
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textSecondary)
-                            .lineLimit(1)
-                    } else if agent.project != "-" {
-                        Text(agent.project)
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-            .padding(.leading, DS.Space.sm)
-            .padding(.vertical, DS.Space.xs)
         }
     }
 }
