@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-076"
+title = "fix(gui): instant single-click response on host blocks — manual double-click detection"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Bug report: single-click on host blocks responds with an unreasonable delay. Cause: `.onTapGesture(count:1)` + `.onTapGesture(count:2)` on the same view make SwiftUI compose them into an exclusive double-vs-single judgement — the single click waits for the double-click window (~0.5s).
+
+Fix (native gesture composition): keep `TapGesture(count:2)` as the view's gesture and attach `TapGesture(count:1)` via `.simultaneousGesture` — the two recognizers run in parallel, so the first click selects immediately and a second click within the window opens the terminal (selection is idempotent)."""
+
+[[content.acceptance_criteria]]
+text = "single click selects immediately (parallel simultaneousGesture, no window wait)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "double-click opens the terminal (count:2 gesture); selection stays idempotent"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "no manual timestamp state — pure gesture composition"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

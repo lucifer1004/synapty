@@ -38,6 +38,7 @@ struct HostsPageView: View {
     @State private var selectedHostIDs: Set<UUID> = []
     /// Tag filter (WI-2026-08-08-059): hosts must have ALL selected tags.
     @State private var selectedTags: Set<String> = []
+
     /// Which sub-pane of the Hosts page is shown.
     @State private var pane: HostsPane = .hosts
     /// Right-side inspector content: host editor (nil = new host) or group
@@ -411,8 +412,12 @@ struct HostsPageView: View {
                             onReconnect: { tunnelManager.reconnectTunnel(for: host) },
                             onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
                         )
-                        .onTapGesture(count: 2) { onOpenTerminal?(host) }
-                        .onTapGesture(count: 1) { selectHost(host.id) }
+                        .gesture(
+                            TapGesture(count: 2).onEnded { onOpenTerminal?(host) }
+                        )
+                        .simultaneousGesture(
+                            TapGesture(count: 1).onEnded { selectHost(host.id) }
+                        )
                         .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
                     }
                 }
