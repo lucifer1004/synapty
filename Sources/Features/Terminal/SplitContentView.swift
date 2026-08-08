@@ -4,7 +4,7 @@ import SwiftUI
 /// Only the active pane's leaves are visible; inactive panes' leaves are hidden
 /// but alive (preserving ghostty surface state across tab switches).
 struct AllPanesSplitView: View {
-    @ObservedObject var paneManager: TerminalPaneManager
+    var paneManager: TerminalPaneManager
     let ghosttyApp: GhosttyApp
     /// Whether the Terminal page is the shown page (focus gating,
     /// WI-2026-08-08-032).
@@ -16,14 +16,21 @@ struct AllPanesSplitView: View {
     /// (WI-2026-08-08-027).
     @State private var lastFrames: [UUID: CGRect] = [:]
 
+    /// Frame/divider computation cache (WI-2026-08-08-051): recomputed only
+    /// when the container size OR the active pane's split tree changes —
+    /// unrelated body evaluations (focus moves, session publishes) reuse it.
+    @State private var layoutCache: (size: CGSize, tree: SplitNode?, frames: [UUID: CGRect], dividers: [SplitLayout.DividerInfo])?
+
     var body: some View {
         GeometryReader { geo in
             let activePane = paneManager.activePane
             let activeLeafIDs: Set<UUID> = activePane.map { Set($0.splitRoot.leafIDs) } ?? []
             let focusedLeafID = activePane?.focusedLeafID
-            let activeFrames: [UUID: CGRect] = activePane.map {
-                SplitLayout.computeFrames(node: $0.splitRoot, in: CGRect(origin: .zero, size: geo.size))
-            } ?? [:]
+            // Cached layout: identical (size, tree) pairs skip recomputation
+            // (WI-2026-08-08-051).
+            let layout = cachedLayout(for: geo.size, pane: activePane)
+            let activeFrames = layout.frames
+            let dividers = layout.dividers
 
             ZStack(alignment: .topLeading) {
                 // All leaves from all panes — flat ForEach for stable identity
@@ -57,10 +64,6 @@ struct AllPanesSplitView: View {
 
                 // Draw draggable dividers for the active pane's split tree
                 if let activePane {
-                    let dividers = SplitLayout.computeDividers(
-                        node: activePane.splitRoot,
-                        in: CGRect(origin: .zero, size: geo.size)
-                    )
                     ForEach(dividers) { info in
                         DraggableDivider(info: info) { newRatio in
                             paneManager.resizeSplit(splitID: info.id, ratio: newRatio)
@@ -95,6 +98,25 @@ struct AllPanesSplitView: View {
             let live = Set(newIDs)
             lastFrames = lastFrames.filter { live.contains($0.key) }
         }
+    }
+
+    /// Frame/divider computation with a (size, tree) cache — unrelated
+    /// body evaluations reuse the last result (WI-2026-08-08-051).
+    private func cachedLayout(
+        for size: CGSize,
+        pane: TerminalPaneManager.Pane?
+    ) -> (frames: [UUID: CGRect], dividers: [SplitLayout.DividerInfo]) {
+        if let cache = layoutCache, cache.size == size, cache.tree == pane?.splitRoot {
+            return (cache.frames, cache.dividers)
+        }
+        let frames = pane.map {
+            SplitLayout.computeFrames(node: $0.splitRoot, in: CGRect(origin: .zero, size: size))
+        } ?? [:]
+        let divs = pane.map {
+            SplitLayout.computeDividers(node: $0.splitRoot, in: CGRect(origin: .zero, size: size))
+        } ?? []
+        layoutCache = (size, pane?.splitRoot, frames, divs)
+        return (frames, divs)
     }
 
     private func syncSurfaceVisibility() {

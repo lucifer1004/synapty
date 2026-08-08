@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Hub status page — shows running state, agents, logs with copiable text.
 struct HubStatusSheet: View {
-    @ObservedObject var hubManager: HubManager
-    @ObservedObject var agentMonitor: AgentMonitor
-    @ObservedObject var taskMonitor: TaskMonitor
+    var hubManager: HubManager
+    var agentMonitor: AgentMonitor
+    var taskMonitor: TaskMonitor
 
     /// Bound hub repo details from `synapty github status`
     /// (WI-2026-08-08-044): owner/repo/username when configured.

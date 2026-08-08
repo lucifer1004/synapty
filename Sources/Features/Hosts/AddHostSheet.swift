@@ -3,8 +3,8 @@ import SwiftUI
 /// Sheet for adding or editing a host entry — Termius-style: group
 /// membership, tags, and reusable credentials (Identity) or inline fields.
 struct AddHostSheet: View {
-    @ObservedObject var hostStore: HostStore
-    @ObservedObject var tunnelManager: TunnelManager
+    var hostStore: HostStore
+    var tunnelManager: TunnelManager
     @Binding var isPresented: Bool
 
     /// If set, we're editing an existing host; otherwise adding a new one.

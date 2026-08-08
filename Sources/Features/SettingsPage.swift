@@ -3,8 +3,8 @@ import SwiftUI
 /// Application settings page — grouped by user-facing concerns:
 /// Appearance (app-level), Terminal, Scrolling, Clipboard, Network (Synapty).
 struct SettingsPage: View {
-    @ObservedObject var settings: SynaptySettings
-    @ObservedObject var taskMonitor: TaskMonitor
+    var settings: SynaptySettings
+    var taskMonitor: TaskMonitor
 
     enum SettingsPane: Hashable {
         case appearance

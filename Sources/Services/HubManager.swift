@@ -1,10 +1,11 @@
 import Foundation
+import Observation
 import AppKit
 
 /// Manages the Hub subprocess lifecycle (the unified `synapty hub`
 /// subcommand per [[ADR-0004]]). Auto-detects an existing Hub at launch,
 /// starts one if needed, captures logs, and monitors health.
-@MainActor final class HubManager: ObservableObject {
+@MainActor @Observable final class HubManager {
 
     enum HubStatus: Equatable {
         case stopped
@@ -33,13 +34,13 @@ import AppKit
         let text: String
     }
 
-    @Published var status: HubStatus = .stopped
-    @Published var logs: [HubLogLine] = []
-    @Published var port: Int = 9000
+    var status: HubStatus = .stopped
+    var logs: [HubLogLine] = []
+    var port: Int = 9000
     /// True while restartHub waits for the old process to exit — the UI
     /// must not offer Start/Restart in this window (a second launch would
     /// orphan the real hub from `process`; WI-2026-08-08-031).
-    @Published private(set) var isRestarting = false
+    private(set) var isRestarting = false
     /// Bumped per restart; a superseded relaunch closure bails
     /// (WI-2026-08-08-031).
     private var restartGeneration = 0
@@ -263,7 +264,7 @@ import AppKit
 
     private func appendLog(_ line: String) {
         // The hub logs "agent metadata updated" on every agents poll —
-        // pure noise that churned @Published logs → whole-UI re-render
+        // pure noise that churned logs → whole-UI re-render
         // (WI-2026-08-07-006). Skip it.
         if line.contains("agent metadata updated") {
             return

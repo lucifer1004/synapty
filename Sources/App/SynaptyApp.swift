@@ -10,7 +10,6 @@ struct SynaptyApp: App {
         // "Synapty" text anywhere in the window.
         WindowGroup("") {
             ContentView()
-                .environmentObject(appDelegate)
                 .tint(DS.accent)
         }
         .windowStyle(.titleBar)

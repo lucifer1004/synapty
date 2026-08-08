@@ -30,6 +30,9 @@ final class SynaptySettingsTests: XCTestCase {
         settings.clipboardWrite = false
         settings.hubPort = 9000
         settings.tunnelPort = 9001
+        // Persistence is debounced (500 ms) — flush so the file is on disk
+        // before the reloaded instance reads it (WI-2026-08-08-049).
+        settings.flushPersistence()
 
         let reloaded = SynaptySettings()
         XCTAssertEqual(reloaded.lightThemeName, "GitHub")
@@ -73,6 +76,10 @@ final class SynaptySettingsTests: XCTestCase {
         settings.darkThemeName = "Black Metal (Burzum)"
         settings.fontFamily = "Maple Mono NF CN"
         settings.fontSize = 13
+        // The fragment write is async (off-main); flush drains the serial
+        // fragment queue so the file deterministically holds the newest
+        // fragment before we read it (WI-2026-08-08-049).
+        settings.flushPersistence()
 
         let fragment = try String(contentsOf: tempDir.appendingPathComponent("ghostty.conf"), encoding: .utf8)
         // font-family is repeatable — the clear must come before the set so

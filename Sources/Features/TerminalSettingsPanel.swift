@@ -5,7 +5,7 @@ import SwiftUI
 /// page, so every change applies live through the existing reload chain.
 /// Docks on the Terminal page; floats on other pages.
 struct TerminalSettingsPanel: View {
-    @ObservedObject var settings: SynaptySettings
+    var settings: SynaptySettings
     var onClose: () -> Void = {}
 
     @State private var fontFamilies: [FontCatalog.Family] = []

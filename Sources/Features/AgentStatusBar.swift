@@ -3,10 +3,10 @@ import SwiftUI
 /// Bottom context bar — shows info about the currently focused session/pane.
 /// Agents live in the sidebar; this bar provides "what am I looking at right now?"
 struct ContextStatusBar: View {
-    @ObservedObject var paneManager: TerminalPaneManager
-    @ObservedObject var agentMonitor: AgentMonitor
-    @ObservedObject var hubManager: HubManager
-    @ObservedObject var taskMonitor: TaskMonitor
+    var paneManager: TerminalPaneManager
+    var agentMonitor: AgentMonitor
+    var hubManager: HubManager
+    var taskMonitor: TaskMonitor
 
     var body: some View {
         HStack(spacing: DS.Space.md) {

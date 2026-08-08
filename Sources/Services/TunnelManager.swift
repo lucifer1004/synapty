@@ -1,10 +1,11 @@
 import Foundation
+import Observation
 import AppKit
 import os
 
 /// Manages SSH ControlMaster tunnels to remote hosts.
 /// Provides auto-setup on first connect, heartbeat monitoring, and auto-reconnect.
-@MainActor final class TunnelManager: ObservableObject {
+@MainActor @Observable final class TunnelManager {
 
     /// Singleton for access from TerminalPaneManager (addPaneToActiveSession).
     static weak var shared: TunnelManager?
@@ -61,13 +62,13 @@ import os
     }
 
     /// Local hub TCP port (where the in-app hub listens). Default 9000.
-    @Published var hubPort: Int = 9000
+    var hubPort: Int = 9000
 
     /// Remote listen port of the reverse tunnel; forwards to localhost:HUB_PORT.
-    @Published var tunnelPort: Int = 9000
+    var tunnelPort: Int = 9000
 
     /// Per-host tunnel status.
-    @Published var tunnelStates: [UUID: TunnelStatus] = [:]
+    var tunnelStates: [UUID: TunnelStatus] = [:]
 
     /// Hosts we're tracking for heartbeat.
     private var trackedHosts: [UUID: HostEntry] = [:]

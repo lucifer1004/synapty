@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sheet for adding or editing a reusable Identity (credentials).
 struct IdentityEditSheet: View {
-    @ObservedObject var hostStore: HostStore
+    var hostStore: HostStore
     @Binding var isPresented: Bool
     var editingIdentity: Identity?
 

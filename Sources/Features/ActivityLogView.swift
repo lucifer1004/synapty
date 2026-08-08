@@ -3,7 +3,7 @@ import SwiftUI
 /// Activity page — the hub's tool-request stream (RFC-0003 C-UI).
 /// Replaces the chat-message log of the dialogue model.
 struct ActivityLogView: View {
-    @ObservedObject var taskMonitor: TaskMonitor
+    var taskMonitor: TaskMonitor
 
     var body: some View {
         VStack(spacing: 0) {

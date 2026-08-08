@@ -5,10 +5,10 @@ import SwiftUI
 /// system). Bottom: active sessions (always visible so you can jump back
 /// to the terminal from any page).
 struct HostSidebar: View {
-    @ObservedObject var hostStore: HostStore
-    @ObservedObject var paneManager: TerminalPaneManager
-    @ObservedObject var tunnelManager: TunnelManager
-    @ObservedObject var agentMonitor: AgentMonitor
+    var hostStore: HostStore
+    var paneManager: TerminalPaneManager
+    var tunnelManager: TunnelManager
+    var agentMonitor: AgentMonitor
     /// Currently displayed application page (navigation selection).
     @Binding var page: AppPage
     @State private var showHostPicker = false
@@ -234,8 +234,8 @@ private struct NavRailButton: View {
 
 struct SessionRow: View {
     let session: TerminalPaneManager.Session
-    @ObservedObject var paneManager: TerminalPaneManager
-    @ObservedObject var hostStore: HostStore
+    var paneManager: TerminalPaneManager
+    var hostStore: HostStore
     @Binding var editingSessionID: UUID?
     /// Agent registered on this session, if any.
     let agent: AgentInfo?
@@ -493,8 +493,8 @@ struct AgentSubRow: View {
 // MARK: - Host Picker Popover
 
 struct HostPickerPopover: View {
-    @ObservedObject var hostStore: HostStore
-    @ObservedObject var tunnelManager: TunnelManager
+    var hostStore: HostStore
+    var tunnelManager: TunnelManager
     var onSelectLocal: () -> Void
     var onSelectHost: (HostEntry) -> Void
 

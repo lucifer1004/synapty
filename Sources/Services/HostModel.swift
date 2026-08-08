@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 // ===========================================================================
 // Host management data model — Termius-style organization.
@@ -153,10 +154,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
 
 // MARK: - Store
 
-@MainActor final class HostStore: ObservableObject {
-    @Published var hosts: [HostEntry] = []
-    @Published var groups: [HostGroup] = []
-    @Published var identities: [Identity] = []
+@MainActor @Observable final class HostStore {
+    var hosts: [HostEntry] = []
+    var groups: [HostGroup] = []
+    var identities: [Identity] = []
 
     /// Test seam: redirect storage to a temp directory so tests never
     /// read/write the real ~/.synapty/hosts.json (WI-2026-08-08-020).

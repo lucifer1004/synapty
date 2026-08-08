@@ -1,8 +1,9 @@
 import Foundation
+import Observation
 
 /// Manages a three-level hierarchy: Sessions (sidebar) → Panes (tabs) → Splits (tree).
 /// Each session is connected to a host. Each pane has a split tree of terminal surfaces.
-@MainActor final class TerminalPaneManager: ObservableObject, TerminalCoordinator {
+@MainActor @Observable final class TerminalPaneManager: TerminalCoordinator {
 
     // MARK: - TerminalCoordinator
 
@@ -116,8 +117,8 @@ import Foundation
         }
     }
 
-    @Published var sessions: [Session] = []
-    @Published var activeSessionID: UUID?
+    var sessions: [Session] = []
+    var activeSessionID: UUID?
     /// Tracks session count per label prefix for auto-incrementing names.
     private var labelCounter: [String: Int] = [:]
 

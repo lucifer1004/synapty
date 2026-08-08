@@ -13,14 +13,13 @@ enum AppPage: Hashable {
 }
 
 struct ContentView: View {
-    @EnvironmentObject var appDelegate: AppDelegate
-    @StateObject private var hostStore = HostStore()
-    @StateObject private var agentMonitor = AgentMonitor()
-    @StateObject private var paneManager = TerminalPaneManager()
-    @StateObject private var tunnelManager = TunnelManager()
-    @StateObject private var hubManager = HubManager()
-    @StateObject private var taskMonitor = TaskMonitor()
-    @StateObject private var settings = SynaptySettings()
+    @State private var hostStore = HostStore()
+    @State private var agentMonitor = AgentMonitor()
+    @State private var paneManager = TerminalPaneManager()
+    @State private var tunnelManager = TunnelManager()
+    @State private var hubManager = HubManager()
+    @State private var taskMonitor = TaskMonitor()
+    @State private var settings = SynaptySettings()
     @State private var page: AppPage = .terminal
     @State private var showShortcuts = false
     @State private var showFindBar = false
@@ -137,7 +136,7 @@ struct ContentView: View {
                 NotificationCenter.default.publisher(for: .synaptyFontReset)
             )
         ) { note in
-            guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+            guard let surface = GhosttyApp.shared?.activeSurface else { return }
             let action: String
             switch note.name {
             case .synaptyFontIncrease: action = "increase_font_size:1"
@@ -159,14 +158,14 @@ struct ContentView: View {
                 FindBarView(
                     text: $findText,
                     onTextChange: { needle in
-                        guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+                        guard let surface = GhosttyApp.shared?.activeSurface else { return }
                         let action = "search:\(needle)"
                         _ = action.withCString { ptr in
                             ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                         }
                     },
                     onClose: {
-                        guard let surface = appDelegate.ghosttyApp?.activeSurface else { return }
+                        guard let surface = GhosttyApp.shared?.activeSurface else { return }
                         _ = "end_search".withCString { ptr in
                             ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
                         }
@@ -177,7 +176,7 @@ struct ContentView: View {
                         // keystrokes land in the shell instead of being
                         // dropped (WI-2026-08-08-014).
                         Task { @MainActor in
-                            if let view = appDelegate.ghosttyApp?.activeView {
+                            if let view = GhosttyApp.shared?.activeView {
                                 view.window?.makeFirstResponder(view)
                             }
                         }
@@ -207,15 +206,6 @@ struct ContentView: View {
             tunnelManager.hubPort = settings.hubPort
             tunnelManager.tunnelPort = settings.tunnelPort
             TerminalCoordinatorRef.instance = paneManager
-            Task { @MainActor in
-                hubManager.ensureRunning()
-                agentMonitor.startMonitoring()
-                taskMonitor.start()
-                tunnelManager.startHeartbeat()
-                if paneManager.sessions.isEmpty {
-                    paneManager.addLocalSession()
-                }
-            }
         }
         // Port changes from Settings → Network apply on the next Hub start
         // (Hub page Restart) / next tunnel connection.
@@ -232,12 +222,22 @@ struct ContentView: View {
         .modifier(WindowLifecycle(
             page: $page,
             taskMonitor: taskMonitor,
-            ghosttyAppProvider: { appDelegate.ghosttyApp },
+            ghosttyAppProvider: { GhosttyApp.shared },
+            onStart: {
+                hubManager.ensureRunning()
+                agentMonitor.startMonitoring()
+                taskMonitor.start()
+                tunnelManager.startHeartbeat()
+                if paneManager.sessions.isEmpty {
+                    paneManager.addLocalSession()
+                }
+            },
             onStop: {
                 agentMonitor.stopMonitoring()
                 taskMonitor.stop()
                 tunnelManager.stopHeartbeat()
                 hubManager.shutdown()
+                settings.flushPersistence()
             }
         ))
     }
@@ -246,7 +246,7 @@ struct ContentView: View {
 
     private var terminalPage: some View {
         VStack(spacing: 0) {
-            if let ghosttyApp = appDelegate.ghosttyApp {
+            if let ghosttyApp = GhosttyApp.shared {
                 if let session = paneManager.activeSession, session.panes.count > 0 {
                     PaneTabBar(paneManager: paneManager, session: session)
                 }
@@ -350,9 +350,11 @@ struct ContentView: View {
 /// effects (surface pausing + activity-poll gating) — extracted from the
 /// main body to keep its expression type-checkable (WI-2026-08-08-043).
 private struct WindowLifecycle: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var page: AppPage
     let taskMonitor: TaskMonitor
     let ghosttyAppProvider: () -> GhosttyApp?
+    let onStart: () -> Void
     let onStop: () -> Void
 
     func body(content: Content) -> some View {
@@ -367,8 +369,17 @@ private struct WindowLifecycle: ViewModifier {
                 // Initial activity-poll state (WI-2026-08-08-041).
                 taskMonitor.setActivityPollingEnabled(page == .activity)
             }
-            .onDisappear {
-                onStop()
+            // Service start/stop is scenePhase-driven (WI-2026-08-08-050):
+            // onDisappear timing is unreliable (window close, tree removal).
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .active:
+                    onStart()
+                case .background, .inactive:
+                    onStop()
+                @unknown default:
+                    break
+                }
             }
             // Page switch: pause hidden terminal surfaces (WI-2026-08-07-006)
             // and the Activity-page poll (WI-2026-08-08-041).

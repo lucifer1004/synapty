@@ -10,8 +10,8 @@ enum HostsPane: Hashable {
 /// nested groups in a sidebar, searchable host list with tags, and full
 /// CRUD for hosts, groups and reusable identities.
 struct HostConfigSheet: View {
-    @ObservedObject var hostStore: HostStore
-    @ObservedObject var tunnelManager: TunnelManager
+    var hostStore: HostStore
+    var tunnelManager: TunnelManager
 
     /// Currently selected host-list filter.
     @State private var selectedFilter: HostFilter = .all
@@ -498,7 +498,7 @@ struct HostConfigSheet: View {
 
 struct IdentityRow: View {
     let identity: Identity
-    @ObservedObject var store: HostStore
+    var store: HostStore
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -568,7 +568,7 @@ struct GroupSubgroupRequest: Identifiable {
 
 struct GroupRow: View {
     let group: HostGroup
-    @ObservedObject var hostStore: HostStore
+    var hostStore: HostStore
     let indent: Int
     @Binding var editingGroupID: UUID?
     /// Request a new subgroup under this group.
@@ -646,7 +646,7 @@ struct GroupRow: View {
 // MARK: - New group sheet
 
 struct NewGroupSheet: View {
-    @ObservedObject var hostStore: HostStore
+    var hostStore: HostStore
     var parentID: UUID?
     @Binding var isPresented: Bool
 
@@ -697,7 +697,7 @@ struct NewGroupSheet: View {
 
 struct HostConfigRow: View {
     let host: HostEntry
-    @ObservedObject var store: HostStore
+    var store: HostStore
     let tunnelStatus: TunnelManager.TunnelStatus
     let onEdit: () -> Void
     let onDelete: () -> Void
@@ -849,7 +849,7 @@ struct HostConfigRow: View {
 /// Edit a group's inherited defaults (Termius-style): hosts and subgroups
 /// inherit these unless they override them explicitly.
 struct GroupEditSheet: View {
-    @ObservedObject var hostStore: HostStore
+    var hostStore: HostStore
     @Binding var isPresented: Bool
     var editingGroup: HostGroup
 

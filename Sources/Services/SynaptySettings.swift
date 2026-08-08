@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import AppKit
 
 // ===========================================================================
@@ -34,13 +35,13 @@ enum AppearanceMode: String, Codable, CaseIterable {
     }
 }
 
-@MainActor final class SynaptySettings: ObservableObject {
+@MainActor @Observable final class SynaptySettings {
 
     // MARK: - Appearance (app-level)
 
     /// Light / Dark / System for the whole app UI. Not a ghostty fragment
     /// key — applied to NSApp and forwarded to ghostty's color scheme.
-    @Published var appearanceMode: AppearanceMode = .system {
+    var appearanceMode: AppearanceMode = .system {
         didSet {
             guard !isLoading else { return }
             applyAppearance()
@@ -72,75 +73,75 @@ enum AppearanceMode: String, Codable, CaseIterable {
     // MARK: - Terminal (appearance)
 
     /// Ghostty theme for light appearance; nil = ghostty default.
-    @Published var lightThemeName: String? {
+    var lightThemeName: String? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Ghostty theme for dark appearance; nil = ghostty default.
-    @Published var darkThemeName: String? {
+    var darkThemeName: String? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Terminal font family (e.g. "JetBrains Mono"). nil = ghostty default.
-    @Published var fontFamily: String? {
+    var fontFamily: String? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Extra fallback font families appended after the primary — ghostty
     /// walks them for codepoints missing from the primary font (unicode
     /// symbols, Nerd Font icons, etc.).
-    @Published var fontFallbackFamilies: [String] {
+    var fontFallbackFamilies: [String] {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Terminal font size in points. nil = ghostty default.
-    @Published var fontSize: Double? {
+    var fontSize: Double? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Background opacity 0…1. nil = ghostty default.
-    @Published var backgroundOpacity: Double? {
+    var backgroundOpacity: Double? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Cursor style: block | bar | underline. nil = ghostty default.
-    @Published var cursorStyle: String? {
+    var cursorStyle: String? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Scrolling
 
     /// Scrollback line limit. nil = ghostty default (10000).
-    @Published var scrollbackLimit: Int? {
+    var scrollbackLimit: Int? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Clipboard
 
     /// Copy on mouse selection.
-    @Published var copyOnSelect: Bool? {
+    var copyOnSelect: Bool? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Allow applications to read the clipboard (OSC 52).
-    @Published var clipboardRead: Bool? {
+    var clipboardRead: Bool? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Allow applications to write the clipboard (OSC 52).
-    @Published var clipboardWrite: Bool? {
+    var clipboardWrite: Bool? {
         didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Network (Synapty)
 
     /// Hub TCP port. Applied on next hub start.
-    @Published var hubPort: Int {
+    var hubPort: Int {
         didSet { guard !isLoading else { return }; persistOnly() }
     }
 
     /// Reverse-tunnel port. Applied on next tunnel establishment.
-    @Published var tunnelPort: Int {
+    var tunnelPort: Int {
         didSet { guard !isLoading else { return }; persistOnly() }
     }
 
@@ -228,16 +229,53 @@ enum AppearanceMode: String, Codable, CaseIterable {
         if let appearanceMode = payload.appearanceMode { self.appearanceMode = appearanceMode }
     }
 
+    /// Debounced settings.json write (WI-2026-08-08-049): slider drags and
+    /// rapid tweaks coalesce into one disk write instead of one per tick on
+    /// the main thread.
+    private var persistenceDebounceTask: Task<Void, Never>?
+
     private func persistOnly() {
-        save()
+        guard !isLoading else { return }
+        persistenceDebounceTask?.cancel()
+        persistenceDebounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            save()
+        }
     }
 
+    /// Serial writer for ghostty.conf: rapid tweaks queue in order, so the
+    /// file always ends with the newest fragment and a flush can drain the
+    /// queue deterministically (WI-2026-08-08-049).
+    private let fragmentQueue = DispatchQueue(label: "dev.synapty.settings-fragment")
+
     private func persistAndWriteFragment() {
+        guard !isLoading else { return }
+        persistOnly()
+        // ghostty.conf is written OFF the main thread; the live-apply
+        // notification is posted after the write completes so the reload
+        // always reads the fresh fragment (WI-2026-08-08-049).
+        let fragment = buildFragment()
+        fragmentQueue.async {
+            try? fragment.write(to: Self.ghosttyConfURL, atomically: true, encoding: .utf8)
+            DispatchQueue.main.async {
+                // Live apply: GhosttyApp rebuilds the config and propagates
+                // it to all surfaces (WI-2026-08-06-001).
+                NotificationCenter.default.post(name: .synaptySettingsChanged, object: nil)
+            }
+        }
+    }
+
+    /// Flush all pending persistence: the debounced settings.json save plus
+    /// any in-flight ghostty.conf writes (called on teardown; also makes
+    /// persistence deterministic under test) (WI-2026-08-08-049).
+    func flushPersistence() {
+        persistenceDebounceTask?.cancel()
+        persistenceDebounceTask = nil
         save()
-        writeGhosttyFragment()
-        // Live apply: GhosttyApp rebuilds the config and propagates it to
-        // all surfaces (WI-2026-08-06-001).
-        NotificationCenter.default.post(name: .synaptySettingsChanged, object: nil)
+        // Drain the fragment queue: after this returns, every queued write
+        // has landed and the file holds the newest fragment (serial FIFO).
+        fragmentQueue.sync {}
     }
 
     private func save() {
@@ -295,7 +333,10 @@ enum AppearanceMode: String, Codable, CaseIterable {
     }
 
     /// Writes the full Synapty-managed ghostty config fragment.
-    func writeGhosttyFragment() {
+    /// Build the ghostty fragment text from the current settings — pure,
+    /// used both by the synchronous init write and the async live-apply
+    /// write (WI-2026-08-08-049).
+    private func buildFragment() -> String {
         var lines: [String] = []
         // Scroll behavior (WI-2026-03-31-005): never force scroll to bottom.
         lines.append(Self.scrollToBottomLine)
@@ -343,8 +384,19 @@ enum AppearanceMode: String, Codable, CaseIterable {
             lines.append("clipboard-write = \(clipboardWrite ? "allow" : "deny")")
         }
 
-        let fragment = lines.joined(separator: "\n") + "\n"
-        try? fragment.write(to: Self.ghosttyConfURL, atomically: true, encoding: .utf8)
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// Synchronous fragment write — used once at init to guarantee the file
+    /// exists before ghostty starts; live updates go through the async
+    /// persistAndWriteFragment path (WI-2026-08-08-049). The fragment is
+    /// built on the main actor; only the disk write runs on the serial
+    /// fragment queue so it cannot interleave with a pending async write.
+    func writeGhosttyFragment() {
+        let fragment = buildFragment()
+        fragmentQueue.sync {
+            try? fragment.write(to: Self.ghosttyConfURL, atomically: true, encoding: .utf8)
+        }
     }
 
     // MARK: - Helpers

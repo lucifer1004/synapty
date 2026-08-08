@@ -67,12 +67,12 @@ struct ChatMessage: Identifiable, Equatable {
 
 // MARK: - AgentMonitor
 
-@MainActor final class AgentMonitor: ObservableObject {
-    @Published var agents: [AgentInfo] = []
-    @Published var messages: [ChatMessage] = []
-    @Published var messageCount: Int = 0
+@MainActor @Observable final class AgentMonitor {
+    var agents: [AgentInfo] = []
+    var messages: [ChatMessage] = []
+    var messageCount: Int = 0
     /// Agent IDs that need human attention (e.g., bell rang).
-    @Published var needsAttention: Set<String> = []
+    var needsAttention: Set<String> = []
 
     private var timer: Timer?
 

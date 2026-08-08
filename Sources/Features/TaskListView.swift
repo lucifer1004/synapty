@@ -4,7 +4,7 @@ import SwiftUI
 /// filterable by state (RFC-0003 C-UI). Clicking a task opens it on
 /// GitHub; details/comments live on the platform by design.
 struct TaskListView: View {
-    @ObservedObject var taskMonitor: TaskMonitor
+    var taskMonitor: TaskMonitor
 
     @State private var stateFilter: TaskStatus? = nil
     @State private var isRefreshing = false

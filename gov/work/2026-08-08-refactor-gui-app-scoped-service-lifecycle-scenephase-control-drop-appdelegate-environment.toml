@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-050"
+title = "refactor(gui): app-scoped service lifecycle — scenePhase control, drop AppDelegate environment"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit items #2/#4: (2) AppDelegate is injected into the whole tree via @EnvironmentObject (ContentView.swift:16) — non-typical; GhosttyApp.shared is already a singleton so views can use it directly. (4) service start/stop rides on onAppear/onDisappear (two onAppear blocks) whose timing is unreliable; move to scenePhase-driven control (start on .active, stop on background/inactive) in one place, and keep the min-size + activity-poll onAppear as pure UI concerns."
+
+[[content.acceptance_criteria]]
+text = "fix: views reach GhosttyApp via GhosttyApp.shared — no @EnvironmentObject AppDelegate"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: service start/stop is scenePhase-driven (not onDisappear)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

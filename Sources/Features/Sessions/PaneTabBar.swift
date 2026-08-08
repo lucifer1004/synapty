@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PaneTabBar: View {
-    @ObservedObject var paneManager: TerminalPaneManager
+    var paneManager: TerminalPaneManager
     let session: TerminalPaneManager.Session
     @State private var editingPaneID: UUID?
 

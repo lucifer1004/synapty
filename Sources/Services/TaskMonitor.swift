@@ -77,11 +77,11 @@ enum BridgeStatus: Equatable {
 
 /// Polls the hub for the task list and the tool-request activity stream,
 /// driving the status-bar badges and the activity log view.
-@MainActor final class TaskMonitor: ObservableObject {
-    @Published var tasks: [TaskItem] = []
-    @Published var activities: [ActivityItem] = []
-    @Published var bridgeStatus: BridgeStatus = .unknown
-    @Published var lastError: String?
+@MainActor @Observable final class TaskMonitor {
+    var tasks: [TaskItem] = []
+    var activities: [ActivityItem] = []
+    var bridgeStatus: BridgeStatus = .unknown
+    var lastError: String?
 
     private var activityTimer: Timer?
     private var tasksTimer: Timer?
