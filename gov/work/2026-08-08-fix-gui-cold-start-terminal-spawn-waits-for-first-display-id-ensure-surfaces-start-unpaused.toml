@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-078"
+title = "fix(gui): cold-start terminal spawn waits for first display-id — ensure surfaces start unpaused"
+status = "active"
+created = "2026-08-08"
+started = "2026-08-08"
+
+[content]
+description = """
+Bug report: on cold start the local terminal takes ~10-24s to initialize; switching to any page and back makes it complete instantly. Root cause chain: the surface is created while no key window exists — displayIDForSurfaces falls back to NSScreen.main which can be nil without a key window, so display_id is written as 0 (paused). A paused renderer never computes the cell size, and ghostty's io thread blocks spawning the shell until the cell size exists. Any page switch later triggers applyDisplayIds with a valid display id, waking the renderer and completing the spawn instantly.
+
+Fix: displayIDForSurfaces falls back to NSScreen.screens.first (always present when a display is attached), and the surface refreshes its display id once after creation on the main queue (window/screen fully ready)."""
+
+[[content.acceptance_criteria]]
+text = "cold-start local session spawns within ~2s (no display-id=0 stall)"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "displayIDForSurfaces falls back to any attached screen, not just the key-window screen"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "surface refreshes display id right after creation (window ready)"
+status = "pending"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "pending"
+category = "chore"

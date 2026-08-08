@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-079"
+title = "fix(gui): cold-start terminal stuck on placeholder — observe GhosttyApp readiness"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Bug report: cold start shows the terminal placeholder for 10-25s; switching pages and back completes instantly. Root cause: on macOS 26 the window content renders BEFORE applicationDidFinishLaunching (window state restoration), so the first body evaluation reads GhosttyApp.shared == nil and shows "Initializing terminal…". GhosttyApp() then sets shared — but shared is a plain static var SwiftUI does not observe, so the placeholder never re-renders until some later body recomputation (a page switch, or a coincidental recompute 12-25s later).
+
+Fix: GhosttyApp posts .synaptyGhosttyReady after assigning shared; ContentView observes it and bumps a tick that forces a body recompute — the terminal renders as soon as Ghostty is ready (~1s)."""
+
+[[content.acceptance_criteria]]
+text = "cold start renders the terminal as soon as Ghostty is ready (~1-2s, no 10-25s placeholder)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "page switch no longer required to trigger initialization"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

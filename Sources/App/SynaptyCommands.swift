@@ -154,4 +154,7 @@ extension Notification.Name {
     static let synaptyShowPage = Notification.Name("synaptyShowPage")
     /// App UI font scale changed — repaint chrome (WI-2026-08-08-070).
     static let synaptyUiScaleChanged = Notification.Name("synaptyUiScaleChanged")
+    /// GhosttyApp.shared was just assigned — the terminal placeholder must
+    /// re-render (cold start, WI-2026-08-08-079).
+    static let synaptyGhosttyReady = Notification.Name("synaptyGhosttyReady")
 }

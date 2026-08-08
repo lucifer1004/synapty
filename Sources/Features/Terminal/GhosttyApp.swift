@@ -105,6 +105,12 @@ import AppKit
 
     init() {
         GhosttyApp.shared = self
+        // The window content may render before applicationDidFinishLaunching
+        // (window restoration, macOS 26); shared is a plain static var that
+        // SwiftUI does not observe, so the "Initializing terminal…"
+        // placeholder would stick until an unrelated body recompute
+        // (WI-2026-08-08-079).
+        NotificationCenter.default.post(name: .synaptyGhosttyReady, object: nil)
         // macOS crashes inside ghostty_init's setlocale when LANG is a
         // locale with missing data (observed: en_CN.UTF-8 → loadlocale
         // NULL-deref in open()). Pin a safe locale for the process before
@@ -383,9 +389,22 @@ import AppKit
 
     /// Current display id for vsync rendering: the ACTIVE window's screen
     /// when known — a blanket NSScreen.main would vsync-lock surfaces on
-    /// secondary displays to the wrong screen (WI-2026-08-08-013).
+    /// secondary displays to the wrong screen (WI-2026-08-08-013). Without a
+    /// key window NSScreen.main can be nil, so fall back to any attached
+    /// screen — display_id 0 would leave surfaces paused and stall the
+    /// cold-start shell spawn (WI-2026-08-08-078).
     private var displayIDForSurfaces: UInt32 {
-        UInt32(activeView?.window?.screen?.displayID ?? NSScreen.main?.displayID ?? 0)
+        UInt32(activeView?.window?.screen?.displayID
+            ?? NSScreen.main?.displayID
+            ?? NSScreen.screens.first?.displayID
+            ?? 0)
+    }
+
+    /// Re-apply display ids (public wrapper for the surface creation path,
+    /// WI-2026-08-08-078): a surface created before the window/screen was
+    /// fully ready must re-resolve its display id once the run loop settles.
+    func refreshSurfaceDisplayIds() {
+        applyDisplayIds()
     }
 
     /// Unregister a destroyed surface (called by GhosttyNSView on destroy).

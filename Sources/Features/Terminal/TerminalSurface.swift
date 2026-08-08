@@ -94,6 +94,13 @@ class GhosttyNSView: NSView, NSTextInputClient {
             createSurface(app: app)
 
             if let surface {
+                // Refresh the display id once the window/screen is fully
+                // ready — a cold-start surface must not stay paused with
+                // display_id 0, which stalls the shell spawn until some
+                // later event re-applies ids (WI-2026-08-08-078).
+                DispatchQueue.main.async { [weak self] in
+                    self?.ghosttyApp?.refreshSurfaceDisplayIds()
+                }
                 // NO display-id write here: registerSurface -> applyDisplayIds
                 // is the single source of truth for vsync pausing. Writing
                 // the screen id here would un-pause a surface created while

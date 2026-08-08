@@ -41,6 +41,10 @@ struct ContentView: View {
     /// Bumped on .synaptyUiScaleChanged so every page recomputes with the
     /// new DS.uiFontScale (WI-2026-08-08-070).
     @State private var uiScaleTick = 0
+    /// Observed copy of GhosttyApp.shared — shared is a plain static var
+    /// SwiftUI cannot track, so the readiness notification materializes it
+    /// into @State (WI-2026-08-08-079).
+    @State private var ghosttyAppState: GhosttyApp?
 
     var body: some View {
         // Reading the tick makes this body depend on UI-scale changes; the
@@ -161,95 +165,17 @@ struct ContentView: View {
             // Navigation moved into the sidebar (layered groups); the
             // toolbar stays empty to avoid duplicated page switching.
         }
-        .sheet(isPresented: $showShortcuts) {
-            KeyboardShortcutsView(isPresented: $showShortcuts)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
-            page = .terminal
-            paneManager.addLocalSession()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyTunnelFailed)) { note in
-            guard let hostID = note.userInfo?["hostID"] as? UUID,
-                  let message = note.userInfo?["message"] as? String else { return }
-            paneManager.markSessionFailed(hostID: hostID, message: message)
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .synaptyFontIncrease).merge(
-                with: NotificationCenter.default.publisher(for: .synaptyFontDecrease),
-                NotificationCenter.default.publisher(for: .synaptyFontReset)
-            )
-        ) { note in
-            guard let surface = GhosttyApp.shared?.activeSurface else { return }
-            let action: String
-            switch note.name {
-            case .synaptyFontIncrease: action = "increase_font_size:1"
-            case .synaptyFontDecrease: action = "decrease_font_size:1"
-            default: action = "reset_font_size"
-            }
-            _ = action.withCString { ptr in
-                ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyFind)) { _ in
-            // Cmd+F (or the View ▸ Find menu): show the find bar overlay.
-            // Ghostty's core search is driven via the "search:<needle>"
-            // binding action from the bar (WI-2026-03-31-006).
-            showFindBar = true
-        }
-        .overlay(alignment: .top) {
-            if showFindBar && page == .terminal {
-                FindBarView(
-                    text: $findText,
-                    onTextChange: { needle in
-                        guard let surface = GhosttyApp.shared?.activeSurface else { return }
-                        let action = "search:\(needle)"
-                        _ = action.withCString { ptr in
-                            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
-                        }
-                    },
-                    onClose: {
-                        guard let surface = GhosttyApp.shared?.activeSurface else { return }
-                        _ = "end_search".withCString { ptr in
-                            ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
-                        }
-                        showFindBar = false
-                        findText = ""
-                        // The find TextField was first responder — give
-                        // keyboard focus back to the terminal so the next
-                        // keystrokes land in the shell instead of being
-                        // dropped (WI-2026-08-08-014).
-                        Task { @MainActor in
-                            if let view = GhosttyApp.shared?.activeView {
-                                view.window?.makeFirstResponder(view)
-                            }
-                        }
-                    }
-                )
-                .padding(.top, 8)
-            }
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(for: .synaptyShowShortcuts)
-                .merge(with: NotificationCenter.default.publisher(for: .synaptyShowHubPage))
-        ) { note in
-            switch note.name {
-            case .synaptyShowShortcuts: showShortcuts = true
-            case .synaptyShowHubPage: page = .hub
-            default: break
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
-            showSettingsPanel.toggle()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyUiScaleChanged)) { _ in
-            uiScaleTick += 1
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .synaptyShowPage)) { note in
-            // Go-to menu / clickable status-bar badges (WI-2026-08-08-053).
-            guard let raw = note.userInfo?["page"] as? String,
-                  let target = AppPage(rawValue: raw) else { return }
-            page = target
-        }
+        .modifier(NotificationHandlers(
+            page: $page,
+            showShortcuts: $showShortcuts,
+            showFindBar: $showFindBar,
+            findText: $findText,
+            showSettingsPanel: $showSettingsPanel,
+            uiScaleTick: $uiScaleTick,
+            ghosttyAppState: $ghosttyAppState,
+            paneManager: paneManager,
+            taskMonitor: taskMonitor
+        ))
         .onAppear {
             TunnelManager.shared = tunnelManager
             tunnelManager.hostStore = hostStore
@@ -298,7 +224,7 @@ struct ContentView: View {
 
     private var terminalPage: some View {
         VStack(spacing: 0) {
-            if let ghosttyApp = GhosttyApp.shared {
+            if let ghosttyApp = ghosttyAppState {
                 if let session = paneManager.activeSession {
                     // Always visible for the active session — even while a
                     // connecting placeholder has no panes yet, so the
@@ -435,6 +361,85 @@ private struct WindowLifecycle: ViewModifier {
             .onChange(of: page) { _, newPage in
                 ghosttyAppProvider()?.setSurfacesPaused(newPage != .terminal)
                 taskMonitor.setActivityPollingEnabled(newPage == .activity)
+            }
+    }
+}
+
+
+// MARK: - Notification handlers (extracted for type-checker headroom)
+
+/// All NotificationCenter observers in one modifier — keeps the main body
+/// expression small enough for the type-checker (WI-2026-08-08-043,
+/// WI-2026-08-08-079).
+private struct NotificationHandlers: ViewModifier {
+    @Binding var page: AppPage
+    @Binding var showShortcuts: Bool
+    @Binding var showFindBar: Bool
+    @Binding var findText: String
+    @Binding var showSettingsPanel: Bool
+    @Binding var uiScaleTick: Int
+    @Binding var ghosttyAppState: GhosttyApp?
+    let paneManager: TerminalPaneManager
+    let taskMonitor: TaskMonitor
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .synaptyNewSession)) { _ in
+                page = .terminal
+                paneManager.addLocalSession()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .synaptyTunnelFailed)) { note in
+                guard let hostID = note.userInfo?["hostID"] as? UUID,
+                      let message = note.userInfo?["message"] as? String else { return }
+                paneManager.markSessionFailed(hostID: hostID, message: message)
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .synaptyFontIncrease).merge(
+                    with: NotificationCenter.default.publisher(for: .synaptyFontDecrease),
+                    NotificationCenter.default.publisher(for: .synaptyFontReset)
+                )
+            ) { note in
+                guard let surface = GhosttyApp.shared?.activeSurface else { return }
+                let action: String
+                switch note.name {
+                case .synaptyFontIncrease: action = "increase_font_size:1"
+                case .synaptyFontDecrease: action = "decrease_font_size:1"
+                default: action = "reset_font_size"
+                }
+                _ = action.withCString { ptr in
+                    ghostty_surface_binding_action(surface, ptr, UInt(strlen(ptr)))
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .synaptyFind)) { _ in
+                showFindBar = true
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .synaptyShowShortcuts)
+                    .merge(with: NotificationCenter.default.publisher(for: .synaptyShowHubPage))
+            ) { note in
+                switch note.name {
+                case .synaptyShowShortcuts: showShortcuts = true
+                case .synaptyShowHubPage: page = .hub
+                default: break
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .synaptyToggleSettingsPanel)) { _ in
+                showSettingsPanel.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .synaptyShowPage)) { note in
+                // Go-to menu / clickable status-bar badges (WI-2026-08-08-053).
+                guard let raw = note.userInfo?["page"] as? String,
+                      let target = AppPage(rawValue: raw) else { return }
+                page = target
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .synaptyUiScaleChanged)
+                    .merge(with: NotificationCenter.default.publisher(for: .synaptyGhosttyReady))
+            ) { note in
+                switch note.name {
+                case .synaptyUiScaleChanged: uiScaleTick += 1
+                default: ghosttyAppState = GhosttyApp.shared
+                }
             }
     }
 }
