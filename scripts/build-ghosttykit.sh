@@ -55,6 +55,16 @@ if [ -n "${SYNAPTY_METAL_DIR:-}" ]; then
     echo "Using Metal toolchain: $SYNAPTY_METAL_DIR"
     export SYNAPTY_METAL_DIR
     export SYNAPTY_METAL_CACHE="${SYNAPTY_METAL_CACHE:-$REPO_ROOT/.zig-cache-ghostty/metal-cache}"
+    # The submodule tracks UPSTREAM ghostty (WI-2026-08-08-087); the
+    # SYNAPTY_METAL_DIR workaround lives in scripts/patches and is applied
+    # here so the submodule stays pristine.
+    PATCH="$REPO_ROOT/scripts/patches/ghostty-metallib-metal-dir.patch"
+    if ! git apply --reverse --check "$PATCH" >/dev/null 2>&1; then
+        echo "Applying local patch: $PATCH"
+        git apply "$PATCH"
+    else
+        echo "Local patch already applied."
+    fi
 fi
 
 zig build \
