@@ -1,0 +1,13 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-088"
+title = "chore(release): package + Homebrew Cask — fixed package script, cask formula, README"
+status = "active"
+created = "2026-08-08"
+started = "2026-08-08"
+
+[content]
+description = """
+Describe the work to be done.
+What is the goal? What are the acceptance criteria?"""
