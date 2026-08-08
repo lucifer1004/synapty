@@ -5,13 +5,13 @@ import Observation
 // Host management data model — Termius-style organization (flat, single
 // level; nesting was a false need — WI-2026-08-08-065).
 //
-// - HostGroup: single-level groups; a group can carry default credentials
-//   (via an Identity) and connection settings inherited by its hosts.
-// - Identity: reusable credentials (username + SSH key path). A host, group,
-//   or the app default can reference an identity.
+// - HostGroup: single-level groups carrying connection defaults (username,
+//   port, jump host, forwardings) that hosts fall back to.
+// - Identity: reusable credentials (username + SSH key path), referenced by
+//   HOSTS only (WI-2026-08-08-067).
 // - HostEntry: a connectable host with optional group membership, tags and
 //   an identity reference. Direct fields (username, sshKeyPath) override
-//   inherited values.
+//   the identity; group defaults are the last fallback.
 // ===========================================================================
 
 // MARK: - Identity (reusable credentials)
@@ -49,23 +49,22 @@ struct PortForward: Identifiable, Codable, Equatable {
     }
 }
 
-// MARK: - HostGroup (single level, with inherited settings)
+// MARK: - HostGroup (single level, with defaults)
 
-/// Single-level group (WI-2026-08-08-065): hosts in the group inherit its
-/// defaults. Legacy `parentID` keys from nested-era JSON are ignored by the
-/// synthesized Decodable (unknown keys), so old hosts.json still loads.
+/// Single-level group (WI-2026-08-08-065): hosts in the group fall back to
+/// its defaults. Legacy `parentID` / `identityID` keys from earlier JSON
+/// versions are ignored by the synthesized Decodable (unknown keys), so old
+/// hosts.json still loads.
 struct HostGroup: Identifiable, Codable, Equatable {
     var id = UUID()
     var label: String
-    /// Optional identity applied to hosts in this group (inherited).
-    var identityID: UUID?
-    /// Optional default port inherited by hosts in this group.
+    /// Optional default port used by hosts in this group.
     var port: Int?
-    /// Optional default username inherited by hosts in this group.
+    /// Optional default username used by hosts in this group.
     var username: String?
-    /// Optional jump host inherited by hosts in this group (ProxyJump).
+    /// Optional jump host used by hosts in this group (ProxyJump).
     var proxyJump: String?
-    /// Optional port-forwarding rules inherited by hosts in this group.
+    /// Optional port-forwarding rules used by hosts in this group.
     var forwardings: [PortForward]?
 }
 
@@ -93,7 +92,8 @@ struct HostEntry: Identifiable, Codable, Equatable {
     var groupID: UUID?
     /// Free-form tags (e.g. "prod", "gpu", "ubuntu").
     var tags: [String] = []
-    /// Reusable credentials reference; overrides group inheritance.
+    /// Reusable credentials reference (host-level, WI-2026-08-08-067);
+    /// overrides the host's inline fields.
     var identityID: UUID?
     /// Jump host for ProxyJump, e.g. "user@bastion:22" (host-level override).
     var proxyJump: String?
@@ -338,8 +338,8 @@ struct HostEntry: Identifiable, Codable, Equatable {
 
     // MARK: - Resolution
 
-    /// Resolved effective username for a host: host field → identity →
-    /// group → default (flat, no parent chain — WI-2026-08-08-065).
+    /// Resolved effective username: host field → host's identity → group
+    /// default → built-in default (WI-2026-08-08-067).
     func effectiveUsername(for host: HostEntry) -> String {
         if !host.username.isEmpty { return host.username }
         if let identityID = host.identityID,
@@ -354,7 +354,7 @@ struct HostEntry: Identifiable, Codable, Equatable {
         return NSUserName()
     }
 
-    /// Resolved SSH key path for a host, or nil.
+    /// Resolved SSH key path: host field → host's identity → nil.
     func effectiveKeyPath(for host: HostEntry) -> String? {
         if let key = host.sshKeyPath, !key.isEmpty { return key }
         if let identityID = host.identityID,
@@ -362,17 +362,10 @@ struct HostEntry: Identifiable, Codable, Equatable {
            let key = identity.sshKeyPath, !key.isEmpty {
             return key
         }
-        if let groupID = host.groupID,
-           let group = groups.first(where: { $0.id == groupID }),
-           let identityID = group.identityID,
-           let identity = identities.first(where: { $0.id == identityID }),
-           let key = identity.sshKeyPath, !key.isEmpty {
-            return key
-        }
         return nil
     }
 
-    /// Resolved effective port for a host.
+    /// Resolved effective port: host field → group default → 22.
     func effectivePort(for host: HostEntry) -> Int {
         if host.port != 22 { return host.port }
         if let groupID = host.groupID,
@@ -383,7 +376,7 @@ struct HostEntry: Identifiable, Codable, Equatable {
         return 22
     }
 
-    /// Resolved jump host (ProxyJump) for a host: host-level → group.
+    /// Resolved jump host (ProxyJump): host-level → group default.
     func effectiveProxyJump(for host: HostEntry) -> String? {
         if let jump = host.proxyJump, !jump.isEmpty { return jump }
         guard let groupID = host.groupID,

@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-067"
+title = "refactor(gui): purge parent-group and group-identity inheritance residue"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Follow-up to the flat-groups round: "parent group" wording and group-level identity inheritance still linger. In the single-level model a group has NO parent and should NOT reference an identity — identity is host-level (shared credentials via host.identityID); groups provide only username/port/jump/forwarding defaults.
+
+Fix: remove HostGroup.identityID (legacy JSON ignores the key); resolution becomes host field → host's own identity → group defaults (username/port/jump/forwardings) → built-in default; GroupEditSheet loses the identity picker and every "Inherit from parent" option; the forwarding toggle becomes "Set forwarding rules" (on = group defines rules, off = none); IdentityRow reference count counts hosts only; comments/wording purged of parent/inherit-from-parent concepts."""
+
+[[content.acceptance_criteria]]
+text = "HostGroup.identityID removed; resolution is host field → host identity → group defaults → default"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "GroupEditSheet has no identity picker and no Inherit-from-parent option anywhere"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "forwarding toggle is Set/None (no parent inherit); IdentityRow counts hosts only"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

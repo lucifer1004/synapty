@@ -637,8 +637,7 @@ struct IdentityRow: View {
     let onDelete: () -> Void
 
     private var usedByCount: Int {
-        store.hosts.filter { $0.identityID == identity.id }.count +
-        store.groups.filter { $0.identityID == identity.id }.count
+        store.hosts.filter { $0.identityID == identity.id }.count
     }
 
     var body: some View {
@@ -736,24 +735,23 @@ struct NewGroupSheet: View {
     }
 }
 
-// MARK: - Group edit sheet (inherited settings)
+// MARK: - Group edit sheet (defaults)
 
-/// Edit a group's inherited defaults (Termius-style): hosts inherit these
-/// unless they override them explicitly. Single-level groups — no parent
-/// (WI-2026-08-08-065).
+/// Edit a group's defaults (WI-2026-08-08-067): hosts in the group fall
+/// back to these when they don't set their own values. Single-level groups:
+/// no parent, no identity.
 struct GroupEditSheet: View {
     var hostStore: HostStore
     @Binding var isPresented: Bool
     var editingGroup: HostGroup
 
     @State private var label = ""
-    @State private var identityID: UUID?
     @State private var portText = ""
     @State private var username = ""
     @State private var proxyJump = ""
-    /// Inherited forwardings (WI-2026-08-08-060): nil = inherit from parent;
-    /// when override is on, `forwardings` replaces the chain.
-    @State private var inheritForwardings = true
+    /// Forwarding rules (WI-2026-08-08-067): on = the group defines rules,
+    /// off = no rules from this group.
+    @State private var setForwardings = false
     @State private var forwardings: [PortForward] = []
 
     private var canSave: Bool {
@@ -775,39 +773,31 @@ struct GroupEditSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: DS.Space.md) {
-                        DSSectionLabel(text: "Inherited Defaults")
-                        Text("Hosts inherit these unless they set their own values.")
+                        DSSectionLabel(text: "Defaults")
+                        Text("Hosts in this group use these when they don't set their own values.")
                             .font(DS.Typography.caption)
                             .foregroundStyle(DS.textTertiary)
 
-                        Picker("Identity", selection: $identityID) {
-                            Text("Inherit from parent").tag(Optional<UUID>.none)
-                            ForEach(hostStore.identities) { identity in
-                                Text(identity.label).tag(Optional(identity.id))
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        TextField("Username (inherited)", text: $username)
+                        TextField("Username (default)", text: $username)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
 
-                        TextField("Port (inherited)", text: $portText)
+                        TextField("Port (default)", text: $portText)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
 
-                        TextField("Jump host (inherited, user@host:port)", text: $proxyJump)
+                        TextField("Jump host (default, user@host:port)", text: $proxyJump)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Typography.body)
                     }
 
-                    // Inherited port forwardings (WI-2026-08-08-060)
+                    // Port forwardings (WI-2026-08-08-060/067)
                     VStack(alignment: .leading, spacing: DS.Space.md) {
                         DSSectionLabel(text: "Port Forwarding")
-                        Toggle("Inherit rules from parent group", isOn: $inheritForwardings)
+                        Toggle("Set forwarding rules for this group", isOn: $setForwardings)
                             .toggleStyle(.switch)
                             .font(DS.Typography.detail)
-                        if !inheritForwardings {
+                        if setForwardings {
                             ForwardingsEditor(forwardings: $forwardings)
                         }
                     }
@@ -835,10 +825,9 @@ struct GroupEditSheet: View {
         .background(DS.background)
         .onAppear {
             label = editingGroup.label
-            identityID = editingGroup.identityID
             username = editingGroup.username ?? ""
             proxyJump = editingGroup.proxyJump ?? ""
-            inheritForwardings = editingGroup.forwardings == nil
+            setForwardings = editingGroup.forwardings != nil
             forwardings = editingGroup.forwardings ?? []
             if let port = editingGroup.port {
                 portText = "\(port)"
@@ -849,11 +838,10 @@ struct GroupEditSheet: View {
     private func save() {
         var updated = editingGroup
         updated.label = label.trimmingCharacters(in: .whitespaces)
-        updated.identityID = identityID
         updated.username = username.trimmingCharacters(in: .whitespaces).isEmpty ? nil : username.trimmingCharacters(in: .whitespaces)
         updated.port = Int(portText)
         updated.proxyJump = proxyJump.trimmingCharacters(in: .whitespaces).isEmpty ? nil : proxyJump.trimmingCharacters(in: .whitespaces)
-        updated.forwardings = inheritForwardings ? nil : forwardings
+        updated.forwardings = setForwardings ? forwardings : nil
         hostStore.updateGroup(updated)
         isPresented = false
     }
