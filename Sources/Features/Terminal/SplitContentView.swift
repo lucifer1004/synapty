@@ -66,6 +66,19 @@ struct AllPanesSplitView: View {
             }
             .coordinateSpace(name: "splitArea")
         }
+        // Pause vsync rendering for hidden sessions/panes inside the
+        // terminal page (WI-2026-08-08-013): only the visible leaf set
+        // keeps rendering. Runs on appear and whenever the visible leaf
+        // changes (session/pane/split focus switches).
+        .onAppear { syncSurfaceVisibility() }
+        .onChange(of: paneManager.visibleLeafID) { _, _ in
+            syncSurfaceVisibility()
+        }
+    }
+
+    private func syncSurfaceVisibility() {
+        let activeLeafIDs = Set(paneManager.activePane?.splitRoot.leafIDs ?? [])
+        ghosttyApp.setVisibleLeaves(activeLeafIDs)
     }
 }
 

@@ -600,6 +600,19 @@ class GhosttyNSView: NSView, NSTextInputClient {
     // MARK: - Cleanup
 
     func destroySurface() {
+        if Thread.isMainThread {
+            destroySurfaceOnMain()
+        } else {
+            // ghostty surface APIs are main-thread-only and the surface
+            // registry is @MainActor; SwiftUI teardown can release the
+            // last reference on a background thread (WI-2026-08-08-015).
+            DispatchQueue.main.sync {
+                self.destroySurfaceOnMain()
+            }
+        }
+    }
+
+    private func destroySurfaceOnMain() {
         if let surface {
             // Clear activeSurface if it points to this surface (prevents stale clipboard callbacks)
             if let app = ghosttyApp {
@@ -609,9 +622,14 @@ class GhosttyNSView: NSView, NSTextInputClient {
                 if app.activeView === self {
                     app.activeView = nil
                 }
+                // During app teardown the app free already destroyed every
+                // surface — freeing the dangling pointer would be a UAF
+                // (WI-2026-08-08-015).
+                if !app.isShuttingDown {
+                    app.unregisterSurface(surface)
+                    ghostty_surface_free(surface)
+                }
             }
-            ghosttyApp?.unregisterSurface(surface)
-            ghostty_surface_free(surface)
             self.surface = nil
         }
         if let ptr = surfaceUserdata {

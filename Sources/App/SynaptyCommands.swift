@@ -7,9 +7,10 @@ struct SynaptyCommands: Commands {
         // Replace default "New Window" with Shell menu items
         CommandGroup(replacing: .newItem) {
             Button("New Session") {
-                TerminalCoordinatorRef.instance?.requestNewTab()
-                // TODO: This should create a new session, not a tab.
-                // For now, reuse addLocalSession via notification.
+                // A brand-new local session (ContentView.addLocalSession via
+                // notification). Deliberately NOT requestNewTab(): that would
+                // ALSO add a pane to the current session — a double action
+                // (WI-2026-08-08-012).
                 NotificationCenter.default.post(name: .synaptyNewSession, object: nil)
             }
             .keyboardShortcut("n", modifiers: .command)

@@ -1,0 +1,21 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-014"
+title = "fix(gui): find bar restores terminal keyboard focus on close"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P1/MED-6: opening the find bar moves first responder to its TextField (terminal resigns, ghostty_surface_set_focus(false)); closing it (Esc via onExitCommand or the ✕ button) only sends end_search and hides the bar — the terminal never regains first responder, so the next keystrokes go nowhere until the user clicks a surface."
+
+[[content.journal]]
+date = "2026-08-08"
+content = "Closing the find bar (Esc or ✕) now restores first responder to the active terminal surface via GhosttyApp.activeView — keystrokes land in the shell immediately instead of being dropped until a click."
+
+[[content.acceptance_criteria]]
+text = "closing the find bar (Esc or ✕) restores first responder to the active terminal surface"
+status = "done"
+category = "fixed"

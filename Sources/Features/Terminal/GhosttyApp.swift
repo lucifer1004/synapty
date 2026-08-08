@@ -33,6 +33,10 @@ import AppKit
     private var systemAppearanceKVO: NSKeyValueObservation?
     /// Last scheme pushed to ghostty (avoid redundant updates).
     private var appliedScheme: ghostty_color_scheme_e?
+    /// Set once app teardown begins (applicationWillTerminate): the app
+    /// free destroys every surface, so late GhosttyNSView deinit must skip
+    /// ghostty_surface_free on the freed pointers (WI-2026-08-08-015).
+    private(set) var isShuttingDown = false
 
     /// Deduplicates wakeup → tick: multiple wakeups before the main queue drains
     /// result in a single tick() call, so all pending PTY output is processed at
@@ -319,6 +323,9 @@ import AppKit
         if let leafID {
             surfaceByLeafID[leafID] = surface
         }
+        // A surface created while paused/hidden must start paused — it
+        // would otherwise keep rendering at 60fps (WI-2026-08-08-013).
+        applyDisplayIds()
     }
 
     /// Resolve the surface a clipboard callback's userdata refers to.
@@ -336,19 +343,46 @@ import AppKit
         return GhosttyApp.shared?.activeSurface
     }
 
+    /// Page-level pause: the terminal page is not visible (WI-2026-08-07-006).
+    private var surfacesPaused = false
+    /// Pane-level visibility: leaves NOT in this set are hidden inside the
+    /// terminal page (inactive sessions/panes) and must not keep rendering.
+    /// nil = no pane-level constraint (WI-2026-08-08-013).
+    private var visibleLeaves: Set<UUID>?
+
     /// Pause vsync-driven rendering for all surfaces (WI-2026-08-07-006):
     /// hidden terminal surfaces must not keep rendering at 60fps — that
     /// saturates the GPU/window compositor and makes the whole UI feel
     /// sluggish. Display id 0 = render on wakeup only; surfaces stay alive.
     func setSurfacesPaused(_ paused: Bool) {
-        for surface in liveSurfaces {
+        surfacesPaused = paused
+        applyDisplayIds()
+    }
+
+    /// Restrict vsync rendering to the visible leaves of the active pane
+    /// (WI-2026-08-08-013): hidden sessions/panes inside the terminal page
+    /// stay paused. Pass the active pane's leaf set.
+    func setVisibleLeaves(_ visible: Set<UUID>) {
+        visibleLeaves = visible
+        applyDisplayIds()
+    }
+
+    /// Re-apply display ids from the current page/pane visibility state.
+    private func applyDisplayIds() {
+        let hiddenLeaves = visibleLeaves.map { visible in
+            surfaceByLeafID.keys.filter { !visible.contains($0) }
+        } ?? []
+        for (leafID, surface) in surfaceByLeafID {
+            let paused = surfacesPaused || hiddenLeaves.contains(leafID)
             ghostty_surface_set_display_id(surface, paused ? 0 : displayIDForSurfaces)
         }
     }
 
-    /// Current display id for vsync rendering (re-queried per resume).
+    /// Current display id for vsync rendering: the ACTIVE window's screen
+    /// when known — a blanket NSScreen.main would vsync-lock surfaces on
+    /// secondary displays to the wrong screen (WI-2026-08-08-013).
     private var displayIDForSurfaces: UInt32 {
-        UInt32(NSScreen.main?.displayID ?? 0)
+        UInt32(activeView?.window?.screen?.displayID ?? NSScreen.main?.displayID ?? 0)
     }
 
     /// Unregister a destroyed surface (called by GhosttyNSView on destroy).
@@ -376,6 +410,7 @@ import AppKit
     }
 
     func shutdown() {
+        isShuttingDown = true
         if let settingsObserver {
             NotificationCenter.default.removeObserver(settingsObserver)
             self.settingsObserver = nil

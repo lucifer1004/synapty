@@ -172,6 +172,15 @@ struct ContentView: View {
                         }
                         showFindBar = false
                         findText = ""
+                        // The find TextField was first responder — give
+                        // keyboard focus back to the terminal so the next
+                        // keystrokes land in the shell instead of being
+                        // dropped (WI-2026-08-08-014).
+                        Task { @MainActor in
+                            if let view = appDelegate.ghosttyApp?.activeView {
+                                view.window?.makeFirstResponder(view)
+                            }
+                        }
                     }
                 )
                 .padding(.top, 8)

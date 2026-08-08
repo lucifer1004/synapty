@@ -42,6 +42,7 @@ enum AppearanceMode: String, Codable, CaseIterable {
     /// key — applied to NSApp and forwarded to ghostty's color scheme.
     @Published var appearanceMode: AppearanceMode = .system {
         didSet {
+            guard !isLoading else { return }
             applyAppearance()
             persistOnly()
         }
@@ -72,75 +73,75 @@ enum AppearanceMode: String, Codable, CaseIterable {
 
     /// Ghostty theme for light appearance; nil = ghostty default.
     @Published var lightThemeName: String? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Ghostty theme for dark appearance; nil = ghostty default.
     @Published var darkThemeName: String? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Terminal font family (e.g. "JetBrains Mono"). nil = ghostty default.
     @Published var fontFamily: String? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Extra fallback font families appended after the primary — ghostty
     /// walks them for codepoints missing from the primary font (unicode
     /// symbols, Nerd Font icons, etc.).
     @Published var fontFallbackFamilies: [String] {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Terminal font size in points. nil = ghostty default.
     @Published var fontSize: Double? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Background opacity 0…1. nil = ghostty default.
     @Published var backgroundOpacity: Double? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Cursor style: block | bar | underline. nil = ghostty default.
     @Published var cursorStyle: String? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Scrolling
 
     /// Scrollback line limit. nil = ghostty default (10000).
     @Published var scrollbackLimit: Int? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Clipboard
 
     /// Copy on mouse selection.
     @Published var copyOnSelect: Bool? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Allow applications to read the clipboard (OSC 52).
     @Published var clipboardRead: Bool? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     /// Allow applications to write the clipboard (OSC 52).
     @Published var clipboardWrite: Bool? {
-        didSet { persistAndWriteFragment() }
+        didSet { guard !isLoading else { return }; persistAndWriteFragment() }
     }
 
     // MARK: - Network (Synapty)
 
     /// Hub TCP port. Applied on next hub start.
     @Published var hubPort: Int {
-        didSet { persistOnly() }
+        didSet { guard !isLoading else { return }; persistOnly() }
     }
 
     /// Reverse-tunnel port. Applied on next tunnel establishment.
     @Published var tunnelPort: Int {
-        didSet { persistOnly() }
+        didSet { guard !isLoading else { return }; persistOnly() }
     }
 
     // MARK: - Persistence
@@ -173,12 +174,24 @@ enum AppearanceMode: String, Codable, CaseIterable {
     private static var settingsURL: URL { settingsDir.appendingPathComponent("settings.json") }
     private static var ghosttyConfURL: URL { settingsDir.appendingPathComponent("ghostty.conf") }
 
+    /// True while init/load() assigns stored properties. Every didSet
+    /// side effect (persist, fragment write, notification, appearance
+    /// apply) is suppressed during load — otherwise a single launch fires
+    /// ~14 saves and ~11 fragment rewrites plus an NSApp appearance
+    /// mutation mid-init (WI-2026-08-08-011).
+    private var isLoading = false
+
     init() {
         // Defaults before load (ports are Synapty's hardcoded defaults).
+        isLoading = true
         hubPort = 9000
         tunnelPort = 9000
         fontFallbackFamilies = []
         load()
+        isLoading = false
+        // Apply the persisted appearance exactly once — the didSet was
+        // suppressed during load (WI-2026-08-08-011).
+        applyAppearance()
         // Ensure the fragment exists (first run or after changes).
         writeGhosttyFragment()
     }

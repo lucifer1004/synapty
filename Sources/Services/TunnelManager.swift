@@ -123,9 +123,10 @@ private extension Logger {
     // MARK: - Check tunnel health
 
     func checkTunnel(for host: HostEntry) -> Bool {
-        Self.sshControlCheck(
+        Self.sshControl(
             socket: socketPath(for: host),
-            userAtHost: "\(effectiveUsername(for: host))@\(host.address)"
+            userAtHost: "\(effectiveUsername(for: host))@\(host.address)",
+            ctl: "check"
         )
     }
 
@@ -270,17 +271,21 @@ private extension Logger {
     // MARK: - Disconnect
 
     func disconnectTunnel(for host: HostEntry) {
+        // The blocking ssh -O exit runs off the main thread with the
+        // socket/user resolved first: on an unreachable remote it can
+        // otherwise block for the full connect timeout and freeze the UI
+        // (WI-2026-08-08-010). Launch errors are handled inside sshControl
+        // (no waitUntilExit on a never-run process).
         let socket = socketPath(for: host)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-S", socket, "-O", "exit", "\(effectiveUsername(for: host))@\(host.address)"]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
-
-        tunnelStates[host.id] = .disconnected
-        trackedHosts.removeValue(forKey: host.id)
+        let userAtHost = "\(effectiveUsername(for: host))@\(host.address)"
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            _ = Self.sshControl(socket: socket, userAtHost: userAtHost, ctl: "exit")
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.tunnelStates[host.id] = .disconnected
+                self.trackedHosts.removeValue(forKey: host.id)
+            }
+        }
     }
 
     // MARK: - Heartbeat
@@ -310,7 +315,7 @@ private extension Logger {
             let socket = socketPath(for: host)
             let userAtHost = "\(effectiveUsername(for: host))@\(host.address)"
             DispatchQueue.global(qos: .utility).async { [weak self] in
-                let alive = Self.sshControlCheck(socket: socket, userAtHost: userAtHost)
+                let alive = Self.sshControl(socket: socket, userAtHost: userAtHost, ctl: "check")
                 DispatchQueue.main.async {
                     guard let self else { return }
                     if !alive && self.tunnelStates[hostID] == .connected {
@@ -321,13 +326,13 @@ private extension Logger {
         }
     }
 
-    /// Spawn `ssh -S <socket> -O check <user@host>` against a ControlMaster
+    /// Spawn `ssh -S <socket> -O <ctl> <user@host>` against a ControlMaster
     /// socket. Pure process spawn with no shared-state access, so it can run
     /// off the main actor without isolation warnings.
-    nonisolated private static func sshControlCheck(socket: String, userAtHost: String) -> Bool {
+    nonisolated private static func sshControl(socket: String, userAtHost: String, ctl: String) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-S", socket, "-O", "check", userAtHost]
+        process.arguments = ["-S", socket, "-O", ctl, userAtHost]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {
