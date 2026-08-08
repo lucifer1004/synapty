@@ -223,30 +223,29 @@ struct HostsPageView: View {
 
     private var groupsSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.sm) {
-            DSSectionLabel(text: "Groups", count: hostStore.groups.count)
+            // Breadcrumb navigation (WI-2026-08-08-066): All Hosts is the
+            // default view; inside a group the header becomes
+            // "All Hosts › Group" and clicking All Hosts returns.
+            if let group = selectedGroup {
+                HStack(spacing: DS.Space.xs) {
+                    Button("All Hosts") { selectedFilter = .all }
+                        .buttonStyle(.plain)
+                        .font(DS.Typography.captionStrong)
+                        .foregroundStyle(DS.accent)
+                        .help("Show all hosts")
+                        .accessibilityLabel("All Hosts")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(DS.textTertiary)
+                    Text(group.label)
+                        .font(DS.Typography.captionStrong)
+                        .foregroundStyle(DS.textPrimary)
+                }
+            } else {
+                DSSectionLabel(text: "Groups", count: hostStore.groups.count)
+            }
+
             LazyVGrid(columns: Self.blockColumns, alignment: .leading, spacing: DS.Space.md) {
-                // All Hosts — clear the group filter.
-                GroupBlockView(
-                    kind: .all,
-                    label: "All Hosts",
-                    icon: "square.grid.2x2",
-                    count: hostStore.hosts.count,
-                    isSelected: selectedFilter == .all,
-                    onSelect: { selectedFilter = .all }
-                )
-
-                // Ungrouped — also a drop target: dropping here clears
-                // group membership (WI-2026-08-08-057).
-                GroupBlockView(
-                    kind: .ungrouped,
-                    label: "Ungrouped",
-                    icon: "tray",
-                    count: hostStore.hosts(inGroup: nil).count,
-                    isSelected: selectedFilter == .ungrouped,
-                    onSelect: { selectedFilter = .ungrouped },
-                    onDrop: { items in handleDrop(items, toGroup: nil) }
-                )
-
                 // Real groups — drop targets for host blocks.
                 ForEach(hostStore.groups.sorted { $0.label < $1.label }) { group in
                     GroupBlockView(

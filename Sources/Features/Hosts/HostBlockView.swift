@@ -213,12 +213,11 @@ struct HostBlockView: View {
 // HOSTS below); group blocks are drop targets for host blocks.
 // ===========================================================================
 
-/// One block in the GROUPS section: All Hosts / Ungrouped pseudo-blocks,
-/// real groups, or the New Group action block.
+/// One block in the GROUPS section: a real group, or the New Group action
+/// block. All Hosts is the DEFAULT view (breadcrumb navigation), not a
+/// block (WI-2026-08-08-066).
 struct GroupBlockView: View {
     enum Kind: Hashable {
-        case all
-        case ungrouped
         case group(UUID)
         case new
     }
