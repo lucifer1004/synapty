@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review findings (Swift services): AgentMonitor.refresh (AgentMonitor.swift:156-177) and TaskMonitor.runCLI (TaskMonitor.swift:172-184) call waitUntilExit before reading stdout and never read the stderr pipe; TunnelManager.runSetup (TunnelManager.swift:227-256) attaches one pipe to stdout+stderr and reads it only in the failure branch after exit. Any output beyond the ~64KB kernel pipe buffer blocks the child: monitoring silently dies forever (in-flight guards never reset, no log), sessions hang in .connecting, task/activity lists freeze."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "All three call sites now drain stdout/stderr concurrently via the shared SubprocessRunner (readabilityHandler on both pipes) with hard timeouts (monitor 15s, CLI 60s, setup 60s) — a full pipe can no longer block the child. In-flight guards reset via defer; failures/timeouts/stderr are logged with os_log (new Logger categories). 94/94 Swift tests green."
-
+notes = [
+    "2026-08-08: All three call sites now drain stdout/stderr concurrently via the shared SubprocessRunner (readabilityHandler on both pipes) with hard timeouts (monitor 15s, CLI 60s, setup 60s) — a full pipe can no longer block the child. In-flight guards reset via defer; failures/timeouts/stderr are logged with os_log (new Logger categories). 94/94 Swift tests green.",
+]
 [[content.acceptance_criteria]]
 text = "all three call sites drain stdout/stderr concurrently while the process runs (readabilityHandler or background read), so a full pipe cannot block the child"
 status = "done"

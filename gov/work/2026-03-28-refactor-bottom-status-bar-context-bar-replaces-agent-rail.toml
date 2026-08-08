@@ -11,11 +11,9 @@ completed = "2026-03-28"
 [content]
 description = "Replace agent chips in bottom status bar with contextual info: focused pane agent/session context (left), terminal dimensions (center), Hub summary (right). Agents live only in sidebar."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "gui"
-content = "Replaced AgentStatusBar with ContextStatusBar: focused session context (left), Hub agent count (right). Removed agent chips — agents now sidebar-only."
-
+notes = [
+    "2026-03-28 (gui): Replaced AgentStatusBar with ContextStatusBar: focused session context (left), Hub agent count (right). Removed agent chips — agents now sidebar-only.",
+]
 [[content.acceptance_criteria]]
 text = "Bottom bar shows focused session agent ID, tool, session summary"
 status = "done"

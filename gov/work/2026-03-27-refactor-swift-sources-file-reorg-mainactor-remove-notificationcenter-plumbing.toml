@@ -10,13 +10,11 @@ completed = "2026-03-27"
 
 [content]
 description = "Address code review: (1) @MainActor final on state objects, (2) replace NotificationCenter+singletons with typed coordinator/callbacks, (3) feature-oriented file layout, (4) remove no-op keyboardShortcut helper. Extract Session/Pane as shared models. Pure refactor, no behavior change."
-notes = ["NotificationCenter notifications are centralized in Support/Notifications.swift but still stringly-typed. A fully typed coordinator requires deeper AppKit-SwiftUI bridge changes (C callbacks can't capture Swift closures). Acceptable for V1; consider typed coordinator in V2."]
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "gui"
-content = "Feature-oriented file reorg (App/, Features/Hosts|Sessions|Terminal, Services/, Support/). @MainActor final on all 5 state objects. Extracted PaneTabBar, Notifications, NSScreen+DisplayID to own files. Removed no-op keyboardShortcut helper. Build and govctl check pass."
-
+notes = [
+    "NotificationCenter notifications are centralized in Support/Notifications.swift but still stringly-typed. A fully typed coordinator requires deeper AppKit-SwiftUI bridge changes (C callbacks can't capture Swift closures). Acceptable for V1; consider typed coordinator in V2.",
+    "2026-03-27 (gui): Feature-oriented file reorg (App/, Features/Hosts|Sessions|Terminal, Services/, Support/). @MainActor final on all 5 state objects. Extracted PaneTabBar, Notifications, NSScreen+DisplayID to own files. Removed no-op keyboardShortcut helper. Build and govctl check pass.",
+]
 [[content.acceptance_criteria]]
 text = "@MainActor final on HostStore, AgentMonitor, TerminalPaneManager, TunnelManager, GhosttyApp"
 status = "done"

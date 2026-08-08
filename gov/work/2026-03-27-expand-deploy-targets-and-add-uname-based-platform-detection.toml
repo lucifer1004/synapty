@@ -11,18 +11,12 @@ refs = ["ADR-0001"]
 
 [content]
 description = "Add linux-riscv64, macos-aarch64, macos-x86_64 cross-compile deploy targets to build.zig. Update DeployManager.swift to SSH uname -sm, match to available binary, and fail with clear message if unsupported."
-notes = ["Nix devenv provides ld64-954 which is incompatible with Xcode 26 ld-1266. xcodebuild must run outside devenv; Zig cross-compile must run inside devenv. The package command uses this hybrid approach."]
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "build"
-content = "Added 3 new deploy targets (linux-riscv64, macos-aarch64, macos-x86_64) to build.zig inline for. Updated DeployManager.swift with platformMap-driven uname -sm detection, case-based binary selection, and clear error for unsupported platforms. All 5 targets build (113K-199K). Tests and govctl check pass."
-
-[[content.journal]]
-date = "2026-03-27"
-scope = "build"
-content = "Added just package command: builds Release GUI app natively + cross-compiles 5 deploy targets via devenv (hybrid to avoid Nix linker conflict with Xcode 26). Creates DMG at zig-out/package/Synapty-VERSION-universal.dmg (8MB). App path lookup uses ls -dt for most recent build."
-
+notes = [
+    "Nix devenv provides ld64-954 which is incompatible with Xcode 26 ld-1266. xcodebuild must run outside devenv; Zig cross-compile must run inside devenv. The package command uses this hybrid approach.",
+    "2026-03-27 (build): Added 3 new deploy targets (linux-riscv64, macos-aarch64, macos-x86_64) to build.zig inline for. Updated DeployManager.swift with platformMap-driven uname -sm detection, case-based binary selection, and clear error for unsupported platforms. All 5 targets build (113K-199K). Tests and govctl check pass.",
+    "2026-03-27 (build): Added just package command: builds Release GUI app natively + cross-compiles 5 deploy targets via devenv (hybrid to avoid Nix linker conflict with Xcode 26). Creates DMG at zig-out/package/Synapty-VERSION-universal.dmg (8MB). App path lookup uses ls -dt for most recent build.",
+]
 [[content.acceptance_criteria]]
 text = "linux-riscv64, macos-aarch64, macos-x86_64 deploy targets in build.zig"
 status = "done"

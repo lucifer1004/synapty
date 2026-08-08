@@ -11,12 +11,11 @@ docs_output = "docs"
 # agent_dir = ".claude"
 
 [schema]
-version = 2
+version = 5
 
 [source_scan]
 enabled = true
 include = ["src/**/*.zig"]
-exclude = []
 
 # [work_item]
 # ID strategy for work items (default: sequential)

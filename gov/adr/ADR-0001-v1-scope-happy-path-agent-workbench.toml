@@ -35,9 +35,9 @@ V1 must solve this end-to-end scenario with a native GUI experience — not a TU
 - Existing agents (Claude Code, Codex) are unmodified — integration happens via CLI tools and agent skills/plugins.
 - Host management follows the Termius pattern: preconfigure remote hosts (address, credentials) in the GUI, then one-click deploy agents.
 
-### Options Considered
+### Scope options evaluated
 
-Four scoping strategies were evaluated: minimal CLI-only router, TUI-based workbench, native GUI workbench with libghostty, and full-stack with all five RFC-0001 layers."""
+Four scoping strategies were evaluated: minimal CLI-only router, TUI-based workbench, native GUI workbench with libghostty, and full-stack with all five [[RFC-0001]] layers."""
 decision = """
 We will **build V1 as a native macOS GUI application — a graphical terminal multiplexer with built-in A2A routing, Termius-style host management, and libghostty-powered terminal panes**. Agent integration uses **MCP (Model Context Protocol)** as the universal interface standard.
 
@@ -113,7 +113,7 @@ pros = [
 cons = [
     "No human supervision — operators must manually check each agent session",
     "Remote agents require user to manually set up SSH tunnels",
-    "Does not deliver on the RFC-0001 vision of human experience as a core pillar",
+    "Does not deliver on the [[RFC-0001]] vision of human experience as a core pillar",
 ]
 rejection_reason = "Fails the core scenario: a user supervising Claude Code + Codex needs visibility and managed connectivity, not just a message pipe."
 
@@ -133,10 +133,10 @@ cons = [
 rejection_reason = "A terminal multiplexer that cannot host terminal sessions in its own panes is not a multiplexer. Compositing multiple VT streams requires a VT state machine per pane, which means libghostty. A TUI cannot provide this."
 
 [[content.alternatives]]
-text = "Full-stack with all five RFC-0001 layers: Ship V1 with libghostty rendering, OSC bus, terminal introspection (2D DOM export), full vertical cockpit, and capability-based agent discovery."
+text = "Full-stack with all five [[RFC-0001]] layers: Ship V1 with libghostty rendering, OSC bus, terminal introspection (2D DOM export), full vertical cockpit, and capability-based agent discovery."
 status = "rejected"
 pros = [
-    "Delivers complete RFC-0001 vision in one release",
+    "Delivers complete [[RFC-0001]] vision in one release",
     "Agents get spatial perception and OSC communication from day one",
 ]
 cons = [

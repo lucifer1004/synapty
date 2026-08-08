@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Wire host click → SSH connect → scp daemon → reverse tunnel → daemon registers with Hub → terminal pane opens showing remote session. Full end-to-end deploy flow from the GUI."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "deploy"
-content = "One-click deploy implemented. DeployManager builds SSH+scp+reverse-tunnel script. TerminalPaneManager manages multiple panes with tab bar. HostSidebar wired with onHostConnect callback. TerminalSurface updated to accept custom command. All Swift type-checks clean."
-
+notes = [
+    "2026-03-27 (deploy): One-click deploy implemented. DeployManager builds SSH+scp+reverse-tunnel script. TerminalPaneManager manages multiple panes with tab bar. HostSidebar wired with onHostConnect callback. TerminalSurface updated to accept custom command. All Swift type-checks clean.",
+]
 [[content.acceptance_criteria]]
 text = "Clicking a host card opens SSH connection using stored credentials"
 status = "done"

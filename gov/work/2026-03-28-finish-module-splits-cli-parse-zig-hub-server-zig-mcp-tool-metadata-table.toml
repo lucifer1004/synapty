@@ -12,11 +12,9 @@ refs = ["ADR-0002"]
 [content]
 description = "Complete the facade pattern for hub.zig and cli.zig. Extract cli/parse.zig (arg parser), hub/server.zig (server lifecycle, reader thread, accept loop). Add MCP tool metadata table to reduce schema/decoder edit friction."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "structure"
-content = "All 3 extractions complete. 50/50 stress test passes."
-
+notes = [
+    "2026-03-28 (structure): All 3 extractions complete. 50/50 stress test passes.",
+]
 [[content.acceptance_criteria]]
 text = "cli/parse.zig extracts parseArgs from cli.zig"
 status = "done"

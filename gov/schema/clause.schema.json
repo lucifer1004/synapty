@@ -38,8 +38,9 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "schema": {
-          "type": "integer"
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
         }
       },
       "additionalProperties": false

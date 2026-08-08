@@ -12,16 +12,10 @@ refs = ["RFC-0002"]
 [content]
 description = "Implement the IM-style messaging protocol per RFC-0002: agent registration with metadata, DM, group chat channels, Hub as stateless router + logger, CLI/MCP tools."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "protocol,hub,run,mcp"
-content = "Implemented core RFC-0002 protocol: new message types (dm, channel_*, agent_update, response) in protocol.zig; Hub rewritten with AgentRegistry, ChannelRegistry, MessageLog, and full message dispatch; daemon IPC handlers for all new actions; MCP tools for register, channel_create/invite/leave/list. All tests pass, govctl check passes."
-
-[[content.journal]]
-date = "2026-03-28"
-scope = "cli"
-content = "CLI completed: repurposed register with --tool/--project/--session flags, channel subcommands (create/invite/leave/list), send uses text field, new parser tests. All tests pass."
-
+notes = [
+    "2026-03-28 (protocol,hub,run,mcp): Implemented core RFC-0002 protocol: new message types (dm, channel_*, agent_update, response) in protocol.zig; Hub rewritten with AgentRegistry, ChannelRegistry, MessageLog, and full message dispatch; daemon IPC handlers for all new actions; MCP tools for register, channel_create/invite/leave/list. All tests pass, govctl check passes.",
+    "2026-03-28 (cli): CLI completed: repurposed register with --tool/--project/--session flags, channel subcommands (create/invite/leave/list), send uses text field, new parser tests. All tests pass.",
+]
 [[content.acceptance_criteria]]
 text = "protocol.zig — new message types (dm, channel_*, agent_update, response)"
 status = "done"

@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review findings F5+F9 (Zig hub). F5: registry.register (src/hub/registry.zig:31-36) is a plain map.put — a second connection with the same agent_id silently overwrites the first; when the old connection's reader exits, its defer calls unregister(agent_id) which removes the NEW connection's entry: the new agent becomes unroutable and messages are dropped. The old connection also leaks until hub shutdown. F9: the accept loop (src/hub/server.zig:137-138) propagates ANY accept error out of run() — a transient fd exhaustion (EMFILE) stops the hub accepting forever, disconnecting all agents."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "F5: RoutingTable.register now atomically REPLACES a duplicate registration (fetchPut) and closes the old connection's stream; unregister became unregisterIfOwned(agent_id, conn) — the old reader's cleanup is a no-op once the entry belongs to the new connection, and session.zig only tears down agent metadata/channels when the entry is still owned. New unit test: duplicate replace + stale-unregister no-op + owner-unregister. F9: accept loop treats ConnectionAborted/Unexpected/SocketUnconnected as fatal (listener closed) and backs off 50ms on transient errors (fd exhaustion, resets) instead of killing the hub. 129/129 Zig tests green."
-
+notes = [
+    "2026-08-08: F5: RoutingTable.register now atomically REPLACES a duplicate registration (fetchPut) and closes the old connection's stream; unregister became unregisterIfOwned(agent_id, conn) — the old reader's cleanup is a no-op once the entry belongs to the new connection, and session.zig only tears down agent metadata/channels when the entry is still owned. New unit test: duplicate replace + stale-unregister no-op + owner-unregister. F9: accept loop treats ConnectionAborted/Unexpected/SocketUnconnected as fatal (listener closed) and backs off 50ms on transient errors (fd exhaustion, resets) instead of killing the hub. 129/129 Zig tests green.",
+]
 [[content.acceptance_criteria]]
 text = "duplicate registration is rejected atomically (or replaces-and-closes the old connection) so the routing table never points at a dead connection"
 status = "done"

@@ -15,11 +15,9 @@ refs = [
 [content]
 description = "Implement the MCP agent integration plan: synapty run wrapper, unix socket IPC, MCP stdio server, CLI refactor, agent platform configs, and ADR-0001 amendment."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "mcp"
-content = "MCP integration plan fully implemented. 6 phases complete: protocol IPC types, hub list_agents, unix socket IPC, synapty run wrapper, MCP stdio server, CLI integration with SYNAPTY_SOCK dual-path, agent platform configs, ADR-0001 amended. 49/49 tests passing."
-
+notes = [
+    "2026-03-27 (mcp): MCP integration plan fully implemented. 6 phases complete: protocol IPC types, hub list_agents, unix socket IPC, synapty run wrapper, MCP stdio server, CLI integration with SYNAPTY_SOCK dual-path, agent platform configs, ADR-0001 amended. 49/49 tests passing.",
+]
 [[content.acceptance_criteria]]
 text = "RFC-0001 impact assessed"
 status = "done"

@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review P1/MED-5: vsync pausing only runs on page changes. (1) Inactive sessions/panes INSIDE the terminal page are hidden (opacity 0) but keep rendering at 60fps — the GPU-saturation fix (WI-2026-08-07-006) is defeated whenever more than one pane exists. (2) A surface created while paused (background session tunnel completing) registers with a non-zero display id and keeps rendering. (3) Resume gives every surface NSScreen.main's display id regardless of which screen its window is on."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "Vsync pausing is now stateful: page-level (setSurfacesPaused) and pane-level (setVisibleLeaves — AllPanesSplitView syncs on appear and on visibleLeafID change) combine in applyDisplayIds(); surfaces registered while paused start paused; resume uses the active view's window display id instead of a blanket NSScreen.main."
-
+notes = [
+    "2026-08-08: Vsync pausing is now stateful: page-level (setSurfacesPaused) and pane-level (setVisibleLeaves — AllPanesSplitView syncs on appear and on visibleLeafID change) combine in applyDisplayIds(); surfaces registered while paused start paused; resume uses the active view's window display id instead of a blanket NSScreen.main.",
+]
 [[content.acceptance_criteria]]
 text = "hidden panes/sessions are paused (display id 0) whenever they are not the visible leaf; visible leaves resume"
 status = "done"

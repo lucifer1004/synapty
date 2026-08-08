@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review finding F6 (Zig core): runSend's direct-hub fallback (src/cli/commands.zig:99-106) writes the DM envelope with no trailing newline; the hub only processes newline-terminated lines, so at EOF the unterminated DM is dropped while runSend still prints 'sent to ...'. The entire direct-hub fallback path for 'synapty send' (used whenever SYNAPTY_SOCK is unset) is broken."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "runSend's direct-hub fallback now writes the newline terminator via the extracted writeSendEnvelope() helper; new loopback unit test proves the frame is newline-terminated and parses as a dm envelope with correct source/target/text."
-
+notes = [
+    "2026-08-08: runSend's direct-hub fallback now writes the newline terminator via the extracted writeSendEnvelope() helper; new loopback unit test proves the frame is newline-terminated and parses as a dm envelope with correct source/target/text.",
+]
 [[content.acceptance_criteria]]
 text = "runSend appends the newline terminator after the envelope, matching every other frame writer"
 status = "done"

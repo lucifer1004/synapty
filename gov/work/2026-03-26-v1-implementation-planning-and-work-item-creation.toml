@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Create and order work items for all V1 deliverables per ADR-0001. Establish implementation sequence based on dependencies."
 
-[[content.journal]]
-date = "2026-03-26"
-scope = "planning"
-content = "Created 9 V1 work items (WI-005 through WI-013) covering all ADR-0001 deliverables. Ordered by dependency: GhosttyKit build → GUI shell → Hub → CLI → Daemon → Host sidebar → One-click deploy → Status bar → Agent skills."
-
+notes = [
+    "2026-03-26 (planning): Created 9 V1 work items (WI-005 through WI-013) covering all ADR-0001 deliverables. Ordered by dependency: GhosttyKit build → GUI shell → Hub → CLI → Daemon → Host sidebar → One-click deploy → Status bar → Agent skills.",
+]
 [[content.acceptance_criteria]]
 text = "All V1 work items created with descriptions and acceptance criteria"
 status = "done"

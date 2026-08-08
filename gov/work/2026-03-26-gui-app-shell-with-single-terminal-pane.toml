@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Create Xcode project with SwiftUI shell, link GhosttyKit xcframework, and render a single working terminal pane (ghostty_surface_t) running a local shell. Follows cmux pattern: Swift UI + Zig core via C bridging header."
 
-[[content.journal]]
-date = "2026-03-26"
-scope = "gui"
-content = "Synapty.app builds and launches. Single terminal pane renders via GhosttyKit with Metal. Keyboard input working via NSTextInputClient protocol. Required ghostty_init() before config creation, NSTextInputClient for proper text input, -lc++ and system frameworks for linking, embed:false for static xcframework."
-
+notes = [
+    "2026-03-26 (gui): Synapty.app builds and launches. Single terminal pane renders via GhosttyKit with Metal. Keyboard input working via NSTextInputClient protocol. Required ghostty_init() before config creation, NSTextInputClient for proper text input, -lc++ and system frameworks for linking, embed:false for static xcframework.",
+]
 [[content.acceptance_criteria]]
 text = "Xcode project builds and launches on macOS"
 status = "done"

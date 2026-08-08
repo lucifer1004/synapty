@@ -11,11 +11,9 @@ completed = "2026-03-28"
 [content]
 description = "synapty mcp-serve exits immediately because McpServer.init requires SYNAPTY_SOCK env var at startup. MCP clients launch it as subprocess; socket should only be required when tools/call needs IPC."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "mcp"
-content = "Made socket_path optional in McpServer.init; tools/call returns JSON-RPC -32603 when SYNAPTY_SOCK missing. All tests pass, govctl check passes."
-
+notes = [
+    "2026-03-28 (mcp): Made socket_path optional in McpServer.init; tools/call returns JSON-RPC -32603 when SYNAPTY_SOCK missing. All tests pass, govctl check passes.",
+]
 [[content.acceptance_criteria]]
 text = "mcp-serve starts without SYNAPTY_SOCK and responds to initialize/tools/list"
 status = "done"

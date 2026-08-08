@@ -11,11 +11,9 @@ completed = "2026-03-28"
 [content]
 description = "Redesign Swift GUI per approved plan: AgentMonitor with rich metadata parsing, agent chips in status rail, Hub toolbar popover, sidebar agents section, message log view."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "gui"
-content = "Swift UI redesign complete: AgentMonitor rewritten with ToolType/AgentInfo models, bundled binary path, JSON metadata parsing; AgentStatusBar with tool-colored chips; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView new file. Xcode build succeeds."
-
+notes = [
+    "2026-03-28 (gui): Swift UI redesign complete: AgentMonitor rewritten with ToolType/AgentInfo models, bundled binary path, JSON metadata parsing; AgentStatusBar with tool-colored chips; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView new file. Xcode build succeeds.",
+]
 [[content.acceptance_criteria]]
 text = "AgentMonitor with ToolType/AgentInfo metadata parsing"
 status = "done"

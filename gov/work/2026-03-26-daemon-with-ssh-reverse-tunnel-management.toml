@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Refine daemon for remote deployment. Daemon is scp'd to remote hosts, establishes SSH reverse tunnel back to the Hub, and hosts the CLI for remote agents. Pure Zig, cross-compiled for Linux targets."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "daemon"
-content = "Daemon refactored to thin wrapper over RunServer. 7 new tests. Cross-compilation steps added (daemon-linux-aarch64, daemon-linux-x86_64). Fixed 3 Zig 0.15 API issues in run.zig and cli.zig. 55/55 tests pass."
-
+notes = [
+    "2026-03-27 (daemon): Daemon refactored to thin wrapper over RunServer. 7 new tests. Cross-compilation steps added (daemon-linux-aarch64, daemon-linux-x86_64). Fixed 3 Zig 0.15 API issues in run.zig and cli.zig. 55/55 tests pass.",
+]
 [[content.acceptance_criteria]]
 text = "Daemon binary cross-compiles for Linux (aarch64 + x86_64)"
 status = "done"

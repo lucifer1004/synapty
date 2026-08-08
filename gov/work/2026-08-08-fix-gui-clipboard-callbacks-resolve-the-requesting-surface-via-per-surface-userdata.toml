@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review finding HIGH-2 (ghostty interop): read_clipboard_cb and confirm_read_clipboard_cb (GhosttyApp.swift:206-227) ignore the per-surface userdata and complete the request against GhosttyApp.shared.activeSurface. In a split layout an OSC-52/paste read from a background split is completed on the focused split: the requesting surface's clipboard read is never satisfied and the wrong surface's core receives content for a request it never made. Per-surface userdata (the leaf UUID pointer) is already registered for close_surface_cb."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "Clipboard callbacks now resolve the REQUESTING surface from the per-surface userdata (leaf-UUID pointer) via a new surfaceByLeafID registry — read/confirm clipboard requests complete on the surface that asked, never on the global activeSurface (which a hidden surface could hold). Registry is maintained by registerSurface(leafID:)/unregisterSurface. 94/94 Swift tests green."
-
+notes = [
+    "2026-08-08: Clipboard callbacks now resolve the REQUESTING surface from the per-surface userdata (leaf-UUID pointer) via a new surfaceByLeafID registry — read/confirm clipboard requests complete on the surface that asked, never on the global activeSurface (which a hidden surface could hold). Registry is maintained by registerSurface(leafID:)/unregisterSurface. 94/94 Swift tests green.",
+]
 [[content.acceptance_criteria]]
 text = "clipboard callbacks resolve the requesting surface from the callback userdata and complete the request there, never via the global activeSurface"
 status = "done"

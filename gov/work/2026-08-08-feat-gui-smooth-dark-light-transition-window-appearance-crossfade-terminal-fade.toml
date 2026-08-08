@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Switching Appearance from dark to light is jarring: the whole UI and the terminal colors snap instantly. Shipped treatment: (1) the window appearance change animates inside NSAnimationContext as a ~0.25s ease crossfade (the system crossfades layer-backed chrome); (2) the terminal switches to the new theme instantly at t=0, in the same turn the crossfade starts — native-Metal terminal content cannot fade (CAMetalLayer opacity animation is invisible and cacheDisplay returns a blank bitmap), which matches native-terminal behavior (Ghostty/iTerm2/Alacritty snap content; only web-based terminals smooth-blend). Total perceived transition ~0.25s per Apple HIG."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "DECISION (2026-08-08): Terminal content cannot be crossfaded on native Metal — verified: (1) CAMetalLayer opacity animation is invisible (Metal layer composites directly, no intermediate buffer to fade); (2) cacheDisplay on the GhosttyNSView returns a blank bitmap (distinctColors=1 at 4058x2628); (3) CGWindowListCreateImage needs Screen Recording permission (denied). Fade-through mask rejected by user (occludes content, still flickers). Industry research (Ghostty/iTerm2/Alacritty): native terminals snap theme content instantly; smooth theme transitions exist only in web-based terminals (Termius/VS Code CSS). SHIPPED DESIGN: 0.25s window appearance crossfade (NSAnimationContext) + terminal switches at t=0 in the same turn as the crossfade starts; reload coalescing keeps the switch to one run-loop turn (no artificial delay). Startup flash fixed by removing theme-didSet fade triggers during load()."
-
+notes = [
+    "2026-08-08: DECISION (2026-08-08): Terminal content cannot be crossfaded on native Metal — verified: (1) CAMetalLayer opacity animation is invisible (Metal layer composites directly, no intermediate buffer to fade); (2) cacheDisplay on the GhosttyNSView returns a blank bitmap (distinctColors=1 at 4058x2628); (3) CGWindowListCreateImage needs Screen Recording permission (denied). Fade-through mask rejected by user (occludes content, still flickers). Industry research (Ghostty/iTerm2/Alacritty): native terminals snap theme content instantly; smooth theme transitions exist only in web-based terminals (Termius/VS Code CSS). SHIPPED DESIGN: 0.25s window appearance crossfade (NSAnimationContext) + terminal switches at t=0 in the same turn as the crossfade starts; reload coalescing keeps the switch to one run-loop turn (no artificial delay). Startup flash fixed by removing theme-didSet fade triggers during load().",
+]
 [[content.acceptance_criteria]]
 text = "window appearance change animates as a ~0.25s crossfade (UI no longer snaps)"
 status = "done"

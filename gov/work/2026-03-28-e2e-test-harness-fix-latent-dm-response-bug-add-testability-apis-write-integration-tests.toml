@@ -12,11 +12,9 @@ refs = ["RFC-0002"]
 [content]
 description = "Fix latent bug where Hub handleDm/handleChannelMsg never send success response to sender, add HubServer.initWithAddress and RunServer.startThreads testability APIs, create src/e2e_test.zig with raw-TCP integration tests for register handshake, DM routing, channel fan-out, disconnect cleanup, and line buffering."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "protocol"
-content = "All acceptance criteria met. Fixed latent DM/channel_msg response bug, added testability APIs, wrote 5 e2e integration tests."
-
+notes = [
+    "2026-03-28 (protocol): All acceptance criteria met. Fixed latent DM/channel_msg response bug, added testability APIs, wrote 5 e2e integration tests.",
+]
 [[content.acceptance_criteria]]
 text = "Hub handleDm sends success response after delivery"
 status = "done"

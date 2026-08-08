@@ -11,11 +11,9 @@ completed = "2026-03-28"
 [content]
 description = "MCP server discovers daemon IPC socket by walking ancestor PIDs when SYNAPTY_SOCK env var is unavailable. Needed because MCP clients (Codex) may not pass env vars to MCP server subprocesses."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "mcp"
-content = "Implemented process-tree discovery: @cImport for proc_pidinfo on macOS, /proc/pid/stat on Linux. getParentPid test passes, end-to-end discovery verified."
-
+notes = [
+    "2026-03-28 (mcp): Implemented process-tree discovery: @cImport for proc_pidinfo on macOS, /proc/pid/stat on Linux. getParentPid test passes, end-to-end discovery verified.",
+]
 [[content.acceptance_criteria]]
 text = "discoverSocket walks process tree and finds /tmp/synapty-<pid>.sock"
 status = "done"

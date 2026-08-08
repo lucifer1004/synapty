@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Move Hub routing logic into the GUI app process. The Hub runs in-process — no separate binary. Routing table maps agent IDs to connections. Local pane-to-pane messages route in-memory."
 
-[[content.journal]]
-date = "2026-03-26"
-scope = "hub"
-content = "Hub refactored: thread-safe RoutingTable with mutex, startInBackground() for GUI embedding, registeredAgents() for status bar. 3 new tests passing."
-
+notes = [
+    "2026-03-26 (hub): Hub refactored: thread-safe RoutingTable with mutex, startInBackground() for GUI embedding, registeredAgents() for status bar. 3 new tests passing.",
+]
 [[content.acceptance_criteria]]
 text = "Hub starts automatically when app launches"
 status = "done"

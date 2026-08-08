@@ -8,6 +8,7 @@ status = "normative"
 phase = "spec"
 owners = ["@lucifer1004"]
 created = "2026-08-05"
+signature = "efb81ce7fd1cadc1f46dc59751af94aa321b4d54cd6b41ced67ce223d9aee75c"
 
 [[sections]]
 title = "Summary"

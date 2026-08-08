@@ -15,11 +15,9 @@ refs = [
 [content]
 description = "Draft ADR defining V1 scope boundaries within the RFC-0001 vision. Clarify what V1 delivers, what is deferred, and ensure decisions do not block V2 extension."
 
-[[content.journal]]
-date = "2026-03-26"
-scope = "adr"
-content = "ADR-0001 drafted, reviewed, and all 3 reviewer warnings addressed: bounded GUI scope, expanded agent skills spec, added CLI-as-permanent-contract neutral consequence. govctl check passes clean."
-
+notes = [
+    "2026-03-26 (adr): ADR-0001 drafted, reviewed, and all 3 reviewer warnings addressed: bounded GUI scope, expanded agent skills spec, added CLI-as-permanent-contract neutral consequence. govctl check passes clean.",
+]
 [[content.acceptance_criteria]]
 text = "ADR drafted with context, decision, consequences, and alternatives"
 status = "done"

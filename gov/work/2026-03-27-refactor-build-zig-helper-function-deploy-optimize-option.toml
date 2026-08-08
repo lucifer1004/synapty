@@ -11,11 +11,9 @@ completed = "2026-03-27"
 [content]
 description = "Refactor build.zig to eliminate cross-compile module duplication via a helper function, and add a -Ddeploy-optimize option with ReleaseSmall default. No behavior change — pure build system cleanup."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "build"
-content = "Refactored build.zig: extracted createModuleSet helper, added -Ddeploy-optimize option (default ReleaseSmall), used inline for to deduplicate cross-compile targets. Build, tests, cross-compile, and govctl check all pass."
-
+notes = [
+    "2026-03-27 (build): Refactored build.zig: extracted createModuleSet helper, added -Ddeploy-optimize option (default ReleaseSmall), used inline for to deduplicate cross-compile targets. Build, tests, cross-compile, and govctl check all pass.",
+]
 [[content.acceptance_criteria]]
 text = "Extract createModuleSet helper to eliminate cross-compile duplication"
 status = "done"

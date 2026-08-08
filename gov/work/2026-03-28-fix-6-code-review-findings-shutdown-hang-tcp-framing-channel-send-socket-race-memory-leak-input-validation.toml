@@ -12,16 +12,10 @@ refs = ["RFC-0002"]
 [content]
 description = "Redesign Swift GUI per approved plan: AgentMonitor with rich metadata parsing, agent chips in status rail, Hub toolbar popover (not modal sheet), sidebar agents section, message log window."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "protocol"
-content = "All 6 findings fixed across src/mcp.zig, src/hub.zig, src/run.zig. Tests pass, govctl check passes."
-
-[[content.journal]]
-date = "2026-03-28"
-scope = "gui"
-content = "Swift UI redesign complete: AgentMonitor with ToolType/AgentInfo/ChatMessage models + bundled binary path + JSON metadata parsing; AgentStatusBar with tool-colored chips + HubStatusPill + horizontal scroll; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView as new file. Xcode build succeeds, govctl check passes."
-
+notes = [
+    "2026-03-28 (protocol): All 6 findings fixed across src/mcp.zig, src/hub.zig, src/run.zig. Tests pass, govctl check passes.",
+    "2026-03-28 (gui): Swift UI redesign complete: AgentMonitor with ToolType/AgentInfo/ChatMessage models + bundled binary path + JSON metadata parsing; AgentStatusBar with tool-colored chips + HubStatusPill + horizontal scroll; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView as new file. Xcode build succeeds, govctl check passes.",
+]
 [[content.acceptance_criteria]]
 text = "RunServer.run() shutdown closes streams before joining threads"
 status = "done"

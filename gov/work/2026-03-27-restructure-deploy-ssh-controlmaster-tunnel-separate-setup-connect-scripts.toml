@@ -11,11 +11,9 @@ completed = "2026-03-27"
 [content]
 description = "Replace DeployManager with TunnelManager. Auto-setup on first connect via setup-host.sh (background Process). SSH ControlMaster with ServerAliveInterval/ControlPersist for heartbeat. 10s health check timer with auto-reconnect. Tunnel status in UI (host config sheet + picker). connect.sh for per-session instant connect with fallback."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "gui"
-content = "Implemented TunnelManager replacing DeployManager. Auto-setup via background Process, 10s heartbeat with ssh -O check, auto-reconnect, ControlMaster with ServerAliveInterval/ControlPersist. Tunnel status in HostConfigSheet (reconnect/disconnect buttons) and HostPickerPopover (status dots). Global tunnelPort config. Scripts updated with tunnel-port param. Build and govctl check pass."
-
+notes = [
+    "2026-03-27 (gui): Implemented TunnelManager replacing DeployManager. Auto-setup via background Process, 10s heartbeat with ssh -O check, auto-reconnect, ControlMaster with ServerAliveInterval/ControlPersist. Tunnel status in HostConfigSheet (reconnect/disconnect buttons) and HostPickerPopover (status dots). Global tunnelPort config. Scripts updated with tunnel-port param. Build and govctl check pass.",
+]
 [[content.acceptance_criteria]]
 text = "scripts/setup-host.sh — detect platform, upload binary, start ControlMaster tunnel"
 status = "done"

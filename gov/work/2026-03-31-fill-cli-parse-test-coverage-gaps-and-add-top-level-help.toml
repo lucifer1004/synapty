@@ -9,9 +9,7 @@ started = "2026-03-31"
 completed = "2026-03-31"
 
 [content]
-description = """
-Describe the work to be done.
-What is the goal? What are the acceptance criteria?"""
+description = "Fill the CLI parse test coverage gaps found during the zig-clap migration and add top-level --help: top-level and per-subcommand --help for all subcommands (including agents, mcp-serve, and channel list), dangling-flag edge cases, and strengthened parse tests across every subcommand."
 
 [[content.acceptance_criteria]]
 text = "--help for all subcommands including agents, mcp-serve, channel list"

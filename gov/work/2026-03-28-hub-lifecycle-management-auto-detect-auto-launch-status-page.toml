@@ -11,11 +11,9 @@ completed = "2026-03-28"
 [content]
 description = "Auto-detect Hub at app launch (check port). If not running, launch synapty-hub as subprocess with log capture. Hub status page shows running/stopped, port, agent count, scrollable logs, restart button. Track ownership (self-started vs external)."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "gui"
-content = "Implemented HubManager (auto-detect, subprocess launch, log capture, health check with auto-restart), HubStatusView (status/port/logs/restart), toolbar Hub indicator, bundled synapty-hub in .app. Build and govctl check pass."
-
+notes = [
+    "2026-03-28 (gui): Implemented HubManager (auto-detect, subprocess launch, log capture, health check with auto-restart), HubStatusView (status/port/logs/restart), toolbar Hub indicator, bundled synapty-hub in .app. Build and govctl check pass.",
+]
 [[content.acceptance_criteria]]
 text = "HubManager — auto-detect, subprocess launch, log capture, health check"
 status = "done"

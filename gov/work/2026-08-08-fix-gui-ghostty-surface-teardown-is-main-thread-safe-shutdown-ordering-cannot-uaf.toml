@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review P1/MED-3+MED-4: (a) GhosttyNSView.deinit → destroySurface can run off the main thread while mutating @MainActor liveSurfaces and calling main-only ghostty surface APIs (data race + main-thread violation); (b) GhosttyApp.shutdown() frees ghostty_app in applicationWillTerminate while the SwiftUI view hierarchy (and its GhosttyNSView.deinit → ghostty_surface_free) tears down afterwards — use-after-free on the freed app during termination."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "GhosttyNSView.destroySurface always runs on the main thread (inline on main; main.sync hop otherwise) — no more off-main mutation of the @MainActor registry or main-only ghostty APIs. GhosttyApp.isShuttingDown is set before app_free in shutdown(); late view deinit skips ghostty_surface_free on the freed pointers (no termination-window UAF)."
-
+notes = [
+    "2026-08-08: GhosttyNSView.destroySurface always runs on the main thread (inline on main; main.sync hop otherwise) — no more off-main mutation of the @MainActor registry or main-only ghostty APIs. GhosttyApp.isShuttingDown is set before app_free in shutdown(); late view deinit skips ghostty_surface_free on the freed pointers (no termination-window UAF).",
+]
 [[content.acceptance_criteria]]
 text = "destroySurface always runs on the main thread (inline on main, main.sync hop otherwise)"
 status = "done"

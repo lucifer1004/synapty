@@ -11,11 +11,9 @@ completed = "2026-03-30"
 [content]
 description = "Redesign sidebar session rows: nest agents under their host session (remove separate Agents section), add host address, session duration, tab+split counts. 2pt accent rule for agent sub-rows."
 
-[[content.journal]]
-date = "2026-03-30"
-scope = "gui"
-content = "Session rows enhanced: agents nested under sessions (AGENTS section removed), host address for remote sessions, duration from createdAt, tab+split counts, 2pt accent rule for agent sub-rows. Build succeeds."
-
+notes = [
+    "2026-03-30 (gui): Session rows enhanced: agents nested under sessions (AGENTS section removed), host address for remote sessions, duration from createdAt, tab+split counts, 2pt accent rule for agent sub-rows. Build succeeds.",
+]
 [[content.acceptance_criteria]]
 text = "Remove separate AGENTS section, agents nested under sessions"
 status = "done"

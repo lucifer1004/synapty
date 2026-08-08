@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review findings F7+F8+F10 (Zig daemon/IPC). F7: run.zig:459-469 (.recv handler) drains the message queue and serializes but never frees the drained items — every 'synapty recv' leaks for the daemon's lifetime. F8: run.zig:183-198 spawns the child first; if a thread spawn then fails, run() returns the error without killing/waiting the child (orphaned process) and without joining the already-spawned thread (unjoined thread runs against a deinitializing RunServer). F10: the IPC socket /tmp/synapty-<pid>.sock (run.zig:100, ipc.zig:16-29) is created with default umask — any local user can connect, recv the agent's messages, send DMs impersonating it, and call every tool via mcp."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "F7: MessageQueue + pending_responses now dupe with std.heap.smp_allocator (thread-safe, freeable); the recv handler frees drained inner strings after serialization — no more per-recv leak for the daemon's lifetime. F4: the IPC thread's per-connection arena now uses smp_allocator as its child — the shared caller arena is only ever touched by the reader thread and main thread (no concurrent bump). F8: run() and startThreads() clean up on thread-spawn failure (kill+reap child, stop+join the already-spawned thread, mark stopped) — no orphaned child or unjoined thread. F10: IPC socket chmod 0700 via path (macOS rejects fchmod on socket fds). 129/129 Zig tests green."
-
+notes = [
+    "2026-08-08: F7: MessageQueue + pending_responses now dupe with std.heap.smp_allocator (thread-safe, freeable); the recv handler frees drained inner strings after serialization — no more per-recv leak for the daemon's lifetime. F4: the IPC thread's per-connection arena now uses smp_allocator as its child — the shared caller arena is only ever touched by the reader thread and main thread (no concurrent bump). F8: run() and startThreads() clean up on thread-spawn failure (kill+reap child, stop+join the already-spawned thread, mark stopped) — no orphaned child or unjoined thread. F10: IPC socket chmod 0700 via path (macOS rejects fchmod on socket fds). 129/129 Zig tests green.",
+]
 [[content.acceptance_criteria]]
 text = "recv drains free each item's inner string (ownership per MessageQueue.drain contract)"
 status = "done"

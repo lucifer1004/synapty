@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Persistent SwiftUI status bar at the bottom of the app. Shows registered agents with connection indicators, A2A message count, and notification badges when agents emit OSC attention sequences."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "gui"
-content = "Status bar implemented: AgentMonitor (polls synapty agents every 2s), AgentStatusBar (green dot indicators + message count). Wired into ContentView below the terminal pane."
-
+notes = [
+    "2026-03-27 (gui): Status bar implemented: AgentMonitor (polls synapty agents every 2s), AgentStatusBar (green dot indicators + message count). Wired into ContentView below the terminal pane.",
+]
 [[content.acceptance_criteria]]
 text = "Status bar shows registered agent names and connection state"
 status = "done"

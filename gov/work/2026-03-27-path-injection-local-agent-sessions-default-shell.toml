@@ -11,11 +11,9 @@ completed = "2026-03-27"
 [content]
 description = "Three fixes: (1) run.zig adds ~/.synapty/bin to PATH in child env so synapty mcp-serve is findable. (2) Local panes use synapty run for agent identity (SYNAPTY_AGENT_ID + SYNAPTY_SOCK). (3) Use $SHELL instead of hardcoded bash -l in connect.sh and local commands."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "core"
-content = "PATH injection in run.zig, local sessions via synapty run, $SHELL in connect.sh. All panes now get SYNAPTY_AGENT_ID/SYNAPTY_SOCK. Zig tests and Swift build pass."
-
+notes = [
+    "2026-03-27 (core): PATH injection in run.zig, local sessions via synapty run, $SHELL in connect.sh. All panes now get SYNAPTY_AGENT_ID/SYNAPTY_SOCK. Zig tests and Swift build pass.",
+]
 [[content.acceptance_criteria]]
 text = "run.zig prepends ~/.synapty/bin to PATH in child env"
 status = "done"

@@ -12,11 +12,9 @@ refs = ["RFC-0002"]
 [content]
 description = "Refine agent display: stable ordering, filter trivial daemons, click-to-focus pane, bell-based attention highlighting."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "gui"
-content = "Implemented all 4 refinements: (1) Session stores agentID from TunnelManager tuples; (2) AgentMonitor filters hasMetadata + stable merge-sort; (3) Click agent chip/row focuses matching session via onAgentTap callbacks; (4) needsAttention set with amber pulsing indicators on chip/row. Xcode build succeeds."
-
+notes = [
+    "2026-03-28 (gui): Implemented all 4 refinements: (1) Session stores agentID from TunnelManager tuples; (2) AgentMonitor filters hasMetadata + stable merge-sort; (3) Click agent chip/row focuses matching session via onAgentTap callbacks; (4) needsAttention set with amber pulsing indicators on chip/row. Xcode build succeeds.",
+]
 [[content.acceptance_criteria]]
 text = "Session stores agentID, TunnelManager returns (command, agentID) tuples"
 status = "done"

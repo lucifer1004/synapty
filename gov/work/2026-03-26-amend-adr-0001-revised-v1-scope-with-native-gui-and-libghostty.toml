@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Amend ADR-0001 to reflect revised V1 scope: native macOS GUI app with libghostty terminal panes, Termius-style host management, embedded Hub, one-click agent deployment."
 
-[[content.journal]]
-date = "2026-03-26"
-scope = "adr"
-content = "ADR-0001 amended: native macOS GUI with libghostty, Termius-style host management, embedded Hub, one-click deploy. Four alternatives documented. govctl check passes."
-
+notes = [
+    "2026-03-26 (adr): ADR-0001 amended: native macOS GUI with libghostty, Termius-style host management, embedded Hub, one-click deploy. Four alternatives documented. govctl check passes.",
+]
 [[content.acceptance_criteria]]
 text = "ADR-0001 amended with revised V1 scope"
 status = "done"

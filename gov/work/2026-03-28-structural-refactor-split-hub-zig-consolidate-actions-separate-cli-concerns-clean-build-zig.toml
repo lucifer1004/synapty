@@ -12,11 +12,9 @@ refs = ["RFC-0002"]
 [content]
 description = "Address 4 structural findings: (1) Split hub.zig (1432 lines) into hub/ submodules — connection, registry, handlers, server. (2) Consolidate IPC action definitions into protocol.zig as single source of truth. (3) Separate CLI concerns — arg parsing, transports, command handlers. (4) Reduce build.zig duplication with module helpers. Pure refactor, no behavioral changes."
 
-[[content.journal]]
-date = "2026-03-28"
-scope = "structure"
-content = "All 4 structural refactors complete. 50/50 stress test passes."
-
+notes = [
+    "2026-03-28 (structure): All 4 structural refactors complete. 50/50 stress test passes.",
+]
 [[content.acceptance_criteria]]
 text = "hub.zig split into hub/ submodules"
 status = "done"

@@ -11,10 +11,9 @@ completed = "2026-08-08"
 [content]
 description = "Code-review finding (Swift): HubManager's terminationHandler (HubManager.swift:127-136) unconditionally sets self.process = nil when any hub exits. restartHub terminates the old process and launches a new one 0.3s later; if the old process exits after the new one is assigned, its handler nils the new reference — the running hub becomes an orphan the UI can no longer stop, and the next auto-restart may fail to bind the occupied port."
 
-[[content.journal]]
-date = "2026-08-08"
-content = "HubManager terminationHandler now clears self.process only when the exiting process IS the captured one (identity check), so a stale handler from a restarted hub can no longer orphan the new process. restartHub waits for the old process to fully exit before relaunching (port-bind race eliminated) and force-kills after 2s if SIGTERM is ignored. 94/94 Swift tests green."
-
+notes = [
+    "2026-08-08: HubManager terminationHandler now clears self.process only when the exiting process IS the captured one (identity check), so a stale handler from a restarted hub can no longer orphan the new process. restartHub waits for the old process to fully exit before relaunching (port-bind race eliminated) and force-kills after 2s if SIGTERM is ignored. 94/94 Swift tests green.",
+]
 [[content.acceptance_criteria]]
 text = "terminationHandler only clears self.process when the exiting process is the one it captured (identity check)"
 status = "done"

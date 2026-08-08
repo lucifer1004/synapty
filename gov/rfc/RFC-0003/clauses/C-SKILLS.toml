@@ -10,7 +10,7 @@ since = "0.1.0"
 [content]
 text = """
 Agents learn the task CLI through skills documents, not platform MCP
-configuration. This is the ADR-0001 deliverable #6 ("Agent Skills") restored
+configuration. This is V1 deliverable #6 ("Agent Skills", per the V1 scope) restored
 as the primary integration surface.
 
 - The canonical skill lives in the repository at

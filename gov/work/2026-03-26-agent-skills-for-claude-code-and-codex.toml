@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Write skill/plugin definitions for Claude Code and Codex that teach them to use the synapty CLI. Cover registration, sending, receiving, and agent discovery workflows."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "mcp"
-content = "Agent skills replaced by MCP server integration. Config templates created in configs/ for Claude Code, Codex, and Gemini CLI. synapty mcp-serve provides native tool access (synapty_send/recv/agents) without skills text."
-
+notes = [
+    "2026-03-27 (mcp): Agent skills replaced by MCP server integration. Config templates created in configs/ for Claude Code, Codex, and Gemini CLI. synapty mcp-serve provides native tool access (synapty_send/recv/agents) without skills text.",
+]
 [[content.acceptance_criteria]]
 text = "Claude Code skill file enables A2A communication via synapty CLI"
 status = "done"

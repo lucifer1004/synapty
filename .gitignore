@@ -43,3 +43,4 @@ default.profraw
 # Local build artifacts (sandboxed DerivedData / zig global cache)
 .build/
 .zig-cache-global/
+.govctl/

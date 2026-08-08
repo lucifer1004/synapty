@@ -15,11 +15,9 @@ refs = [
 [content]
 description = "Consolidate synapty-hub, synapty-daemon, and synapty CLI into a single binary with subcommands. The daemon is functionally equivalent to 'synapty run' and the standalone hub is dev-only (embedded in GUI per ADR-0001). Merging reduces the build matrix (5 targets x 1 vs x 3) and simplifies deploy."
 
-[[content.journal]]
-date = "2026-03-31"
-scope = "build"
-content = "Merged: single 2.2M binary (was 5.5M total). Hub subcommand, run --hub flag, 54 total tests pass."
-
+notes = [
+    "2026-03-31 (build): Merged: single 2.2M binary (was 5.5M total). Hub subcommand, run --hub flag, 54 total tests pass.",
+]
 [[content.acceptance_criteria]]
 text = "'hub' subcommand to CLI that runs standalone Hub"
 status = "done"

@@ -12,16 +12,10 @@ refs = ["ADR-0001"]
 [content]
 description = "Replace hand-rolled CLI argument parser (src/cli/parse.zig) with zig-clap v0.11.0. Motivation: structured help generation, consistent flag parsing, reduced maintenance burden. No behavior change — all existing subcommands and flags preserved."
 
-[[content.journal]]
-date = "2026-03-30"
-scope = "cli"
-content = "Migration complete: 13 new tests added, zig-clap v0.11.0 wired into build.zig.zon/build.zig, parse.zig rewritten with per-subcommand clap parsers, --help support added. All 36 tests pass."
-
-[[content.journal]]
-date = "2026-03-31"
-scope = "cli"
-content = "Reopening to fill coverage gaps: --help for all subcommands, top-level --help, dangling flag edge cases"
-
+notes = [
+    "2026-03-30 (cli): Migration complete: 13 new tests added, zig-clap v0.11.0 wired into build.zig.zon/build.zig, parse.zig rewritten with per-subcommand clap parsers, --help support added. All 36 tests pass.",
+    "2026-03-31 (cli): Reopening to fill coverage gaps: --help for all subcommands, top-level --help, dangling flag edge cases",
+]
 [[content.acceptance_criteria]]
 text = "strengthen CLI parse tests — cover all subcommands, flags, edge cases, error messages"
 status = "done"

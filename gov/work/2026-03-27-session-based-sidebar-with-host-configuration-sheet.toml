@@ -12,11 +12,9 @@ refs = ["ADR-0001"]
 [content]
 description = "Redesign sidebar from host-list to session-list. Sidebar shows active sessions (connected terminals). Gear button opens host config sheet (add/edit/delete). Plus button shows host picker to open new session. Local is an implicit host always available in picker. Multiple sessions per host allowed."
 
-[[content.journal]]
-date = "2026-03-27"
-scope = "gui"
-content = "Implemented session-based sidebar with gear (host config sheet) and plus (host picker popover) buttons. AddHostSheet supports both add and edit. HostConfigSheet with full CRUD and delete confirmation. ContentView simplified — removed PaneTabBar, sidebar handles session switching. Build and govctl check pass."
-
+notes = [
+    "2026-03-27 (gui): Implemented session-based sidebar with gear (host config sheet) and plus (host picker popover) buttons. AddHostSheet supports both add and edit. HostConfigSheet with full CRUD and delete confirmation. ContentView simplified — removed PaneTabBar, sidebar handles session switching. Build and govctl check pass.",
+]
 [[content.acceptance_criteria]]
 text = "Sidebar shows active sessions, not host list"
 status = "done"
