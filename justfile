@@ -72,6 +72,8 @@ package:
     #!/usr/bin/env bash
     set -euo pipefail
     VERSION="${SYNAPTY_VERSION:-0.1.0}"
+    # Tolerate a "v" prefix (Git tags carry it, WI-2026-08-08-089).
+    VERSION="${VERSION#v}"
     DMG_NAME="Synapty-${VERSION}-universal"
     STAGE="zig-out/package/${DMG_NAME}"
 

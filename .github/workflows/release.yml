@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          zig-version: 0.16.0
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      # The post-build script bundles zig-out/bin/synapty into the app as
+      # synapty-cli — build it BEFORE xcodebuild (stale-CLI trap).
+      - name: Build local synapty binary
+        run: zig build
+
+      - name: Cross-compile deploy binaries
+        run: |
+          zig build deploy-linux-aarch64 deploy-linux-x86_64 deploy-linux-riscv64 \
+            deploy-macos-aarch64 deploy-macos-x86_64
+
+      - name: Build GhosttyKit.xcframework
+        run: just ghosttykit
+
+      - name: Package app + DMG + zip
+        run: |
+          echo "SYNAPTY_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          just package
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            zig-out/package/*.dmg
+            zig-out/package/*.zip
