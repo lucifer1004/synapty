@@ -69,7 +69,6 @@ struct TerminalSettingsPanel: View {
                 .padding(.bottom, DS.Space.lg)
             }
         }
-        .frame(width: 300)
         .background(DS.surface)
         .onAppear {
             if fontFamilies.isEmpty {

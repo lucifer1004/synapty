@@ -38,6 +38,13 @@ struct ContentView: View {
     @State private var findText = ""
     /// Right settings panel visibility — global, persisted (WI-2026-08-07-002).
     @AppStorage("synapty.settingsPanelVisible") private var showSettingsPanel = false
+    /// Left sidebar width — drag-resizable, persisted (WI-2026-08-08-080).
+    @AppStorage("synapty.sidebarWidth") private var sidebarWidth: Double = 230
+    /// Right settings panel width — drag-resizable (WI-2026-08-08-080).
+    @State private var settingsPanelWidth: Double = 300
+    /// Drag start anchors.
+    @State private var sidebarDragStart: Double?
+    @State private var panelDragStart: Double?
     /// Bumped on .synaptyUiScaleChanged so every page recomputes with the
     /// new DS.uiFontScale (WI-2026-08-08-070).
     @State private var uiScaleTick = 0
@@ -79,7 +86,15 @@ struct ContentView: View {
                     page = .terminal
                 }
             )
-            .frame(width: 230)
+            .frame(width: sidebarWidth)
+            DSDragDivider(
+                onDrag: { delta in
+                    let start = sidebarDragStart ?? sidebarWidth
+                    sidebarDragStart = start
+                    sidebarWidth = min(max(start + delta, 180), 320)
+                },
+                onEnded: { sidebarDragStart = nil }
+            )
             Divider()
             ZStack {
                 // Terminal page dock + right settings panel on the terminal
@@ -95,6 +110,15 @@ struct ContentView: View {
                         TerminalSettingsPanel(settings: settings) {
                             showSettingsPanel = false
                         }
+                        .frame(width: settingsPanelWidth)
+                        DSDragDivider(
+                            onDrag: { delta in
+                                let start = panelDragStart ?? settingsPanelWidth
+                                panelDragStart = start
+                                settingsPanelWidth = min(max(start - delta, 260), 420)
+                            },
+                            onEnded: { panelDragStart = nil }
+                        )
                     }
                 }
             }
@@ -127,8 +151,19 @@ struct ContentView: View {
 
                 // Other pages: settings panel floats over the content's right edge.
                 if showSettingsPanel && page != .terminal {
-                    TerminalSettingsPanel(settings: settings) {
-                        showSettingsPanel = false
+                    HStack(spacing: 0) {
+                        DSDragDivider(
+                            onDrag: { delta in
+                                let start = panelDragStart ?? settingsPanelWidth
+                                panelDragStart = start
+                                settingsPanelWidth = min(max(start - delta, 260), 420)
+                            },
+                            onEnded: { panelDragStart = nil }
+                        )
+                        TerminalSettingsPanel(settings: settings) {
+                            showSettingsPanel = false
+                        }
+                        .frame(width: settingsPanelWidth)
                     }
                     .frame(maxHeight: .infinity)
                     .frame(maxWidth: .infinity, alignment: .trailing)

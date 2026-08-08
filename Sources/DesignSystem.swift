@@ -342,6 +342,34 @@ struct DSPaneChip: View {
     }
 }
 
+// MARK: - Drag divider (resize handle)
+
+/// Resize handle between two panes (WI-2026-08-08-080): a wide invisible
+/// hit target with a resize cursor; the caller clamps the dragged width.
+struct DSDragDivider: View {
+    let onDrag: (CGFloat) -> Void
+    var onEnded: () -> Void = {}
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in onDrag(value.translation.width) }
+                    .onEnded { _ in onEnded() }
+            )
+    }
+}
+
 // MARK: - Status dot
 
 /// Semantic status dot with optional pulse.

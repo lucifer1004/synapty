@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-080"
+title = "feat(gui): draggable sidebar widths — left nav and right settings panel, clamped bounds"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: both sidebars should be resizable by dragging, with lower/upper bounds.
+
+Fix: a shared DSDragDivider (hover cursor + drag gesture) resizes (a) the left navigation/sessions sidebar (bounds 180-320, persisted via AppStorage) and (b) the right Terminal settings panel in both docked and floating forms (bounds 260-420)."""
+
+[[content.acceptance_criteria]]
+text = "left sidebar drag-resizable between 180-320, persisted"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "right settings panel drag-resizable between 260-420 (docked and floating)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "shared DSDragDivider with resize cursor"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"
