@@ -221,29 +221,11 @@ struct HostsPageView: View {
         GridItem(.adaptive(minimum: 230, maximum: 320), spacing: DS.Space.md),
     ]
 
+    /// GROUPS section — rendered only in the default All Hosts view; inside
+    /// a group it is hidden (WI-2026-08-08-068).
     private var groupsSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.sm) {
-            // Breadcrumb navigation (WI-2026-08-08-066): All Hosts is the
-            // default view; inside a group the header becomes
-            // "All Hosts › Group" and clicking All Hosts returns.
-            if let group = selectedGroup {
-                HStack(spacing: DS.Space.xs) {
-                    Button("All Hosts") { selectedFilter = .all }
-                        .buttonStyle(.plain)
-                        .font(DS.Typography.captionStrong)
-                        .foregroundStyle(DS.accent)
-                        .help("Show all hosts")
-                        .accessibilityLabel("All Hosts")
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8))
-                        .foregroundStyle(DS.textTertiary)
-                    Text(group.label)
-                        .font(DS.Typography.captionStrong)
-                        .foregroundStyle(DS.textPrimary)
-                }
-            } else {
-                DSSectionLabel(text: "Groups", count: hostStore.groups.count)
-            }
+            DSSectionLabel(text: "Groups", count: hostStore.groups.count)
 
             LazyVGrid(columns: Self.blockColumns, alignment: .leading, spacing: DS.Space.md) {
                 // Real groups — drop targets for host blocks.
@@ -270,6 +252,25 @@ struct HostsPageView: View {
                     onSelect: { showNewGroup = true }
                 )
             }
+        }
+    }
+
+    /// Breadcrumb shown inside a group (WI-2026-08-08-066/068):
+    /// "All Hosts › Group"; clicking All Hosts returns to the default view.
+    private func breadcrumb(_ group: HostGroup) -> some View {
+        HStack(spacing: DS.Space.xs) {
+            Button("All Hosts") { selectedFilter = .all }
+                .buttonStyle(.plain)
+                .font(DS.Typography.captionStrong)
+                .foregroundStyle(DS.accent)
+                .help("Show all hosts")
+                .accessibilityLabel("All Hosts")
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8))
+                .foregroundStyle(DS.textTertiary)
+            Text(group.label)
+                .font(DS.Typography.captionStrong)
+                .foregroundStyle(DS.textPrimary)
         }
     }
 
@@ -487,8 +488,16 @@ struct HostsPageView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.Space.xl) {
-                        groupsSection
-                        hostsSection
+                        if let group = selectedGroup {
+                            // Inside a group: breadcrumb only — no GROUPS
+                            // section (WI-2026-08-08-068).
+                            breadcrumb(group)
+                            hostsSection
+                        } else {
+                            // Default All Hosts view: GROUPS + HOSTS.
+                            groupsSection
+                            hostsSection
+                        }
                     }
                     .padding(DS.Space.lg)
                 }
