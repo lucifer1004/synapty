@@ -10,15 +10,11 @@ final class SynaptySettingsTests: XCTestCase {
     private var tempDir: URL!
 
     override func setUpWithError() throws {
-        tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("synapty-settings-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        SynaptySettings.storageOverride = tempDir
+        tempDir = try setUpSettingsStorage()
     }
 
     override func tearDownWithError() throws {
-        SynaptySettings.storageOverride = nil
-        try? FileManager.default.removeItem(at: tempDir)
+        restoreStorageOverrides(tempDir)
     }
 
     func testSaveThenLoadRoundTrip() throws {

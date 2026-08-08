@@ -55,23 +55,6 @@ import AppKit
 
     // MARK: - Hub binary path
 
-    private func hubBinaryPath() -> String? {
-        // Bundled in .app
-        // Contents/MacOS/ — Resources/ copies are killed by ASP (signature
-        // not sealed); MacOS/ is the standard nested-helper location.
-        let macosBin = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/MacOS/synapty-cli").path
-        if FileManager.default.fileExists(atPath: macosBin) {
-            return macosBin
-        }
-        // Dev fallback
-        let devPath = "zig-out/bin/synapty"
-        if FileManager.default.fileExists(atPath: devPath) {
-            return devPath
-        }
-        return nil
-    }
-
     // MARK: - Port check
 
     /// Check if the Hub port is already in use (another Hub is running).
@@ -109,7 +92,7 @@ import AppKit
     // MARK: - Launch
 
     func launchHub() {
-        guard let binary = hubBinaryPath() else {
+        guard let binary = SynaptyBinary.resolve() else {
             status = .failed("synapty binary not found")
             appendLog("Error: synapty binary not found")
             return

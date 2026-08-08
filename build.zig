@@ -12,6 +12,8 @@ const ModuleSet = struct {
     sys: *std.Build.Module,
     /// GitHub REST bridge (RFC-0003).
     github: *std.Build.Module,
+    /// Shared newline-framed socket reader (WI-2026-08-08-035).
+    framing: *std.Build.Module,
 };
 
 /// Create the full set of shared modules for a given target and optimize level.
@@ -34,6 +36,16 @@ fn createModuleSet(
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+    });
+    const framing = b.createModule(.{
+        .root_source_file = b.path("src/framing.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "io", .module = io },
+            .{ .name = "sys", .module = sys },
+        },
     });
     const github = b.createModule(.{
         .root_source_file = b.path("src/github.zig"),
@@ -59,6 +71,7 @@ fn createModuleSet(
         .imports = &.{
             .{ .name = "io", .module = io },
             .{ .name = "sys", .module = sys },
+            .{ .name = "framing", .module = framing },
         },
     });
     const run = b.createModule(.{
@@ -71,6 +84,7 @@ fn createModuleSet(
             .{ .name = "ipc", .module = ipc },
             .{ .name = "io", .module = io },
             .{ .name = "sys", .module = sys },
+            .{ .name = "framing", .module = framing },
         },
     });
     const mcp = b.createModule(.{
@@ -85,7 +99,7 @@ fn createModuleSet(
             .{ .name = "sys", .module = sys },
         },
     });
-    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp, .io = io, .sys = sys, .github = github };
+    return .{ .protocol = protocol, .ipc = ipc, .run = run, .mcp = mcp, .io = io, .sys = sys, .github = github, .framing = framing };
 }
 
 pub fn build(b: *std.Build) void {
@@ -119,6 +133,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
             .{ .name = "github", .module = mods.github },
+            .{ .name = "framing", .module = mods.framing },
         },
     });
 
@@ -144,6 +159,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
             .{ .name = "github", .module = mods.github },
+            .{ .name = "framing", .module = mods.framing },
         },
     });
     const cli_exe = b.addExecutable(.{
@@ -182,6 +198,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "io", .module = deploy_mods.io },
                 .{ .name = "sys", .module = deploy_mods.sys },
                 .{ .name = "github", .module = deploy_mods.github },
+                .{ .name = "framing", .module = deploy_mods.framing },
             },
         });
         const deploy_cli_mod = b.createModule(.{
@@ -195,6 +212,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "mcp", .module = deploy_mods.mcp },
                 .{ .name = "hub", .module = deploy_hub_mod },
                 .{ .name = "clap", .module = clap_mod },
+                .{ .name = "framing", .module = deploy_mods.framing },
                 .{ .name = "io", .module = deploy_mods.io },
                 .{ .name = "sys", .module = deploy_mods.sys },
                 .{ .name = "github", .module = deploy_mods.github },
@@ -228,10 +246,11 @@ pub fn build(b: *std.Build) void {
         .{ .name = "sys", .module = mods.sys },
     }, target, optimize);
 
-    // ipc: io + sys
+    // ipc: io + sys + framing
     addTestModule(b, test_step, "src/ipc.zig", &.{
         .{ .name = "io", .module = mods.io },
         .{ .name = "sys", .module = mods.sys },
+        .{ .name = "framing", .module = mods.framing },
     }, target, optimize);
 
     // hub: protocol + io + sys + github (handlers.zig imports github for
@@ -242,15 +261,18 @@ pub fn build(b: *std.Build) void {
         .{ .name = "io", .module = mods.io },
         .{ .name = "sys", .module = mods.sys },
         .{ .name = "github", .module = mods.github },
+        .{ .name = "framing", .module = mods.framing },
     }, target, optimize);
 
-    // run and mcp: protocol + ipc + io + sys
+    // run and mcp: protocol + ipc + io + sys + framing (run.zig reads the
+    // hub stream through framing.LineBuffer)
     inline for (.{ "run", "mcp" }) |name| {
         addTestModule(b, test_step, "src/" ++ name ++ ".zig", &.{
             .{ .name = "protocol", .module = mods.protocol },
             .{ .name = "ipc", .module = mods.ipc },
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
+            .{ .name = "framing", .module = mods.framing },
         }, target, optimize);
     }
 
@@ -265,6 +287,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "io", .module = mods.io },
             .{ .name = "sys", .module = mods.sys },
             .{ .name = "github", .module = mods.github },
+            .{ .name = "framing", .module = mods.framing },
         },
     });
     addTestModule(b, test_step, "src/e2e_test.zig", &.{
@@ -274,6 +297,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "hub", .module = hub_module },
         .{ .name = "io", .module = mods.io },
         .{ .name = "sys", .module = mods.sys },
+        .{ .name = "framing", .module = mods.framing },
     }, target, optimize);
 
     // cli: protocol + ipc + run + mcp + hub + clap

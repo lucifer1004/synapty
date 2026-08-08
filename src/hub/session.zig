@@ -1,5 +1,6 @@
 const std = @import("std");
 const sys = @import("sys");
+const framing = @import("framing");
 const mem = std.mem;
 const log = std.log.scoped(.hub);
 const protocol = @import("protocol");
@@ -40,43 +41,26 @@ pub fn readerThread(args: ReaderArgs) void {
     var msg_arena = std.heap.ArenaAllocator.init(state.allocator);
     defer msg_arena.deinit();
 
-    // Line buffer for TCP framing — carries partial lines across reads.
+    // Line buffer for TCP framing — shared framing.LineBuffer carries
+    // partial lines across reads (WI-2026-08-08-035).
     var line_buf: [recv_buf_size]u8 = undefined;
-    var filled: usize = 0;
+    var lb = framing.LineBuffer.init(&line_buf);
 
     // Read until we have at least one complete line.
     const parsed_init = blk: {
         while (true) {
-            if (filled >= line_buf.len) {
-                log.err("initial message exceeds buffer", .{});
-                return;
-            }
-            const n = sys.read(fd, line_buf[filled..]) catch |err| {
+            const first_line = mem.trimEnd(u8, (lb.readLine(fd) catch |err| {
                 log.err("read error on initial message: {any}", .{err});
                 return;
+            }) orelse return, "\r ");
+            if (first_line.len == 0) return;
+
+            // Parse with conn_arena so agent_id survives the connection.
+            const parsed = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
+                log.err("failed to parse initial envelope: {any}", .{err});
+                return;
             };
-            if (n == 0) return;
-            filled += n;
-
-            // Check for a complete first line.
-            if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
-                const first_line = mem.trimEnd(u8, line_buf[0..nl], "\r ");
-                if (first_line.len == 0) return;
-
-                // Parse with conn_arena so agent_id survives the connection.
-                const parsed = protocol.parseEnvelope(conn_alloc, first_line) catch |err| {
-                    log.err("failed to parse initial envelope: {any}", .{err});
-                    return;
-                };
-                // Shift consumed bytes out of line_buf.
-                const consumed = nl + 1;
-                const remaining = filled - consumed;
-                if (remaining > 0) {
-                    mem.copyForwards(u8, line_buf[0..remaining], line_buf[consumed..filled]);
-                }
-                filled = remaining;
-                break :blk parsed;
-            }
+            break :blk parsed;
         }
     };
 
@@ -93,7 +77,16 @@ pub fn readerThread(args: ReaderArgs) void {
             writer.join();
         }
         handlers.dispatchEnvelope(state, msg_arena.allocator(), conn, parsed_init.value.source, parsed_init.value);
-        handlers.processLines(state, &msg_arena, conn, parsed_init.value.source, &line_buf, &filled);
+        // Dispatch any lines already buffered after the first — WITHOUT
+        // reading (the connection closes right after).
+        while (lb.countBufferedLines() > 0) {
+            const line = lb.readLine(fd) catch break orelse break;
+            const raw = mem.trimEnd(u8, line, "\r ");
+            if (raw.len == 0) continue;
+            _ = msg_arena.reset(.retain_capacity);
+            const parsed = protocol.parseEnvelope(msg_arena.allocator(), raw) catch continue;
+            handlers.dispatchEnvelope(state, msg_arena.allocator(), conn, parsed_init.value.source, parsed.value);
+        }
         return;
     }
 
@@ -130,25 +123,40 @@ pub fn readerThread(args: ReaderArgs) void {
         // removeConnection removes from all_connections, closes stream, and frees.
     }
 
-    // Process any additional complete lines from the initial read(s).
-    handlers.processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
+    // Process any additional complete lines from the initial read(s) —
+    // buffered only, no socket reads (WI-2026-08-08-035).
+    while (lb.countBufferedLines() > 0) {
+        const line = lb.readLine(fd) catch break orelse break;
+        const raw = mem.trimEnd(u8, line, "\r ");
+        if (raw.len == 0) continue;
+        _ = msg_arena.reset(.retain_capacity);
+        const parsed = protocol.parseEnvelope(msg_arena.allocator(), raw) catch continue;
+        handlers.dispatchEnvelope(state, msg_arena.allocator(), conn, agent_id, parsed.value);
+    }
 
-    // Main receive loop with line buffering.
+    // Main receive loop with line buffering (WI-2026-08-08-035).
     while (true) {
-        if (filled >= line_buf.len) {
-            log.err("message from {s} exceeds buffer", .{agent_id});
-            break;
-        }
-        const n = sys.read(fd, line_buf[filled..]) catch |err| {
-            switch (err) {
-                error.ConnectionResetByPeer => {},
-                else => log.warn("read error from {s}: {any}", .{ agent_id, err }),
-            }
-            break;
-        };
-        if (n == 0) break;
-        filled += n;
+        const line = lb.readLine(fd) catch |err| switch (err) {
+            error.ConnectionResetByPeer => null,
+            error.StreamTooLong => {
+                log.err("message from {s} exceeds buffer — dropping oversized line", .{agent_id});
+                lb.dropOversizedLine(fd);
+                continue;
+            },
+            else => blk: {
+                log.warn("read error from {s}: {any}", .{ agent_id, err });
+                break :blk null;
+            },
+        } orelse break;
+        const raw = mem.trimEnd(u8, line, "\r ");
+        if (raw.len == 0) continue;
 
-        handlers.processLines(state, &msg_arena, conn, agent_id, &line_buf, &filled);
+        // Reset per-message arena so each envelope parse is bounded.
+        _ = msg_arena.reset(.retain_capacity);
+        const parsed = protocol.parseEnvelope(msg_arena.allocator(), raw) catch |err| {
+            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
+            continue;
+        };
+        handlers.dispatchEnvelope(state, msg_arena.allocator(), conn, agent_id, parsed.value);
     }
 }

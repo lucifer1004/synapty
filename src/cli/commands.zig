@@ -1,5 +1,6 @@
 const std = @import("std");
 const sys = @import("sys");
+const framing = @import("framing");
 const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
@@ -156,22 +157,10 @@ pub fn runRecv(allocator: Allocator, args: RecvArgs) !void {
 
 /// Read one newline-terminated frame from the hub (chunked; a single read
 /// truncated frames split across TCP segments — WI-2026-08-08-028).
+/// Delegates to the shared framing.LineBuffer (WI-2026-08-08-035).
 fn readLineHub(fd: sys.fd_t, buf: []u8) !?[]const u8 {
-    var i: usize = 0;
-    var chunk: [4096]u8 = undefined;
-    while (true) {
-        const n = try sys.read(fd, &chunk);
-        if (n == 0) {
-            if (i == 0) return null;
-            return buf[0..i];
-        }
-        for (chunk[0..n]) |b| {
-            if (b == '\n') return buf[0..i];
-            if (i >= buf.len) return error.StreamTooLong;
-            buf[i] = b;
-            i += 1;
-        }
-    }
+    var lb = framing.LineBuffer.init(buf);
+    return lb.readLine(fd);
 }
 
 pub fn runAgents(allocator: Allocator) !void {

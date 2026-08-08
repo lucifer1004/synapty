@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-037"
+title = "refactor(test): shared temp-storage harness"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "DRY (tests): HostModelTests, TunnelManagerTests and SynaptySettingsTests each hand-roll the same temp-directory creation/teardown + storageOverride wiring. Extract a shared test harness so the pattern lives once."
+notes = ["Tests/TestSupport.swift: TestTempStorage.makeDir/removeDir + XCTestCase helpers (setUpHostStoreStorage/setUpSettingsStorage/restoreStorageOverrides); the three store-backed suites (HostModelTests, TunnelManagerTests, SynaptySettingsTests) now use it instead of hand-rolling temp dirs."]
+
+[[content.acceptance_criteria]]
+text = "fix: Tests/TestSupport.swift provides temp-dir creation/removal"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: the three store tests use it (no per-test copy-paste)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

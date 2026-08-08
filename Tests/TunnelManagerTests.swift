@@ -10,15 +10,11 @@ final class TunnelManagerTests: XCTestCase {
     private var tempDir: URL!
 
     override func setUpWithError() throws {
-        tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("synapty-tunnel-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        HostStore.storageOverride = tempDir
+        tempDir = try setUpHostStoreStorage()
     }
 
     override func tearDownWithError() throws {
-        HostStore.storageOverride = nil
-        try? FileManager.default.removeItem(at: tempDir)
+        restoreStorageOverrides(tempDir)
     }
 
     private func makeManager() -> TunnelManager {

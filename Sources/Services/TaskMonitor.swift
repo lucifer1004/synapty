@@ -2,10 +2,6 @@ import Foundation
 import SwiftUI
 import os
 
-private extension Logger {
-    static let taskMonitor = Logger(subsystem: "com.synapty.app", category: "TaskMonitor")
-}
-
 // MARK: - Data Models (RFC-0003 task-center model)
 
 /// A task = a GitHub issue in the hub repo (C-ISSUE-STATES).
@@ -144,20 +140,6 @@ enum BridgeStatus: Equatable {
 
     // MARK: - Binary path (matches AgentMonitor/HubManager pattern)
 
-    private func synaptyBinaryPath() -> String? {
-        // Contents/MacOS/ — the sealed nested helper (same as HubManager).
-        let macosBin = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/MacOS/synapty-cli").path
-        if FileManager.default.fileExists(atPath: macosBin) {
-            return macosBin
-        }
-        let devPath = "zig-out/bin/synapty"
-        if FileManager.default.fileExists(atPath: devPath) {
-            return devPath
-        }
-        return nil
-    }
-
     /// Run `synapty <args...>` asynchronously — the subprocess (incl. the
     /// GitHub API round-trip) runs on a background queue so the main thread
     /// is never blocked (WI-2026-08-07-006: polling was freezing the UI
@@ -166,7 +148,7 @@ enum BridgeStatus: Equatable {
         _ arguments: [String],
         completion: @escaping @MainActor (String?) -> Void
     ) {
-        guard let binary = synaptyBinaryPath() else {
+        guard let binary = SynaptyBinary.resolve() else {
             Task { @MainActor in completion(nil) }
             return
         }
@@ -180,11 +162,11 @@ enum BridgeStatus: Equatable {
                 timeout: 60
             )
             if let error = output.error {
-                Logger.taskMonitor.error("launch failed: \(error, privacy: .public)")
+                AppLog.taskMonitor.error("launch failed: \(error, privacy: .public)")
             } else if output.timedOut {
-                Logger.taskMonitor.error("`synapty \(arguments.joined(separator: " "), privacy: .public)` timed out after 60s")
+                AppLog.taskMonitor.error("`synapty \(arguments.joined(separator: " "), privacy: .public)` timed out after 60s")
             } else if !output.stderr.isEmpty {
-                Logger.taskMonitor.error("stderr: \(output.stderr, privacy: .public)")
+                AppLog.taskMonitor.error("stderr: \(output.stderr, privacy: .public)")
             }
             let result = output.error == nil && !output.timedOut ? output.stdout : nil
             Task { @MainActor in completion(result) }

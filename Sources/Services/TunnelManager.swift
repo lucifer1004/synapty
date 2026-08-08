@@ -2,10 +2,6 @@ import Foundation
 import AppKit
 import os
 
-private extension Logger {
-    static let tunnelManager = Logger(subsystem: "com.synapty.app", category: "TunnelManager")
-}
-
 /// Manages SSH ControlMaster tunnels to remote hosts.
 /// Provides auto-setup on first connect, heartbeat monitoring, and auto-reconnect.
 @MainActor final class TunnelManager: ObservableObject {
@@ -256,9 +252,9 @@ private extension Logger {
                     }
                 } else {
                     if let error = output.error {
-                        Logger.tunnelManager.error("setup launch failed: \(error, privacy: .public)")
+                        AppLog.tunnelManager.error("setup launch failed: \(error, privacy: .public)")
                     } else if output.timedOut {
-                        Logger.tunnelManager.error("setup for \(host.address, privacy: .public) timed out after 60s")
+                        AppLog.tunnelManager.error("setup for \(host.address, privacy: .public) timed out after 60s")
                     }
                     let lastLine = output.stderr.split(separator: "\n").last.map(String.init)
                         ?? output.stdout.split(separator: "\n").last.map(String.init)
@@ -361,29 +357,11 @@ private extension Logger {
     /// socket. Pure process spawn with no shared-state access, so it can run
     /// off the main actor without isolation warnings.
     nonisolated private static func sshControl(socket: String, userAtHost: String, ctl: String) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = ["-S", socket, "-O", ctl, userAtHost]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        do {
-            try process.run()
-        } catch {
-            return false
-        }
-        // Bounded: a wedged master (blocking DNS etc.) must not stall a
-        // utility thread forever (WI-2026-08-08-031).
-        if exited.wait(timeout: .now() + 10) == .timedOut {
-            process.terminate()
-            _ = exited.wait(timeout: .now() + 2)
-            if process.isRunning {
-                kill(process.processIdentifier, SIGKILL)
-                _ = exited.wait(timeout: .now() + 2)
-            }
-            return false
-        }
-        return process.terminationStatus == 0
+        // Delegates to SubprocessRunner.runQuiet — shared timeout/kill
+        // discipline (WI-2026-08-08-031, WI-2026-08-08-036).
+        SubprocessRunner.runQuiet(
+            executable: "/usr/bin/ssh",
+            arguments: ["-S", socket, "-O", ctl, userAtHost]
+        )
     }
 }

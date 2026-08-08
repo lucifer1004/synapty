@@ -1,5 +1,6 @@
 const std = @import("std");
 const sys = @import("sys");
+const framing = @import("framing");
 const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
@@ -308,85 +309,51 @@ fn buildEnvMap(allocator: Allocator) !std.process.Environ.Map {
 /// to the message queue.
 fn hubReaderThread(srv: *RunServer) void {
     var line_buf: [64 * 1024]u8 = undefined;
-    var filled: usize = 0;
+    // Shared framing (WI-2026-08-08-035): carry-remainder chunked reader,
+    // oversized-line resync built in.
+    var lb = framing.LineBuffer.init(&line_buf);
 
     // Per-line arena for parsing envelope type — reset after each line.
     var parse_arena = std.heap.ArenaAllocator.init(srv.allocator);
     defer parse_arena.deinit();
 
     while (@atomicLoad(bool, &srv.running, .acquire)) {
-        if (filled >= line_buf.len) {
+        const line = lb.readLine(srv.hub_fd) catch |err| switch (err) {
             // An oversized line (e.g. a huge list_agents response) must
             // not kill the reader permanently — every later IPC request
             // would hang then time out. Drop through the next newline and
             // keep serving (WI-2026-08-08-029).
-            log.err("hub message exceeds buffer — dropping oversized line", .{});
-            var resynced = false;
-            while (!resynced) {
-                if (mem.indexOfScalar(u8, line_buf[0..filled], '\n')) |nl| {
-                    const drop = nl + 1;
-                    const remaining = filled - drop;
-                    mem.copyForwards(u8, line_buf[0..remaining], line_buf[drop..filled]);
-                    filled = remaining;
-                    resynced = true;
-                } else {
-                    const n2 = sys.read(srv.hub_fd, line_buf[0..]) catch {
-                        // Read error / EOF while draining — stop.
-                        filled = 0;
-                        resynced = true;
-                        break;
-                    };
-                    if (n2 == 0) {
-                        filled = 0;
-                        resynced = true;
-                    } else {
-                        filled = n2;
-                    }
-                }
-            }
-            continue;
-        }
-        const n = sys.read(srv.hub_fd, line_buf[filled..]) catch break;
-        if (n == 0) break;
-        filled += n;
+            error.StreamTooLong => {
+                log.err("hub message exceeds buffer — dropping oversized line", .{});
+                lb.dropOversizedLine(srv.hub_fd);
+                continue;
+            },
+            else => break,
+        } orelse break;
+        const trimmed = mem.trimEnd(u8, line, "\r ");
+        if (trimmed.len == 0) continue;
 
-        // Extract complete newline-delimited lines.
-        var start: usize = 0;
-        while (mem.indexOfScalar(u8, line_buf[start..filled], '\n')) |rel| {
-            const end = start + rel;
-            const line = mem.trimEnd(u8, line_buf[start..end], "\r ");
-            start = end + 1;
-            if (line.len == 0) continue;
+        // Parse the envelope to check the type field reliably.
+        _ = parse_arena.reset(.retain_capacity);
+        const is_response = blk: {
+            const parsed = json.parseFromSlice(json.Value, parse_arena.allocator(), trimmed, .{ .allocate = .alloc_always }) catch break :blk false;
+            const obj = if (parsed.value == .object) parsed.value.object else break :blk false;
+            const type_val = obj.get("type") orelse break :blk false;
+            break :blk if (type_val == .string) mem.eql(u8, type_val.string, "response") else false;
+        };
 
-            // Parse the envelope to check the type field reliably.
-            _ = parse_arena.reset(.retain_capacity);
-            const is_response = blk: {
-                const parsed = json.parseFromSlice(json.Value, parse_arena.allocator(), line, .{ .allocate = .alloc_always }) catch break :blk false;
-                const obj = if (parsed.value == .object) parsed.value.object else break :blk false;
-                const type_val = obj.get("type") orelse break :blk false;
-                break :blk if (type_val == .string) mem.eql(u8, type_val.string, "response") else false;
+        if (is_response) {
+            const copy = std.heap.smp_allocator.dupe(u8, trimmed) catch continue;
+            srv.response_mutex.lock(io_mod.get()) catch unreachable;
+            srv.pending_responses.append(std.heap.smp_allocator, copy) catch {
+                std.heap.smp_allocator.free(copy);
             };
-
-            if (is_response) {
-                const copy = std.heap.smp_allocator.dupe(u8, line) catch continue;
-                srv.response_mutex.lock(io_mod.get()) catch unreachable;
-                srv.pending_responses.append(std.heap.smp_allocator, copy) catch {
-                    std.heap.smp_allocator.free(copy);
-                };
-                srv.response_mutex.unlock(io_mod.get());
-            } else {
-                srv.message_queue.push(line) catch |err| {
-                    log.err("message_queue.push failed: {any}", .{err});
-                };
-            }
+            srv.response_mutex.unlock(io_mod.get());
+        } else {
+            srv.message_queue.push(trimmed) catch |err| {
+                log.err("message_queue.push failed: {any}", .{err});
+            };
         }
-
-        // Shift unconsumed bytes to the front.
-        const remaining = filled - start;
-        if (remaining > 0 and start > 0) {
-            mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled]);
-        }
-        filled = remaining;
     }
 }
 
@@ -437,6 +404,27 @@ fn writeToHub(srv: *RunServer, data: []const u8) !void {
     defer srv.hub_write_mutex.unlock(io_mod.get());
     try sys.writeAll(srv.hub_fd, data);
     try sys.writeAll(srv.hub_fd, "\n");
+}
+
+/// Write an envelope to the hub, wait for its response, and send the
+/// daemon's IPC response to the client. The send/register/channel branches
+/// used to repeat this write->wait->respond sequence by hand
+/// (WI-2026-08-08-038).
+fn hubRoundtripAndRespond(srv: *RunServer, alloc: Allocator, client_fd: sys.fd_t, envelope: protocol.Envelope) !void {
+    const raw = try protocol.serializeEnvelope(alloc, envelope);
+    defer alloc.free(raw);
+    try writeToHub(srv, raw);
+    // Wait for hub acknowledgment, matched by request ID.
+    const hub_resp = waitForHubResponse(srv, envelope.id);
+    defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
+    const success = if (hub_resp) |r| parseHubOk(r) else false;
+    const resp = protocol.IpcResponse{
+        .success = success,
+        .data = hub_resp,
+        .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
+    };
+    const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
+    try ipc.IpcServer.writeLine(client_fd, resp_raw);
 }
 
 /// Generate a unique request ID for envelope correlation.
@@ -523,19 +511,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
                 .target = target,
                 .payload = .{ .object = payload_obj },
             };
-            const raw = try protocol.serializeEnvelope(alloc, envelope);
-            try writeToHub(srv, raw);
-            // Wait for hub acknowledgment, matched by request ID.
-            const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
-            const success = if (hub_resp) |r| parseHubOk(r) else false;
-            const resp = protocol.IpcResponse{
-                .success = success,
-                .data = hub_resp,
-                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
-            };
-            const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_fd, resp_raw);
+            try hubRoundtripAndRespond(srv, alloc, client_fd, envelope);
         },
         .recv => {
             // Bounded drain: the IPC line buffer is 64KiB and the response
@@ -596,19 +572,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
                 .target = "hub",
                 .payload = .{ .object = payload_obj },
             };
-            const raw = try protocol.serializeEnvelope(alloc, envelope);
-            try writeToHub(srv, raw);
-            // Wait for hub acknowledgment, matched by request ID.
-            const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
-            const success = if (hub_resp) |r| parseHubOk(r) else false;
-            const resp = protocol.IpcResponse{
-                .success = success,
-                .data = hub_resp,
-                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
-            };
-            const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_fd, resp_raw);
+            try hubRoundtripAndRespond(srv, alloc, client_fd, envelope);
         },
         .channel_create, .channel_invite, .channel_leave, .channel_list => {
             var id_buf: [32]u8 = undefined;
@@ -632,18 +596,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
                 .target = "hub",
                 .payload = .{ .object = payload_obj },
             };
-            const raw = try protocol.serializeEnvelope(alloc, envelope);
-            try writeToHub(srv, raw);
-            const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
-            const success = if (hub_resp) |r| parseHubOk(r) else false;
-            const resp = protocol.IpcResponse{
-                .success = success,
-                .data = hub_resp,
-                .error_msg = if (!success and hub_resp == null) "hub timeout" else null,
-            };
-            const resp_raw = try protocol.serializeIpcResponse(alloc, resp);
-            try ipc.IpcServer.writeLine(client_fd, resp_raw);
+            try hubRoundtripAndRespond(srv, alloc, client_fd, envelope);
         },
     }
 }

@@ -15,20 +15,27 @@ const log = std.log.scoped(.hub);
 // ---------------------------------------------------------------------------
 
 /// Send a response envelope by enqueueing it into the sender's Connection.
-pub fn sendResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
+/// Build and enqueue a hub response envelope — the shared implementation
+/// behind sendResponse and sendToolResponse, which differ only in the
+/// envelope type (they were byte-identical copies; WI-2026-08-08-038).
+fn sendHubEnvelope(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8, resp_type: []const u8) !void {
     var payload_obj = json.ObjectMap.empty;
     try payload_obj.put(arena, "ok", .{ .bool = ok });
     if (data) |d| try payload_obj.put(arena, "data", d);
     if (err_msg) |e| try payload_obj.put(arena, "error", .{ .string = e });
 
     const resp = protocol.Envelope{
-        .@"type" = "response",
+        .@"type" = resp_type,
         .id = req_id,
         .source = "hub",
         .target = target,
         .payload = .{ .object = payload_obj },
     };
     try conn.enqueueEnvelope(arena, resp);
+}
+
+pub fn sendResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
+    try sendHubEnvelope(arena, conn, req_id, target, ok, data, err_msg, "response");
 }
 
 // ---------------------------------------------------------------------------
@@ -377,31 +384,6 @@ pub fn dispatchEnvelope(state: *HubState, arena: Allocator, conn: *Connection, a
 
 /// Extract and dispatch all complete newline-delimited lines from the buffer.
 /// Resets msg_arena after each envelope so per-message memory is bounded.
-pub fn processLines(state: *HubState, msg_arena: *std.heap.ArenaAllocator, conn: *Connection, agent_id: []const u8, line_buf: *[recv_buf_size]u8, filled: *usize) void {
-    var start: usize = 0;
-    while (mem.indexOfScalar(u8, line_buf[start..filled.*], '\n')) |rel| {
-        const end = start + rel;
-        const raw = mem.trimEnd(u8, line_buf[start..end], "\r ");
-        start = end + 1;
-        if (raw.len == 0) continue;
-
-        // Reset per-message arena so each envelope parse is bounded.
-        _ = msg_arena.reset(.retain_capacity);
-        const alloc = msg_arena.allocator();
-
-        const parsed = protocol.parseEnvelope(alloc, raw) catch |err| {
-            log.err("bad envelope from {s}: {any}", .{ agent_id, err });
-            continue;
-        };
-        dispatchEnvelope(state, alloc, conn, agent_id, parsed.value);
-    }
-    // Shift unconsumed bytes to the front.
-    const remaining = filled.* - start;
-    if (remaining > 0 and start > 0) {
-        mem.copyForwards(u8, line_buf[0..remaining], line_buf[start..filled.*]);
-    }
-    filled.* = remaining;
-}
 
 /// Per-connection receive buffer size (64 KiB).
 pub const recv_buf_size = 64 * 1024;
@@ -414,18 +396,7 @@ const github = @import("github");
 
 /// Send a tool_response envelope.
 fn sendToolResponse(arena: Allocator, conn: *Connection, req_id: []const u8, target: []const u8, ok: bool, data: ?json.Value, err_msg: ?[]const u8) !void {
-    var payload_obj = json.ObjectMap.empty;
-    try payload_obj.put(arena, "ok", .{ .bool = ok });
-    if (data) |d| try payload_obj.put(arena, "data", d);
-    if (err_msg) |e| try payload_obj.put(arena, "error", .{ .string = e });
-    const resp = protocol.Envelope{
-        .@"type" = "tool_response",
-        .id = req_id,
-        .source = "hub",
-        .target = target,
-        .payload = .{ .object = payload_obj },
-    };
-    try conn.enqueueEnvelope(arena, resp);
+    try sendHubEnvelope(arena, conn, req_id, target, ok, data, err_msg, "tool_response");
 }
 
 /// Extract a string field from a JSON object.

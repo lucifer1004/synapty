@@ -1,5 +1,6 @@
 const std = @import("std");
 const sys = @import("sys");
+const framing = @import("framing");
 const io_mod = @import("io");
 const mem = std.mem;
 const posix = std.posix;
@@ -45,24 +46,10 @@ pub const IpcServer = struct {
 
     /// Read bytes from fd until '\n', returning the line without '\n'.
     /// Returns null on EOF. Returns error.StreamTooLong if line exceeds buf.
-    /// Reads in chunks — one byte per syscall made a 64KiB recv response
-    /// cost ~64k syscalls (WI-2026-08-08-028).
+    /// Delegates to the shared framing.LineBuffer (WI-2026-08-08-035).
     pub fn readLine(fd: sys.fd_t, buf: []u8) !?[]const u8 {
-        var i: usize = 0;
-        var chunk: [4096]u8 = undefined;
-        while (true) {
-            const n = try sys.read(fd, &chunk);
-            if (n == 0) {
-                if (i == 0) return null; // EOF with no data
-                return buf[0..i]; // EOF after partial line
-            }
-            for (chunk[0..n]) |b| {
-                if (b == '\n') return buf[0..i];
-                if (i >= buf.len) return error.StreamTooLong;
-                buf[i] = b;
-                i += 1;
-            }
-        }
+        var lb = framing.LineBuffer.init(buf);
+        return lb.readLine(fd);
     }
 
     /// Write data followed by '\n' to fd.

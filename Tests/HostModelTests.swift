@@ -71,20 +71,16 @@ final class HostEntryTests: XCTestCase {
 @MainActor
 final class HostStoreTests: XCTestCase {
 
-    /// Temp storage dir — HostStoreTests must never touch the developer's
-    /// real ~/.synapty/hosts.json (WI-2026-08-08-020).
+    /// Shared temp-storage harness (WI-2026-08-08-037) — HostStoreTests
+    /// must never touch the developer's real ~/.synapty/hosts.json.
     private var tempDir: URL!
 
     override func setUpWithError() throws {
-        tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("synapty-hosts-tests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        HostStore.storageOverride = tempDir
+        tempDir = try setUpHostStoreStorage()
     }
 
     override func tearDownWithError() throws {
-        HostStore.storageOverride = nil
-        try? FileManager.default.removeItem(at: tempDir)
+        restoreStorageOverrides(tempDir)
     }
 
     private func makeStore() -> HostStore {

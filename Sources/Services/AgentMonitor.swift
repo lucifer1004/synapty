@@ -2,10 +2,6 @@ import Foundation
 import SwiftUI
 import os
 
-private extension Logger {
-    static let agentMonitor = Logger(subsystem: "com.synapty.app", category: "AgentMonitor")
-}
-
 // MARK: - Data Models per [[RFC-0003]] (agent identity, kept from RFC-0002 C-AGENT-IDENTITY)
 
 enum ToolType: String, CaseIterable {
@@ -130,28 +126,13 @@ struct ChatMessage: Identifiable, Equatable {
 
     // MARK: - Binary path resolution (matches HubManager pattern)
 
-    private func synaptyBinaryPath() -> String? {
-        // Contents/MacOS/ — Resources/ copies are killed by ASP (signature
-        // not sealed); MacOS/ is the standard nested-helper location.
-        let macosBin = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/MacOS/synapty-cli").path
-        if FileManager.default.fileExists(atPath: macosBin) {
-            return macosBin
-        }
-        let devPath = "zig-out/bin/synapty"
-        if FileManager.default.fileExists(atPath: devPath) {
-            return devPath
-        }
-        return nil
-    }
-
     // MARK: - Refresh
 
     /// In-flight guard — skip a poll while the previous one is running.
     private var refreshInFlight = false
 
     private func refresh() {
-        guard let binary = synaptyBinaryPath(), !refreshInFlight else { return }
+        guard let binary = SynaptyBinary.resolve(), !refreshInFlight else { return }
         refreshInFlight = true
         DispatchQueue.global(qos: .utility).async { [weak self] in
             defer {
@@ -168,11 +149,11 @@ struct ChatMessage: Identifiable, Equatable {
                 timeout: 15
             )
             if let error = output.error {
-                Logger.agentMonitor.error("launch failed: \(error, privacy: .public)")
+                AppLog.agentMonitor.error("launch failed: \(error, privacy: .public)")
             } else if output.timedOut {
-                Logger.agentMonitor.error("`synapty agents` timed out after 15s")
+                AppLog.agentMonitor.error("`synapty agents` timed out after 15s")
             } else if !output.stderr.isEmpty {
-                Logger.agentMonitor.error("stderr: \(output.stderr, privacy: .public)")
+                AppLog.agentMonitor.error("stderr: \(output.stderr, privacy: .public)")
             }
             // parseAgentsOutput is pure — safe off the main actor.
             let parsed = Self.parseAgentsOutput(output.stdout)

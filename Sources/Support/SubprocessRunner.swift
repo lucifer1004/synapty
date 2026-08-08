@@ -119,6 +119,35 @@ enum SubprocessRunner {
         )
     }
 
+    /// Timed spawn with no pipes (output discarded) — for quick control
+    /// commands like `ssh -O check/exit`. Shares the timeout/kill
+    /// discipline with run() so a wedged command can never stall a thread
+    /// forever (WI-2026-08-08-036).
+    static func runQuiet(executable: String, arguments: [String], timeout: TimeInterval = 10) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+        do {
+            try process.run()
+        } catch {
+            return false
+        }
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            _ = exited.wait(timeout: .now() + 2)
+            if process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exited.wait(timeout: .now() + 2)
+            }
+            return false
+        }
+        return process.terminationStatus == 0
+    }
+
     /// SIGKILL every process in the child's group. `Process` doesn't expose
     /// setpgid, so we signal the child's pid and its group via kill(-pid).
     /// If the child was not a group leader this still kills the child, and
