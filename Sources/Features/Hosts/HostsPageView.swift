@@ -38,6 +38,11 @@ struct HostsPageView: View {
     @State private var selectedHostIDs: Set<UUID> = []
     /// Tag filter (WI-2026-08-08-059): hosts must have ALL selected tags.
     @State private var selectedTags: Set<String> = []
+    /// Last block click time — manual double-click detection
+    /// (WI-2026-08-08-076): a SINGLE onTapGesture keeps first-click response
+    /// instant AND avoids the SwiftUI gesture-composition crash seen with
+    /// .gesture/.simultaneousGesture stacked on .draggable blocks.
+    @State private var lastBlockTapTime = Date.distantPast
 
     /// Which sub-pane of the Hosts page is shown.
     @State private var pane: HostsPane = .hosts
@@ -412,12 +417,7 @@ struct HostsPageView: View {
                             onReconnect: { tunnelManager.reconnectTunnel(for: host) },
                             onDisconnect: { tunnelManager.disconnectTunnel(for: host) }
                         )
-                        .gesture(
-                            TapGesture(count: 2).onEnded { onOpenTerminal?(host) }
-                        )
-                        .simultaneousGesture(
-                            TapGesture(count: 1).onEnded { selectHost(host.id) }
-                        )
+                        .onTapGesture { handleBlockTap(host) }
                         .draggable(HostDragPayload(hostIDs: dragIDs(for: host)))
                     }
                 }
@@ -426,6 +426,19 @@ struct HostsPageView: View {
     }
 
     // MARK: - Block selection (drag-and-drop support)
+
+    /// Single tap: select immediately. A second tap within the system
+    /// double-click window opens the terminal (WI-2026-08-08-076).
+    private func handleBlockTap(_ host: HostEntry) {
+        let now = Date()
+        if now.timeIntervalSince(lastBlockTapTime) < NSEvent.doubleClickInterval {
+            lastBlockTapTime = .distantPast
+            onOpenTerminal?(host)
+        } else {
+            selectHost(host.id)
+            lastBlockTapTime = now
+        }
+    }
 
     /// Cmd-click toggles membership; plain click selects just this host.
     private func selectHost(_ id: UUID) {

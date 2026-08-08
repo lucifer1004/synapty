@@ -15,17 +15,17 @@ Bug report: single-click on host blocks responds with an unreasonable delay. Cau
 Fix (native gesture composition): keep `TapGesture(count:2)` as the view's gesture and attach `TapGesture(count:1)` via `.simultaneousGesture` — the two recognizers run in parallel, so the first click selects immediately and a second click within the window opens the terminal (selection is idempotent)."""
 
 [[content.acceptance_criteria]]
-text = "single click selects immediately (parallel simultaneousGesture, no window wait)"
+text = "single click selects immediately (single onTapGesture — no window wait, no gesture composition)"
 status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
-text = "double-click opens the terminal (count:2 gesture); selection stays idempotent"
+text = "double-click (within NSEvent.doubleClickInterval) opens the terminal"
 status = "done"
 category = "fixed"
 
 [[content.acceptance_criteria]]
-text = "no manual timestamp state — pure gesture composition"
+text = "no crash on entering the Hosts page / clicking blocks (verified by reproduction: stacked gesture+draggable crashed, single gesture does not)"
 status = "done"
 category = "fixed"
 
