@@ -1,4 +1,5 @@
 const std = @import("std");
+const sys = @import("sys");
 const io_mod = @import("io");
 const mem = std.mem;
 const json = std.json;
@@ -31,15 +32,34 @@ pub const RoutingTable = struct {
     pub fn register(self: *RoutingTable, agent_id: []const u8, conn: *Connection) !void {
         self.mutex.lock(io_mod.get()) catch unreachable;
         defer self.mutex.unlock(io_mod.get());
-        try self.map.put(agent_id, conn);
-        log.info("registered agent: {s}", .{agent_id});
+        if (try self.map.fetchPut(agent_id, conn)) |old| {
+            // Duplicate registration (WI-2026-08-08-016): the new
+            // connection atomically replaces the old one. Close the old
+            // stream so its reader unblocks and exits; its eventual
+            // unregisterIfOwned is a no-op because the entry now points
+            // at the NEW connection.
+            log.warn("duplicate registration for {s} — replacing previous connection", .{agent_id});
+            old.value.closeStream();
+        } else {
+            log.info("registered agent: {s}", .{agent_id});
+        }
     }
 
-    pub fn unregister(self: *RoutingTable, agent_id: []const u8) void {
+    /// Unregister agent_id ONLY when the entry still belongs to `conn`.
+    /// A duplicate registration may have replaced the entry — the new
+    /// connection owns the id now, and the old reader must not tear the
+    /// new entry down (WI-2026-08-08-016). Returns true when the entry
+    /// was removed (or never existed), so callers know whether to clean
+    /// up derived state (agent metadata, channels).
+    pub fn unregisterIfOwned(self: *RoutingTable, agent_id: []const u8, conn: *Connection) bool {
         self.mutex.lock(io_mod.get()) catch unreachable;
         defer self.mutex.unlock(io_mod.get());
+        if (self.map.get(agent_id)) |current| {
+            if (current != conn) return false;
+        }
         _ = self.map.remove(agent_id);
         log.info("unregistered agent: {s}", .{agent_id});
+        return true;
     }
 
     pub fn lookup(self: *const RoutingTable, agent_id: []const u8) ?*Connection {
@@ -669,3 +689,35 @@ test "ActivityLog toJson survives eviction after snapshot (WI-2026-08-08-003)" {
     try std.testing.expect(mem.indexOf(u8, text, "comment #4") == null);
     try std.testing.expect(mem.indexOf(u8, text, "update #3") == null);
 }
+
+test "RoutingTable duplicate registration replaces old connection (WI-2026-08-08-016)" {
+    var table = RoutingTable.init(std.testing.allocator);
+    defer table.deinit();
+
+    // Two distinct connection objects on real fds so closeStream is exercised.
+    const fd1 = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+    const fd2 = try sys.socket(sys.AF.INET, sys.SOCK.STREAM, 0);
+    var dummy: u8 = 0;
+    var conn1 = Connection.init(std.testing.allocator, fd1, @ptrCast(&dummy), noopRelease);
+    var conn2 = Connection.init(std.testing.allocator, fd2, @ptrCast(&dummy), noopRelease);
+    defer conn1.deinit();
+    defer conn2.deinit();
+
+    try table.register("agent-a", &conn1);
+    try std.testing.expect(table.lookup("agent-a") == &conn1);
+
+    // Duplicate: new connection replaces the old one and closes its stream.
+    try table.register("agent-a", &conn2);
+    try std.testing.expect(table.lookup("agent-a") == &conn2);
+    try std.testing.expect(conn1.fd_closed);
+
+    // The old reader's cleanup is a no-op: the entry belongs to conn2.
+    try std.testing.expect(!table.unregisterIfOwned("agent-a", &conn1));
+    try std.testing.expect(table.lookup("agent-a") == &conn2);
+
+    // The owner's cleanup removes the entry.
+    try std.testing.expect(table.unregisterIfOwned("agent-a", &conn2));
+    try std.testing.expect(table.lookup("agent-a") == null);
+}
+
+fn noopRelease(_: *anyopaque, _: *Connection) void {}

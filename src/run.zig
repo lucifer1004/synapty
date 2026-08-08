@@ -133,7 +133,12 @@ pub const RunServer = struct {
             .hub_fd = hub_fd,
             .ipc_server = ipc_server,
             .socket_path = socket_path,
-            .message_queue = MessageQueue.init(allocator),
+            // Message queue + pending responses use the thread-safe smp
+            // allocator: dupes must be FREABLE (the caller's arena free is
+            // a no-op — items would live for the daemon's lifetime) and
+            // freeable from the IPC thread while the reader thread appends
+            // (WI-2026-08-08-017).
+            .message_queue = MessageQueue.init(std.heap.smp_allocator),
             .running = false,
             .hub_write_mutex = .init,
             .response_mutex = .init,
@@ -143,8 +148,8 @@ pub const RunServer = struct {
     }
 
     pub fn deinit(self: *RunServer) void {
-        for (self.pending_responses.items) |r| self.allocator.free(r);
-        self.pending_responses.deinit(self.allocator);
+        for (self.pending_responses.items) |r| std.heap.smp_allocator.free(r);
+        self.pending_responses.deinit(std.heap.smp_allocator);
         sys.close(self.hub_fd);
         self.ipc_server.deinit();
         self.message_queue.deinit();
@@ -188,11 +193,27 @@ pub const RunServer = struct {
             .environ_map = &env_map,
         });
 
-        // Spawn hub reader thread.
-        const hub_thread = try std.Thread.spawn(.{}, hubReaderThread, .{self});
+        // Spawn hub reader thread. On failure: kill and reap the child,
+        // mark stopped, rethrow — an orphaned child would keep running
+        // with nobody to manage it (WI-2026-08-08-017).
+        const hub_thread = std.Thread.spawn(.{}, hubReaderThread, .{self}) catch |err| {
+            @atomicStore(bool, &self.running, false, .release);
+            std.process.Child.kill(&child, io_mod.get());
+            _ = std.process.Child.wait(&child, io_mod.get()) catch {};
+            return err;
+        };
 
-        // Spawn IPC server thread.
-        const ipc_thread = try std.Thread.spawn(.{}, ipcServerThread, .{self});
+        // Spawn IPC server thread. On failure: stop the reader thread, join
+        // it (it must not run against a deinitializing RunServer), then
+        // kill/reap the child.
+        const ipc_thread = std.Thread.spawn(.{}, ipcServerThread, .{self}) catch |err| {
+            @atomicStore(bool, &self.running, false, .release);
+            sys.shutdown(self.hub_fd, sys.SHUT.RDWR);
+            hub_thread.join();
+            std.process.Child.kill(&child, io_mod.get());
+            _ = std.process.Child.wait(&child, io_mod.get()) catch {};
+            return err;
+        };
 
         // Wait for child to exit.
         _ = try std.process.Child.wait(&child, io_mod.get());
@@ -219,7 +240,15 @@ pub const RunServer = struct {
     pub fn startThreads(self: *RunServer) !ThreadHandles {
         self.running = true;
         const hub_thread = try std.Thread.spawn(.{}, hubReaderThread, .{self});
-        const ipc_thread = try std.Thread.spawn(.{}, ipcServerThread, .{self});
+        const ipc_thread = std.Thread.spawn(.{}, ipcServerThread, .{self}) catch |err| {
+            // Partial failure: stop and join the already-spawned thread so
+            // it never runs against a deinitializing RunServer
+            // (WI-2026-08-08-017).
+            @atomicStore(bool, &self.running, false, .release);
+            sys.shutdown(self.hub_fd, sys.SHUT.RDWR);
+            hub_thread.join();
+            return err;
+        };
         return .{ .hub = hub_thread, .ipc = ipc_thread };
     }
 
@@ -310,10 +339,10 @@ fn hubReaderThread(srv: *RunServer) void {
             };
 
             if (is_response) {
-                const copy = srv.allocator.dupe(u8, line) catch continue;
+                const copy = std.heap.smp_allocator.dupe(u8, line) catch continue;
                 srv.response_mutex.lock(io_mod.get()) catch unreachable;
-                srv.pending_responses.append(srv.allocator, copy) catch {
-                    srv.allocator.free(copy);
+                srv.pending_responses.append(std.heap.smp_allocator, copy) catch {
+                    std.heap.smp_allocator.free(copy);
                 };
                 srv.response_mutex.unlock(io_mod.get());
             } else {
@@ -334,7 +363,7 @@ fn hubReaderThread(srv: *RunServer) void {
 
 /// Wait up to ~1 second for a hub response whose envelope ID matches `expected_id`.
 /// Stale responses with non-matching IDs are discarded.
-/// Caller owns the returned slice and must free it with srv.allocator.
+/// Caller owns the returned slice and must free it with std.heap.smp_allocator.
 fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
     // Build pattern: "id":"<expected_id>" to match in JSON.
     var pattern_buf: [64]u8 = undefined;
@@ -353,7 +382,7 @@ fn waitForHubResponse(srv: *RunServer, expected_id: []const u8) ?[]const u8 {
                 break;
             } else {
                 // Stale response from a prior timed-out request — discard.
-                srv.allocator.free(srv.pending_responses.orderedRemove(0));
+                std.heap.smp_allocator.free(srv.pending_responses.orderedRemove(0));
             }
         }
         srv.response_mutex.unlock(io_mod.get());
@@ -402,7 +431,10 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
     var buf: [64 * 1024]u8 = undefined;
     const line = try ipc.IpcServer.readLine(client_fd, &buf) orelse return;
 
-    var arena = std.heap.ArenaAllocator.init(srv.allocator);
+    // Per-connection arena over the thread-safe allocator: the IPC thread
+    // must NOT allocate from the daemon's shared arena — the hub reader
+    // thread bumps it concurrently (data race, WI-2026-08-08-017).
+    var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
 
@@ -445,7 +477,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
             try writeToHub(srv, raw);
             // Wait for hub acknowledgment, matched by request ID.
             const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| srv.allocator.free(r);
+            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
             const success = if (hub_resp) |r| parseHubOk(r) else false;
             const resp = protocol.IpcResponse{
                 .success = success,
@@ -457,6 +489,13 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
         },
         .recv => {
             const msgs = try srv.message_queue.drain(alloc);
+            // drain() transfers ownership: inner strings were duped with
+            // the queue's smp allocator — free them after serialization
+            // (previously leaked for the daemon's lifetime; WI-2026-08-08-017).
+            defer {
+                for (msgs) |msg| std.heap.smp_allocator.free(msg);
+                alloc.free(msgs);
+            }
             // Serialize messages as a JSON array of strings.
             var array = json.Array.init(alloc);
             for (msgs) |msg| {
@@ -481,7 +520,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
             const raw = try protocol.serializeEnvelope(alloc, envelope);
             try writeToHub(srv, raw);
             const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| srv.allocator.free(r);
+            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
             const success = hub_resp != null;
             const resp = protocol.IpcResponse{
                 .success = success,
@@ -509,7 +548,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
             try writeToHub(srv, raw);
             // Wait for hub acknowledgment, matched by request ID.
             const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| srv.allocator.free(r);
+            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
             const success = if (hub_resp) |r| parseHubOk(r) else false;
             const resp = protocol.IpcResponse{
                 .success = success,
@@ -544,7 +583,7 @@ fn handleIpcConnection(srv: *RunServer, client_fd: sys.fd_t) !void {
             const raw = try protocol.serializeEnvelope(alloc, envelope);
             try writeToHub(srv, raw);
             const hub_resp = waitForHubResponse(srv, req_id);
-            defer if (hub_resp) |r| srv.allocator.free(r);
+            defer if (hub_resp) |r| std.heap.smp_allocator.free(r);
             const success = if (hub_resp) |r| parseHubOk(r) else false;
             const resp = protocol.IpcResponse{
                 .success = success,

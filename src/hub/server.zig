@@ -135,7 +135,20 @@ pub const HubServer = struct {
     /// Accept connections in a loop, spawning a reader thread per client.
     pub fn run(self: *HubServer) !void {
         while (true) {
-            const fd = try sys.accept(self.listener_fd);
+            const fd = sys.accept(self.listener_fd) catch |err| switch (err) {
+                // Fatal: the listener is gone (normal shutdown — deinit
+                // closed the fd). Propagate so the accept loop terminates.
+                error.ConnectionAborted, error.Unexpected, error.SocketUnconnected => return err,
+                // Transient errors (fd exhaustion, client resets,
+                // backpressure): one bad accept must not kill the hub and
+                // every connected agent — back off briefly and continue
+                // (WI-2026-08-08-016).
+                else => {
+                    log.err("accept failed: {s} — continuing after backoff", .{@errorName(err)});
+                    io_mod.get().sleep(std.Io.Duration.fromMilliseconds(50), .awake) catch {};
+                    continue;
+                },
+            };
             // Note: no log here on purpose. The GUI HubManager health check
             // opens a probe connection (connect + close) every few seconds;
             // logging every accept would spam the log with empty

@@ -21,6 +21,10 @@ pub const IpcServer = struct {
         errdefer sys.close(fd);
         const addr = sys.sockaddr_un.init(socket_path) orelse return error.NameTooLong;
         try sys.bind(fd, &addr, addr.len());
+        // Owner-only: /tmp is world-readable and the socket carries the
+        // agent's full IPC capability (recv/send/mcp) — any other local
+        // user must not be able to connect (WI-2026-08-08-017).
+        try sys.chmod(socket_path, 0o700);
         try sys.listen(fd, 16);
         return .{
             .listener_fd = fd,

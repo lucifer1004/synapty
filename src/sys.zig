@@ -282,6 +282,15 @@ pub fn boundPort(fd: fd_t) !u16 {
     return std.mem.bigToNative(u16, addr.port);
 }
 
+/// Restrict a socket FILE to the owner (F10 — the daemon's IPC socket
+/// was world-connectable, letting any local user recv/send/impersonate
+/// the agent; WI-2026-08-08-017). chmod on the path (not fchmod on the
+/// fd): macOS rejects fchmod on socket descriptors.
+pub fn chmod(path: []const u8, mode: u16) !void {
+    const path_z = try posix.toPosixPath(path);
+    if (system.chmod(&path_z, mode) != 0) return errnoError();
+}
+
 pub fn unlink(path: []const u8) void {
     var buf: [sockaddr_un.PathLen:0]u8 = undefined;
     if (path.len >= buf.len) return;

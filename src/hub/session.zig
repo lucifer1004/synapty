@@ -113,15 +113,19 @@ pub fn readerThread(args: ReaderArgs) void {
     // Spawn the writer thread before entering the read loop.
     const writer = std.Thread.spawn(.{}, writerThread, .{conn}) catch |err| {
         log.err("failed to spawn writer thread for {s}: {any}", .{ agent_id, err });
-        state.routing_table.unregister(agent_id);
+        _ = state.routing_table.unregisterIfOwned(agent_id, conn);
         return;
     };
 
     defer {
-        state.routing_table.unregister(agent_id);
-        state.agent_registry.remove(agent_id);
-        // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
-        _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
+        // Tear down state ONLY while it still belongs to this connection:
+        // a duplicate registration replaced us, and the new connection
+        // owns agent_id now (WI-2026-08-08-016).
+        if (state.routing_table.unregisterIfOwned(agent_id, conn)) {
+            state.agent_registry.remove(agent_id);
+            // Remove from all channels per [[RFC-0002:C-HUB-STATE]].
+            _ = state.channel_registry.removeFromAll(agent_id, conn_alloc) catch {};
+        }
         // Signal writer to drain and stop, then wait for it.
         conn.shutdown();
         writer.join();
