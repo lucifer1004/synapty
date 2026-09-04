@@ -1,0 +1,27 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DIALOGUE-LIMIT"
+title = "Why Agent Dialogue Is Not the Core"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Direct agent-to-agent messages are low-value in real distributed work:
+
+- Agents (Claude Code, Codex) work in single-task session loops; they have no
+  intrinsic motivation to message another agent and no shared context to make
+  a message actionable.
+- Dialogue text without a shared workspace (same files, same task board)
+  requires re-interpretation on every hop — like shouting between offices
+  instead of sharing a desk.
+- RFC-0001 C-COMM-MODEL already frames the orchestrator (human + workbench)
+  as the center of communication; the agent-to-orchestrator channel matters
+  more than agent-to-agent.
+
+The collaboration substrate distributed agents actually need is: events
+(milestones, completion signals), state (who is doing what, queryable), and
+artifacts (shared files/PRs). Dialogue is a thin, optional layer on top.
+"""

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-008"
+title = "feat(gui): forward OSC desktop notifications to Notification Center when app inactive"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = ["RFC-0004"]
+
+[content]
+description = "The OSC notification RECEIVING end already exists: GHOSTTY_ACTION_DESKTOP_NOTIFICATION (OSC 777/9/99 parsed by ghostty) and RING_BELL both route to leafNeedsAttention (WI-2026-08-09-021 zero-config attention). What is missing vs cmux is the title/body payload: it is currently discarded, and when the human is in another app nothing reaches them. Scope: DESKTOP_NOTIFICATION (which carries title+body, unlike bell) additionally posts a local UserNotifications alert when the app is NOT active — tapping focuses the app (V1: activation only; deep-link to the pane can come later). Authorization requested provisionally at first use (quiet delivery, no modal prompt). Keep the existing attention-badge behavior untouched; bell stays badge-only. This is the third leg of harness signal ingestion (hooks = state, bell/OSC = attention ping, screen = passive state) — deliberately NOT mapped to RFC-0004 presence states: a notification is an attention event, not a state claim, and guessing states from notification text would be the mush we just engineered out."
+
+[[content.acceptance_criteria]]
+text = "DESKTOP_NOTIFICATION action extracts title/body; when NSApp is not active, posts a UNUserNotificationCenter notification (provisional auth requested once); app-active behavior unchanged (badge only)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "notification tap activates the app; bell (no payload) keeps badge-only behavior"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "forwarding decision logic unit-tested (active vs inactive, bell vs notification); Swift suite green; live check via printf OSC 777 in a pane"
+status = "done"
+category = "chore"

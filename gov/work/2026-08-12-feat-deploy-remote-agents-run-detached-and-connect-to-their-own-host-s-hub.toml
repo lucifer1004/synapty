@@ -1,0 +1,48 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-004"
+title = "feat(deploy): remote agents run detached and connect to their own host's hub"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = [
+    "ADR-0008",
+    "RFC-0004",
+]
+depends_on = ["WI-2026-08-12-001"]
+
+[content]
+description = """
+[[ADR-0008]] stage 3a: make remote agents survive the laptop. Today scripts/connect.sh runs `ssh -t ... host "synapty run --id X --hub 127.0.0.1:TUNNEL -- $SHELL -l"`, so the remote agent is a child of the SSH session and takes SIGHUP when the laptop sleeps. This WI fixes the PROCESS-survival half, which is the operator's actual requirement and the precondition every other part of ADR-0008 depends on.
+
+The hub-relocation half moved to WI-2026-08-12-008 after a staging error surfaced: switching a remote agent to its own host's hub before peering exists would break cross-machine A2A, which works today. Detachment alone regresses nothing — the agent keeps its existing hub connection through the reverse tunnel, and the wrapper's steady-state reconnect (WI-2026-08-12-001) restores A2A when the laptop wakes.
+
+Detachment mechanism, settled with its consequence rather than assumed: a MULTIPLEXER (tmux), not setsid/nohup. Passive detection (RFC-0004), wake injection (RFC-0005) and read-back all operate on the terminal SCREEN, so a detached agent with no re-attachable terminal would keep running while going blind to every one of those subsystems. tmux preserves the screen, so re-attaching restores detection, wake and read-back exactly as before. A host without tmux degrades honestly: the agent runs as it does today (dies with the session) and the workbench says so, rather than implying a durability the host cannot provide."""
+notes = [
+    '''Detachment implemented in scripts/connect.sh: tmux new-session -A -d (create-if-absent, never duplicate) -> set-option status off -> attach. Two non-obvious decisions, both verified by scripts/test-connect-launch.sh rather than assumed:\n\n1. $SHELL is expanded by the REMOTE SHELL before tmux sees it. The first draft left it inside single quotes and relied on tmux's own 'sh -c' to expand it — which holds only while tmux routes the command through a shell. If it ever exec'd directly, the agent would have been handed a literal '$SHELL' as its program.\n\n2. tmux's status line is turned OFF, and that is NOT cosmetic: it sits at the BOTTOM of the screen, exactly the region RFC-0004's detection manifests read. Left on, it would shift the harness chrome the manifests match and silently break presence detection for every remote agent — a subsystem interaction with no obvious symptom.\n\nThe regression test asserts the exact remote command string for both the tmux path and the degraded path, and it caught its own blind spot en route: the fake tmux originally logged to stdout, which connect.sh deliberately redirects for set-option, so the assertion could not see the call it existed to check; it logs to a file now. Wired into connect.sh remote-launch: OK (tmux + degraded paths).\n\nAC-5 (honest degradation) is satisfied by the stderr notice landing in the pane the human is looking at, which is where they would otherwise form the false belief that the agent is durable.''',
+    '''Occam correction (operator, 2026-08-12): a screen fallback was added and then REMOVED. It was justified with 'only 6 lines' — the standard sentence by which complexity accretes, cheap per item and expensive in aggregate. Asking what each branch actually satisfies settled it: tmux DELIVERS the requirement; the degraded path PRESERVES today's behaviour (removing it would be a regression); screen satisfied the same requirement a second way for a host class with no evidence of existing. It also proved its own cost immediately — macOS ships screen, so the 'neither multiplexer' test silently exercised the screen path for a whole round while claiming to cover the degraded one. Final shape is two branches: tmux, or today's behaviour plus one honest line.\n\nAlso rejected by the operator, and on reflection correctly: offering to install tmux, and surfacing non-durability as a workbench marker. Both would add mechanism to a case that a single line of text already handles honestly.''',
+    '''REAL-TMUX DEFECT, found only by running the actual binary:  is wrong for the reconnect path. With -A and an EXISTING session tmux behaves like attach-session, where -d takes on -D's meaning (evict other clients) instead of 'do not attach' — so a reconnect would attach at the create step, and the script's own  line would then attach a SECOND time. Verified directly: with the session present the command exits 1 with 'open terminal failed: not a terminal' when there is no tty, and would misbehave when there is one. Replaced with has-session || new-session -d, then attach — unambiguous in both states.\n\nWhy the earlier tests missed it, which is the more useful lesson: they asserted the command STRING, and the fake tmux always exited 0, so the 'session already exists' branch was never exercised at all. Two fixes: the fake now honours FAKE_SESSION_EXISTS so both branches run, and the test additionally drives REAL tmux twice (create, then re-run) asserting exactly one session survives. A command can be spelled correctly and still mean the wrong thing; only the real tool settles it.''',
+    '''REAL REMOTE VERIFICATION PASSED (2026-08-12, host remotehost — x86_64 Linux with tmux, current binary cross-compiled and deployed). Full flow with the actual reverse tunnel: connect -> the remote agent registers on the LAPTOP's hub as remotehost-live3a and a tmux session exists -> SSH killed (laptop sleeping) -> tmux session and the agent wrapper BOTH still alive on the host, while the agent correctly drops off the hub (the tunnel died with the link, so message routing genuinely stopped — the process did not) -> reconnect -> wrapper pid UNCHANGED (990448), exactly one session, and the agent is back on the hub.\n\nThat pid being identical across the disconnect is the whole point of the change: before this WI the agent took SIGHUP and its work was gone.\n\nCleanup: session killed, wrapper stopped, previous binary preserved as synapty.bak-<ts>; verified afterwards with 'ps -eo args | awk /synapty/' because 'pgrep -f synapty run' MATCHES THE PROBE'S OWN COMMAND STRING and reported a phantom leftover (pkill then killed its own parent shell, exit 255).''',
+]
+
+[[content.acceptance_criteria]]
+text = "a deployed remote agent survives SSH disconnection — verified by connecting, disconnecting (and sleeping/closing the laptop), reconnecting, and finding the same agent process still running with its work intact"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the detachment mechanism is chosen with its presence-detection consequence stated explicitly — whether a detached agent's screen remains readable for RFC-0004 passive detection, and what degrades if it does not"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "re-attach semantics — reconnecting to a host with a running agent attaches to it rather than starting a second one; the workbench must not silently spawn duplicates"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a host WITHOUT tmux degrades honestly — the agent runs as it does today (dies with the session) and the workbench surfaces that it is not detached, rather than implying durability the host cannot provide"
+status = "done"
+category = "added"

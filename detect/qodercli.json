@@ -1,0 +1,52 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/qodercli.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "qodercli",
+  "rules": [
+    {
+      "id": "confirmation_blocker",
+      "state": "waiting",
+      "all": [
+        "waiting for user confirmation"
+      ],
+      "any": [
+        "yes",
+        "no",
+        "allow",
+        "reject"
+      ]
+    },
+    {
+      "id": "awaiting_approval",
+      "state": "waiting",
+      "all": [
+        "awaiting approval"
+      ],
+      "any": [
+        "allow",
+        "reject"
+      ]
+    },
+    {
+      "id": "misc_blockers",
+      "state": "waiting",
+      "any": [
+        "permission required",
+        "allow once or always?",
+        "asking user",
+        "enter your response",
+        "review your answers:",
+        "shell awaiting input"
+      ]
+    },
+    {
+      "id": "cancel_hint_working",
+      "state": "working",
+      "contains": "(esc to cancel,"
+    },
+    {
+      "id": "spinner_working",
+      "state": "working",
+      "lineRegex": "^\\s*[\\u2800-\\u28FF]\\s+.*\\p{Alphabetic}"
+    }
+  ]
+}

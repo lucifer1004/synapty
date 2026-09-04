@@ -1,0 +1,10 @@
+{
+  "_comment": "amp threads continue <threadId> per sourcegraph amp CLI guide (verified 2026-08-11).",
+  "tool": "amp",
+  "resumeArgv": [
+    "amp",
+    "threads",
+    "continue",
+    "{resume_ref}"
+  ]
+}

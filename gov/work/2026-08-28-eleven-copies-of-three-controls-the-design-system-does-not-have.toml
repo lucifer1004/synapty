@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-020"
+title = "Eleven copies of three controls the design system does not have"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+Three controls are written out by hand wherever they appear, in a project that has a design system for exactly this.
+
+THE OVERFLOW MENU, four copies (HostBlockView:460, :655, :761, HostsPageView:1298): `Image(systemName: "ellipsis.circle")` + `DS.Icon.control` + `DS.textSecondary` + `.borderless` + `.menuIndicator(.hidden)` + `.fixedSize()` + `.help("More actions")`.
+
+THE SHEET FOOTER, three copies (AddHostSheet:196, IdentityEditorPanel:76, HostsPageView:1444): a hairline, a spacer, Cancel, and a Save carrying `.keyboardShortcut(.defaultAction)`, `.disabled(!canSave)` and `.borderedProminent`. Three sheets whose default button and disabled rule must agree and agree only by inspection.
+
+THE SEARCH-FIELD CHIP, four copies (DesignSystem:1189 and :1339, ThemePicker:43, FontFamilyPicker:56): the same padding, corner radius, `DS.hover` fill and overlay border — twice inside the design system itself.
+
+Eleven copies of three things. The cost is not the lines; it is that each is a place the next appearance can differ from."""
+
+[[content.acceptance_criteria]]
+text = "Each of the three is one component, and every appearance uses it"
+status = "done"
+category = "fixed"

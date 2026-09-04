@@ -1,0 +1,84 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-004"
+title = "The start guard, the build flag, and three paths that skipped the redirect"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+First batch from an eight-lens sweep, each finding put through three
+skeptics with different lenses before being believed. Three of the
+twenty-eight survivors, and the ones that could hurt somebody.
+
+A START ASKED THE SOCKET WHETHER A SESSION WAS THERE. `holdRefused`, the
+only gate on `synapty run --hold --id X` and the discharge of [[RFC-0014]]
+C-START's "a start must not join", was built on a `connect`. That answer
+was measured a day earlier and found to lie: with the backlog at four, the
+fifth simultaneous connect to a RUNNING holder returns ECONNREFUSED. So a
+busy session reads as absent, the start proceeds, and `Holder.init` unlinks
+the socket before binding — a live session, with a human or an agent in it,
+becomes unattachable by any client. The claim ([[WI-2026-08-29-009]]) was
+already the right primitive and already used in three places; this was the
+fourth site owing the same rule and it asked the socket. It asks the claim
+now, through `startWouldJoin`, and `waitUntilHeld` with it — where the
+claim is also the better signal, since a connect succeeds the moment
+`listen` runs, which is before the child is on the terminal.
+
+THE BUILD SCRIPT DROPPED A FLAG THE INSTRUCTIONS CALL REQUIRED.
+`scripts/build-ghosttykit.sh` built the framework without `-Dsentry=false`.
+Ghostty's embedded reporter sends crashes from THIS application to
+ghostty's DSN, and its own init thread SIGSEGVed intermittently at launch —
+two identical crash reports on 2026-08-10. Anyone who ran the script rather
+than the hand-written command got both.
+
+THREE SERVICES BUILT SYNAPTY PATHS FROM $HOME. The hub's discovery file,
+and the detect and lifecycle override directories, bypassed `ConfigPaths`
+— which owns the redirect — while accessors for all three already existed
+and were called by nothing but a test. The UI suite launches with
+SYNAPTY_CONFIG_ROOT pointed at a scratch directory expressly to keep the
+operator's own app out of it; the workbench read the operator's real
+hub.json anyway, and a test whose hub landed on a rung its port list did
+not cover adopted the operator's live hub and routed its traffic through
+it. The same three read the operator's real manifests under any redirect."""
+notes = ["""
+The first version of the path test asserted that `ConfigPaths.discovery`
+follows a redirected root, which is true by construction and says nothing
+about the site that never called it — a test green about a shape the
+production path does not produce. Reverting the fix left it green. The read
+was split from the query so the production reader itself could be asked,
+and the mutation now takes it red.
+
+A race remains and is not closed here: `Holder.init` unlinks the socket
+before `Record.write` takes the claim, so two simultaneous starts under one
+name can still collide. The guard removes the common case; making the claim
+the thing that admits a start would close it, and belongs with the holder's
+startup sequence rather than with this batch."""]
+
+[[content.acceptance_criteria]]
+text = "holder.startWouldJoin asks the claim, so a live session whose backlog is full is not read as absent and unlinked"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "waitUntilHeld waits for the claim, which is taken once the child is on the terminal, rather than for a listen that precedes it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build-ghosttykit.sh passes -Dsentry=false, which the build instructions have always required"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the discovery file and the detect and lifecycle override directories resolve through ConfigPaths"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the three claim states, both halves of C-START, and the production readers asked against a redirected root"
+status = "done"
+category = "chore"

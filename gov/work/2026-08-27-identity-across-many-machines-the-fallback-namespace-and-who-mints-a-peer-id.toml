@@ -1,0 +1,123 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-27-002"
+title = "Identity across many machines: the fallback namespace and who mints a peer id"
+status = "done"
+created = "2026-08-27"
+started = "2026-08-27"
+completed = "2026-08-27"
+refs = [
+    "RFC-0008",
+    "RFC-0009",
+    "RFC-0010",
+]
+
+[content]
+description = """
+Two identity questions, split out of [[WI-2026-08-27-001]] item 6 because that item's diagnosis was wrong and the correct one needs a decision before any code. Both are live violations, not tidiness.
+
+A. WHAT IS A FALLBACK ID WHEN ONE WORKBENCH MINTS FOR MANY MACHINES?
+
+[[RFC-0008]] C-IDENTITY reserves a namespace and names its shape: "The fallback namespace prefix (`local-`) is RESERVED", and "the pane wrapper id (`local-XXXX`) is the agent id". [[RFC-0009]] C-IDENTITY-SCOPE builds on it: "A hub MUST NOT advertise an unqualified fallback id to a peer", and the qualify/strip machinery keys on that prefix in three places — `federation.needsQualification`, the strip in `handleRelayForward`, and the workbench's own `AgentMonitor.qualifiedID`.
+
+`TunnelManager.localCommand` mints `local-<4hex>` and is correct. `TunnelManager.connectCommand` mints `<host.label>-<4hex>` for a REMOTE pane, and `src/run.zig:187` registers that verbatim on the remote hub. It is a third namespace the corpus does not describe, so all three predicates say "not a fallback id" about an id that is one, and every remote pane's id crosses the relay unqualified.
+
+THE OBVIOUS FIX IS WRONG. Minting `local-<4hex>` for remote panes would satisfy the clause and introduce a collision the clause never had to think about: the workbench keys `paneSockets`, `ConnectProgress` and its leaf-to-agent map by agent id ACROSS EVERY HOST, while `local-XXXX` is unique only within one machine. Two panes on two hosts drawing the same four hex digits would collide in the workbench's own tables.
+
+So the question the record has to answer first: what is the fallback namespace when the minting party serves many machines and the consuming party is one of them? Candidates worth weighing rather than assuming — qualify at the mint (`local-XXXX@<peer>`, but the workbench does not know the hub's minted peer id at mint time, which is question B); widen the reserved prefix to a pattern rather than a literal; or keep the id machine-local and make the workbench key by (machine, agent) rather than by agent alone.
+
+B. WHO MINTS A PEER ID, AND WHO IS ALLOWED TO GUESS ONE?
+
+[[RFC-0010]] C-PEER-IDENTITY put minting authority on the machine being named: it mints and persists its own id and everyone else accepts what it reports. `src/hub/identity_store.zig` does exactly that, minting `<label>-<4hex>`.
+
+`TunnelManager.peerID(for:)` returns the bare lowercased label, and its own doc comment cites [[RFC-0009]] C-BOUNDARIES for the rule — which RFC-0010 superseded. Seven call sites derive rather than learn, so `adoptExistingPeers` compares a derived bare label against a minted suffixed id, never matches, and never assigns a port. One call site already carries the shape of the answer: `reported ?? Self.peerID(for: label)`.
+
+The fix is "learn it, do not derive it" — but a workbench must name a peer before it has heard from it (to dial), so what the fallback is, and how a derived name is replaced by a reported one without stranding directory entries keyed on the first, is the part that needs deciding rather than typing.
+
+NEITHER IS A RENAME, and both were reported as one. Recorded at this length because the previous description made them look like a few lines, and acting on that would have shipped a collision."""
+notes = [
+    """
+THE VERIFICATION PASS FOUND THREE BREAKS AND TWO WERE MINE, FROM THE HOUR BEFORE IT RAN. All three re-checked at primary source before being acted on.
+
+1. CLOSING A PANE STOPPED GIVING ITS SLOT BACK, and the comment I wrote justifying the move was false. I moved `paneClosed` out of `forget` and into `leafDidClose` "because `forget` also runs when a pane is MOVED". It does not: a move goes through `takeForMove`, which removes the pane from the tree directly and keeps everything. `forget` has two callers, `detach` and `archiveWorkspace`, and both mean the pane is finished with.
+
+So the hazard I traded a real release away for did not exist, and what I lost was the release on the routes a human actually uses — the tab's ✕, Close Tab, ⌘W, all of which reach `removePane` → `detach` → `forget`. The record then outlives the process, and since `grow` re-mints from the base socket name, it resumes counting the moment the host reconnects. Permanent across relaunch.
+
+Fixed by putting it back in `forget` AND swapping two lines in `detach`: `removePane` is pure, so the leaf is still findable before `setLayout` installs the new tree — and `forget` needs it findable to know which machine the pane was on. Two tests, and the pair is the point: closing releases, moving does not. Mutation-checked.
+
+2. EVERY REMOTE PANE LOST ITS AGENT BADGE, and this one came from the fix that put remote ids into the reserved namespace. `local-<4 hex>` is exactly the shape `AgentMonitor.qualifiedID` rewrites, so the merged list holds `local-1a2b@deskmac-2630` while the leaf table holds the bare id, and four live joins compare with `==`: the attention badge, the tool icon and status dot and wake-armed item, the status bar, the host sidebar. Before the change the id was `<label>-<4 hex>`, which fails the `local-` test and stayed bare on both sides — so the joins worked by accident, and moving the id into the namespace the corpus reserves broke them.
+
+Fixed with a predicate rather than at the mint: [[RFC-0009]] C-IDENTITY-SCOPE says qualification is for ROUTING AND DISPLAY, not identity, so a join has to see through it. `namesSameAgent(merged:leaf:)` matches a bare name or that name plus a qualifier, and NOT a mere prefix — `local-1a2bc` is a different agent.
+
+3. THE STALLED-PANE MIGRATION HAD A COPY OF `migratePane`'S BODY, and the copy had already drifted: it claimed the new socket and cleared the old one's refusal BEFORE checking a transport was running. Combined with break 1, a record left by a pane that is gone would clear `full` on a connection genuinely at its session bound — undoing the one thing that flag exists to hold — and be redistributed rather than aged out, with a "moved" line in the log for a pane nobody can see. An SSOT violation in code, in the change whose whole subject was SSOT.
+
+Fixed by calling the one implementation, and the pid guard gained a liveness check: the pid comes off disk now and outlives the process that wrote it, so signalling a recycled one would end somebody else's program.
+
+1019 Swift tests green, Zig green, all four shell e2e green.""",
+    """
+THE RULE THAT CLOSED FOUR FINDINGS AT ONCE, and it is the one the verification pass proposed rather than one I found.
+
+CLOSING IS NOW INSEPARABLE FROM UNRECORDING. The rule already in C-AUTHORIZATION — opening is inseparable from recording — forbids UNDER-recording, because that leaves a connection nothing will reap. It says nothing about OVER-recording, and a durable record produces exactly that. `closeAll` now deletes every record naming a socket it is closing, and its pid sibling with it. That closes the persistence behind the lost-release break, the phantom source behind the migration break, the `hostfwd` records that survived a rule being deleted, and the stale-carrier case, together.
+
+AND A RECORD DOES NOT DECIDE UNLESS IT STILL NAMES SOMETHING. `carrier(of:for:)` verifies against the live member set; `recordedCarrier(of:)` does not and is spelled differently on purpose. The split is by what the answer is FOR: `connectCommand` DECIDES where a channel goes and verifies; `paneClosed` and `withdraw` FORGET something and do not, because cancelling on a connection already gone is a no-op while asking the live set first would skip the cancel on exactly the connection about to be torn down.
+
+Why it matters more than four separate fixes: a socket path is re-minted deterministically from the host's own name, so a record from a dead run and a connection from a live one are reunited across a process boundary without either being the same thing. Every key mismatch that used to cost one process's lifetime cost forever instead. That is a rule, not six bugs.
+
+THE STRIP HALF OF C-IDENTITY-SCOPE WAS MISSING ENTIRELY, and the badge regression was a symptom of it rather than the defect. The clause is explicit — "QUALIFICATION IS AN ENCODING AT THE RELAY BOUNDARY, NOT A RENAME... a peer-qualified id is configuration-dependent, so it MUST NOT become the identity the agent holds" — and Swift qualified in two places and stripped in none, so the qualified string WAS the identity everywhere it travelled. `AgentInfo.bareID` is that strip, named so what to reach for is obvious: `id` is the merged list's key and carries the qualifier because two machines' fallback ids collide by construction; anything handing the name onward as an identity wants the other one.
+
+RECORDED, NOT FIXED — TWO AFFORDANCES THAT EXIST ONLY AS PLUMBING. `onOpenRemoteAgent` is declared in two views, threaded through a third, and NEVER INVOKED; `onAgentTap` is declared on the host sidebar, passed from ContentView, and appears once in the file that owns it. So "open a remote agent's pane" and "click an agent to focus its pane" do not exist. An optional closure makes that invisible to the compiler and to review — and the peer-naming fix spent its correctness on one of them. Building the controls is a product decision, not a repair.
+
+AND ONE ABOUT THE TESTS THEMSELVES: every suite was green through all three breaks because every test calls the mechanism directly and no test calls the caller. `migratePane` had TWO tests and NO production caller — the shipped copy was an inlined twin that had already inverted the property those tests pin. There is no guard for internal API nothing references.
+
+RFC-0013 -> 0.3.0 and RFC-0015 -> 0.2.0, both amended and re-advanced. C-PERSIST's prohibition on persisting a control socket now says it binds the FACT rather than that one store: it read as a rule about the workspace file because that is where it was first needed, and a reader taking the scope literally wrote the same falsehood into a different file — which is what happened here.""",
+    """
+THE LATENT ONES, FIXED, AND ONE OF THEM TURNED OUT TO BE THE SAME DEFECT AS EVERYTHING ELSE HERE.
+
+A RELEASE NOW ENDS THE REFUSAL IN THE SAME CALL. `release(tenant:)` deleted the record and left the `full` flag to a second call the caller had to remember. One caller did not: a transfer released its record and left that connection excluded from every later placement until teardown. A two-step protocol between one fact and its consequence is the same shape as two records of one fact — it works until somebody does half of it. `noteSlotFreed` survives for the one route where a channel leaves without a release: a migration, where the record is rewritten rather than deleted.
+
+RECORDS FOR FORWARDING RULES THAT NO LONGER EXIST ARE RELEASED. Deleting a rule and reconnecting left its record counting against the connection forever, and deleting the LAST rule left every one of them — the function returned early on an empty list and never reached the loop that would have been its only chance to notice.
+
+A RELEASED PORT NO LONGER ANSWERS TO THE NAME THAT LEFT IT. `peerPort` hands the lowest free number to the next host, so a port freed on disconnect is reused — while `livePeerPorts` still mapped the departed peer's name to it, and both lookups match on VALUE. "Which machine is on this port" had two answers and returned whichever the dictionary reached first: the wrong machine about half the time, on the lookup whose entire job is to say which machine this is.
+
+AND THE FIX WAS INITIALLY WRITTEN TWICE, WHICH IS THE JOKE. There are two callers — an explicit disconnect, and a setup that found the port already bound — and my first patch landed on only one of them, silently, because the anchor matched the wrong occurrence. It is one method now. Written twice, one of them would eventually have done half of it, which is precisely what the transfer release above did.
+
+RECORDED, NOT FIXED, because building them is a product decision: `onOpenRemoteAgent` and `onAgentTap` are declared, threaded and never invoked, so "open a remote agent's pane" and "click an agent to focus its pane" do not exist. An optional closure hides that from the compiler and from review.
+
+STILL OPEN AND NOT ATTEMPTED: a cross-machine agent-id collision in the leaf facts table (two panes on two hosts drawing the same four hex digits, 1/65536 per pair), which makes `FileToolServer.origin(of:)` answer "this Mac" for a remote agent. The fix is to key the facts by (machine, agent) as the tenant records now are — the same change, in the second table that needed it.""",
+]
+
+[[content.acceptance_criteria]]
+text = "A remote pane's id is in the namespace RFC-0008 C-IDENTITY reserves for it, and the qualify/strip predicates recognise it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A peer is named by the name its own machine reported; the workbench joins on the port both sides agree about, and nil is an answer where none has been reported"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Occupancy is one record per tenant on disk, not a ledger beside two other copies — and a released port no longer answers to the name that left it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Closing a connection unrecords what rode it, and a record that no longer names a live member decides nothing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Releasing a slot ends the refusal it was holding, in the same call — no two-step protocol for one fact and its consequence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A qualified name is not answered by a pane on another machine, so a remote agent's request is not served by this Mac's filesystem"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "What was found and not built is recorded with its diagnosis — two affordances that exist only as plumbing, and a test suite that calls every mechanism and no caller"
+status = "done"
+category = "chore"

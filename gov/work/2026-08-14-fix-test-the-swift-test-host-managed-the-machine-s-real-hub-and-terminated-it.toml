@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-006"
+title = "fix(test): the Swift test host managed the machine's real hub and terminated it"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["WI-2026-08-14-005"]
+
+[content]
+description = """
+Found by running the check that [[WI-2026-08-14-005]] had just made capable of telling two builds apart. The hub holding the operator's port 9000 was pid 50085 — spawned by an XCTest HOST app (pid 50081) that had already exited — while the workbench they were actually using, and its own hub, were gone.
+
+WHAT HAPPENED. The Swift tests run HOSTED IN THE APP, so the app's startup path runs in the test process, and `HubManager.start()` with it. It found a hub on 9000, asked who it was, read a build different from its own, saw `workbench_spawned` and returned `.takeOver` — which SIGTERMs. Every decision there was correct in isolation. The premise was wrong: the process making them was a test host, and the hub it was reasoning about belonged to someone else.
+
+WHY IT SURFACED NOW, AND WHY THAT IS NOT A REGRESSION IN THE USEFUL SENSE. Before build ids were real, both sides reported the constant "dev", so the test host ADOPTED the operator's live hub instead of replacing it — quieter, equally wrong, and worse in one respect: the test then exercised a hub built from different source than the code under test, and the operator's CLI and the test shared one router. Making the ids honest converted a silent wrong answer into a loud destructive one, which is how it got found. The defect was always there.
+
+THE BOUNDARY, NOT THE SYMPTOM. A test process must not manage machine-global state. Storage already had this line drawn — store-backed tests go through `setUpHostStoreStorage`, and a miss once clobbered the real hosts.json — but the hub, the discovery file and the machine identity had no equivalent, even though [[WI-2026-08-13-013]] had already written down the hazard when it declined to launch a second app instance for exactly this reason. `HubManager.start()` now refuses in a test host and says so.
+
+DETECTED FROM XCTEST'S OWN ENVIRONMENT, not a build flag: the hazard belongs to the RUN, not the configuration. The test host is a Debug build of the same app the operator may also be running, so a compile-time switch would disable the hub for ordinary Debug use too.
+
+NOT ADDRESSED HERE, and worth its own look: with `start()` refusing, the test host still falls back to port 9000 for the monitors, so it opens read-only connections to whatever hub is there. That is a much weaker coupling than owning the hub, but it is not zero."""
+notes = ["VERIFICATION — live, because this is a defect about a real machine's shared state and no hermetic test could see it. The hub pid holding port 9000 was recorded before and after a full `just test-swift` run: 50085 both times, with 385 tests green. Before the fix, the same run terminated the hub that was there."]
+
+[[content.acceptance_criteria]]
+text = "a test host does not start, adopt or terminate a hub"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the hub running before a test run is the same one running after it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the refusal is reported as stopped rather than failed — nothing went wrong"
+status = "done"
+category = "chore"

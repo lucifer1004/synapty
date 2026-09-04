@@ -1,0 +1,29 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- No capability NEGOTIATION in the bargaining sense. Each side declares
+  what it provides and reads what the other declared; neither asks the
+  other to enable anything. Declaration is enough for the failures this
+  RFC addresses, and a request/grant protocol would add a state machine
+  with nothing to spend it on.
+- No automatic upgrade, deployment or version reconciliation. Telling a
+  human that a peer is behind is in scope; doing something about it is
+  not. A system that upgrades a machine because it connected to it is
+  taking an action nobody asked for at the moment it was taken.
+- No cross-machine identity migration, and no change to [[RFC-0009]]
+  C-IDENTITY-SCOPE. Peer ids gain an authority rule here, not a new scope.
+- No trust or attestation. A peer id remains self-reported, as
+  [[RFC-0009]] C-BOUNDARIES states plainly; persisting it makes it stable,
+  not verified. Nothing here should be read as making a peer's claim about
+  itself stronger than "that machine said so".
+- No transport-level versioning. This negotiates the relay protocol, not
+  SSH, which is the authenticated channel underneath and is versioned by
+  the operating system."""

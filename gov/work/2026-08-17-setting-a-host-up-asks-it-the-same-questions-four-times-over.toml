@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-018"
+title = "Setting a host up asks it the same questions four times over"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+
+[content]
+description = """
+Setting a host up is a sequence of independent SSH round trips, and it runs in full on every launch: what the host is, a directory, the binary's checksum, then four more to install a terminal description that was already installed. Measured over a live master a round trip is ~0.36s; without one it is ~2.2s. Ten of them is the wait.
+
+TWO OF THEM WERE ANSWERABLE AT ONCE. What the setup needs before it can decide anything is: what this host is, which binary it already has, and whether it already has the terminal description. Three questions of the same host, asked in three separate connections. They are one now, and it makes its directories on the way past.
+
+FOUR OF THEM WERE NOT NEEDED AT ALL. The terminfo step copied a compiled file into two layouts and then verified it — unconditionally, every connect, whether or not the host already had that exact file. The binary beside it has always compared checksums first. This now does the same, using the checksum the probe already returned.
+
+WHAT IS LEFT is four round trips in the common case: the probe, the hub replacement check, `hub --ensure`, and the query for which build is actually running. The last two are the same host being asked two things in a row and could be one — deliberately not merged here, because doing so means nesting quotes through ssh in the most load-bearing script in the project, and this change is already large enough to be judged on its own.
+
+THE OTHER HALF OF THE WAIT IS NOT HERE. A relaunch re-runs all of this because the workbench closes every ControlMaster when it quits (a deliberate decision: a capability must not outlive the process that made it) and keeps tunnel state in memory. Reducing the round trips makes that decision affordable; it does not revisit it."""
+notes = ["2026-08-17: Measured through the connection account, same conditions both times (no master alive at launch, two hosts reconnecting at once): 28.4s to first paint before, 16.5s after. The remaining time is three separate SSH authentications — the probe (2.4s), hub --ensure (2.2s) and the build query (2.2s) — plus opening the master and its peer link (3.7s) and 4.1s of workbench-side work between the setup finishing and the pane's process speaking. The master is created LAST, which is why the three before it each pay a full handshake."]
+
+[[content.acceptance_criteria]]
+text = "What a host is, which binary it has, and whether it has the terminal description are asked in one round trip rather than three"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The terminal description is sent only when the host does not already have that exact file"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The measured before and after are recorded, taken through the workbench's own connection account"
+status = "done"
+category = "chore"

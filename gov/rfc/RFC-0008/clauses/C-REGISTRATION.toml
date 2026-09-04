@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-REGISTRATION"
+title = "What a registration carries"
+kind = "normative"
+status = "active"
+since = "0.2.0"
+
+[content]
+text = """
+WHAT A REGISTRATION CARRIES, as distinct from what it BINDS. Binding is C-IDENTITY's (which id is derived) and C-REHOME's (which connection holds it); this clause is the metadata that travels with either.
+
+| Field     | Required | What it is |
+|-----------|----------|------------|
+| `id`      | YES      | The agent id. Derived by the hub under C-IDENTITY, never chosen by the caller. |
+| `tool`    | no       | The harness: `claude`, `codex`, `gemini`, `human`, or any other name. A FREE STRING, so a CLI nobody has heard of can register and be shown. |
+| `project` | no       | Absolute path to the workspace the agent is working in. |
+| `session` | no       | Free text describing what this session is doing. Distinct from `resume_ref`, which is a harness session IDENTITY and is C-IDENTITY's input. |
+
+- THE THREE OPTIONAL FIELDS ARE OPTIONAL AT EVERY REGISTRATION, not merely at the first. The run wrapper registers a pane identity with the id alone — C-REHOME's identity upgrade is the path where metadata arrives later — and a surface that shows a registration MUST be able to render one that carries none of them. `-` on such a surface means "registered without a tool", which is a fact this hub established by looking, and MUST NOT be spelt the same way as "this hub has no way to know": [[RFC-0009]] C-DIRECTORY reaches the second case over a relay link, and giving two facts one spelling is what [[RFC-0010]] C-DIAGNOSABILITY exists to prevent.
+- A REGISTRATION MAY BE REPEATED, and each one OVERWRITES the fields it supplies and leaves the rest standing. An agent that changes what it is doing re-registers with a new `session` and keeps its `tool` and `project` without restating them.
+- THE HUB MUST NOT INFER ANY OF THE THREE. They are what the agent says about itself, and an agent that says nothing is displayed as an agent that said nothing — never as a process name, a pid, or a guess from a command line. Presence is the hub's to observe; identity metadata is the agent's to declare."""

@@ -1,0 +1,26 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SCRATCH-EXECUTOR"
+title = "Motivation — Agents Need a Scratch Executor"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An agent in a pane already has a shell — its own tool-execution
+machinery. What it lacks is a place for work that should OUTLIVE or run
+BESIDE a turn: a dev server that keeps serving while the agent thinks, a
+long test run watched across turns, a tail -f the human can also glance
+at. Today agents either block a turn on such work or ask the human to
+open a pane and copy commands.
+
+herdr's agents use 'pane split' + 'pane run' + 'pane wait-output' for
+exactly this, and its skill treats the pattern as core workflow ("Run an
+ordinary command in another pane"). The pattern earns its keep because
+the executor is a real terminal the HUMAN can see: unlike a hidden
+subprocess, a pane is co-observable — the human watches the same build
+the agent is waiting on, scrolls it, intervenes in it. That
+co-observability is why this belongs in the workbench rather than in
+each agent's private tooling."""

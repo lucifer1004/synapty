@@ -1,0 +1,65 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-012"
+title = "feat(plane): address by agent, and the authorization model that makes agent-initiated writes acceptable"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-16"
+refs = [
+    "RFC-0013",
+    "ADR-0010",
+    "RFC-0002",
+    "RFC-0008",
+]
+
+[content]
+description = """
+Stage four, where the previous three converge. Addressing moves from HOST to AGENT: `--to agent:<id>`, resolved by the hub that already routes A2A messages by agent identity. A file becomes a payload the existing routing can carry, and an agent producing an artifact for another agent no longer needs to know which machine the recipient is on — a fact that changes under re-homing while the identity does not.
+
+`present` and `ask` land here too, completing the four primitives. `ask` is the one that must NOT live in the panel: a blocked agent waiting on an answer the human cannot see because a panel is closed is the failure this places in a badged queue instead.
+
+THE AUTHORIZATION MODEL IS THE POINT OF THIS STAGE, not the addressing. Stages two and three give agents the ability to move data and to draw on the screen; this stage is what makes that acceptable, and the four properties in [[RFC-0013]] C-AUTHORIZATION stand or fall together. Scoping, in particular, is what separates "an agent may deliver to a declared destination" from "an agent may write anywhere on another machine"."""
+notes = ["""
+CLOSED. All four primitives exist, the authorization model is in, and the plane is documented.
+
+`ask` DOES NOT WORK THE WAY THE RFC IMPLIED, and the reason is a bound worth recording. The hub parks a forwarded tool request for 180 seconds and then reaps it, because a parked request holds a connection and its file descriptor until the hub exits. A human who steps away outlasts that, so a single blocking round trip was never going to be the transport for a decision.
+
+Two phases instead: `ask` posts the question and returns a question id, then polls for the answer — each poll a short round trip well inside the bound. The agent chooses its own patience because only it knows what it is holding open, and a timeout exits 3 so a caller can tell "nobody answered" from "the answer was no". This is also the honest shape: a human answering is an EVENT, not a response, and the clause's own words ("the agent is blocked") are satisfied without stretching a mechanism past what it was built for.
+
+WHAT THE CLAUSES CONSTRAIN, implemented rather than asserted: an answer outside the offered set is refused, because the agent will act on it and a value it has no branch for is worse than none; a repeated question is the same question, so polling does not turn one decision into a list a human clears rather than reads; and an answer survives until collected, because dropping it on being given would lose it in the gap before the next poll and block the agent on a decision that was made.
+
+ONE SHEET FOR EVERYTHING BLOCKED ON A HUMAN. Approvals and questions share a badge and a sheet: two of each would make "is anything waiting on me" a question with two answers.
+
+NOT VERIFIED, the same gap as the two stages before it: none of this has been exercised by an agent in a pane on a REMOTE host, which needs a click this environment cannot perform. The CLI, the hub routing, the refusals and the services are covered; what is unproven is the join."""]
+
+[[content.acceptance_criteria]]
+text = "a transfer addressed to agent:<id> reaches that agent without the caller naming a host, a path or a route"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an agent-initiated write is confined to a destination the receiving side declares and cannot name an arbitrary path on the destination host"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "authorization to move data between a pair of hosts is an explicit human act, distinct from adding a host, connecting to one, or an agent asking"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "brokered capability does not survive the workbench process, and nothing persists on any host that would let a transfer be replayed without it"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "synapty present renders an artifact in an attributed container, and synapty ask blocks the agent while raising a badged entry that never steals focus"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the plane documents its four primitives and states that a fifth must first be shown not to be one of them"
+status = "done"
+category = "chore"

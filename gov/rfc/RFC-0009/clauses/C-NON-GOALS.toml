@@ -1,0 +1,59 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+What this RFC deliberately leaves out, so that a reader meets a decision
+rather than a gap.
+
+- NO ELEVATION OF TRUST BY RELAYING. A relayed identity is exactly as
+  self-reported as a local one. Federation moves messages; it does not
+  manufacture attestation.
+- NO NEW CREDENTIAL SCHEME WHILE THE SSH PATH EXISTS. The link runs
+  inside a channel the workbench established and already manages. A
+  bespoke token or TLS stack is a later decision, made when agents must
+  reach a hub without an SSH path.
+- NO SECRETS OR AUTHORITY IN THE HUB. A hub routes; anything requiring
+  the human's credentials belongs to a workbench. A peer MUST NOT be able
+  to make a hub act with authority its own machine does not already grant
+  it.
+- NO GLOBAL EVENT ORDERING and no global clock to build one from.
+- NO CROSS-MACHINE IDENTITY MIGRATION WHILE TWO CLAIMS ARE LIVE. An
+  identity lives on the hub that hosts it; appearing on two live hubs is
+  a conflict to surface rather than a hand-off to perform.
+- NO MULTI-HOP ROUTING. One hop, to the peer that advertises the target.
+
+CUT BACK BY DECISION, NOT LEFT UNWRITTEN. The three below were specified
+here in detail and removed, because each had grown machinery for code
+that does not exist and each needs a decision nobody has made.
+NOT BECAUSE FAILURE TOLERANCE IS DEFERRED — that posture is retired, and
+this document holds a spool, a bounded acknowledgement and a durable
+promise because of it. An earlier form of this sentence gave the old
+reason, which would have made the next reader cut the queue back out. They are recorded so the next reader meets a choice
+instead of re-deriving them:
+
+- NO MULTI-HOP RETRY POLICY. A spooled message is retried by being
+  flushed when the link returns, and that is the whole of it: no backoff
+  ladder, no per-message retry budget, no dead-letter queue. A message
+  that outlives its TTL is dropped and the drop is recorded.
+- NO CAPABILITY NEGOTIATION BEYOND THE HANDSHAKE [[RFC-0010]] ALREADY
+  SPECIFIES, and no task-tool relaying. Serving a credential-bound
+  request for a peer is the widest authority in this design and needs a
+  bound, a record and a refusal vocabulary before it is worth having.
+- NO MECHANISM HERE FOR WAKE DELEGATION ACROSS MACHINES. This RFC
+  carries no frame, no routing and no vocabulary for it: a hub with no
+  workbench attached cannot inject, and its wake candidates stay pending,
+  which is [[RFC-0005]] C-WAKE-TRIGGER's existing gate-closed behaviour
+  rather than a new state.
+  NOT A PROHIBITION ON THE FEATURE, which is [[RFC-0011]]'s to specify
+  and to gate — C-DELEGATION describes arming a NAMED remote agent from
+  a workbench and C-HEADLESS-GATE holds it shut until an evidence model
+  exists. An earlier form of this bullet forbade the thing outright,
+  which contradicted a normative clause in another document rather than
+  saying what this one leaves out."""

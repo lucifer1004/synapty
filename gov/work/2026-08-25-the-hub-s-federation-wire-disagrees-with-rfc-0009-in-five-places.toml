@@ -1,0 +1,149 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-25-001"
+title = "The hub owes RFC-0009 four things"
+status = "done"
+created = "2026-08-25"
+started = "2026-08-27"
+completed = "2026-08-27"
+refs = [
+    "RFC-0009",
+    "RFC-0008",
+    "RFC-0010",
+]
+
+[content]
+description = """
+RFC-0009 was cut back to what the product needs and then partly reversed (WI-2026-08-24-005 records both). A coherence review of the result found the cut had landed in the body and not in the corpus's account of itself; those are fixed. What remains is code that owes the document.
+
+1. `relay_advertise` cannot distinguish a full set from an incremental update. C-DIRECTORY requires the full set on link-up to REPLACE the receiver's view of that peer; `broadcastDirectoryLocked` and `advertiseAllTo` emit the same `{"added":[...]}` shape for both jobs and differ only in an envelope id string, so the replace never happens and a restarted peer's stale entries keep attracting mail.
+
+2. `peer_link_refused` is minted nowhere. C-EVENT-LOCALITY names it because the `relay_refused` FRAME travels to the DIALLING side — which in a peer-id collision is the machine at fault — leaving the hub that knows with no way to say so. `grep -rn peer_link_refused src/` returns nothing.
+
+3. RFC-0004 C-WAIT's federation qualifier is unimplemented. `src/cli/wait.zig` has no notion of a peer, a link or a conflict, so a wait on a target whose hosting peer is down blocks to `--timeout` and exits 3 — which the clause names as the exact failure it forbids, because exit 3 reads as a slow agent.
+
+4. Presence rows substitute `"-"` for absent registration metadata, where C-DIRECTORY requires those fields be ABSENT rather than filled with a default that reads as fact.
+
+DONE SINCE THIS ITEM WAS LAST WRITTEN, and listed so the remainder is not read as the whole: the forward id is on the wire and the receiver deduplicates on it; the sender holds its copy and waits a bounded five seconds, answering `spooled` on silence and carrying the peer's own code on a refusal; the spool persists across a restart; a full spool's drop-oldest is now recorded; `hosted` is off the delivery response and `unknown_cause` off local presence rows, which is what makes the byte-for-byte claim true."""
+notes = [
+    """
+GAP 1 CLOSED. `relay_advertise` now carries `{op, identities}` with `op` one of `replace` / `add` / `remove`, which is the shape [[RFC-0009]] C-DIRECTORY names. `broadcastDirectoryLocked` sends `add`/`remove`; `advertiseAllTo` sends `replace`, and `directoryReplace` makes the receiver's view of that peer equal to what arrived.
+
+WHAT WAS ACTUALLY BROKEN, since "cannot distinguish" understates it: entries are TOMBSTONED when a link drops rather than discarded, and the clause says the peer re-advertises on reconnect — so the reconnect is the moment the retained set is supposed to be corrected. With both frames spelled `{"added":[...]}` the receiver could only ever add, so the correction never happened. An identity that ended while the peer was away stayed in the directory, stayed addressable, and mail sent to it was spooled for a machine that would never claim it again.
+
+AND IT HAD ACQUIRED AN AUDIENCE EARLIER THE SAME DAY. The workbench now lists peer-hosted agents in a sidebar section, so a stale entry stopped being an invisible routing wart and became a ROW: an agent that is not there, with a machine name beside it.
+
+THE PROJECT IS UNRELEASED, so the old field names are gone rather than accepted alongside the new ones. Verified by grep that nothing else read them — not the Swift side, not the CLI.
+
+A SECOND IMPLEMENTATION OF ONE RULE, CAUGHT BY ITS OWN MUTANT. `directoryReplace` first filtered candidates by "does this peer claim this entry", which is the question `Directory.withdraw` already answers. A mutation deleting the filter changed no behaviour and failed no test — which is what a duplicated rule looks like from outside. The filter is gone; every entry the full set does not name is offered to `withdraw`, and `withdraw` decides. The test that asserts the composed rule now says where the guard actually lives, because it cannot pin that itself.
+
+Three tests: the replace drops what the peer stopped hosting, an `add` does not delete what it did not mention (the defect a careless fix produces — one agent registering would unregister every other agent on that peer), and a replace speaks only for the peer that sent it. First two mutation-checked here; the third's guard mutation-checked in `withdraw`.""",
+    """
+GAP 2 CLOSED, AND IT WAS TWO REFUSALS RATHER THAN ONE.
+
+`peer_link_refused` was named by [[RFC-0009]] C-EVENT-LOCALITY and minted nowhere — `grep -rn peer_link_refused src/` returned nothing. It is minted now at all four handshake refusals: an invalid peer id, a hello with no versioning, no protocol version in common, and two machines answering to one name.
+
+MINTED INSIDE THE TWO SEND HELPERS, not at the four call sites. The only way to send a `relay_refused` is through `sendRelayRefusal` or `sendVersionRefusal`, so a fifth refusal reason added later cannot forget the local half. Both mint sites mutation-checked.
+
+AND THE CODE HAS ONE SPELLING NOW. The four reasons were string literals at four call sites; `federation.RefusalReason` owns them, and the same value goes on the wire and into the log. That is not tidiness: the refusal frame travels to the DIALLING side while the event stays with the hub that knows, so an operator reading one and an operator reading the other must be reading about the same event. A test pins that the frame and the event carry one code.
+
+THE SECOND REFUSAL NEEDED A NINTH KIND. The criterion asks for a refused `relay_presence` too, and the clause closed the list at eight with the explicit argument that leaving kinds to implementations gives two of them two spellings for one fact — so this was a corpus change, not an implementation choice. `peer_presence_refused` is named, and named SEPARATELY: a refused handshake at least sends a `relay_refused` somewhere, while a declined presence relay sends nothing at all, so neither machine says anything and the silence is total. What is usually being declined is a peer speaking for an identity it does not host — C-BOUNDARIES refuses that on purpose, and an operator who cannot see the attempt cannot tell a misconfigured peer from a quiet one.
+
+A TEST WAS PINNING THE DEFECT. `RFC-0009 C-PRESENCE: relayed status bypasses the local merge path` asserted `expectEqual(before, event_log.next_seq)` — that a peer speaking out of turn appends NOTHING. It was protecting the right property (the status must not move) through the wrong observable (the silence), and the silence was the bug. It now asserts the status is unchanged AND that the refusal is recorded, naming the peer that tried and why, and that the kind is not the one meaning this hub TOOK a conclusion — a consumer counting those would count the ones it threw away.
+
+RFC-0009 is at 0.5.0. The kind count in the clause read EIGHT while the list carried nine, which is the failure mode of writing a count beside the thing it counts; fixed in the same bump.""",
+    """
+GAP 3 CLOSED. `src/cli/wait.zig` had no notion of a peer, a link or a conflict, so all three of [[RFC-0004]] C-WAIT's remote cases blocked to `--timeout` and exited 3 — which the clause names as the exact failure it forbids, because exit 3 reads as a slow agent when the truth is that no event capable of ending the wait will ever arrive.
+
+THE THREE CASES ARE THE THREE THE PRESENCE ROW ALREADY DISTINGUISHES, so the wait reports the row's own word rather than inventing a second name for the same state, which is what the clause asks for. The rule is one line: a row carrying an `unknown_cause` that is not `no_evidence` cannot produce the event that would end the wait.
+
+`no_evidence` IS THE BOUNDARY AND IT IS LOAD-BEARING. It means the link is up, the peer declared `presence_relay`, and it simply has not said anything yet — which is precisely what a wait is for. A qualifier that refused it too would break every legitimate remote wait while passing every test of the three cases; there is a test for that direction and a mutation confirming it fails.
+
+`UnknownCause` MOVED TO `protocol.zig`, beside `Status`. It is wire vocabulary: the hub writes it onto presence rows and the CLI now decides on it, and a second spelling on the reading side would be a second thing to keep in step with the writing side. `federation.zig` was the wrong home the moment it acquired a second reader.
+
+THE EXIT-CODE SET STAYS CLOSED — federation adds nothing to it — so `unresolved` and `not_registered` share exit 2 and the payload is the only place the difference can live. Every wait failure now prints a machine-readable line on stdout beside the human sentence on stderr, `unresolved` carrying which of the three it was. Verified against a live hub: `{"ok":false,"agent":"nobody","reason":"not_registered"}`, exit 2.
+
+THE SKILL TAUGHT THE OLD CONTRACT. `references/messaging.md` said "`2` agent not registered", which an agent reading it would use to diagnose a federation failure as a typo. It now says 2 means two things, tells the reader to branch on the JSON, names the three causes, and says not to retry an `unresolved` — the answer will not change until the machine or its link does.""",
+    """
+GAP 4 DONE, AND ITS STATED AUTHORITY WAS WRONG. This item said "C-DIRECTORY requires those fields be ABSENT". It does not. C-DIRECTORY governs the ADVERTISEMENT FRAME — what crosses a relay link — and says nothing about how a receiving hub renders a directory entry into a presence row. [[RFC-0004]] C-SUBSCRIPTION OWNS THE ROW and says so in as many words ("THIS CLAUSE OWNS THE ROW... none of them enumerates the row, and this is the only list"), and the ABSENT rule it states is about `hosting_peer` and `peer_reachable` on a LOCAL row. Nothing in the corpus requires `tool`, `project` or `session` to be absent anywhere. I checked every clause that names those three fields.
+
+WHAT WAS ACTUALLY WRONG was smaller and certain: the comment above the relayed-row loop said "tool/session/resume_ref are ABSENT rather than defaulted; a substituted default would read as fact", and the three lines under it wrote `"-"` into all of them. A documented intent contradicted by the code three lines below it. (`resume_ref` was the one quarter the comment got right — relayed rows never carried it.)
+
+THE CHANGE IS THE ONE THE COMMENT INTENDED, made for the reason the comment gives rather than for the authority the item cited. On a LOCAL row `"-"` is a fact — that agent registered without a tool, which [[RFC-0002]] C-AGENT-IDENTITY permits — and this hub established it by looking. On a relayed row the same character would mean "I have no way to know". Two facts, one spelling, which is the confusion [[RFC-0010]] C-DIAGNOSABILITY exists to prevent. `remote` does distinguish them for a consumer that reads it; a field that is not there needs no such consumer.
+
+LOCAL ROWS ARE UNTOUCHED and a test now pins that too: C-SUBSCRIPTION promises a single-hub snapshot is byte-for-byte what it was before federation, so the shape federation did not create is not federation's to change.
+
+EVERY CONSUMER CHECKED BEFORE CHANGING THE WIRE: the Swift `extractAgents` reads these with `?? "-"` and is unaffected, `synapty agents` prints the response verbatim, and `synapty wait` reads id / generation / status / unknown_cause and never these. The workbench's own filter — which decides whether a row is an agent or a bare pane — is built on `"-"`, so it was fed the new shape and a test added for the local row it still has to recognise.
+
+VERIFIED ON REAL BYTES, not on a hand-authored fixture: `buildAgentsArray` was made to print its output, and the local row still carries `"tool":"-"` while the two relayed rows carry no tool, project or session at all.""",
+    """
+FOUR CRITERIA ARE STRUCK, NOT SKIPPED, AND THE REASON IS THE SAME FOR ALL FOUR: they encode rules that RFC-0009 no longer contains. This item's criteria were written against the corpus before the 2026-08-26 cut ("gov: cut RFC-0009 to what V1 needs"), and they outlived their clauses. Each was verified against the corpus as it stands today, not against memory of it.
+
+1. "A send whose target is absent from a directory truncated by the per-peer cap answers `indeterminate` rather than `unknown`". BOTH HALVES ARE GONE. `indeterminate` appears nowhere in gov/rfc or gov/adr — only in three work items, one of which is the review that proposed it. C-DELIVERY names SIX answers and says "THE LIST IS THE SET", so building this would VIOLATE the governing clause rather than satisfy it. And C-DIRECTORY carries no per-peer cap; the only per-peer bound left is the spool's 256, which is a different mechanism.
+
+2. "A directory advertisement carries the hosting hub's generation for the identity". The behaviour is genuinely absent — no generation is written by either sender, the receiver reads scalars, `Directory.Entry` has no field for one. But the rule was CUT along with the METADATA SCOPE paragraph that argued for it. C-DIRECTORY now closes the frame to `{op, identities}`, and a generation is not among them. Building it would put a field on the wire that the clause owning that frame does not name.
+
+3. "A workbench declares what it can serve, and the hub's task-tools capability follows that declaration". This is a compression of two bullets from C-WORKBENCH-ROUTING, which is `status = "deprecated"`. Cross-hub task tools were withdrawn: serving a credential-bound request on a peer's behalf is the widest authority in the design.
+
+4. "A second live claim on one identity is in doubt for the settling interval before it is reported as a contest". The settling interval existed for about two days — added by the thirteenth review, removed by the same cut. C-DIRECTORY today says two live peers claiming one identity IS a conflict and the hub MUST route to neither, full stop, with no interval. `Directory.advertise` setting `rival` immediately is not drift; it is the current specification, and two tests pin it.
+
+WHAT THIS IS NOT: a decision to leave work undone. It is the same check this item set for itself — "the unbuilt list matches what src/hub actually lacks, checked in both directions" — applied to the criteria as well as to the list. A criterion that requires violating the clause it cites is worse than no criterion, because ticking it would be a lie and building it would be a regression. If any of the four should come back, the corpus is where it comes back first.""",
+    """
+TWO THINGS FOUND WHILE FIXING THE LAST CRITERION, NEITHER OF WHICH IT COVERS. Recorded rather than smuggled in, because each is a distinct promise and deserves its own item.
+
+A DANGLING POINTER THAT WAS LATENT UNTIL SOMETHING NEEDED THE VALUE. `mailboxDeliver` returns `pendingKey(forward_id)` — the pending table's OWN key — and every exit from `awaitForward` runs `dropPendingLocked`, which frees it. Nothing noticed while the id was only ever an argument to that one call. The moment it had to outlive the wait, the silence branch duped freed bytes into the spool and the retry frame went out carrying fifteen bytes of `0xAA` where an id belonged. Fixed at the call site by copying into the handler's arena before the wait, with the reason written down; the shape — a borrowed slice that is fine until a second reader appears — is worth remembering.
+
+A FLUSH STILL RELEASES THE COPY AT WRITE TIME, WHICH IS A LOSS RATHER THAN A DUPLICATION. `Spool.take`'s own comment says the caller "will re-hold under the pending-ack table" and `flushSpoolToLocked` does not: it takes, forwards, and awaits nothing. So a retry that is ALSO unanswered loses the message outright, and `spooled` — which C-DELIVERY defines as the message being HELD here — stops being true the moment the first flush writes. That is the third comment-versus-code contradiction found today and the only one still open. It is not this criterion's business: "a lost acknowledgement cannot deliver the same message twice" is about duplication, and the id reuse settles it. Losing the copy is a different clause conjunct and wants its own item, because the fix is structural — either re-hold the taken messages under the pending table with their ids and re-spool on silence, or do not take until an ack lands, and the flush runs under `presence_mutex` while `awaitForward` must not.""",
+    """
+GAP-BY-GAP, THE FOUR IN THE DESCRIPTION ARE CLOSED and the criteria that survive the corpus are all green. `relay_advertise` distinguishes a full set from an incremental update; `peer_link_refused` is minted at every handshake refusal and `peer_presence_refused` at every declined relay; `synapty wait` fails at once on the three remote cases instead of blocking to its timeout; relayed presence rows omit what this hub never learnt.
+
+FIVE OF THE THIRTEEN CRITERIA WERE ALREADY TRUE AND UNTICKED, which is its own finding: the delivery response's shape, the durable spool, the refusal of a relayed frame whose stamped source is unknown, and half of the forwarding promise had all shipped. Each was verified by MUTATION rather than by reading — the check removed, the suite run, the failures counted — because "there is a test named after it" was exactly the evidence that turned out to be worthless for the sixth.
+
+THAT SIXTH IS THE ONE WORTH REMEMBERING. `forwarded means the peer acknowledged it, and a lost acknowledgement cannot deliver the same message twice` had a test whose NAME claimed both halves. It hand-wrote one forward id twice and fed it to the receiver's dedupe table, so it passed no matter what the sender did — and the sender minted a fresh id on every attempt, unconditionally, at its only mint site. A lost acknowledgement delivered the message twice, in production, under a green test named for the rule it was breaking.""",
+]
+
+[[content.acceptance_criteria]]
+text = "The delivery response carries status and an optional reason, and nothing that answers the same question a second time"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "No comment in src/hub states a rule RFC-0010 C-PEER-IDENTITY superseded"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The unbuilt list in this item matches what src/hub actually lacks, checked in both directions"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A wait on a target this hub cannot resolve carries unresolved, and a script can tell it from an unregistered name"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A hub restart does not lose spooled mail, and a test fails if the spool is absent from the durable snapshot"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A relayed frame whose stamped source this hub holds no directory entry for is refused, with a test that fails without the check"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A refused relay handshake and a refused relay_presence each reach the event log, so the hub that knows can say so"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "relay_advertise distinguishes a full set from an incremental update, so the replace-on-reconnect happens and stale tombstones do not attract mail"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "forwarded means the peer acknowledged it, and a lost acknowledgement cannot deliver the same message twice"
+status = "done"
+category = "fixed"

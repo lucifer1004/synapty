@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-017"
+title = "fix(build): the ghostty patch that exists only in a dirty worktree, and the hub's Keychain claim"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 05 H1 L1 M1. The surface-opts patch (WI-2026-08-10, the fix without
+which surface command/cwd/env are discarded on conditional-state re-derivation)
+is referenced by no script; it lives as an uncommitted edit in the submodule
+and in CLAUDE.md as a step a human must remember. A fresh clone silently
+builds without it. The metallib patch has apply-if-not-applied machinery in
+build-ghosttykit.sh already — the same treatment, one directory. Separately
+build.zig claims the hub cannot touch the Keychain, but hub imports tools
+which imports github, and the deploy/test hub modules re-add github
+explicitly — weakest exactly where the claim was written for.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "build-ghosttykit.sh applies every patch in one patches directory idempotently (surface-opts included) and a fresh clone + just ghosttykit produces a GhosttyKit with the fix; the submodule's stray files (a stale holder.zig copy, profraw, .devenv, .omc) are gone and CLAUDE.md's manual step is retired"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build.zig's hub modules either drop github from the deploy and test hubs or the comments state the guarantee that actually holds (no direct import; tools carries it), with the stale handlers.zig comment corrected"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "patches/ and scripts/patches/ are one directory, documented"
+status = "done"
+category = "chore"

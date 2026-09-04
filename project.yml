@@ -1,0 +1,395 @@
+name: Synapty
+options:
+  bundleIdPrefix: com.synapty
+  deploymentTarget:
+    macOS: "14.0"
+
+settings:
+  base:
+    SWIFT_OBJC_BRIDGING_HEADER: Synapty-Bridging-Header.h
+    HEADER_SEARCH_PATHS: $(PROJECT_DIR)
+    CLANG_ENABLE_MODULES: NO
+
+targets:
+  Synapty:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+      - path: scripts
+        buildPhase: resources
+        type: folder
+      # Passive-detection manifests (ADR-0005): bundled as Resources/detect/,
+      # user-overridable at ~/.config/synapty/detect/.
+      - path: detect
+        buildPhase: resources
+        type: folder
+      # RFC-0006 lifecycle specs (resume templates + launch recipes);
+      # user-overridable at ~/.config/synapty/lifecycle/.
+      - path: lifecycle
+        buildPhase: resources
+        type: folder
+      # Nerd Fonts "Symbols Only" (MIT), registered by macOS through
+      # ATSApplicationFontsPath below. The file browser draws row icons
+      # from its Seti-UI and Codicon ranges.
+      - path: fonts
+        buildPhase: resources
+        type: folder
+    # Declared Info.plist (merged with generated keys): the host drag
+    # payload's custom UTType must be EXPORTED — an undeclared dynamic
+    # type fails the pasteboard conformance check on drop
+    # (WI-2026-08-08-090 drag-and-drop fix).
+    info:
+      path: configs/Synapty-Info.plist
+      properties:
+        # MACOS REGISTERS THE BUNDLED FONTS ITSELF, so nothing at launch
+        # has to remember to. A CTFontManager call in code is a
+        # registration that can be reached after a view has already asked
+        # for the font; this key is honoured before any of our code runs.
+        # The value is a directory name under Contents/Resources.
+        ATSApplicationFontsPath: fonts
+        # WHAT A TERMINAL DECLARES, AND WHY IT IS PHRASED THIS WAY.
+        #
+        # A terminal does not want the camera; a program the human runs in
+        # a pane might, and macOS asks the APP. Without a string the
+        # request is refused and the program fails for a reason nothing on
+        # screen explains. Ghostty, Warp and Termius all carry this set —
+        # checked in their shipped Info.plist rather than assumed — and
+        # all phrase it as "a program running within <app>", which is the
+        # honest subject: the app is not the one asking.
+        #
+        # The folder entries are NOT in those apps, including Apple's own
+        # Terminal. They are kept because they are true and are shown if
+        # such a prompt appears, but they are not claimed to fix anything
+        # ([[WI-2026-08-14-014]]).
+        NSAppleEventsUsageDescription:
+          A program running within Synapty would like to use AppleScript.
+        NSCameraUsageDescription:
+          A program running within Synapty would like to use the camera.
+        NSMicrophoneUsageDescription:
+          A program running within Synapty would like to use the microphone.
+        NSContactsUsageDescription:
+          A program running within Synapty would like to access your contacts.
+        NSCalendarsFullAccessUsageDescription:
+          A program running within Synapty would like full access to your calendar.
+        NSCalendarsUsageDescription:
+          A program running within Synapty would like to use your calendar.
+        NSRemindersFullAccessUsageDescription:
+          A program running within Synapty would like full access to your reminders.
+        NSRemindersUsageDescription:
+          A program running within Synapty would like to use your reminders.
+        NSPhotoLibraryUsageDescription:
+          A program running within Synapty would like to access your photo library.
+        NSLocationUsageDescription:
+          A program running within Synapty would like to access your location information.
+        NSLocalNetworkUsageDescription:
+          A program running within Synapty would like to access the local network.
+        NSBluetoothAlwaysUsageDescription:
+          A program running within Synapty would like to use Bluetooth.
+        NSSpeechRecognitionUsageDescription:
+          A program running within Synapty would like to use speech recognition.
+        NSSystemAdministrationUsageDescription:
+          A program running within Synapty requires elevated privileges.
+        NSDownloadsFolderUsageDescription:
+          A program running within Synapty would like to read files in your Downloads folder.
+        NSDocumentsFolderUsageDescription:
+          A program running within Synapty would like to read files in your Documents folder.
+        NSDesktopFolderUsageDescription:
+          A program running within Synapty would like to read files on your Desktop.
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: dev.synapty.host-drag
+            UTTypeDescription: Synapty host drag payload
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: dev.synapty.tab-drag
+            UTTypeDescription: Synapty tab drag payload
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: dev.synapty.session-drag
+            UTTypeDescription: Synapty session drag payload
+            UTTypeConformsTo:
+              - public.data
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.synapty.app
+        GENERATE_INFOPLIST_FILE: YES
+        # From build.zig.zon, the one place the version lives; the justfile
+        # exports it when it generates the project ([[WI-2026-09-02-028]]).
+        MARKETING_VERSION: "${SYNAPTY_VERSION}"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_OBJC_BRIDGING_HEADER: Synapty-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(PROJECT_DIR)
+        FRAMEWORK_SEARCH_PATHS:
+          - $(PROJECT_DIR)
+        OTHER_LDFLAGS:
+          - "-lc++"
+          - "-framework"
+          - Metal
+          - "-framework"
+          - QuartzCore
+          - "-framework"
+          - IOSurface
+          - "-framework"
+          - UniformTypeIdentifiers
+          - "-framework"
+          - Carbon
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/../Frameworks"
+      configs:
+        # Debug keeps ad-hoc signing and Xcode's generated entitlements,
+        # which include get-task-allow — the debugger needs it, and
+        # notarization rejects a Developer ID app that ships it. That is
+        # why Release gets its own entitlements FILE rather than an
+        # override of one key.
+        Debug:
+          # A STABLE IDENTITY, NOT AD-HOC. TCC keys a grant to the code
+          # signature, and an ad-hoc signature changes with every build —
+          # so macOS treated each rebuild as a different application and
+          # asked again for the Downloads folder its terminal's login
+          # shell touches. The operator was answering that prompt after every
+          # compile, and UI tests failed at random when it landed over the
+          # window mid-run.
+          #
+          # Apple Development rather than Developer ID: this is the local
+          # build, it wants get-task-allow for the debugger, and that is
+          # the entitlement notarization rejects — which is why Release
+          # keeps its own identity and its own entitlements file.
+          CODE_SIGN_IDENTITY: "Apple Development"
+          CODE_SIGN_STYLE: Automatic
+          DEVELOPMENT_TEAM: HSEZTB9EQB
+        Release:
+          # MANUAL on purpose. Automatic signing falls back to whatever
+          # identity it can find, so on a machine without the Developer ID
+          # certificate it would quietly produce a development-signed
+          # build that looks signed, installs fine locally, and cannot be
+          # notarized — a failure that surfaces at the last step.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          DEVELOPMENT_TEAM: HSEZTB9EQB
+          ENABLE_HARDENED_RUNTIME: YES
+          CODE_SIGN_ENTITLEMENTS: Synapty-Release.entitlements
+          # --timestamp is not optional. Without a secure timestamp the
+          # signature stops validating the day the certificate expires,
+          # on copies that were installed years earlier and are not being
+          # re-downloaded.
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          # Xcode injects com.apple.security.get-task-allow on top of
+          # whatever entitlements file it is given. An empty file is
+          # therefore not enough — the debug right comes back, and
+          # notarization rejects it. This is the switch that actually
+          # removes it.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          # CloudKit's entitlements are RESTRICTED: they are only valid
+          # when an embedded profile authorises them for this App ID.
+          # Without the profile the app signs, notarizes and launches
+          # cleanly, and then every CloudKit call fails "not entitled" —
+          # an error that reads like a coding mistake rather than a
+          # missing file.
+          PROVISIONING_PROFILE_SPECIFIER: Synapty
+    postBuildScripts:
+      - script: |
+          # NOT `set -e`. This script re-seals the bundle from an EXIT
+          # trap, and that codesign fails by design when the product
+          # contains the test bundle ("bundle format unrecognized ... In
+          # subcomponent: PlugIns/SynaptyTests.xctest") — tolerated, and
+          # `set -e` turned it into a failed test build. The checks that
+          # must be fatal say so themselves, one at a time.
+          # Xcode's PATH is not a login shell's, so `zig` from Homebrew is
+          # not on it. Resolve it explicitly rather than letting the
+          # cross-compile fail in a way that used to be a silent skip.
+          cd "${SRCROOT}"
+          ZIG="$(command -v zig || echo /opt/homebrew/bin/zig)"
+          if [ ! -x "$ZIG" ]; then
+            echo "error: zig not found — deploy targets cannot be built" >&2
+            exit 1
+          fi
+          # Sign a nested Mach-O the way THIS configuration is signed.
+          #
+          # Xcode signs the app bundle and the nested code it knows about
+          # (frameworks, XPC services). It does not know about
+          # Contents/Helpers or the deploy payloads, so those arrive
+          # either linker-signed or unsigned — and notarization refuses a
+          # bundle containing ANY Mach-O that is not properly signed.
+          # Signing here, in a post-build script, is what puts them in
+          # order BEFORE Xcode seals the app around them at the end of
+          # the target build.
+          #
+          # zig 0.16 links with a linker-signed ad-hoc signature
+          # (CodeDirectory flags 0x20002). On macOS 15+ the kernel rejects
+          # linker-signed nested helpers at exec — "load code signature
+          # error 2" -> SIGKILL — even though `codesign --verify` passes.
+          # So every one of these is re-signed rather than left alone.
+          # RE-SEAL AT THE END. This script runs AFTER Xcode's code
+          # signing, not before — verified from timestamps: the nested
+          # binaries were 49 seconds NEWER than
+          # Contents/_CodeSignature/CodeResources. So every nested
+          # signature this script applies invalidates the bundle seal
+          # ("a sealed resource is missing or invalid"), which
+          # `codesign --verify` reports and notarization rejects outright.
+          #
+          # Re-signing the bundle here is correct regardless of what order
+          # Xcode chooses, which is the property to want: the rule is
+          # "whoever modifies the bundle last re-seals it", not "hope the
+          # phases stay in the order they are in today".
+          # A TRAP MUST NOT DECIDE THE PHASE'S EXIT STATUS. On a TEST
+          # build the product contains PlugIns/SynaptyTests.xctest, which
+          # codesign refuses to seal ("bundle format unrecognized ... In
+          # subcomponent"), and a trap whose last command fails makes the
+          # whole script fail. That made the build phase fail on some runs
+          # and not others depending on whether the test bundle had been
+          # embedded yet — an intermittent failure with nothing to point
+          # at. Xcode signs the product itself for test runs, so the
+          # honest behaviour is to try, say so if it did not work, and let
+          # the build stand on its own errors.
+          reseal_app() {
+            APP="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app"
+            if [ "${CODE_SIGN_IDENTITY}" = "-" ] || [ -z "${CODE_SIGN_IDENTITY}" ]; then
+              codesign --force -s - "$APP" \
+                || echo "note: could not re-seal the bundle (expected while it contains the test bundle)"
+              return 0
+            fi
+            ENT_ARG=""
+            if [ -n "${CODE_SIGN_ENTITLEMENTS:-}" ] && [ -f "${SRCROOT}/${CODE_SIGN_ENTITLEMENTS}" ]; then
+              ENT_ARG="--entitlements ${SRCROOT}/${CODE_SIGN_ENTITLEMENTS}"
+            fi
+            # shellcheck disable=SC2086
+            codesign --force --options runtime --timestamp $ENT_ARG \
+              -s "${CODE_SIGN_IDENTITY}" "$APP" \
+              || echo "note: could not re-seal the bundle (expected while it contains the test bundle)"
+            return 0
+          }
+          trap reseal_app EXIT
+
+          sign_nested() {
+            if [ "${CODE_SIGN_IDENTITY}" = "-" ] || [ -z "${CODE_SIGN_IDENTITY}" ]; then
+              codesign --force -s - "$1"
+            else
+              # Hardened runtime and a secure timestamp on the nested
+              # binaries too: notarization checks each one, not just the
+              # outer bundle.
+              codesign --force --options runtime --timestamp \
+                -s "${CODE_SIGN_IDENTITY}" "$1"
+            fi
+          }
+          # BUILT, NOT MERELY COPIED. This loop used to take whatever
+          # happened to be sitting in zig-out and skip silently when a
+          # target was missing, so the app shipped a macOS binary from
+          # this build beside Linux binaries from whenever someone last
+          # ran the cross-compile by hand. Measured on a real host: the
+          # app was build 361b0251 and the daemon it had deployed was
+          # e32502e9, three days older — and every tool added in between
+          # came back from that host as a bare "unknown tool", with
+          # nothing naming the skew.
+          for target in linux-aarch64 linux-x86_64 linux-riscv64 macos-aarch64 macos-x86_64; do
+            "${ZIG:-zig}" build "deploy-${target}" || {
+              echo "error: could not cross-compile deploy target ${target}" >&2
+              exit 1
+            }
+            SRC="${SRCROOT}/zig-out/${target}/synapty"
+            DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/deploy/${target}"
+            # A target that is still missing after its own build step is a
+            # broken build, not a target to skip: shipping the app without
+            # it means a host of that architecture silently gets nothing.
+            if [ ! -f "$SRC" ]; then
+              echo "error: deploy-${target} produced no binary at $SRC" >&2
+              exit 1
+            fi
+            mkdir -p "$DEST"
+            cp "$SRC" "$DEST/synapty"
+            # Only the macOS payloads are Mach-O. The Linux ELFs are data
+            # as far as macOS is concerned — sealed by the bundle
+            # signature, not signed themselves.
+            case "$target" in macos-*) sign_nested "$DEST/synapty" ;; esac
+          done
+          # Bundle the unified synapty binary ([[ADR-0004]]: hub is `synapty hub`).
+          BIN_SRC="${SRCROOT}/zig-out/bin/synapty"
+          # Contents/Helpers/, under the binary's REAL name. It must NOT
+          # live in Contents/MacOS/: APFS is case-insensitive, so a PATH
+          # lookup for "synapty" in MacOS/ matches "Synapty" (the GUI!) —
+          # the run wrapper prepends its own dir to the pane PATH, and
+          # in-pane `synapty` calls launched second GUI instances / hung
+          # forever. Helpers/ is the standard sealed nested-tool location.
+          BIN_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Helpers"
+          if [ -f "$BIN_SRC" ]; then
+            mkdir -p "$BIN_DEST"
+            cp "$BIN_SRC" "$BIN_DEST/synapty"
+            # zig 0.16 links with a linker-signed ad-hoc signature
+            # (CodeDirectory flags 0x20002 "adhoc, linker-signed"). On macOS
+            # 15+ the kernel rejects linker-signed nested helpers at exec:
+            # "load code signature error 2" / "embedded signature doesn't
+            # match attached signature" -> ASP SIGKILL (Code Signature
+            # Invalid), even though `codesign --verify` passes. Re-sign with
+            # a plain ad-hoc signature (flags 0x2) so exec is allowed.
+            sign_nested "$BIN_DEST/synapty"
+          fi
+          # Bundle ghostty built-in themes for the theme picker + runtime
+          # theme resolution (SynaptySettings.builtinThemeNames).
+          THEMES_SRC="${SRCROOT}/ghostty/zig-out/share/ghostty/themes"
+          THEMES_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/ghostty/themes"
+          if [ -d "$THEMES_SRC" ]; then
+            mkdir -p "$THEMES_DEST"
+            cp -R "$THEMES_SRC/." "$THEMES_DEST/"
+          fi
+          # Bundle ghostty's shell-integration scripts. The fragment names
+          # the shell (`shell-integration = zsh`) because detection cannot
+          # see through our pane wrapper; ghostty then loads
+          # Resources/ghostty/shell-integration/<shell> — and without this
+          # copy it logged FileNotFound and injected nothing, which is what
+          # kept OSC 133 marks, jump_to_prompt, finished-command reports
+          # and local OSC 7 all dark ([[WI-2026-09-02-002]]).
+          SI_SRC="${SRCROOT}/ghostty/zig-out/share/ghostty/shell-integration"
+          SI_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/ghostty/shell-integration"
+          if [ -d "$SI_SRC" ]; then
+            mkdir -p "$SI_DEST"
+            cp -R "$SI_SRC/." "$SI_DEST/"
+          fi
+          # Bundle terminfo so ghostty's resourcesDir() sentinel
+          # (terminfo/78/xterm-ghostty under Contents/Resources) resolves —
+          # without it theme lookup falls back to nothing and 'theme = X'
+          # silently fails.
+          TERMINFO_SRC="${SRCROOT}/ghostty/zig-out/share/terminfo"
+          TERMINFO_DEST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/terminfo"
+          if [ -d "$TERMINFO_SRC" ]; then
+            mkdir -p "$TERMINFO_DEST"
+            cp -R "$TERMINFO_SRC/." "$TERMINFO_DEST/"
+          fi
+        name: Bundle deploy and hub binaries
+        basedOnDependencyAnalysis: false
+    dependencies:
+      - framework: GhosttyKit.xcframework
+        embed: false
+        link: true
+
+  SynaptyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.synapty.tests
+    dependencies:
+      - target: Synapty
+
+  # UI tests drive the application the way a human does — menus, chords,
+  # clicks — and photograph it between steps. They exist because two
+  # defects reached the human on 2026-08-20 that no unit test could see:
+  # a reference sheet that was never presented, and a chord that ran its
+  # command twice. Both are one assertion each here.
+  #
+  # NO PERMISSION IS ASKED OF ANYONE: the test runner is granted UI
+  # automation rights by the system, unlike a terminal driving the app
+  # through System Events.
+  SynaptyUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.synapty.uitests
+    dependencies:
+      - target: Synapty

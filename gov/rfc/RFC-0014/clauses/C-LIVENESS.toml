@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LIVENESS"
+title = "What Says A Holder Is There"
+kind = "normative"
+status = "active"
+since = "0.2.0"
+
+[content]
+text = """
+Whether a holder is running MUST be determined by a fact whose lifetime the operating system ties to that process, and MUST NOT be determined by a process identifier alone.
+
+A SESSION IS A PROCESS; A PROCESS IDENTIFIER IS A NUMBER THE SYSTEM RECYCLES. The two are not the same question, and asking the second in place of the first is answerable but wrong.
+
+- A holder that has ended and whose identifier has since been reassigned MUST NOT be reported as running, MUST NOT be signalled, and MUST NOT have its session's identity conferred on a newly started child ([[RFC-0015:C-PERSIST]]).
+- THE DETERMINATION MUST NOT REPORT A RUNNING HOLDER AS GONE. A test that can answer "gone" for a holder that is merely busy is inadmissible however well it behaves in the ordinary case: the two mistakes are not symmetrical. Reporting a dead holder as running leaves litter, which the next paragraph of [[RFC-0014:C-END]] disposes of; reporting a live one as gone destroys a session somebody meant to come back to, and reachability is not the fact being asked about ([[RFC-0014:C-END]], "ENUMERATION MUST NOT DEPEND ON THE SESSION ANSWERING").
+- EVERY SURFACE MUST REACH THE SAME DETERMINATION. Enumeration on the host, ending a session, and a client deciding whether to return to one are the same question asked by different callers, and MUST NOT be able to answer it differently.
+- A recorded process identifier MAY be relied on to signal a holder only where the determination above says that holder is there. It carries no meaning on its own.
+
+The failure this is written from had both halves. A listing asked whether anything wore the number, so a holder whose number had been reused could not be swept and, worse, an explicit end signalled the stranger wearing it. The client asked the same way and independently, so a dead session read as live and a newly started child was handed the name that routes another agent's mail. One clause, because one fact."""

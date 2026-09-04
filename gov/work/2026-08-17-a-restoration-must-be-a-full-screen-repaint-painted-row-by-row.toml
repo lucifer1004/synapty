@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-013"
+title = "A restoration must be a full-screen repaint, painted row by row"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+A reconnected pane put its content at the bottom with blank space above it, split a two-character command across a wrap that no longer existed, and showed no cursor. Three symptoms, one cause: the restoration is being produced as a DUMP and rendered as though it were a REPAINT.
+
+WHY THE MULTIPLEXER THIS REPLACED DID NOT HAVE THIS. It repaints absolutely and exhaustively: the session is resized to the client first, then every row is written with its own explicit positioning — including the blank ones — and the cursor is placed and made visible at the end. Nothing about where a row lands is left to the thing producing the description.
+
+The formatter this uses describes the screen's CONTENT. Turning trimming off was measured and is not sufficient: it still does not emit a line for every row, so the position of everything depends on where the paint began. That is exactly what put content at the bottom of a taller pane.
+
+THE FIX IS TO PAINT LIKE A MULTIPLEXER, not to abandon painting. The library supports formatting a SELECTION, so a repaint is one call per row: position, then that row's styled content, for every row of the screen, then the cursor. It costs a formatter call per row, on a screen that is measured in tens.
+
+NOT BYTE REPLAY. Replaying the retained stream was considered when this went wrong twice in a row, and rejected on second thought: it is exact only while a whole session fits the retention window, it cannot answer for a session that has run for a day, and reaching for it here would be abandoning a mechanism that works for one that happens to be easier to get right today."""
+notes = [
+    "2026-08-17: `trim = false` was tried first and measured: the dump still does not carry a line per row, so the geometry problem survives it. The change was reverted rather than left in as a guess, and the finding is recorded in the code beside the option.",
+    "2026-08-17: The paint carries two guards the WI did not name, each found by asking what the pane was left in rather than what the session holds. It resets the scrolling region and origin mode before painting, because a pane still carrying a region from the connection that died would have every row addressed against it — and a session with no region says nothing that would clear it. And it places the cursor itself: a client that placed the cursor afterwards would be addressing rows by a rule the paint had just restored.",
+    "2026-08-17: A repaint is several times the size of the description it replaces — a palette and a positioned row per row of the pane — and the clients read frames into fixed buffers, so the reattach that failed with TooLarge was the one on the biggest window. Frames now fall back to the heap above the caller's buffer (holder.readFrameAlloc), bounded by a stated ceiling.",
+]
+
+[[content.acceptance_criteria]]
+text = "A restored pane places every row where the session has it, whatever size the client is"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A restored pane shows its cursor, in the position and visibility the session has"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The restoration is built row by row with explicit positioning, and describes every row of the screen including blank ones"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A test asserts a row's position is independent of where the paint began"
+status = "done"
+category = "chore"

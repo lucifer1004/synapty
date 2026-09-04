@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-005"
+title = "A question with no options can never leave the queue"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`view.ask` accepts an empty option set end to end and produces a question no human can answer or dismiss. `FileToolServer.serveView` guards only that the text is non-empty; `QuestionService.ask` stores it; the sheet renders the row's buttons with a `ForEach` over the options and offers nothing else. `synapty ask "Ready to deploy?"` is a legal invocation — `--option` is optional in the parser and is not defaulted.
+
+The agent times out and exits, and the card stays in the queue for the life of the process, keeping the badge non-zero and the sheet non-empty. The field comment already says why an open set cannot be presented: the badge is a queue of decisions, not a text surface.
+
+TWO ENDS, ONE DEFECT: refuse it at the boundary, or give the card a way out. Refusing is the smaller claim and matches what the surface can actually do."""
+
+[[content.acceptance_criteria]]
+text = "An ask with no options is refused where it enters, or the card it produces can be answered, with a test that fails if such a question can be created and left unanswerable"
+status = "done"
+category = "fixed"

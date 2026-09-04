@@ -1,0 +1,33 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NOTIFY-GAP"
+title = "Explicit Notify Alone Cannot Cover the Fleet"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The shipped explicit path (`synapty notify --state ...`) is a strong signal
+but only covers agents that (a) run inside a `synapty run` wrapper and
+(b) have loaded the skill and remember to call it. It structurally cannot
+cover:
+
+- agents whose harness has no skill installed (a colleague's tool, an older
+  CLI, an ad-hoc script);
+- agents that forget to notify — an LLM instruction is reliable for one-shot
+  register but lossy for per-turn signaling;
+- the `waiting` state at permission prompts, where the model is suspended and
+  cannot emit anything (today only the terminal bell covers this).
+
+Peer systems in the same category treat passive screen classification as the
+primary mechanism: herdr ships manifest rules for 19 agent CLIs that classify
+panes as blocked/working/done/idle/unknown from the last screen rows and OSC
+title, explicitly reading the screen snapshot rather than the user-scrolled
+viewport. Synapty is structurally better positioned: it owns the in-memory VT
+grid (libghostty exposes `ghostty_surface_read_text` over an explicit
+selection), so classification reads state directly instead of scraping.
+
+Explicit notify stays the strong source; passive detection is the fallback
+that makes presence coverage universal instead of opt-in."""

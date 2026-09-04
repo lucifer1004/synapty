@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-027"
+title = "feat(gui): passive agent detection — manifests over the VT grid"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-10"
+completed = "2026-08-10"
+refs = ["RFC-0004"]
+depends_on = ["WI-2026-08-09-024"]
+
+[content]
+description = "Implement RFC-0004 passive detection: the workbench classifies registered panes by reading the final screen rows via libghostty, driven by per-tool declarative manifests, emitting edge-triggered weak signals into the hub merge. Includes the lifecycle unknown path and an ADR recording detection locus + manifest format."
+
+[[content.acceptance_criteria]]
+text = "ADR — detection locus (Swift over ghostty_surface_read_text bottom-rows selection vs Zig alternatives) + manifest format/location/reload mechanics [C-PASSIVE-DETECTION delegation]"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "screen-not-viewport read of final rows per registered pane; classification unaffected by user scrollback [C-PASSIVE-DETECTION]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "per-tool manifests (claude/codex/gemini) — ordered literal/regex patterns over read region + OSC title, first match wins, passive set working|waiting|done only, no-match emits nothing [C-PASSIVE-DETECTION]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "edge-triggered emission — first classification is an edge; detector memory resets on generation change; ~2s freshness [C-PRECEDENCE rule 2]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "lifecycle unknown on pane process exit / unregistration [C-OWNERSHIP]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "screen text treated as untrusted — classifier output is a status enum only, never forwarded/parsed as instructions [C-PASSIVE-DETECTION]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "classifier unit tests (manifest matching, edge semantics, no-match inert, done-only-from-work acceptance) + live E2E: a real claude pane classified waiting at a permission prompt with no notify call"
+status = "done"
+category = "chore"

@@ -1,0 +1,52 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-24-001"
+title = "The workbench types a resume incantation nobody asked for"
+status = "done"
+created = "2026-08-24"
+started = "2026-08-24"
+completed = "2026-08-24"
+refs = [
+    "RFC-0014",
+    "RFC-0006",
+]
+
+[content]
+description = """
+AUTO-RESUME IS CANCELLED. Not gated, not checked — removed, and the affordance that replaces it exists only where the promise was broken.
+
+WHAT THE CODE DOES TODAY. AgentLifecycle.attemptResume types a recorded incantation into a restored pane and presses Return. It checks the autoResume setting (default .auto), whether the pane is remote (demoted to ask-first), whether the human typed first, and whether the surface has a size. It never asks whether the session it is typing into is one that NEVER STOPPED.
+
+WHY THAT IS NOW REACHABLE. RFC-0006 C-RESUME-RESTORE's safety argument was one invariant — an incantation 'only re-attaches the harness' and therefore starts no turn. That was never a property of the incantation: 'claude --resume <id>' at a shell prompt re-attaches, and the same characters typed into a claude that is already running are a PROMPT. Before RFC-0014 a workbench restart implied a dead child, so the receiving state was guaranteed. With holders (WI-2026-08-19-006, -007) a restored pane rejoins a child that never stopped, and the guarantee is gone.
+
+A MACHINE RESTART IS THE WORST CASE. Every holder is gone, every pane restarts, every plan fires at once: one turn per agent, started while nobody is at the machine. Nothing about a computer coming back up is a human asking their agents to carry on.
+
+THE SHAPE OF THE FIX IS STRUCTURAL, NOT A CHECK. A foreground round trip before typing would work and would be the wrong answer: a check can be skipped, defaulted the wrong way on a timeout, or forgotten by the next caller. Instead there is no code path that types into a rejoined session, because the offer exists only where Rejoining (WI-2026-08-17-027) already says the pane RESTARTED — on the notice strip that appears there and nowhere else. The clause was amended in place to say so.
+
+The plan itself stays: it is what lets the notice say which session this pane was running, and it is what the human's one click uses."""
+
+[[content.acceptance_criteria]]
+text = "nothing types a resume incantation on the workbench's own initiative — the automatic mode and its preference are gone, not defaulted off"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "no code path can type into a session that rejoined a live child, because the offer exists only where the pane is reported as restarted (RFC-0014 C-LIVE-CHILD, satisfied structurally)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a pane that restarted offers its resume as a human act, on the notice that already tells them it restarted, naming the session it would return to"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the surface-wait, the settle delay, the typed-first demotion and the remote special case go with the automatic path they existed to make safe"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "covered by tests that a rejoined pane is offered nothing, a restarted one is offered exactly one act, and nothing fires without it"
+status = "done"
+category = "chore"

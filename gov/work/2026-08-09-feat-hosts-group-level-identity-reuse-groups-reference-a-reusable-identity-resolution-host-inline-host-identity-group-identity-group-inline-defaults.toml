@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-001"
+title = "feat(hosts): group-level Identity reuse — groups reference a reusable Identity; resolution host inline -> host identity -> group identity -> group inline -> defaults"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Identity was referenced by hosts only (WI-2026-08-08-067 removed group identity), which defeats the point of reusable credentials: rotating a key for a fleet means touching every host. Groups regain an optional identityID. Resolution (username): host inline -> host identity -> GROUP IDENTITY -> group inline username -> NSUserName(). Resolution (key path): host inline -> host identity -> GROUP IDENTITY -> nil. Rationale for group identity beating the group's loose inline username: an attached Identity is a deliberate named credential bundle; the inline default is a weak hint (and the group editor labels it accordingly). Host-level precedence is unchanged (inline overrides identity — existing behavior). Group editor gains a Credentials section (Identity picker + resolved-key hint) matching the host editor. Legacy hosts.json loads unchanged (optional field; pre-067 files that still carry identityID now honor it again)."
+
+[[content.acceptance_criteria]]
+text = "HostGroup carries optional identityID; Codable round-trip + legacy JSON tolerance covered by tests"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "effectiveUsername/effectiveKeyPath resolve through group identity (tests: group-identity fallback, host-identity precedence, group-identity over group inline, removed-identity fallback)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "group editor Credentials section — Identity picker + resolved key hint, parity with host editor"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "full Swift test suite green"
+status = "done"
+category = "chore"

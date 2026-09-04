@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-063"
+title = "fix(gui): fast path for hosts with live tunnels — new sessions open immediately"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+User report: after a host shows Connected on the Hosts page, starting a NEW terminal session for it still takes a long time. Root cause: TunnelManager.ensureTunnel has no fast path — a .connected host is flipped to .connecting (status flicker) and setup-host.sh runs again (5-6 SSH round trips + 2 terminfo scp + md5 check even when the ControlMaster is live).
+
+Fix: when the tunnel state is .connected, fire the session callback immediately (no status change, no setup run); verify the ControlMaster off-main; if it died, reconnect in the background. connect.sh already falls back to a fresh tunnel when no master exists, so the session is safe either way. Binary/terminfo freshness stays with the slow path (first connect / reconnect)."""
+
+[[content.acceptance_criteria]]
+text = "ensureTunnel for a .connected host fires the session immediately (no setup-host run, no .connecting flicker)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the live ControlMaster is verified off-main; a dead master triggers background reconnect"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "queued concurrent requests still all receive their callback (no dropped sessions)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

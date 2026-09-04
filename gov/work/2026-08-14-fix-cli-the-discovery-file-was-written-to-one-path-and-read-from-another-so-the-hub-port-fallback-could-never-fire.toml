@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-007"
+title = "fix(cli): the discovery file was written to one path and read from another, so the hub-port fallback could never fire"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["WI-2026-08-13-003"]
+
+[content]
+description = """
+`resolveHubPort` resolves a bare CLI's hub in three steps: SYNAPTY_HUB_PORT, then the workbench's discovery file, then the 9000 default. Step two could never succeed.
+
+The hub publishes the file through `paths.discovery.path()`, which the classify-by-lifetime migration ([[WI-2026-08-13-003]]) moved to `machine/hub.json`. The reader in `cli/transport.zig` built its own path by hand and still looked for `~/.config/synapty/hub.json`. The two had drifted apart, and nothing crossed them.
+
+WHY IT STAYED INVISIBLE. The failure degrades to the default, and the default is 9000, which is also where the hub usually binds — so every bare `synapty` call kept working. It only bites once the port ladder moves the hub off 9000, exactly when the discovery file is the thing that would have saved the call: the CLI goes to 9000, finds nothing, and reports no hub running.
+
+The fix is to call the same function the writer calls. Building a governed path by hand is what allowed the drift, and there is no case where the reader should resolve differently from the writer."""
+notes = ["""
+VERIFICATION — live, and falsified before being believed. A scratch hub was started on 9377 (own discovery and identity paths, so the operator's real files were untouched) and a discovery file naming that port was written under a temporary HOME at the location the hub actually publishes to. With the fix, `synapty agents` reaches 9377. With the one line reverted to the hand-built path, the same setup returns ConnectionRefused — the CLI cannot find a hub the writer published.
+
+A hermetic test cannot catch this class: both sides expose a `*_path_override` for tests, and any test that sets them bypasses the path CONSTRUCTION that was wrong. That is why it survived."""]
+
+[[content.acceptance_criteria]]
+text = "a bare CLI finds a hub the discovery file points at, on any port"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "reader and writer resolve the discovery path through the same function"
+status = "done"
+category = "fixed"

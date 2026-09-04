@@ -1,0 +1,44 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L1-SESSION"
+title = "L1 — Session Lifecycle and Routing"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The Session Lifecycle layer replaces traditional terminal multiplexers with a daemon-per-session architecture designed for crash-isolated resilience.
+
+**Daemon-per-session.** When the orchestrator spawns an agent task, the system allocates an independent PTY bound to a lightweight daemon process. Each daemon routes bytes bidirectionally: one end connects to a frontend UI (if attached), the other feeds a background libghostty-vt instance. Daemon isolation ensures that a crash in one agent session cannot cascade to others.
+
+**Persistent headless routing.** Daemons continue operating even when no frontend is connected. The background VT state machine tracks grid coordinates, scrollback buffers, and cursor state in memory. This means an agent's terminal session is never lost — it exists as live state whether or not a human is watching.
+
+**Millisecond state snapshot and recovery.** When a frontend reconnects — after a UI crash, network interruption, or simply switching focus — the daemon extracts the current RenderState from the in-memory VT instance and delivers a lossless screen restore in milliseconds. For a reattaching client the current state is available directly, with no
+replay needed to reconstruct it. That is not the whole of what a client
+receives: [[RFC-0014]] C-RESUME requires a holder to deliver the output
+produced while a client was AWAY, in order, before anything newer — the
+screen restores at once, and what was missed still arrives rather than
+being dropped.
+
+**Session identity.** Each daemon-managed session carries a unique session identifier that links it to an agent identity in the A2A routing layer (L4). This binding enables the upper layers to address, inspect, and control individual agent sessions by name.
+
+**Scalability.** The daemon-per-session model targets workloads of tens to low hundreds of concurrent agent sessions on a single machine — the practical range for human-supervised multi-agent workflows. Scaling beyond this (thousands of agents, headless batch workloads) may require process pooling or shared-daemon strategies, which will be evaluated in future ADRs if demand materializes.
+
+**Resilience direction — since specified, not deferred.** When a daemon
+crashes, its session state is lost (the VT state machine lives in its
+memory). When a hub crashes, the daemons on that machine lose their
+routing endpoint. The model is fast restart with state reconstruction
+rather than replication: daemons re-register with a restarted hub, and agents can be re-spawned into fresh sessions.
+
+THAT DEFERRAL HAS EXPIRED, and the two documents that closed it are worth
+naming here because this paragraph is where a reader looks for the answer.
+[[RFC-0014]] gives a session a holder that outlives the client attached to
+it, so a lost connection is no longer a lost session; [[RFC-0009]]
+C-DELIVERY gives cross-machine mail a durable queue, an acknowledgement
+that means the peer took it, and an answer for every way a held message
+can end. An earlier form of this paragraph said detailed failure handling
+"will be specified in normative RFCs beyond the initial implementation
+phases", which was true when it was written and stopped being true
+without anyone editing it."""

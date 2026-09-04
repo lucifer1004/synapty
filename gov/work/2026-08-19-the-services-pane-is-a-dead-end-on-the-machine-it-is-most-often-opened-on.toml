@@ -1,0 +1,61 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-001"
+title = "The services pane is a dead end on the machine it is most often opened on"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "RFC-0013",
+    "ADR-0014",
+]
+
+[content]
+description = """
+Opening a services pane on the local connection — the default workspace, and the one most humans are in — renders "Pick a host. Choose one above." Nothing is above: that copy is left over from the panel that held this view before it became a pane, and the picker it names no longer exists. So the most reachable instance of this pane is a dead end pointing at a control that was deleted.
+
+The cause is that the view reads the local connection as "no host chosen" rather than as a machine. RFC-0015 C-CONNECTION models local as a connection like any other, and the file pane already behaves that way — it lists this Mac and names it. Only this one disagrees.
+
+WHAT IT SHOULD SHOW THERE follows from ADR-0014 rather than from taste. A services pane's value on a remote machine is the FORWARD: it reaches something otherwise unreachable and attributes it to the agent that offered it. Nothing on this Mac is unreachable, so the honest local content is agent exposures and nothing else — and RFC-0015 C-CONTENT forbids enumerating local ports at all, on the merits rather than as a simplification.
+
+THE REMOTE LIST ALSO CHANGES SHAPE. What a machine merely listens on is not an offer: a development host answers on a screenful of daemons and helpers that are nobody's work. C-CONTENT makes that a second layer reached by an explicit human act, which is roughly what the current "Find listening ports" button does — so the work here is to make that the stated design rather than something that reads as a fallback, and to stop the first layer being called empty when it is merely unclaimed.
+
+Naming records the same drift: `RemoteWebView`, for a surface whose local case is a first-class one, and whose kind C-CONTENT now calls a services leaf."""
+
+[[content.acceptance_criteria]]
+text = "A services pane on the local connection lists what local agents exposed, and never enumerates this machine's listening ports"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "No copy in this pane refers to a control that does not exist"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The pane says which machine it is showing, so a human with two of them open can tell them apart"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A remote machine's unclaimed ports are reached by an explicit act and read as a second layer rather than as the list's main content"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A leaf with nothing to show says what to do instead, and never offers an action RFC-0015 C-CONTENT forbids"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The view is named for what it is rather than for the panel era it came from"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The empty state can create a pane on a host of the human's choosing, not only a local one — RFC-0015 C-EMPTY requires the picker to be reachable there as well as from a tab bar"
+status = "done"
+category = "added"

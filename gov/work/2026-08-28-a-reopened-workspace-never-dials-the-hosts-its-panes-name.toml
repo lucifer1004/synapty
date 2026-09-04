@@ -1,0 +1,24 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-002"
+title = "A reopened workspace never dials the hosts its panes name"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`unarchiveWorkspace` rebuilds a workspace's panes and never dials the hosts they name, so a reopened remote workspace shows the dial spinner and no terminal is ever created. `archiveWorkspace` released the connection, so on reopen `ConnectionRegistry.acquire` mints a fresh `Connection(state: .connecting)` that nothing marks; `surface(of:)` maps that to `.dialling`, and `SplitContentView` refuses to construct the TerminalView at all. There is no Try Again — that renders only for `.failed`.
+
+THE SIBLING SITE DOES IT. `restore(from:)` records `restoredRemoteWorkspaces` and `reconnectRestoredSessions` dials each; unarchive is the fourth place that creates remote connections and calls none of the three that exist. The compensating call it is missing is documented 200 lines below it, on `markConnected(hostID:)`: "a RESTORED pane never passes through `paneDidConnect` ... and a leaf whose connection is not up shows the dial forever."
+
+[[RFC-0015]] C-UNARCHIVE is titled "Unarchive Re-Dials and Reattaches" and says unarchiving MUST reconstruct the workspace exactly as C-RESTORE does at launch and MUST acquire connections by host under C-DIAL.
+
+NARROWED BY THE VERIFICATION, and both narrowings are worth keeping: "forever" is "until some unrelated act dials that host" — opening a fresh pane on the same host revives the stuck leaves — and it needs the host not to be referenced by another open workspace at archive time, since a shared connection survives the release."""
+
+[[content.acceptance_criteria]]
+text = "A workspace archived with a remote pane and reopened reaches a terminal, with a test that fails when the dial is not started"
+status = "done"
+category = "fixed"

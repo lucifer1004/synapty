@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-007"
+title = "feat(palette): go to pane — find a pane by title, host or agent and jump to it"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+With a dozen panes across hosts the eye cannot find one; tmux has
+choose-tree, editors have go-to-file. The palette exists
+([[WI-2026-08-09-004]]) and already ranks hosts; panes are the missing
+entry type. The data is all in WorkspaceManager (displayLabel,
+tabTooltip, agentID(forLeaf:), isBusy, isAwaitingAttention)."""
+
+[[content.acceptance_criteria]]
+text = "⌘K lists open panes (across workspaces) matched on live title, rename, host and agent identity, and choosing one focuses it — switching workspace and tab as needed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the row shows enough to tell panes apart: label, host, and busy/attention state"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "matching and ranking are pinned by tests"
+status = "done"
+category = "chore"

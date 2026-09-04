@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-015"
+title = "feat(terminal): three-tier switching shortcuts (session/tab/pane) with modifier-hold number badges"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "User request 2026-08-09: session/tab/pane each get a direct-jump shortcut tier plus press-and-hold hints. Scheme: cmd+N sessions (unchanged), cmd+opt+N tabs (WI-2026-08-09-012's Arrange presets give up cmd+opt+1-4 and stay menu-only), cmd+ctrl+N focuses the Nth split leaf of the active tab. A local flagsChanged monitor (ModifierHintState) shows number badges on the matching level after a 350ms hold — the delay keeps ordinary chords (cmd+C) from flashing badges; release hides instantly. Digit handling runs in a local keyDown monitor (the reliable layer — performKeyEquivalent-consuming terminals bypass menu shortcuts)."
+
+[[content.acceptance_criteria]]
+text = "TerminalPaneManager.switchTab(index:)/focusPane(index:) with 1-based bounds-checked semantics; TerminalCoordinator protocol + SynaptyApp digit monitor wire cmd+opt+N and cmd+ctrl+N"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ModifierHintState (local flagsChanged monitor, 350ms delayed show, instant hide) drives DSKeycap badges: session rows (sidebar), tab chips, pane corner overlays for the active tab's leaves"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Arrange menu items lose cmd+opt+1-4 shortcuts; KeyboardShortcutsView documents the three tiers and the hold-to-hint behavior"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "TDD manager tests — switchTab/focusPane happy path + out-of-range no-op; suite green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "screenshot verification — badges visible on sessions/tabs/panes under the matching modifier hold"
+status = "done"
+category = "chore"

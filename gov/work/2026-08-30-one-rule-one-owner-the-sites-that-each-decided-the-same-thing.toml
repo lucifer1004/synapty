@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-002"
+title = "One rule, one owner: the sites that each decided the same thing"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Asked to sweep for the shape a reported defect turned out to be: one rule
+that several sites owe, discharged by some of them and written out again by
+each. Findings, and the method, because a sweep whose method is not stated
+cannot be repeated or trusted.
+
+METHOD. Two passes over the Swift sources. First, expressions repeated
+across files — which found little, because the shape hides in expressions
+that were reworded rather than copied. Second, and this is the one that
+worked: every named single-expression rule in the codebase, searched for
+its own body appearing inline somewhere else. That finds precisely the case
+where an owner exists and a site did not use it.
+
+WHAT WAS FIXED.
+
+- `AgentInfo.isAgent`. Whether a row is an agent or a shell that registered
+  so the hub could reach it was decided in three places: the list pruned
+  bare rows, the tab bar filtered them, the workspace sidebar drew them.
+  The rule is named now and the sites ask it.
+- `Keymap.differsFromDefault`. Both surfaces that list the table — the
+  shortcuts reference and the pane bindings are edited on — carried a
+  private copy of the comparison [[RFC-0016]] C-DISCOVERY requires them to
+  mark. They agreed, which is the only state a duplicated rule is ever
+  found in until it does not.
+- `Keymap.holdsNothing`. C-UNBOUND's condition, written out at both sites
+  that ask it.
+
+WHAT WAS CHECKED AND LEFT ALONE, because a sweep that only reports finds is
+not a sweep. Three host editors each compute `canSave` differently and
+should: a host needs a label, an address and a user or an identity; an
+identity needs a label and a username. Different objects, different rules.
+And `AgentDetector` and `WakeCoordinator` match an agent id exactly where
+the views use `namesSameAgent`: those act only on panes this workbench
+owns, and the loose match would let them reach a peer's row."""
+notes = ["""
+The question mark the human asked about turned out not to be a defect. The
+hub was asked directly: every agent registered on that machine is a relayed
+directory row from an unreachable peer, and [[RFC-0009]] C-DIRECTORY lets
+only identity, hosting peer and reachability cross a relay link. A row with
+no tool is what that clause produces, and the sidebar's directory row says
+so in as many words. What the sweep found instead was the rule underneath
+it, decided in three places."""]
+
+[[content.acceptance_criteria]]
+text = "AgentInfo.isAgent names the rule the list, the tab bar and the sidebar each decided separately"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Keymap.differsFromDefault and Keymap.holdsNothing own what two surfaces each wrote out"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a bare routing registration is not listed, and becomes an agent the moment it names itself"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "clearing a binding is not rebinding it — holdsNothing and differsFromDefault are not each other"
+status = "done"
+category = "chore"

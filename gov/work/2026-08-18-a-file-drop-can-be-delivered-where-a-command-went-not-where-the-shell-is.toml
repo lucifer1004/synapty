@@ -1,0 +1,76 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-18-004"
+title = "A pane's directory is read from whatever it is running, and remotely by a second ssh"
+status = "done"
+created = "2026-08-18"
+started = "2026-08-18"
+completed = "2026-08-18"
+refs = [
+    "RFC-0013",
+    "RFC-0014",
+    "RFC-0015",
+]
+
+[content]
+description = """
+"Where is this pane standing?" has four answers in the tree and the two that are used both read the wrong process. It is one question, and it should have one answer reached one way.
+
+WHAT IS THERE NOW.
+
+- The shell's own OSC 7, cached in `leafPwds`. Free, exact, and the shell's own word. Absent for a remote pane unless the human configured it: ghostty injects its shell integration into the surface IT spawns, which is the LOCAL `synapty attach` client, never the shell on the far side.
+- The local kernel, `ProcessCwd.of(ghostty_surface_foreground_pid(...))`. Always available for a local pane, and it reads whatever is in FRONT of the shell.
+- `RemotePwd`, which spawns a second ssh to run `synapty workspaces` on the far side, which opens the holder's unix socket and asks. One process, one connection, an eight-second timeout, and a contract on the fourth column of a listing.
+- The holder's own `replyStatus`, which is what that listing reads — and which takes `sys.foregroundGroup(&self.pty)`, with a comment saying so.
+
+THE FIRST DEFECT IS THAT BOTH READ THE FOREGROUND GROUP. A shell running anything that has `cd`d hands the answer to that command. This is not a corner: `jenv rehash` runs from every `.zshrc` on this machine and spends its life in `~/.jenv/shims` (jenv-rehash line 188), and it placed a duplicated pane there before its first prompt ([[WI-2026-08-18-002]]). The remote copy of the defect is identical, because the holder asks the same question of the same kind of pid.
+
+A drop is where this costs most. A pane that opens in the wrong directory says so in its prompt and the human `cd`s; a file drop WRITES, and `TerminalDropCoordinator` builds both the destination and the drag hint from the same read — so the hint names the wrong directory in exactly the tone it names a correct one.
+
+THE SECOND DEFECT IS THE TRANSPORT. What `RemotePwd` needs is a unix socket on the far side. What it spends is a whole ssh. Meanwhile `synapty attach --relay` is already running on that host, already knows the socket path — it connected to it — and is already holding a framed pipe to us. We are opening a second door to a room we are standing in.
+
+WHAT THE ANSWER SHOULD BE.
+
+The truth is one fact: a process's working directory in the far side's kernel. On both sides the process that knows WHICH process — the shell's own pid rather than the tty's foreground one — is ours: the holder is the shell's parent remotely, and locally the chain is `login` -> `synapty run` -> `$SHELL`, which is walkable from the foreground pid without any IPC at all. So one rule, and two implementations only because the local kernel cannot see the far side.
+
+For the transport, the relay is the only process on the far side that has both the channel and the socket path. A client frame it INTERCEPTS rather than forwards, answered by opening its own holder connection, costs one frame kind and deletes the ssh. [[RFC-0014]] C-ONE-CLIENT is untouched: the status query still opens its own connection and still never reaches the client slot, which is what that rule protects. The cost, stated rather than discovered: the relay is advertised as a thing that moves frames and touches no terminal, and this makes it fractionally less dumb. Nothing else over there has both halves.
+
+TWO THINGS THAT LOOK LIKE ANSWERS AND ARE NOT. The holder could write OSC 7 into the stream itself — it knows the directory — but that is bytes into the human's terminal, which [[RFC-0015]] C-FAILURE forbids and which would lie to the screen model. And the holder could PUSH the directory on every change; no consumer needs continuous freshness, since every reader here is an event (a hover, a split, a snapshot, a plan capture), so request and response is the whole requirement.
+
+OSC 7 keeps the place it already has: not a second mechanism, but a fresher instance of the same fact, layered on top the way `reportedPwd` already layers over `observedPwd` locally."""
+notes = [
+    "2026-08-18: Merged. It opened as the drop-destination defect alone; the remote half turned out to be the same defect in a second copy — the holder's replyStatus takes sys.foregroundGroup too — reached over a transport that pays a whole ssh to open a socket the far-side relay is already next to. Two items would have answered 'which process's cwd' twice.",
+    "2026-08-18: THE TRANSPORT CRITERION RESTED ON A FALSE PREMISE, found by building it. 'Ask over the connection already open' assumed the workbench sits at the local end of the relay pipe. It does not: the local end is `synapty attach --id X -- ssh ...`, a process inside the PANE'S OWN PTY, and its pipe to the far side is internal to it. Reaching it from the app would mean a unix socket per remote pane, two more frame kinds, and a request/response interleaved with the pty stream — to avoid one ssh that the ControlMaster already multiplexes. That is more entities, not fewer, so the razor cuts the other way and the ssh stays.",
+    "2026-08-18: Three rules for 'which process is the shell' were tried before one held. Job control (the top job of the session) is false under `script`, where the shell IS the session leader. The process NAME does not separate an interactive shell from a shell script it runs — jenv-rehash is #!/usr/bin/env bash. Sampling a real pane's startup killed the third, that a script would at least not be a process-group leader: it is one in the second half of .zshrc and not in the first. What held is a fact about our own panes rather than about the world — we spawn the shell, so it is the child of `synapty run`, and remotely it is the holder's own child.",
+]
+
+[[content.acceptance_criteria]]
+text = "A pane's directory is read from the SHELL's own process, not from whatever the shell is running — locally by walking to it from the tty's foreground pid, remotely by the holder, which is its parent"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The holder reports its child's directory alongside the foreground group's, labelled apart. It knows both pids, so the second one costs no extra round trip and the caller stops having to guess which it was given"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A remote read is decided deliberately — the relay-frame route was costed against the ssh the ControlMaster already multiplexes and rejected, with the reason recorded rather than left as an assumption"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The read of the fourth column — the foreground group's directory — from every reader that places something"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "A drop's destination and the drag hint that promises it name their source deliberately — the human is not shown a confident sentence about a directory nothing confirmed"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The case is covered on both sides by a test that supplies a foreground directory differing from the shell's, the way WI-2026-08-18-002's placement test does"
+status = "done"
+category = "chore"

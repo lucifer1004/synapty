@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+The workbench's session container is split into two things with different lifetimes. This document specifies them.
+
+A WORKSPACE is what the human is working on: one split tree, the stack of panes in each of its slots, focus, a name they chose, and a pin or archive state. It is resident — it survives having no terminals in it, and only an explicit act destroys it.
+
+A CONNECTION is a link to a host, shared by everything using that host: the host record, the dial state, and the tunnel. It is a resource with a reference count, not a container — it carries no agent identity, because every leaf runs its own child under its own.
+
+A PANE — showing a terminal, a machine's files, the services exposed on it, or a web page the human addressed ([[RFC-0015:C-CONTENT]]) — references the connection it runs on, and carries an agent id where it runs a child. It is the only layout type there is: the workspace holds one split tree, its slots hold stacks of panes, and a tab is what a slot shows ([[RFC-0015:C-LAYOUT]]). Every question of the form "which machine is this?" is answered from the leaf, never from the slot or workspace containing it. That inversion is what makes pane docking safe: after a drag the leaf has a new parent and the same answer.
+
+The rest specifies acquisition and release of connections, what is persisted and when, what archive actually releases, what unarchive can and cannot promise where durability is absent, and the one-time change of the persisted format."""

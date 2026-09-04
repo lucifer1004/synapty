@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-004"
+title = "feat(gui): palette UX generalized — DSKeycap + keyboard-list navigation + floating chrome across pickers/find bar; New Session entry unified into the palette"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """The Cmd+K palette's interaction language (user: "非常漂亮,推广到整个应用") becomes the app-wide standard for transient choose-from-list surfaces. Three reusable DS pieces: DSKeycap (esc/return hint chip), dsFloatingPanel() (ultraThinMaterial + continuous corners + hairline + deep soft shadow — the palette/find-bar chrome), and dsListKeyNavigation (palette-proven local-monitor arrow navigation; SwiftUI's onKeyPress/onMoveCommand never fire on a focused TextField, so the monitor IS the reliable layer). Applied to: the palette itself (refactored onto the shared pieces), ThemePicker + FontFamilyPicker popovers (selection-fill rows, hover-follows-pointer, arrow keys + Enter, keycap hint), FindBarView (shared chrome + esc keycap), KeyboardShortcutsView (DSKeycap rows). Entry unification: the sidebar "+ New Session" popover duplicates the palette's job — HostPickerPopover/HostPickerRow are DELETED; the "+" button and Cmd+N both open the quick-connect palette."""
+
+[[content.acceptance_criteria]]
+text = "DSKeycap, dsFloatingPanel(), dsListKeyNavigation shared components; palette refactored onto them (no behavior change)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "sidebar + opens the quick-connect palette (HostPickerPopover/HostPickerRow removed); Cmd+N stays the instant local-session fast path"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ThemePicker and FontFamilyPicker popovers gain palette rows (selection fill, hover-select) and arrow/Enter keyboard navigation"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "FindBarView uses the shared floating chrome + esc keycap; KeyboardShortcutsView uses DSKeycap"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "build green, Swift test suite green"
+status = "done"
+category = "chore"

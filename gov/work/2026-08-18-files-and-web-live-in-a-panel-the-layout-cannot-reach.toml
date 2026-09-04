@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-18-001"
+title = "Files and web live in a panel the layout cannot reach"
+status = "done"
+created = "2026-08-18"
+started = "2026-08-18"
+completed = "2026-08-18"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "ADR-0010",
+    "RFC-0013",
+]
+depends_on = ["WI-2026-08-17-024"]
+
+[content]
+description = """
+A host's files and its exposed web services are shown in a fixed right-hand panel, chosen by a segmented control. They are not panes, so nothing about them can be arranged: they cannot be split, moved, put beside the terminal writing those files, or kept in one workspace while another is worked in.
+
+That was a reasonable division when it was drawn — the panel's admission rule is "the subject is something the human is not typing into" — but it stops paying for itself the moment panes can be arranged by dragging. A file browser beside the build producing those files is the arrangement the workspace change exists to permit, and a surface that cannot go there is one the human has to leave their layout to reach.
+
+So the panel is retired and its occupants become pane content kinds ([[RFC-0015:C-CONTENT]]): a leaf shows a terminal, a machine's files, or its web services. All three are host-bound, so the connection binding is unchanged and answers for every kind.
+
+APPEARANCE IS NOT A PANE and moves to settings. It belongs to the application rather than to any machine, so it has no connection to bind to and no answer to the question every other leaf answers.
+
+The terminal's command moves onto the terminal kind. A file browser has none, and a field meaningless for two kinds out of three is an invitation to read it anyway.
+
+`TerminalPaneManager` is named for the assumption this removes and is renamed with it.
+
+Depends on the model split: there is no content kind to put on a leaf until the leaf is the thing that carries facts."""
+notes = [
+    "2026-08-18: Appearance was going to move into settings. Zihua stopped that: it is the occupant the panel was built for and the one that cannot be a pane, and it is specifically the surface you want beside a live terminal while tuning theme, font and opacity against it. Settings would have taken the one workflow it has. The panel keeps appearance and loses its segmented control.",
+    "2026-08-18: The mechanical rename changed a PERSISTED KEY — 'sessions' became 'workspaces' in the same regex sweep that renamed the type. Every store written before it threw on decode, load() swallowed that with try?, and the arrangement went silently, taking the v1 conversion with it. No test saw it: the same sweep rewrote every JSON fixture in lockstep with the code, so encode and decode agreed with each other and with nothing already on disk. Both spellings are read now, and SnapshotWireFormatTests pins the literal bytes rather than a round trip.",
+]
+
+[[content.acceptance_criteria]]
+text = "A pane can show a machine's files or its web services, and can be split, moved and closed exactly as a terminal pane can"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "changed: The panel holds appearance alone — its segmented control is gone, and nothing shows files or web outside the layout"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "changed: Appearance stays a panel beside the layout, adjustable against the terminal it is being judged against"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A command belongs to the terminal kind rather than to every leaf"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A restored arrangement comes back with each pane showing what it was showing, not terminals in place of file browsers"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TerminalPaneManager is renamed for what it now manages"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Every layout operation is covered by tests against a non-terminal pane, not only a terminal one"
+status = "done"
+category = "chore"

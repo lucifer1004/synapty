@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-008"
+title = "feat(deploy): remote agents connect to their own host's hub (retires the A2A reverse tunnel)"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["ADR-0008"]
+depends_on = ["WI-2026-08-12-006"]
+
+[content]
+description = """
+[[ADR-0008]] stage 3b, split out of WI-2026-08-12-004 after a staging error in the ADR came to light. ADR-0008 states "stages 1-3 are single-machine work and need no peer protocol". That is TRUE for detaching remote agents (3a) and FALSE for moving them onto their own host's hub (3b): the moment a remote agent registers with the remote machine's hub, it disappears from the workbench's hub, and cross-machine A2A — which works today through the reverse tunnel — breaks until peering exists. Shipping 3b before stage 4 would be a real functional regression traded for an architectural preference.
+
+Scope: the remote agent's wrapper connects to 127.0.0.1 on ITS OWN host; a hub runs there as a service (no --parent-pid), provisioned idempotently by the existing deploy pipeline so a server reboot self-heals; the reverse tunnel leaves the A2A path entirely. Gated on WI-2026-08-12-006 (peering) so cross-machine messaging keeps working across the transition."""
+notes = [
+    """
+IMPLEMENTED (code) 2026-08-12, LIVE VERIFICATION STILL OWED. `synapty hub --ensure` (src/hub/service.zig probeRunning/spawnDetached/ensureRunning) is the idempotent primitive: it probes the discovery file, checks pid liveness AND asks hub_info before concluding a hub is running, and only then spawns one setsid'd + double-forked so an SSH logout cannot SIGHUP it. connect.sh points the agent at 127.0.0.1:<ensured port> on ITS OWN host; setup-host.sh ensures the remote hub and replaces the old reverse tunnel with a FORWARD (-L) one to it, printing PEER_PORT=<n>; TunnelManager reads that and sends peer_connect to the local hub, which dials the peer.
+
+The third acceptance criterion (no regression window across the transition) is NOT met by the test suite and is deliberately not ticked. The two-hub e2e and the peer_connect e2e prove cross-machine A2A over a real relay link between two real hubs, but "before, during and after the move" is a property of a live deployment against a real remote host, and asserting it from a hermetic suite would be claiming coverage the suite does not have.
+
+BUG FOUND AND FIXED en route, pre-existing and silent: writeDiscovery did `createDirPath(dirname) catch return`, and createDirPath fails for an existing top-level path like /tmp (a symlink to /private/tmp on macOS). A hub given --discovery-path /tmp/x.json therefore published NOTHING while running and listening normally, so every reader concluded no hub existed. This is also why the WI-2026-08-12-006 live tests' --discovery-path "worked": it kept them off the real file by writing no file at all, not by writing elsewhere. Regression test added.""",
+    """
+LIVE VERIFIED 2026-08-12 on host remotehost, both directions. The remote hub runs detached (ppid 1, own session created by setsid), publishes its discovery file, and a re-run of `hub --ensure` returns started:false — idempotence holds on a real machine, not just in the suite. The SSH -L forward reaches it (hub_info answered with the remote hub's pid). A real `synapty run` wrapper on remotehost registered with 127.0.0.1:9000 on ITS OWN host, through no tunnel. laptop -> remotehost answered `forwarded` and the message was found sitting in remotehost's DURABLE STATE FILE addressed to that identity; remotehost -> laptop answered `forwarded` and the laptop's agent received the mail_nudge. All e2e identities were named honestly (e2e-*), unregistered, and both hubs' durable state was wiped afterwards.
+
+THREE DEFECTS THE HERMETIC SUITE COULD NOT HAVE FOUND, all fixed:
+(1) spawnDetached exec'd with an EMPTY environment, so the child hub had no $HOME, resolved no discovery path, and published nothing while running and listening normally — invisible, and it made ensure spawn a fresh hub on every call. The local smoke had passed --discovery-path explicitly and so never needed $HOME. Now it inherits environ, with a source-level guard test.
+(2) A hub started as a SERVICE had no peer id at all, so the relay handshake was refused with "peer answered without a usable peer id". Both e2e hubs had ids set explicitly by the test, which is exactly why the suite was blind to it.
+(3) Following from (2): hostname self-naming is NOT a safe authority. Two cloud VMs are routinely both called "ubuntu", and RFC-0009 C-BOUNDARIES already said the peer id is the label the human gave the machine in host management — the workbench is the only party that knows the whole fleet and can keep the ids unique. `hub --peer-id` now takes it, setup-host.sh passes it via $PEER_ID, TunnelManager derives it from host.label, and the hostname survives only as the fallback for a hub nobody configured. hub_info reports peer_id so `--ensure` detects a hub still answering to an old label after a rename and says so rather than leaving a peer that mysteriously will not link.
+
+Scope note on "no regression window": verified as an END STATE (cross-machine A2A works with agents on their own hubs), and guaranteed by ORDERING (stage 4 peering shipped before this). A live before/during/after transition was not staged, because there was no pre-existing remote deployment to transition.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the remote agent's wrapper connects to the hub on its OWN host over loopback; the reverse tunnel is no longer on the A2A path"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a hub runs on the remote host as a SERVICE, provisioned by the deploy pipeline; idempotent ensure-running on each connect covers server reboots; the human chooses the host and the workbench does the rest"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "cross-machine A2A keeps working across the transition — a local agent and a remote agent exchange messages before, during and after the move (no regression window)"
+status = "done"
+category = "chore"

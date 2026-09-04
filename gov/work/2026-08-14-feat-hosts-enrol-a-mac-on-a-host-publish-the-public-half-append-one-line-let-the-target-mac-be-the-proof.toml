@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-001"
+title = "feat(hosts): enrol a Mac on a host — publish the public half, append one line, let the target Mac be the proof"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "ADR-0009",
+    "RFC-0010",
+]
+
+[content]
+description = """
+The implementation path for [[ADR-0009]]: sync the authorization, not the secret.
+
+THE MECHANISM, after a deliberate pass with Occam's razor.
+
+Each Mac generates ONE dedicated SSH key for itself. The private half stays on that machine and is never placed in any syncing store. The public half is published as `shared/machines/<peer-id>.pub` — a plain OpenSSH public key file, not a JSON record, because that format already exists, already carries a comment field, and is directly usable by the thing that consumes it. The machine is identified by its [[RFC-0010]] peer id rather than a second machine identity invented for this.
+
+A dedicated key rather than the human's existing one, and this is the piece NOT to simplify away: reusing `~/.ssh/id_ed25519` would make "revoke Synapty's access from that Mac" mean "revoke their personal key", and per-machine revocation is one of the two reasons [[ADR-0009]] chose this shape at all.
+
+Enrolment is a human's explicit act on an already-authorized Mac: choose a machine, choose hosts, and one idempotent command runs per host. Writing to someone's authorized_keys is a grant of standing access; it must never be a consequence of adding a host, connecting to one, or turning sync on.
+
+WHAT THE RAZOR REMOVED, recorded so nobody re-adds it looking for rigour: a JSON record type (a `.pub` file is the record), a `created` timestamp (nothing read it), a separate human label (the peer id already carries a disciplined one), a key fingerprint in the marker comment (it existed to survive a peer-id re-mint, and evaporates once matching is done on KEY MATERIAL and the comment is understood as being for humans), and a deployed remote script (one line of ssh does it).
+
+WHAT THE RAZOR EXPOSED, which was an error rather than excess. The first design ended enrolment with a verification connection, and placed it on the enrolling Mac — which cannot perform it, because verification requires the new machine's PRIVATE key and that machine is the only one that has it. The verifying party is the target Mac, and the verification is the connection it was going to make anyway. So there is no enrolment state machine: the enrolling Mac reports only that it wrote, and `HostReadiness` on the target already covers the rest.
+
+THE SILENT FAILURE THIS MUST NOT HAVE. sshd ignores authorized_keys entirely — without logging anything the human will read — when `~/.ssh` is not 700, the file is not 600, or the home directory is group-writable. The write then succeeds, the file content is visibly correct, and the key does not work. A `umask 077` and an explicit `mkdir -p` cost nothing and remove the whole class."""
+notes = ["""
+IMPLEMENTED AND WIRED. `MachineKey` and `Enrolment` existed with no call site and no tests, so no Mac ever published a key and the feature could not have worked.
+
+- `MachineKey.publishLocal()` runs after the hub starts (its minted peer id names the key) and is idempotent.
+- `EnrolMachineSheet`, reached from a host's action menu — a deliberate menu item, never a side effect of adding a host, connecting, or enabling sync.
+- `TunnelManager.runOnHost` executes one command over SSH in BatchMode, judged by a SUCCESS SENTINEL rather than an exit code: SubprocessRunner does not surface one, and ssh writes warnings to stderr that say nothing about whether the remote command worked.
+
+VERIFIED LIVE, which is what the central claim deserves: after a launch, the public half is at `shared/machines/deskmac-2630.pub` (inside the synced directory) and the private half at `~/.ssh/synapty_studio-2630` with mode 600 (outside it). Eight unit tests pin the rest — the private key resolving outside the sync domain, append-only and idempotent writes, `umask 077` and the explicit mkdir that keep sshd from silently ignoring the file, revocation matching key MATERIAL rather than the drifting comment, and single-quoting a comment containing a quote.
+
+NOT VERIFIED: the sheet's appearance, and any actual write to a host. Opening it needs a click, and this environment has no accessibility permission to perform one. Writing to a host's authorized_keys is the operator's act by design and was deliberately not performed.
+
+THE SHEET DELIBERATELY DOES NOT SHOW WHETHER A MAC IS ALREADY AUTHORIZED. Knowing would mean reading the host's authorized_keys on every open — a connection and a file read nobody asked for — and the answer would be stale the moment anything else edited that file. Both actions are idempotent, so it offers them and reports what happened instead of predicting it."""]
+
+[[content.acceptance_criteria]]
+text = "each Mac generates one dedicated key and publishes only the public half; a test proves the private half is outside the sync domain"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "enrolment is a human's explicit act — never a side effect of adding a host, connecting, or enabling sync"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the remote write is idempotent and only ever appends or removes lines carrying our marker, never rewriting a file whose other lines we know nothing about"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "~/.ssh and authorized_keys are created with modes sshd will honour, because otherwise the write succeeds and the key silently does not work"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "no enrolment state machine — the enrolling Mac reports that it wrote, and the target Mac's own connection is the proof"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "revocation removes only our line, from any authorized Mac, including when the revoked machine is gone"
+status = "done"
+category = "added"

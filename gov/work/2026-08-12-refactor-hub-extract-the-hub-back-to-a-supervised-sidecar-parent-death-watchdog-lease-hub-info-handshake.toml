@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-001"
+title = "refactor(hub): extract the hub back to a supervised sidecar (parent-death watchdog, lease, hub_info handshake)"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-24"
+refs = [
+    "ADR-0007",
+    "ADR-0008",
+]
+
+[content]
+description = "[[ADR-0007]] step 1 of 3, and the step that stands on its own regardless of when remote mode lands. Undo the in-process embed from the superseded [[ADR-0006]] and run the hub as a supervised sidecar again — but with the three guards whose absence caused the original orphan/skew incident, and which the embed had bought out by construction. This is not a revert: the port ladder, discovery file and wrapper steady-state reconnect from [[WI-2026-08-11-017]] all survive unchanged, and the C ABI work is retained for tests. Independent value even without the cloud: it restores crash isolation, so a fault in the message router costs messaging rather than every pane and every running process the human has open."
+notes = [
+    '''Live verification PASSED for all three guards (2026-08-12), driven against standalone hubs with a fake parent so nothing depended on the running app. Guard 1: SIGKILL the parent -> no orphan. Guard 2: reclaim inside the grace window keeps the hub alive, and after the reclaimer leaves the hub RE-ARMS and exits. Guard 3: hub_info reports {build, pid, workbench_spawned, port} so a workbench can refuse a mismatched foreign hub instead of adopting it silently.\n\nDEFECT FOUND BY GUARD 2, not by unit tests: watchParent RETURNED after a reclaim on the comment 'a new supervisor owns us now; its own watch applies'. That assumption was false — a reclaiming workbench did not spawn this hub, so it passed no --parent-pid and established no watch; the hub stayed up forever once the reclaimer disconnected, an orphan by another route. Supervision is now a continuous SupervisionClock state machine (reclaim resets the countdown but never ends supervision), with a regression test that walks count-down -> reclaim -> re-arm -> exit.\n\nTWO SIDE FINDINGS from the same run: (a) the live test hubs wrote the REAL ~/.config/synapty/hub.json, clobbering and then deleting the running app's entry — hub gained --discovery-path so a second/scratch hub can never touch the machine's published entry; (b) 'parseArgs: run without --hub uses defaults' was environment-dependent (it read whatever hub was live) and now isolates via discovery_path_override, which also documents that resolving the machine's hub IS the correct behaviour.''',
+    "AC-4 scope note: the three guards were verified live at PROCESS level using a fake parent (sleep) rather than the GUI — which is the harsher test, since it includes kill -9 of the parent. Workbench-level verification (quit the app, confirm its hub exits) rides the next app rebuild+relaunch; the app currently running is still the superseded embedded build.",
+    "Workbench-level live verification PASSED (2026-08-12, after the app was rebuilt onto the sidecar): the app spawns 'synapty hub --port 9000 --parent-pid <app>' as a CHILD process (hub pid != app pid, ppid == app pid — crash isolation restored); hub_info answers {build:dev, workbench_spawned:true, port:9000}; the discovery file is published on bind; quitting the workbench leaves the hub for exactly the 30s grace window and then it exits, removing its own discovery entry. The grace delay is visible and correct — it is the reclaim window, not a hang.",
+    "Closed on the record already here: the three guards are in src/hub/service.zig (SupervisionClock, the parent watch, the discovery lease) and Sources/Services/HubManager.swift (decideAdoption, and .conflict as a state the status bar shows rather than a log line), each with tests — SupervisionClock's re-arm regression on the Zig side and HubManagerTests' adoption cases on the Swift side. The live verification of all three, including workbench-level, is recorded in the notes above.",
+]
+
+[[content.acceptance_criteria]]
+text = "the workbench spawns 'synapty hub' with --parent-pid; a kqueue EVFILT_PROC/NOTE_EXIT watchdog (getppid fallback) exits the hub when the workbench dies by ANY means including SIGKILL; scripted check proves no orphan survives a force-killed parent"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "supervisor lease with a bounded grace window — the hub exits when no supervisor reclaims it within the window, so orphans are impossible, while a workbench RESTART inside the window reclaims the same hub with its state intact"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hub_info handshake before adoption (build id, pid, spawned-by-workbench flag) — adopt on build match, take over a stale hub we own, LOUD degraded state for a foreign listener; silent version skew must be impossible"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig + Swift suites green; live verification — quit the workbench and confirm the hub exits; kill -9 the workbench and confirm the same; restart within the lease window and confirm state survived"
+status = "done"
+category = "chore"

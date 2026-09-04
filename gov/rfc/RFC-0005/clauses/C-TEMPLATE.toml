@@ -1,0 +1,32 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TEMPLATE"
+title = "Fixed Wake Template — Content Stays Out-of-Band"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The injected text is a FIXED string. This is the protocol's security
+boundary: whatever reaches a pane's input becomes user-authority text inside
+that harness, so remote-influenced bytes must never reach it.
+
+Requirements:
+
+- The wake line MUST be a fixed template with ZERO interpolation of
+  message content, sender identity, subjects, counts, or any other value
+  that a peer agent can influence. Agent names are self-reported
+  ([[RFC-0003]]); even a sender name is an injection vector.
+- The canonical template is:
+  `[synapty] You have unread A2A messages. Run: synapty recv`
+  Implementations MAY localize or rephrase, but the rephrasing MUST be
+  static configuration owned by the workbench user, never derived from
+  traffic.
+- Message bodies MUST continue to travel exclusively via the mailbox and be
+  read with `synapty recv`, where the harness receives them as tool output
+  (data), not as typed input (instructions). Wake is a doorbell, not a
+  delivery (C-SUMMARY).
+- The template MUST be a single line. Multi-line injection is prohibited —
+  a stray newline is a submit in most harnesses."""

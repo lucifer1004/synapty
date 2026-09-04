@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-004"
+title = "fix(launch): the terminal page adopts ghostty on appear as well as on the ready notification, so a window mounted after applicationDidFinishLaunching does not sit on Initializing terminal forever"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Zihua: "卡在 Initializing Terminal 了" — a Release build launched via `open`
+sat on the "Initializing terminal…" placeholder indefinitely. Sampled:
+main thread idle in the run loop, no ghostty threads, no `synapty run`
+children, no ptys. Not a hang — a view waiting for a message that had
+already been sent.
+
+ContentView shows the terminal page only once `ghosttyAppState` is set,
+and the only thing that set it was the `.synaptyGhosttyReady` notification
+posted from GhosttyApp.init, which the delegate runs in
+applicationDidFinishLaunching. WI-2026-08-08-079 covered the order where
+the window mounts FIRST (restoration on macOS 26) and the notification
+arrives later. The other order — the delegate finishing before this view
+exists — posts to nobody, and nothing ever asks again. Which order happens
+depends on launch timing; the same build launched directly from a shell
+came up fine, and the previous `open` of the same day did too.
+
+Fix: the hookup (state, search ticker, command-finished and progress
+routing) becomes one idempotent function, run from the notification AND
+from the view's onAppear. Whichever side is late finds the other's work
+done."""
+
+[[content.acceptance_criteria]]
+text = "ContentView adopts GhosttyApp.shared on appear when it already exists, and on the ready notification when it does not; three consecutive cold launches via open reach the terminal page"
+status = "done"
+category = "fixed"

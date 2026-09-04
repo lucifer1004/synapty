@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-006"
+title = "gov(orchestration): non-interactive pane execution — run/wait-output design round"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0001",
+    "RFC-0003",
+    "RFC-0005",
+]
+
+[content]
+description = "herdr gives agents 'pane run' (atomic command + Enter into a plain shell pane), 'pane wait-output --match/--regex' (block until output appears), and 'pane read' — ordinary-process orchestration without an agent in the loop. Synapty has no agent-facing pane execution surface at all. This crosses the same input boundary RFC-0005 C-TEMPLATE seals — but the target is a NON-agent pane, so the trust geometry differs: typing a command into a shell pane the requesting agent itself created is not typing into a peer's harness. RFC-0005 C-NON-GOALS explicitly requires any future crossing to confront the boundary head-on; this WI is that confrontation, as a design round. Deliverable: an RFC draft (extension of RFC-0005 or standalone) deciding (1) which panes are executable (only agent-created ones? workbench-mediated with visible affordance?), (2) the authority model (per-workspace opt-in? default off, mirroring RFC-0005 C-AUTHORITY?), (3) primitives and their receipts (run, wait-output, read-back — bounded, evidence-logged), (4) how output read-back respects the untrusted-screen-text discipline of RFC-0004 C-PASSIVE-DETECTION. Implementation follows only after the RFC settles. Origin: herdr gap analysis 2026-08-11 (tier 'needs design')."
+notes = ["Review round 1 (govctl:rfc-reviewer, 2026-08-11) returned 2 blockers + 9 should-fix + 5 nits; ALL addressed by clause edits the same day: follow-up flag reconciled with the foreground MUST (spawned shell OR same agent prior run w/ explicit flag; human-started always refuses; follow-up carve-out = one printable line + Enter, nothing more), closed terminal-outcome set for wait-output (matched/timed-out/target-gone/ownership-lost/disarmed, stable codes, prompt mid-wait termination), receipts made normative for all state-changing primitives w/ exec_wait_completed (read deliberately unreceipted with rationale), RFC-0004 C-EVENT-LOG amendment coordination + consumers-ignore-unknown-kinds rule, control-byte rejection (all C0/C1) enforced at the workbench, splice guard on run, disarm race specified (Enter suppression + abort receipt + gated-primitive enumeration + granularity stated as deliberate choice), blast-radius honesty in C-EXEC-AUTHORITY (arming = arbitrary execution as shell user; sandbox framing dropped), read-back enforcement claim scoped to what the workbench can enforce (launder loop acknowledged), snapshot-first wait made normative + nonce-marker skill teaching, summary retention claim softened, orphan pane accounting, run-rate SHOULD bound, invariant ownership deduplicated (RFC-0005 owns it), never-crosses framing + finalize-after-RFC-0005 ordering recorded in C-RELATION. Extension-vs-standalone DECISION: standalone RFC-0007, rationale in C-RELATION (wake restricts content, exec restricts target — opposite defaults must not share a document); reviewer judged the rationale sound. OPEN QUESTIONS logged for the finalize round: exclude exec panes from passive-detection classification; ReDoS bounds on agent-supplied regex evaluation; wrapped-line matching semantics for wait-output."]
+
+[[content.acceptance_criteria]]
+text = "design RFC drafted via govctl — pane executability scope, authority model, primitives with receipts, read-back trust discipline; explicit reconciliation with RFC-0005 C-NON-GOALS recorded; govctl check clean"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "decision recorded on extension-vs-standalone (amend RFC-0005 or new RFC) with rationale"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "review round completed (rfc-reviewer and/or human) with findings addressed or logged in the draft changelog"
+status = "done"
+category = "chore"

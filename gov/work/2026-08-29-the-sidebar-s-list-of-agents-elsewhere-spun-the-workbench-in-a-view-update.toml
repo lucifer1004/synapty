@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-001"
+title = "The sidebar's list of agents elsewhere spun the workbench in a view update"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+A fresh install on a second Mac beachballed for minutes at launch, while restoring connections. A `sample` of the hung process showed no block at all: all 3064 samples were on the main thread inside `GraphHost.flushTransactions` → `AG::Subgraph::update` — SwiftUI churning its view graph and never settling.
+
+THE CYCLE, from the sample:
+
+    HostSidebar.body → HostSidebar.elsewhere → WorkspaceManager.leafID(forAgent:) → facts.modify
+
+`leafID(forAgent:)` reads like a query and is a REGISTRATION FUNNEL: it records the rejoin decision on the way past, and one of its writes — `facts[settled]?.rejoinOffer = nil` — is unconditional. `facts` is observable, so a view body that calls it invalidates every view that read `facts`, including itself. Render, write, invalidate, render.
+
+A DICTIONARY WRITE CANNOT BE ELIDED THE WAY A SCALAR CAN. `facts[x]?.y = z` goes through `_modify`, so Observation has no old value to compare and fires whether or not anything changed. The no-op nilling was enough to keep the loop turning.
+
+WHY THE SECOND MAC. `elsewhere` lists agents on OTHER machines, so it is empty on a workbench that is the only one running — and non-empty the moment a second Mac syncs hosts and agents in. The machine it was developed on never had a non-empty list at launch.
+
+INTRODUCED BY [[WI-2026-08-28-009]]'s neighbour work on the sidebar, which put the funnel into a `filter` inside a view body."""
+
+[[content.acceptance_criteria]]
+text = "A view body can ask which leaf shows an agent without writing, with a test that fails if the query records anything"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The registration funnel still settles the rejoin for the callers that are registrations"
+status = "done"
+category = "fixed"

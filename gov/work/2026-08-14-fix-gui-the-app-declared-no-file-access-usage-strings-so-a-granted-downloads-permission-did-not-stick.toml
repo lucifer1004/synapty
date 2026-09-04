@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-014"
+title = "fix(gui): the app declared no file-access usage strings, so a granted Downloads permission did not stick"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+
+[content]
+description = """
+Every launch asked for the Downloads folder, and the operator had agreed every time.
+
+WHAT TRIGGERS IT. Not Synapty's own code — nothing in Sources touches Downloads, libghostty mentions it only in test fixtures, the process's working directory is `/`, and the session snapshot holds no such path. The access comes from the pane: each launch restores a session, the pane runs `zsh -l`, and `~/.zshrc` refers to `~/Downloads`. macOS attributes that to the app responsible for the shell, which is Synapty. A terminal running the human's own startup files is the ordinary case, not a defect.
+
+WHY AGREEING DID NOT SETTLE IT. The app declared no `NS...UsageDescription` strings at all. macOS wants a reason to display before it will record a file-access grant, and without one the prompt has nothing to show and the decision does not persist — so an operator who agrees is asked again next launch. The signing identity was ruled out first: the designated requirement is byte-identical across installs (identifier plus team), and only the cdhash moves, which is expected from non-reproducible Xcode builds and is not what TCC keys a Developer ID app on.
+
+Synapty now declares Downloads, Documents and Desktop. NOT because Synapty wants those files, but because a terminal's whole job is running the human's programs and those programs read the human's files; a terminal that does not say so is asking the system to guess."""
+notes = [
+    """
+VERIFIED: `plutil -extract NSDownloadsFolderUsageDescription` reads the string back out of the built app's Info.plist, so it ships rather than merely existing in project.yml.
+
+NOT VERIFIED, and it cannot be from here: that agreeing now sticks. That needs one grant followed by a relaunch, on the operator's machine. TCC.db is unreadable without Full Disk Access, so the stored decision could not be inspected either — the diagnosis rests on ruling the alternatives out (the app's own code, libghostty, the working directory, the session snapshot, and the signing identity) rather than on reading the record.
+
+A stale DENY or a half-recorded decision may survive from before this change; `tccutil reset SystemPolicyDownloadsFolder com.synapty.app` clears it. Deliberately not run — it alters the operator's privacy settings, which is theirs to do.""",
+    """
+CORRECTION, after reading the shipped Info.plist of the terminals this project measures itself against.
+
+NONE of Termius, Warp, Ghostty or Apple's own Terminal declares NSDownloadsFolderUsageDescription, NSDocumentsFolderUsageDescription or NSDesktopFolderUsageDescription. So "the missing usage string is why the grant does not stick" does not survive contact with the evidence — Ghostty and Terminal would have the same complaint, and they do not. That claim was an inference presented as a cause, and it is withdrawn. The repeated prompt remains UNEXPLAINED.
+
+What the same reading DID establish is a real and separate gap. All three declare the DEVICE AND SERVICE categories — AppleEvents, Camera, Microphone, Contacts, Calendars, Reminders, Photos, Location, LocalNetwork, Bluetooth, SystemAdministration — and Synapty declared none of them. For a terminal that matters: a program the human runs in a pane which asks for AppleScript or the camera is refused outright, and the failure has no visible cause. Those are now declared.
+
+The phrasing follows theirs deliberately — "a program running within Synapty", as against "Synapty would like" — because the app is not the party asking, and a prompt that says otherwise misrepresents who wants the access.
+
+The three folder strings are kept: they are accurate and are displayed if such a prompt appears. They are no longer offered as the fix for anything.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the app declares why it may reach Downloads, Documents and Desktop"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the strings ship in the built Info.plist rather than only in project.yml"
+status = "done"
+category = "chore"

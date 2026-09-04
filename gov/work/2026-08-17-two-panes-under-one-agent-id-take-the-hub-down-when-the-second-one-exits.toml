@@ -1,0 +1,45 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-005"
+title = "Two panes under one agent id take the hub down when the second one exits"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0008"]
+
+[content]
+description = """
+The hub aborts when a connection tears down a registration another connection has taken over. Reproduced in three commands, with nothing from this project's newer work involved:
+
+    synapty hub --port P --strict-port --no-state &
+    synapty run --hub 127.0.0.1:P --id twin -- sh -c "sleep 30" &
+    synapty run --hub 127.0.0.1:P --id twin -- sh -c "sleep 2"
+
+The second wrapper registers `twin`, displacing the first in the routing table; when it exits, the teardown path crashes in `HubState.teardownAgent`, at the map lookup that opens it. The stack ends in `session.zig`'s reader-thread teardown, whose `teardown_id` is duplicated out of the connection's own allocator.
+
+WHAT THIS COSTS. The hub is one per machine and every agent on that machine routes through it, so a duplicate id — a human's typo, a reconnect that races its predecessor, a script that reuses a name — takes A2A down for everything on the box, not just for the two panes involved.
+
+The teardown path already reasons about this collision: its comment describes closing a window where an old connection deleted a new connection's metadata, and the code compares the current routing entry against the connection doing the teardown. The defect is upstream of that check, in what is passed to it.
+
+FOUND, not looked for: a test of the pty holder started two wrappers under one name, and the hub went down underneath it. That trigger has since been removed on the caller's side — a refused start no longer registers first — which means nothing in the current tree provokes it and the defect is untouched."""
+notes = [
+    "2026-08-17: crash site is `src/hub/registry.zig` in `teardownAgent`, at `self.routing_table.map.get(agent_id)`; the caller is the reader thread's teardown in `src/hub/session.zig`, which passes `conn.boundIdDupe(conn_alloc)`. Both the identity being torn down and the allocator it was duplicated from belong to a connection that is on its way out, which is the first thing to check.",
+    """
+2026-08-17: the routing table did not own its keys — they were slices belonging to the CONNECTION that registered them. A duplicate registration is where that becomes fatal, because inserting over an existing key keeps the old key: the second connection took the entry's value while the first connection's memory stayed as its name. When the displaced connection was released, every later lookup compared against freed memory.
+
+The assumption was written down at the rehome site — "the routing key borrows the connection's OWNED bound_id slice (stable until the next rebind, which always removes the entry first)". True of a rebind; not true of a connection that simply goes away while another one holds its former entry.
+
+Fixed by giving the table `putOwnedLocked` and `removeOwnedLocked` and routing all five call sites through them, which is the rule the agent registry in the same file already followed. Regression test in the e2e suite drives the whole shape: register twice under one name, close the displaced connection, close the survivor, then register something else to prove the hub is still serving.""",
+]
+
+[[content.acceptance_criteria]]
+text = "A connection whose registration has been taken over by another connection tears down without crashing the hub"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test covers two connections registering one agent id and the second exiting, asserting the hub survives and the surviving registration is the one that remains"
+status = "done"
+category = "added"

@@ -1,0 +1,50 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-011"
+title = "Swift UI redesign: agent display, hub popover, message log"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+
+[content]
+description = "Redesign Swift GUI per approved plan: AgentMonitor with rich metadata parsing, agent chips in status rail, Hub toolbar popover, sidebar agents section, message log view."
+
+notes = [
+    "2026-03-28 (gui): Swift UI redesign complete: AgentMonitor rewritten with ToolType/AgentInfo models, bundled binary path, JSON metadata parsing; AgentStatusBar with tool-colored chips; HubStatusPopover replaces modal sheet; HostSidebar with AGENTS section; MessageLogView new file. Xcode build succeeds.",
+]
+[[content.acceptance_criteria]]
+text = "AgentMonitor with ToolType/AgentInfo metadata parsing"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AgentStatusBar with tool-colored chips"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HubStatusPopover replaces modal sheet"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Sidebar AGENTS section"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "MessageLogView"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

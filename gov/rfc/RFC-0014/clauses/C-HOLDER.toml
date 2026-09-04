@@ -1,0 +1,17 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HOLDER"
+title = "One Holder Per Session, Outliving Its Clients"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A durable remote session MUST have exactly one holder, and the holder MUST own the child's pseudoterminal.
+
+- The holder MUST keep the child running while no client is attached. Loss of every client MUST NOT signal, suspend, or terminate the child.
+- The holder MUST NOT require a client to be present in order to accept the child's output. Output produced while unattached is subject to retention ([[RFC-0014:C-RETENTION]]) and MUST NOT be discarded merely because nobody was listening.
+- An attach naming a holder that exists MUST attach to it. It MUST NOT create a second holder for that name, and MUST NOT silently start a fresh child in its place.
+- An attach naming a holder that does not exist MUST be answerable as such. A client asking to return to a session MUST be able to distinguish "this session is gone" from "you have been attached", and MUST NOT be handed a new shell as though it were the old one."""

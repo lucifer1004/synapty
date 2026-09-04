@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-004"
+title = "feat(detect): open tool vocabulary + port the remaining herdr manifest fleet"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "RFC-0003",
+    "ADR-0005",
+]
+
+[content]
+description = "We bundle 3 manifests keyed to a closed tool identity; herdr ships 19 (amp, antigravity, cline, cursor, devin, droid, github-copilot, grok, hermes, kilo, kimi, kiro, maki, opencode, pi, qodercli on top of claude/codex/gemini). Two moves: (1) open the tool vocabulary end-to-end — registration already carries tool as a free string on the wire; the Swift layer's closed enum must accept arbitrary tools and degrade gracefully (no manifest -> no passive signals, explicit notify still works); (2) make DetectManifestLoader discover every *.json in the bundle detect/ dir plus the override dir (override beats bundle per tool) instead of iterating a hardcoded list, then port the remaining herdr manifests with the established state mapping (blocked->waiting, idle->done, unknown+skip_state_update->skip) and Apache-2.0 attribution headers. Out of scope: OSC 9;4 progress channel (needs libghostty plumbing investigation, tracked separately when justified). Origin: herdr gap analysis 2026-08-11 (tier 'cheap and high-value')."
+
+[[content.acceptance_criteria]]
+text = "agent tool identity flows as an open string end-to-end (register -> hub -> GUI -> detector manifest lookup); unknown tools render sanely in the status bar and produce no passive signals"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "manifest loader discovers all bundled and override manifests by directory scan; per-tool override precedence preserved"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "remaining herdr manifests ported with the established state mapping and attribution; regions/combinators unsupported by schema v2 flattened with fidelity notes in _attribution"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "loader discovery + override precedence; unknown-tool inertness; fixture spot-checks for at least three newly ported tools"
+status = "done"
+category = "chore"

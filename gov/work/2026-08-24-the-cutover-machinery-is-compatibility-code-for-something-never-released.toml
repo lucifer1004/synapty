@@ -1,0 +1,45 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-24-004"
+title = "The cutover machinery is compatibility code for something never released"
+status = "done"
+created = "2026-08-24"
+started = "2026-08-24"
+completed = "2026-08-24"
+refs = [
+    "RFC-0014",
+    "RFC-0015",
+]
+
+[content]
+description = """
+RFC-0014 C-CUTOVER asks this project to keep finding and ending sessions left by the mechanism it replaced. WI-2026-08-24-003 delivered the missing half of it — enumeration — hours ago. It should not have been built, and the clause should not stand.
+
+WHAT THE CLAUSE IS, stated plainly: compatibility code. It exists so that state written by an EARLIER BUILD of an unreleased product keeps working. RFC-0015 C-UNRELEASED is the standing answer to that: nothing in the world holds any of these shapes, so there is nothing to be compatible with. Every other place in this codebase applies that rule — a snapshot in an unknown shape is discarded rather than converted, schema versions were reset to 1 rather than counted up. The cutover is the one place it was not applied, because the clause was written before that rule was settled and nobody re-read it afterwards.
+
+WHAT IT COSTS TO KEEP: the product carries, permanently, a shell-out to a program it no longer uses — in the listing every 'synapty sessions' walks, in the end path, and in the workbench's own close path over ssh. A retired mechanism that is still spoken by the tool that retired it has not been retired.
+
+WHAT REPLACES IT: a one-off human act. A host still holding sessions of the previous kind is cleaned with 'tmux kill-server', once, by the person who owns it. That is the whole of the migration, and it does not belong in a binary that will ship to people who never ran the old mechanism at all.
+
+The pieces to remove are the two added under WI-2026-08-24-003 (the legacy rows in 'sessions', the end fallback), the tmux teardown the workbench issues on close, and HostEntry.hasTmux — a field recorded by setup so a host could be judged capable of a mechanism nothing uses."""
+
+[[content.acceptance_criteria]]
+text = "nothing in the product runs, spawns, or asks after tmux — the mechanism that replaced it does not speak it"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "RFC-0014 C-CUTOVER is deprecated, so the obligation is gone rather than merely unimplemented"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "HostEntry.hasTmux and the setup probe that filled it, since nothing judges a host by it any more"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "the e2e that proved the cutover goes with the behaviour it proved"
+status = "done"
+category = "chore"

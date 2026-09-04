@@ -1,0 +1,33 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0009]] gave hubs a peer id and a relay handshake, and left two things
+unsaid that only appear once more than one machine is real: WHO decides a
+machine's name, and WHAT a hub may assume the machine on the other end can
+do. Both surfaced within a day of federation shipping.
+
+Naming: the connecting workbench proposes the remote hub's id from its own
+label for that host. With one workbench that is invisible. With two, they
+can disagree, and the second one is told to restart a hub the first one is
+using. The dialing side already does this correctly — it takes the peer's
+id from the peer's own hello — and this RFC extends that rule to the
+provisioning side.
+
+Capability: relay_hello carries `protocol: 1` and nothing reads it. On
+2026-08-12 a remote hub predating the relay-presence emitter linked
+happily and then never relayed presence; the symptom was "remote agents
+show unknown status", indistinguishable from a broken feature, and several
+rounds of debugging went into the receiving side before anyone compared
+deploy timestamps. The information needed was on the wire and unused.
+
+The rule this RFC is built on: a hub may refuse a peer, and a hub may work
+with a peer that can do less than it can, but a hub MUST NOT present a
+capability the peer lacks as a capability that failed."""

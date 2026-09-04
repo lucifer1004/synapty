@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-006"
+title = "UI/UX redesign for task-center model — activity log, project task badges, task view, GitHub settings"
+status = "done"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] C-UI.
+
+Acceptance criteria:
+- MessageLogView reworked into an activity log (tool-request/issue-change
+  stream from the hub)
+- AgentStatusBar shows per-project task badges (todo/doing/done counts)
+  and GitHub bridge state; agent rows show held issues
+- Task view: lightweight issue list grouped by project, filterable by
+  state; clicking an issue opens it on GitHub (no in-app detail panel)
+- Settings gains "Connect GitHub" onboarding
+- terminal pane surface unchanged
+"""
+
+[[content.acceptance_criteria]]
+text = "MessageLogView reworked into an activity log — tool-request/issue-change stream from the hub (ActivityLogView)"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "AgentStatusBar shows per-project task badges (todo/doing/done counts) and GitHub bridge state"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "task view: lightweight issue list grouped by project, filterable by state; clicking a task opens it on GitHub (no in-app detail panel)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the GUI surfaces GitHub bridge onboarding (hub status page: run synapty github login guidance)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "terminal pane surface unchanged"
+status = "done"
+category = "chore"

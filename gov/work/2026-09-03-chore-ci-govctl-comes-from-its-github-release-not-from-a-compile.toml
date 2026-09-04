@@ -1,0 +1,21 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-002"
+title = "chore(ci): govctl comes from its GitHub release, not from a compile"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+The governance job installed govctl with cargo, which meant a Rust
+toolchain and a source build on every cache miss. govctl publishes
+prebuilt release tarballs per target; jaxxstorm/action-install-gh-release
+fetches the pinned one and puts it on PATH. Suggested by the user."""
+
+[[content.acceptance_criteria]]
+text = "chore: the governance job installs govctl v0.19.1 from its GitHub release via jaxxstorm/action-install-gh-release@v2.1.0 and carries no Rust toolchain or cargo cache; green on run 33692594530 (the job took about ten seconds end to end)"
+status = "done"
+category = "chore"

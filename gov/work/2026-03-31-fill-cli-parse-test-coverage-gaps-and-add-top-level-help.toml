@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-31-001"
+title = "Fill CLI parse test coverage gaps and add top-level --help"
+status = "done"
+created = "2026-03-31"
+started = "2026-03-31"
+completed = "2026-03-31"
+
+[content]
+description = "Fill the CLI parse test coverage gaps found during the zig-clap migration and add top-level --help: top-level and per-subcommand --help for all subcommands (including agents, mcp-serve, and channel list), dangling-flag edge cases, and strengthened parse tests across every subcommand."
+
+[[content.acceptance_criteria]]
+text = "--help for all subcommands including agents, mcp-serve, channel list"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "top-level --help support"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "dangling flag edge cases"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

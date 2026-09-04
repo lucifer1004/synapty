@@ -1,0 +1,54 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-001"
+title = "Every remote pane's tmux ends when a human closes it, not only the session's first"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "ADR-0008",
+    "WI-2026-08-16-001",
+]
+
+[content]
+description = """
+[[WI-2026-08-16-001]] made a close end the remote tmux session, and made the agent id survive a restart so a reattach finds it. Both halves addressed the session's OWN agent — the id minted when the session was dialled, and the only one the snapshot carries.
+
+A remote session's second tab, and every split inside it, mints its own agent id (`TunnelManager.connectCommand` with no override) and therefore its own `synapty-<id>` tmux session on the host. Those ids live only in `leafAgents`, and `endRemoteSession` ends one. Closing a remote session with three tabs ends one tmux session and leaves two detached, each holding a `synapty run` and an idle shell that nothing will ever address again — the same shape as the 37 found live on remotehost, arriving more slowly.
+
+SCOPE: a human's close ends every remote agent that close removes — session close, tab close, split close, and the cascade between them without ending the same agent twice.
+
+NOT process exit, and not link loss. `leafDidClose` fires from ghostty's close_surface callback when the local ssh ends, and from this side a dropped link is indistinguishable from a shell that exited. Ending the remote session there would destroy exactly the durability [[ADR-0008]] stage 3a buys, which is why the kill belongs on the human's act and nowhere else.
+
+KNOWN GAP, deliberately left: an extra remote pane's agent id is not persisted — `snapshot()` records remote sessions as label + host + the session's own agent id and skips their tabs — so a quit still leaves sessions behind that no later launch can name. Closing that requires remote layout in the snapshot ([[RFC-0006]]) and belongs with that change, not this one."""
+notes = [
+    "2026-08-17: swept the reachable hosts before changing anything — remotehost and otherhost each held exactly one `synapty-*` session, both attached and both created after [[WI-2026-08-16-001]] landed, so that fix holds. One orphan predating it (`synapty-operator-cb4a` on operator-workstation, detached, 8/13). The multi-pane path was not exercised in that sample — every remote session had a single pane — so this is a defect read off the code, not off the hosts.",
+    "2026-08-17: the fix is verified by mutation rather than by assertion count. Making `remoteAgents(ofLeaves:)` return nothing fails exactly the session/tab/split tests and no others; removing the `endedAgents` dedupe fails exactly the cascade test. Both reverted; 598 Swift tests green.",
+]
+
+[[content.acceptance_criteria]]
+text = "Closing a remote session ends the tmux session of every agent it held, not only session.agentID"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Closing a remote tab, or a split inside one, ends that pane's remote tmux session"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "An agent is ended once — the last-tab cascade into session close does not repeat the ssh"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Process exit and link loss end nothing remote — durability survives what the human did not choose"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tests cover the agent set each close ends, the cascade, and the local-session case"
+status = "done"
+category = "chore"

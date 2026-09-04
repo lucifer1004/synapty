@@ -1,0 +1,67 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0006"
+title = "Managed Agent Lifecycle — Workbench-Owned Resume"
+version = "0.3.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-11"
+updated = "2026-08-27"
+refs = [
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0001",
+    "RFC-0005",
+    "RFC-0015",
+]
+signature = "dc9c439067c5a0c05c628c84ea0ee9b44af31ce0c64527a0163686833419aa44"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-RESUME-PLAN.toml",
+    "clauses/C-RESUME-RESTORE.toml",
+    "clauses/C-PTY-HANDOFF.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[sections]]
+title = "Motivation"
+clauses = ["clauses/C-RESTART-LOSS.toml"]
+
+[[sections]]
+title = "Prior Art"
+clauses = ["clauses/C-PRIOR-ART.toml"]
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-08-27"
+notes = "The resume offer declines the permission RFC-0014 grants it, and says why"
+changed = [
+    "C-RESUME-RESTORE takes ONE of the two states it used to offer in. A pane that rejoined a live holder gets no offer whatever is running inside it; the offer exists only where the workbench already reported this pane's work restarted. RFC-0014 C-LIVE-CHILD still PERMITS the other case and the argument for it is sound — a human who quit their harness left a live session with nothing in it. A MAY is not an obligation, and this is the clause that declines it.",
+    "Declined because the evidence is a process name compared against a per-tool expectation, a comparison whose failure mode is to type an incantation into a LIVE agent. A kernel reports what it reports (claude.exe where a manifest says claude), so the table doing the comparing would need verifying per tool and maintaining per release, and every entry that drifts fails in the direction that ACTS rather than the direction that waits. What it buys is an offer the human can already reach by typing the incantation themselves, in the pane, where they can see what is in it.",
+]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-22"
+notes = "Resume is the fallback for a child that is genuinely gone, and where it runs it asks rather than assumes"
+changed = [
+    "C-RESUME-PLAN governs what a plan contains; whether a REJOINED pane may be offered a resume is C-RESUME-RESTORE's answer. This bullet used to settle it here — 'there is nothing to resume' — and that was retracted: a live holder holds a session, and whether the harness is still running in it is what RFC-0014 C-FOREGROUND answers. Resume still governs the case where the process is genuinely gone; it is no longer the only case.",
+    "The degrade path records the tool's OWN PICKER rather than nothing at all, where the tool has one. A picker asks the human which conversation this pane held, and they are the only party who knows; a session id is the worst available representation of that question.",
+]
+fixed = [
+    "The clause drew its line in the wrong place and got its own example backwards. Bare 'codex resume' opens a picker; 'codex resume --last' is the form that silently takes the most recent. The distinction that matters is whether a form ASKS or ASSUMES, not whether it can address a specific session — a form that asks is admissible with two panes in one cwd, because the human resolves an ambiguity the workbench cannot.",
+    "The title and C-SUMMARY went on promising managed start after it was withdrawn. C-MANAGED-START was deleted deliberately — starting an agent is typing its name in a terminal, usually with options a fixed recipe cannot carry — but the two surfaces a reader meets first were never corrected, so the document advertised a capability the code had removed. The title drops Start; the summary now records the withdrawal and its reason; C-NON-GOALS no longer counts a managed start that cannot happen.",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-11"
+notes = "Initial draft"

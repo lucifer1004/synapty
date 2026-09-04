@@ -1,0 +1,60 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0008"
+title = "Durable Agent Identity — Session-Derived IDs and Re-Homing"
+version = "0.2.0"
+status = "normative"
+phase = "spec"
+owners = ["@lucifer1004"]
+created = "2026-08-11"
+updated = "2026-08-28"
+refs = [
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0005",
+    "RFC-0006",
+    "RFC-0001",
+]
+signature = "ca6d8792d0ea36bdb320601aee3227181779884df71373c9cb55e4d4ccc21503"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-IDENTITY.toml",
+    "clauses/C-REHOME.toml",
+    "clauses/C-MAILBOX.toml",
+    "clauses/C-TRUST.toml",
+    "clauses/C-COORDINATION.toml",
+    "clauses/C-NON-GOALS.toml",
+    "clauses/C-REGISTRATION.toml",
+]
+
+[[sections]]
+title = "Motivation"
+clauses = ["clauses/C-ADDRESS-CONFLATION.toml"]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-28"
+notes = "The registration metadata contract comes home from a deprecated RFC"
+added = ["C-REGISTRATION carries what a registration CARRIES — the field table and the overwrite-on-repeat rule — as distinct from what it BINDS, which C-IDENTITY and C-REHOME already owned. It had been living in RFC-0002 C-AGENT-IDENTITY, deprecated wholesale on 2026-08-05 when that RFC's chat surface was reduced to the task-center model. The identity half of that clause was genuinely superseded; this half was swept up with it and cited from code ever since, which govctl reported as a reference to a deprecated RFC and which had no honest fix while no live clause carried the rule."]
+changed = [
+    "What did NOT come across, and deliberately. RFC-0002 required the hub to REJECT a registration whose id was already connected; C-REHOME requires the opposite and has since it was written — the same id from another connection is the same agent starting a fresh generation, and the displaced connection reverts to its pane identity. The old MUST was contradicted by shipped behaviour and by a live clause, and moving it would have carried a falsehood into a normative RFC.",
+    "Two other statements were left behind as false rather than moved: a synapty_register MCP tool, which does not exist (mcp-serve exposes send, recv and agents), and 'the daemon forwards an agent_update envelope', which has had no referent since ADR-0004 merged hub, daemon and CLI into one binary.",
+]
+
+[[changelog]]
+version = "0.1.1"
+date = "2026-08-24"
+notes = "C-MAILBOX defers the answer set to C-DELIVERY rather than carrying a second copy of it"
+changed = ["The clause used to enumerate all six statuses and their exit-code mapping alongside C-DELIVERY's, with a rule declaring the two lists one set. They fell out of step anyway — a retired `queued` outlived the enumeration that replaced it — so the copy is gone and C-DELIVERY is cited. What stays is this clause's own: a status must reach the sender distinguishably, and `spooled` is the cross-machine form of the hold this clause already performs for an offline agent."]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-11"
+notes = "Initial draft"

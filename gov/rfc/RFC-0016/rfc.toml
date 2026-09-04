@@ -1,0 +1,39 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0016"
+title = "Key bindings: one table, one authority, and a human who may change it"
+version = "0.1.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-19"
+updated = "2026-08-19"
+refs = ["RFC-0015"]
+signature = "024e2f5643786f05af33d958b876280d61d31ef3e0097c75261721eaa6a53232"
+
+[[sections]]
+title = "Summary"
+clauses = [
+    "clauses/C-SUMMARY.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-TABLE.toml",
+    "clauses/C-CHORD.toml",
+    "clauses/C-DISPATCH.toml",
+    "clauses/C-REBIND.toml",
+    "clauses/C-CONFLICT.toml",
+    "clauses/C-UNBOUND.toml",
+    "clauses/C-DISCOVERY.toml",
+    "clauses/C-TERMINAL.toml",
+    "clauses/C-HONESTY.toml",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-19"
+notes = "Initial draft"

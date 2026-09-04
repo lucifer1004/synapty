@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-021"
+title = "One UI scale, three mechanisms to make it visible"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+Making a UI font scale visible takes three entities:
+
+- `DS.uiFontScale`, a plain static mirror of `SynaptySettings.uiFontScale`;
+- `.synaptyUiScaleChanged`, posted by the settings object's one writer;
+- `uiScaleTick`, a `@State` counter in ContentView, threaded as a `@Binding` into `NotificationHandlers`, incremented by that notification and read once — `let _ = uiScaleTick` — purely to make a body re-evaluate.
+
+All three exist because `DS.uiFontScale` is a static that SwiftUI cannot observe. `SynaptySettings` is `@Observable`, and `DS.Typography` is read inside view bodies, so reading the settings value there would be tracked and redraw on its own. The mirror, the notification and the tick would all go.
+
+[[WI-2026-08-28-010]] fixed the half of this that was a defect — a writer that assigned without announcing. This is the other half: the machinery that made that mistake possible."""
+
+[[content.acceptance_criteria]]
+text = "A scale change redraws without a mirror, a notification or a tick, with the existing arrival-from-disk test still passing"
+status = "done"
+category = "fixed"

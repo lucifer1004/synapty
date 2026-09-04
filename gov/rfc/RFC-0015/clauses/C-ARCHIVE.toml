@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ARCHIVE"
+title = "Archive Releases Resources"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Archiving is how the human puts work away — a pane, or a whole workspace ([[RFC-0015:C-PANE-ARCHIVE]]) — and it MUST actually put it away. Archiving a workspace is archiving every pane in it and putting away the arrangement.
+
+- Archiving a workspace MUST persist its full arrangement and then release every connection that no workspace still open references, immediately and without the grace period of [[RFC-0015:C-RELEASE]] — except the local connection, which is never dialled and never released ([[RFC-0015:C-CONNECTION]]) and therefore has nothing for this to reclaim.
+- A connection still referenced by another open workspace MUST NOT be released. Archiving one workspace MUST NOT disturb another.
+- Archiving MUST NOT end what runs on the far side. Under [[RFC-0014]] the holder keeps the remote child alive; archiving is the client leaving, and the human's expectation — recorded here because the whole feature rests on it — is that they can come back to it.
+- ARCHIVING MUST NOT BE MERELY A VIEW STATE. A workspace that is archived while its links and tunnels stay open has not been archived; it has been hidden, and the resources the human meant to reclaim are still spent.
+- Archiving and unarchiving MUST NOT lose the arrangement. A round trip MUST return everything [[RFC-0015:C-PERSIST]] requires to be written, and it is named there rather than listed again here — a second enumeration is how one of them comes to be missing a content kind.
+- Archiving MUST be reversible from the sidebar without the human needing to remember what was in the workspace: an archived workspace MUST remain listed, with its name."""

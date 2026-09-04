@@ -1,0 +1,86 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DELEGATION"
+title = "Arming Travels As A Result, Not As An Act"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0005]] C-AUTHORITY requires arming to be the human's act in the
+workbench UI, and forbids any hub message, CLI call or fetched
+configuration from performing it. A delegation crossing a peer link does
+NOT fully satisfy that, and this clause says so rather than claiming it
+does.
+
+WHAT THE DELEGATION IS AND IS NOT. A delegation frame IS a hub message
+that arms wake. The hosting hub cannot verify a human performed the act
+behind it, and [[RFC-0009]] C-BOUNDARIES forbids it from claiming it can — a hub
+MUST NOT state or imply that a submitted identity is verified, and a peer
+id is self-reported on the same footing as an agent id. The bound that
+matters here is C-NON-GOALS': a peer MUST NOT be able to make a hub act
+with authority its own machine does not already grant it. Arming is
+withheld from every LOCAL process on the hosting machine, so granting it
+to a relayed party would be exactly that widening.
+STATED RATHER THAN QUOTED, because the two sentences this paragraph used
+to quote were withdrawn when RFC-0009 was cut back, and an argument built
+on words a reader cannot find is an argument they cannot check. The result/act
+distinction is real as a CONSENT property — no config file, deploy flag or
+local process can arm, and the act still originates with a human at a
+workbench — and false as a SECURITY property. The guarantee is workbench-trust and NOTHING BESIDE IT.
+
+An earlier form of this sentence said "workbench-trust plus link
+authentication", and there is no link authentication to add: [[RFC-0009]]
+C-BOUNDARIES now states that a peer id is self-reported on the same
+footing as an agent id, since relay traffic arrives on the same loopback
+listener as every submission and the only discriminator is the first
+frame. So the whole of what stands behind a delegation is that a process
+reaching this hub said a workbench performed the act — which is why the
+requirements below are written to be defensible without it, and why the
+gate in C-HEADLESS-GATE is where it is.
+
+Requirements:
+
+- ARMING HAPPENS IN A WORKBENCH, for a NAMED remote agent, as an explicit
+  per-agent act against a row in the merged multi-hub view. No CLI flag,
+  environment variable, config file or deploy option may perform it on
+  either machine.
+- A DELEGATION MUST NOT BE HONOURED UNTIL A SUBMITTING CONNECTION IS
+  BOUND TO THE IDENTITY IT MAY CLAIM. Stated as the PROPERTY that must
+  hold, in this RFC's own terms, and not as a citation: a precondition
+  phrased as "the decision record requires it" cannot be checked against
+  this clause, and an unverifiable precondition on the load-bearing step
+  of an authority chain is indistinguishable from no precondition. The
+  property is testable — present a delegation over a submission
+  connection that has not established the granting identity, and a
+  conforming hub MUST refuse it. Until that holds, any process that can
+  reach a hub can present a delegation, and everything above rests on a
+  primitive that is not built. [[RFC-0009]] C-BOUNDARIES locates this at
+  the submission boundary and states plainly that impersonation there is
+  bounded rather than prevented; this clause is what makes that bound
+  load-bearing, because a delegation is the first thing whose forgery
+  buys the forger someone else's turns.
+- THE HOSTING HUB RECORDS A DELEGATION, not a setting: which agent, which
+  workbench granted it, and when it expires (C-EXPIRY). A hub MUST NOT
+  accept one for an identity it does not host — delegating another
+  machine's agent is not a thing a workbench can do.
+- ANY WORKBENCH THAT CAN REACH THE HUB MAY GRANT OR REVOKE. Revocation
+  from any workbench is fail-safe and required: C-AUTHORITY needs
+  disarming to take effect immediately, and a grant revocable only by a
+  workbench that may never return is not revocable. GRANTING from any
+  workbench is the widening this buys, and it is stated as one — locally,
+  arming requires a human at the machine owning the pane; here any human
+  at any peered workbench can spend another machine's agent's turns.
+- REVOCATION AND EXPIRY BOTH LEAVE PENDING CANDIDATES ALONE. Both end the
+  same way — the permission is gone, the mail is still there — so they
+  MUST behave the same. Cancelling would lose the fact that something is
+  waiting, and would be a trapdoor under C-WAKE-TRIGGER's edge semantics:
+  further mail into an already-non-empty mailbox mints nothing, and the
+  fresh-edge recovery is registration-scoped, which a long-lived detached
+  agent never triggers. A cancelled candidate on such an agent could never
+  return until its mailbox drained to empty and refilled, with nobody
+  present to notice.
+- [[RFC-0005]]'s template (C-TEMPLATE) is unchanged. Its INJECTION
+  MECHANICS are not, and C-HEADLESS-GATE owns that divergence."""

@@ -1,0 +1,24 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-006"
+title = "Four implementations of a host's ssh arguments, drifted on ProxyJump"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+"Build this host's ssh argument list from its effective credentials" has four implementations and they have drifted on ProxyJump. The connection path adds `-J` from `effectiveProxyJump`; the host card's Test Connection, `probeOS` and `runOnHost` do not.
+
+For any host whose jump host is set at host level or inherited from a group — the feature [[WI-2026-08-05-007]] marks done under the criterion "ProxyJump works: host-level and group-inherited jump host" — Test Connection goes straight at a bastion-only host and reports a failure the human's actual connection does not have.
+
+A FIFTH DRIFT FOUND WHILE FIXING IT: Test Connection resolved the key through the STORE, which does not carry the enrolment fallback that `TunnelManager.effectiveKeyPath` adds — so on a host whose record names a key path written on another Mac, the test presented a different credential than Connect does.
+
+The durable repair removes the second owner rather than correcting the copies: one `oneOffArgs(for:connectTimeout:remote:)` that every path calls."""
+
+[[content.acceptance_criteria]]
+text = "Every path that builds ssh arguments for a host gets them from one place, and a test fails if a jump host reaches one caller and not another"
+status = "done"
+category = "fixed"

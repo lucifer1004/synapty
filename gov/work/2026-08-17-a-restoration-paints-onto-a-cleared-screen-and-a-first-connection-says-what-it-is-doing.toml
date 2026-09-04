@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-011"
+title = "A restoration paints onto a cleared screen, and a first connection says what it is doing"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+Two things a real first connection showed, one wrong and one missing.
+
+A RESTORATION IS AN ABSOLUTE PAINT. Its sequences address rows and columns directly, and the client was writing them onto a pane that already had the connection's own output on it — so the two interleaved and the result was a cursor on the first line with older text below it. The screen has to be cleared before the paint, and the client is the party that knows what it put there.
+
+A FIRST CONNECTION LOOKED LIKE A HANG. It does several slow things in a row — a platform probe, a binary upload, a tunnel, a hub, a session — and none of them said so, which makes all of them look like one stall. Each stage now says what it is doing, and a reattach says something different from a fresh start, because "returning to what was already running" is the fact a human most wants confirmed.
+
+Those lines cost nothing once there is something better to look at: they are wiped by the restoration paint at the moment the session appears."""
+
+[[content.acceptance_criteria]]
+text = "A restoration is painted onto a cleared screen, so its absolute positioning lands where it says"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Each stage of a connection says what it is doing, and a reattach is distinguishable from a fresh start"
+status = "done"
+category = "added"

@@ -1,0 +1,69 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-001"
+title = "The platform's copy and paste reach the field the human is typing in"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Reported against the host editor: copy and paste did nothing there. It was
+not the editor — every text field in the workbench had it, and the cause
+was the menu.
+
+WHAT WAS MEASURED. In the quick-connect palette, typing works and Cmd-A
+works, while Cmd-C leaves the pasteboard empty and Cmd-V leaves the field
+unchanged. Cmd-A works because `selectAll:` is in the text system's own key
+bindings; copy and paste on this platform come only from a menu item. The
+Terminal menu holds Cmd-C and Cmd-V for [[RFC-0016]]'s `terminal.copy` and
+`terminal.paste`, the platform offers an enabled key equivalent BEFORE the
+responder chain sees the key, and so those items answered — copying the
+terminal's empty selection, and pasting the clipboard into the human's
+shell instead of into the field they were looking at.
+
+[[RFC-0016]] C-TABLE already settles this: "copying FROM A TERMINAL is a
+command in this table, and copying from a text field is the platform's ...
+Which one a keystroke means is settled by C-DISPATCH and not by precedence
+between two owners of one chord." It was settled by precedence.
+
+WHAT DOES NOT FIX IT. Disabling the menu item where the dispatcher would
+yield was tried and measured: SwiftUI's `disabled` is whatever the last
+render decided, focus moving into a text field re-renders nothing, and the
+item kept the chord. That attempt was reverted rather than left in, since a
+guard that is stale half the time reads as protection and is not.
+
+Removing the item's key equivalent does not fix it either, because
+C-DISCOVERY requires a surface that means the table's command in one focus
+and the platform's act in another to DISPLAY the table's chord.
+
+So the act happens in the dispatcher, which runs before the menu is offered
+the key at all, and the keystroke is marked answered so the menu's action
+does not then run the terminal's verb as well."""
+notes = ["""
+Neither `answered` nor consuming the event goes red on its own here, and
+neither is decoration. Returning nil does not stop a SwiftUI menu's key
+equivalent — measured earlier and recorded in this file — so without the
+mark, Terminal ▸ Paste still fires after the field has been served and
+types the clipboard into the human's shell. No UI test can see that: the
+terminal is a Metal surface with no accessible text.
+
+The new test first failed the whole suite for a reason of its own: it left
+the palette open and the next test inherited it. It dismisses it now."""]
+
+[[content.acceptance_criteria]]
+text = "a chord the table names but yields to what has focus performs the platform's own verb in the dispatcher, before the menu is offered it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the two commands whose chord the platform also spends on a text field are named in one place, with the verb each mirrors"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a UI test asks the system pasteboard and the field separately, so a broken copy cannot make a broken paste look like it worked"
+status = "done"
+category = "chore"

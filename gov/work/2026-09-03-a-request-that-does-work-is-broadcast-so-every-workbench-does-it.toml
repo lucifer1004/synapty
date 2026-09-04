@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-014"
+title = "A request that does work is broadcast, so every workbench does it"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+refs = [
+    "RFC-0003:C-HUB-ROLE",
+    "RFC-0007:C-EXEC-SCOPE",
+    "WI-2026-09-03-011",
+]
+
+[content]
+description = """
+The hub fans a request that DOES WORK out to every event-log subscriber, so
+every attached workbench performs it. With two Synapty instances on one hub —
+which is the ordinary shape once a laptop peers with a desktop — every write
+happens twice.
+
+    // src/hub/registry.zig:1607  toolForward
+    // src/hub/registry.zig:2464  execForward
+    self.event_log.broadcast(envelope);
+
+`broadcast` is right for events: every workbench should see what happened. It
+is wrong for a request, and both of its non-event callers are requests.
+
+- `toolForward` carries the credential tools. `task comment` writes the
+  comment twice, `task claim` PATCHes twice, `task create` files two issues.
+- `execForward` carries [[RFC-0007]] `synapty exec`. Two panes open and the
+  command runs twice.
+
+THE DUPLICATE WAS SEEN AND MISREAD. `routeToolResponse` already documents
+"a late or duplicate receipt, which is dropped rather than guessed at" — the
+duplicate RESPONSES were noticed and handled, while the duplicate EXECUTIONS
+behind them were not. Dropping the second receipt only hides the second write
+from the caller. `pending_tools` keys one parked requester per request_id, so
+the surrounding model already assumes one execution per request; the fan-out
+contradicts it. Both call sites' own comments say "the workbench", singular.
+
+Found by using it: four comments posted to the hub repo arrived twice each,
+same body, same second. The duplicates were deleted by hand."""
+notes = [
+    "THE OLDEST SUBSCRIBER IS THE ONE CHOSEN, so repeated requests land in the same workbench while it lives; picking the newest would move the work every time a window opened. A subscriber that cannot be written to is dropped and the next tried, which is not a second execution — a connection the envelope never reached never performed anything.",
+    "`toolForward` parks the requester in `pending_tools` BEFORE dispatching, so the dispatch failing now unparks it. Left in, the requester would wait on an answer from a workbench that never got the request — the exact hang the fail-fast rule beside it exists to prevent.",
+    "`EventLog.broadcast` had no callers left once both request paths moved off it — the event push has always used `pushToSubscribers` — so it was removed rather than left as a method whose name invites the same mistake back.",
+]
+
+[[content.acceptance_criteria]]
+text = "PRECONDITION — [[RFC-0003:C-HUB-ROLE]] says a request that does work reaches exactly one workbench, and that a fan-out is for events only"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a credential tool is executed once however many workbenches are attached"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an exec request opens one pane however many workbenches are attached"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "with no workbench attached both still fail fast rather than hang, as they do today"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "with two subscribers a dispatch reaches exactly one; with a dead first subscriber it reaches the second; with none it reports failure"
+status = "done"
+category = "chore"

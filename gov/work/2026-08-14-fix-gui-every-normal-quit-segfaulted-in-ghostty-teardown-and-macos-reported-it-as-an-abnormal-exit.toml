@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-013"
+title = "fix(gui): every normal quit segfaulted in ghostty teardown, and macOS reported it as an abnormal exit"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+
+[content]
+description = """
+Every ordinary Quit crashed. macOS then told the human the app had exited abnormally, which is both alarming and — until now — true.
+
+The crash reports name it exactly: SIGSEGV, faulting thread 0, `GhosttyApp.shutdown()` called from `applicationWillTerminate`, with the frame above it inside the statically linked libghostty. Reproduced across both configurations: the Release build in /Applications and the Debug build, same stack.
+
+`ghostty_app_free` tears down every surface while the NSViews that own them are still alive. At applicationWillTerminate the whole object graph is still standing — SwiftUI has not released the views, the surfaces are still registered — so the free walks into memory something else still points at.
+
+NOTHING IS GAINED BY FREEING IT. The process is about to end and the kernel reclaims this memory regardless, so the call is pure risk. Nothing is flushed there either: the session snapshot and the settings write happen elsewhere and are untouched by this.
+
+So the libghostty objects are no longer freed at exit, and the reason is written where the next reader will be tempted to "fix the leak". The registries are still cleared, which costs nothing and keeps the object honest. If a caller ever needs to tear ghostty down while the app KEEPS RUNNING, that caller must close the surfaces first — and `shutdown()` is not that function, which is now stated rather than assumed."""
+notes = ["""
+VERIFIED BY COUNTING CRASH REPORTS, which is the only evidence that answers the complaint. Before: a report for every quit, including the two at 14:13 and 14:19 and the Release one at 13:48. After: launch and quit three times in a row, and `find ~/Library/Logs/DiagnosticReports -name 'Synapty*.ips' -newermt <start>` returns zero.
+
+The first run of that check reported a failure and was WRONG: the harness quit the still-installed old build before launching the new one, so the one new report belonged to the old binary. The image name settled it — `Synapty` for the Release build against `Synapty.debug.dylib` for the one under test."""]
+
+[[content.acceptance_criteria]]
+text = "a normal quit exits cleanly, with no crash report"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the reason the objects are not freed is recorded where someone would otherwise re-add the free"
+status = "done"
+category = "chore"

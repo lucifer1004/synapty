@@ -1,0 +1,57 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DIAGNOSABILITY"
+title = "A Missing Capability Is Not a Broken Feature"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The requirement this whole RFC exists to serve, stated on its own because
+it is the one that was violated at cost.
+
+Requirements:
+
+- A HUB MUST NOT PRESENT A CAPABILITY THE PEER LACKS AS A CAPABILITY THAT
+  FAILED. When a behaviour is unavailable because the peer did not declare
+  it, every surface that would otherwise report the behaviour's absence
+  MUST attribute it: the peer's build does not provide this.
+- THE ATTRIBUTION NEEDS A CARRIER, AND THIS RFC NAMES IT rather than
+  leaving two conforming implementations both undiagnosable. Per-agent
+  presence carries `unknown_cause` alongside status and reachability,
+  with four values — `no_evidence`, `peer_unreachable`,
+  `peer_lacks_capability` and `contested` — on the `list_agents` response
+  and the [[RFC-0004]] C-SUBSCRIPTION snapshot.
+- THE CONDITION BEHIND `contested` IS [[RFC-0009]] C-DIRECTORY'S, AND THE
+  NAME IS THIS RFC'S. C-DIRECTORY has two live claims on one identity,
+  which have no single hosting peer to name; it carries no word for that
+  state. [[RFC-0009]] C-DELIVERY does name it, as `conflicted`, where it is
+  a delivery ANSWER rather than a presence attribution. One condition, two
+  surfaces, two words — said here because a reader who meets one and greps
+  for the other would otherwise conclude they are different things.
+- FOUR CAUSES BESIDE FIVE STATUSES, WHICH IS NOT AN INCONSISTENCY.
+  [[RFC-0004]] C-SUBSCRIPTION owns the row and enumerates this field on it, deferring the values here. Its encoding began at two causes and argued
+  against adding a sixth status to the vocabulary, which was right: the
+  causes that followed — a peer that lacks the capability, and an identity
+  two peers contest — are attributes ALONGSIDE a status rather than new
+  statuses. So the vocabulary stays at five while this field is four.
+- "REMOTE AGENTS SHOW STATUS UNKNOWN" AND "THIS PEER DOES NOT RELAY
+  PRESENCE" ARE THE SAME OBSERVATION, with and without the sentence that
+  makes it actionable. The difference cost a debugging session on
+  2026-08-12, spent on the RECEIVING side, which was correct throughout.
+- A HUB MUST RETAIN each peer's declared capability set for the life of
+  the link and expose it on `hub_info` alongside that peer's id and
+  reachability. Any surface that lists peers MUST render what a peer does
+  NOT provide, not only what it does. Stated as an obligation to expose
+  something checkable rather than as a prohibition on mechanisms ("without
+  reading logs") — the latter cannot be tested, and a requirement whose
+  compliance cannot be tested is how the previous version of this problem
+  survived: a version number was on the wire and nothing read it.
+- WHEN A LOCAL CAPABILITY HAS NO REMOTE COUNTERPART, THE HONEST REPORT IS
+  ABSENCE OF EVIDENCE, NOT EVIDENCE OF ABSENCE. A peer that does not relay
+  presence leaves its agents' status `unknown`, which [[RFC-0004]] already
+  defines as the answer when there is no reliable evidence — the value is
+  right and only the explanation was missing. Implementations MUST NOT
+  invent a substitute status to fill the gap."""

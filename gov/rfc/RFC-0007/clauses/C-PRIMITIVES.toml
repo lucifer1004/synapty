@@ -1,0 +1,60 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRIMITIVES"
+title = "Primitives — open, run, wait-output, read, close"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Five primitives, all workbench-mediated (CLI surface under `synapty`,
+subject to [[RFC-0003]]'s CLI discipline). Every state-changing
+invocation MUST be receipted as a hub event on the [[RFC-0004]] log
+carrying the owner's id + generation. [[RFC-0004]] C-EVENT-LOG holds the
+log these join: its kind set is extensible by later normative RFCs and
+names this one, so the four kinds above are defined HERE and carried
+there. Consumers MUST ignore event kinds they do not recognize — a rule
+[[RFC-0005]]'s wake events need identically.
+
+- open: create an exec pane (optional cwd, host). Returns a pane
+  handle. Event: exec_pane_opened.
+- run: submit ONE command line to the owned exec pane's shell. The text
+  MUST be a single line of printable characters — CR, LF, and all other
+  C0/C1 control bytes are rejected — and the rejection is enforced by
+  the WORKBENCH at injection time (CLI-side validation is convenience
+  only; a raw hub connection gains nothing). Mechanics import from
+  [[RFC-0005]] C-INJECTION-MECHANICS: text then separately-sent Enter
+  after a settle delay, bracketed-paste awareness, no focus theft, no
+  viewport disturbance. A run is refused if the human has typed into
+  the pane within a short recency window (~3s — the C-STATE-GATE splice
+  guard). Foreground rule: run requires the pane's foreground process
+  to be the spawned shell, OR — with an explicit follow-up flag — the
+  process started by this same agent's previous run; a foreground
+  process the human started always refuses. A follow-up is still one
+  printable line plus Enter, nothing more (no control sequences, no
+  menu navigation — C-NON-GOALS' interactive-driving prohibition
+  otherwise stands). Event: exec_command_ran, carrying the command line
+  itself (the human must be able to audit what machinery typed) and
+  whether it was a follow-up.
+- wait-output: block (with mandatory timeout) until the pane's screen
+  tail matches a literal or regex pattern. The CURRENT snapshot is
+  searched first — pre-existing output can satisfy a wait immediately,
+  so the skill MUST teach unique completion markers (e.g. `&& echo
+  DONE-<nonce>`). Terminal outcomes are a closed set with stable exit
+  codes: matched / timed-out / target-gone (pane closed, shell exited,
+  host lost) / ownership-lost (registration generation ended) /
+  disarmed. Mid-wait pane closure or generation end MUST terminate the
+  wait promptly with the corresponding outcome, never idle to timeout.
+  Returns the outcome plus a bounded excerpt. One in-flight wait per
+  pane; a second wait on the same pane is refused, not queued. Event:
+  exec_wait_completed (outcome + pattern).
+- read: bounded excerpt of the pane's recent output (final N rows,
+  screen-not-viewport per [[RFC-0004]] C-PASSIVE-DETECTION's read
+  discipline). Deliberately NOT receipted: reads are passive
+  observation and change nothing; the event log records actions.
+- close: close an owned exec pane. Event: exec_pane_closed. Panes a
+  dead generation leaves behind are the human's to close (the workbench
+  MAY offer cleanup), and they count against the same agent id's pane
+  bound on re-register until closed."""

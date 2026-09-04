@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-003"
+title = "Extract deploy script from Swift to standalone bash template"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Move deploy logic from embedded Swift string to scripts/deploy.sh. Fixes ghostty command launch failure caused by multi-line shell script passed as single -c argument. Script handles platform detection, binary lookup (bundled/dev), scp, and SSH tunnel."
+
+notes = [
+    "setsockopt TCP_NODELAY: Invalid argument on remote is from OpenSSH sshd setting TCP_NODELAY on the reverse tunnel socket. Known SSH behavior with musl libc. Harmless â connection works. Not our code.",
+    "2026-03-27 (deploy): Created scripts/deploy.sh with platform detection, multi-path binary lookup, and SSH tunnel. Simplified DeployManager.swift to call the script. Bundled as folder resource in project.yml. Build and govctl check pass.",
+]
+[[content.acceptance_criteria]]
+text = "scripts/deploy.sh with platform detection and multi-path binary lookup"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "DeployManager calls deploy.sh instead of embedding shell script"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "deploy.sh bundled as Xcode resource"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

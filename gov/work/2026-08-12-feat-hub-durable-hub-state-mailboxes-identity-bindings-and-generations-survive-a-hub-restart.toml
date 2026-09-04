@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-002"
+title = "feat(hub): durable hub state — mailboxes, identity bindings and generations survive a hub restart"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = [
+    "ADR-0007",
+    "RFC-0008",
+    "ADR-0008",
+]
+depends_on = ["WI-2026-08-12-001"]
+
+[content]
+description = "[[ADR-0007]] step 2 of 3. Hub state is entirely in memory today (MailStore, durable_ids, generations), so every hub restart silently discards queued mail. That is tolerable while the hub's lifetime equals the workbench's; it is disqualifying for a hub that is supposed to outlive the laptop, which is the entire point of the remote deployment the operator asked for. Persist the state that carries meaning across a restart — queued mail and durable-identity bindings above all — with a bounded, versioned format and honest recovery behaviour (a corrupt or unreadable store must start empty and say so, never crash the hub or resurrect half a mailbox). Depends on WI-2026-08-12-001 only in ordering, not in mechanism."
+notes = ['''Live verification PASSED (2026-08-12): agent binds claude-persist0 via resume_ref -> goes offline -> peer dms the OFFLINE durable identity (ack {queued:true}) -> message present in the state file -> hub killed and restarted -> 'restored 1 queued message(s) for 1 identity' -> a NEW pane registering with the SAME resume_ref re-claims the identity and drains the message. This is the three-way composition working: RFC-0006 resume + RFC-0008 durable identity + durable mailbox.\n\nDesign decision worth recording: the write happens BEFORE the dm is acked, inside presence_mutex. That puts a small file write in the critical section, which is a real cost — but the alternative (async flush) would make {queued:true} a claim the hub cannot keep across a crash, and an ack that lies is worse than an ack that is slow. Bounded by the small state size and the low message rate.\n\nTest-authoring note: the first live run failed with 'unknown target' because the test dm'd claude-persist01 while deriveDurableId takes the FIRST 8 CHARS of resume_ref, making the id claude-persist0. The code was right; the test was wrong.''']
+
+[[content.acceptance_criteria]]
+text = "mailbox queues and durable-identity bindings persist across a hub restart, with a versioned bounded on-disk format; a returning agent re-registering with the same resume_ref finds its queued mail waiting (composes with RFC-0006 resume + RFC-0008 identity)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "recovery is honest — an unreadable, truncated or version-mismatched store starts empty and logs it visibly; the hub never crashes on a bad store and never restores a partially-decoded mailbox"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "state what is deliberately NOT persisted and why (live connections, generations tied to a connection, wake candidates, exec panes — all belong to a workbench lifetime, not the hub's)"
+status = "done"
+category = "chore"

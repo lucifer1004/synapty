@@ -1,0 +1,78 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESUME-RESTORE"
+title = "Resume on Restore — Semantics and Authority"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+On workbench relaunch, session restore runs first (layout, cwd). NOTHING
+IS TYPED AS PART OF IT.
+
+WHAT THIS CLAUSE GOVERNS IS TYPING, NOT DIALLING, and the distinction is
+made explicit because the implementation read it the other way and cited
+this clause for doing so — remote sessions came back parked at a
+reconnect prompt, so a workbench whose whole premise is several machines
+at once returned with all of them disconnected, every launch.
+
+Reopening a connection the human had open is the same authority class as
+restoring the window it was in: it spends nothing, starts no turn, and
+asks nothing of any model. Submitting a resume incantation is a
+different act, and this clause now permits it only as a human's own.
+
+WHY AUTO-RESUME IS GONE. Its whole safety argument was one invariant:
+that an incantation "only re-attaches the harness to its prior session"
+and therefore starts no turn. That was never a property of the
+incantation. It is a property of the incantation AND the state of what
+receives it: `claude --resume <id>` typed at a shell prompt re-attaches;
+the same characters typed into a claude that is already running are a
+PROMPT. Before [[RFC-0014]], a workbench restart implied a dead child, so
+the receiving state was guaranteed and the invariant held. With holders,
+a restored pane rejoins a child that never stopped — so the guarantee is
+gone and the argument with it.
+
+A MACHINE RESTART IS THE WORST CASE, not the exception that proves it
+harmless. Every holder is gone, so every pane restarts, so every
+recorded plan fires at once: one turn per agent, started while nobody is
+at the machine. Nothing about a computer coming back up is a human
+asking their agents to carry on.
+
+Requirements:
+
+- Re-attach, never prompt: a resume incantation MUST only re-attach the
+  harness to its prior session. It MUST NOT submit a prompt, answer a
+  question, or otherwise start a turn. Bundled templates MUST conform; a
+  user override that violates it is the user's own act on their own
+  machine.
+- A workbench MUST NOT type a resume incantation on its own initiative.
+  There is no automatic mode and no preference that enables one: a
+  resume is a human act, performed on one pane at a time.
+- A resume MUST be offered ONLY where the workbench has already reported that this pane's work restarted ([[RFC-0015]] C-HONESTY). A pane that REJOINED a live holder gets no offer, whatever is running inside it.
+
+  [[RFC-0014]] C-LIVE-CHILD PERMITS MORE THAN THIS CLAUSE TAKES, and the difference is deliberate rather than an oversight. That clause lets a client resume into an attached session once C-FOREGROUND establishes the program is not running there — a human who quit their harness and left the shell at a prompt has a live session with nothing in it, and the argument is sound. A MAY is not an obligation, and this is the clause that declines it.
+
+  WHY DECLINED. The evidence is a process name compared against a per-tool expectation, and the comparison has to be right in a direction where being wrong types an incantation into a LIVE agent — a turn nobody asked for, on the human's account, in a pane they were using. A kernel reports what it reports (`claude.exe` where a manifest says `claude`), so the table doing the comparing would have to be verified per tool and maintained per release, and every entry that drifts fails in the direction that acts rather than the direction that waits. The offer this buys is one the human can already reach by typing the incantation themselves, in the pane, where they can see what is in it.
+
+  THE CONDITION IS THE OFFER'S EXISTENCE, not a check performed before typing. A check can be skipped, defaulted the wrong way on a timeout, or forgotten by the next caller; an affordance that is absent cannot be taken.
+- One attempt per act of the human's. The workbench MUST NOT retry, and
+  MUST NOT re-offer without a further human act. Failure is not actively
+  detected: the observable is the agent's re-registration (fresh
+  [[RFC-0004]] generation); absent that, the pane display itself is the
+  failure surface and the human judges. A failed attempt leaves the pane
+  at a shell with the incantation visible.
+- Injected text MUST NOT splice into half-composed human input
+  ([[RFC-0005]] C-STATE-GATE discipline).
+- A resumed harness re-registers itself (skill behavior) and receives a
+  fresh registration generation — resume does NOT resurrect the old
+  generation, and wake candidates or presence state from the previous
+  life MUST NOT carry over.
+
+Identity continuity (folded at finalize): a resumed session
+re-registers with its resume_ref and therefore binds the SAME durable
+identity ([[RFC-0008]]) — resume continuity is an identity property,
+not a plan-file correlation. Task claims and queued mail meet the
+returning agent automatically."""

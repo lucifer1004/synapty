@@ -1,0 +1,30 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty has been using the ADDRESS as the IDENTITY: an agent's id is the
+pane wrapper's `local-XXXX`, minted when the pane opens and dead when it
+closes. Panes are ephemeral; the durable thing is the harness session —
+`claude --resume abc123` brings back the same memory, the same task
+context, the same collaborator. Today it comes back as a stranger.
+
+This RFC splits the two concepts. The durable agent identity derives
+from (tool, harness session identity); the pane wrapper id demotes to a
+transport address and a fallback identity for bare shells. An identity
+registering from a new connection RE-HOMES: same id, fresh [[RFC-0004]]
+generation — wait pinning, wake cancellation, and event correlation all
+inherit semantics that were built for exactly this shape. Mailboxes move
+from the pane daemon to the hub, keyed by identity, which is also the
+shape [[RFC-0005]]'s wake trigger already assumed.
+
+The payoff is continuity where it is already being lost: task-center
+claims ([[RFC-0003]]) survive pane death and workbench restarts,
+messages outlive the pane they were addressed to, and [[RFC-0006]]
+resume brings a session back AS ITSELF."""

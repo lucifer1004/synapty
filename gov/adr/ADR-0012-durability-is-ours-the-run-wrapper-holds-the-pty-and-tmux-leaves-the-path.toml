@@ -1,0 +1,133 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0012"
+title = "Durability is ours: the run wrapper holds the pty, and tmux leaves the path"
+status = "accepted"
+date = "2026-08-17"
+refs = [
+    "ADR-0008",
+    "RFC-0004",
+    "RFC-0005",
+    "ADR-0001",
+    "RFC-0011",
+    "RFC-0007",
+    "ADR-0010",
+    "RFC-0001",
+]
+
+[content]
+context = """
+[[ADR-0008]] stage 3a bought a remote agent's survival with tmux: `connect.sh` starts `synapty run` inside a session named for the agent id, and a reconnect attaches to it. That has held — a laptop lid no longer SIGHUPs a remote agent — and it was the right thing to reach for, because it was already installed on the hosts that mattered.
+
+What has since become visible is that the mechanism is both MORE than we asked of it and LESS than we need.
+
+MORE: tmux is a multiplexer, and the workbench already owns every part of that. Panes, tabs, splits, focus and layout are the Swift layer's. What was wanted was "somebody holds the pty when the client goes away" — and it arrives welded to a full terminal server that takes the alternate screen.
+
+Taking the alternate screen is not cosmetic. Two costs were measured rather than argued:
+
+- THE WHEEL STOPS SCROLLING. In the alternate screen with alternate-scroll active and no mouse reporting claimed, the terminal sends cursor keys instead of scrolling (ghostty `Surface.zig`); tmux claims no mouse reporting because `connect.sh` never enables it. So a remote pane answers a scroll gesture with history navigation in the shell, and the human cannot reach their own scrollback.
+- A RESIZE MOVES THE VIEWPORT AND DOES NOT MOVE IT BACK. On a probe host running tmux 3.4, one 100→60→100 column round trip pushed ten lines off the top of the screen into tmux's history permanently: narrowing wraps lines and overflows the top, widening rejoins them and leaves the screen anchored at the bottom. A companion probe disproved the obvious theory — tmux reflows and loses no line content. So nothing is destroyed; it is only unreachable, by the scroll the first cost has already taken away. The two compose into "the top of my session went somewhere I cannot follow".
+
+Both exist because the SCROLLBACK LIVES ON THE FAR SIDE. A plain ssh session keeps it in the client, where the wheel works and a resize reflows locally.
+
+LESS: tmux is a prerequisite on a machine we do not control, and it is the SECOND one. `.synapty/bin/synapty` is already required — `hub --ensure` and `run` both come from it, and the deploy path puts it there. A host without tmux therefore degrades to no durability at all, while already carrying the binary that could have provided it.
+
+WHAT TMUX IS ALSO DOING, stated plainly because the case is weaker without it and a later reader will find these anyway. Its presence became load-bearing for two capabilities beyond holding the pty:
+
+- A REMOTE PANE'S WORKING DIRECTORY. `RemotePwd` asks `#{pane_current_path}` of the session, and it is the only source that works: the kernel answers for the local ssh process rather than the remote shell, and a plain login emits no OSC 7. That answer feeds the destination a cross-host drop delivers into, which is [[ADR-0010]]'s mainline rather than a detail.
+- ENDING A REMOTE AGENT. A human's close runs `tmux kill-session`.
+
+Neither is multiplexing. Both are things a process that owns the child's pty is positioned to answer at least as well — but they are capabilities in service today, not gaps to be discovered during implementation.
+
+The decision driver is that these are not several problems. They are one: durability was delegated to a component whose other half we neither want nor control, and the capabilities that grew on it grew on somebody else's ground."""
+decision = """
+Durability becomes the run wrapper's own property. `synapty run` holds the child's pty, survives the departure of the client that started it, and lets a later client attach to it. tmux leaves the connect path entirely, and the remote prerequisite list returns to one entry: the binary we already deploy.
+
+Three positions follow. The second is the one that makes this worth doing rather than merely tidier.
+
+1. A HOLDER, NOT A MULTIPLEXER. The far side keeps the pty and moves bytes. It draws nothing on the human's screen, owns no alternate buffer of its own, and has no key bindings. Every layout question — panes, tabs, splits, focus — was already the workbench's and stays there.
+
+The consequence is that THE HUMAN'S SCROLLBACK RETURNS TO THE CLIENT, and with it two behaviours that were never ours to fix while tmux held them: the wheel scrolls their own history, and a resize is an ordinary SIGWINCH whose reflow happens locally in a terminal that keeps its viewport.
+
+2. THE HOLDER KEEPS BOTH A POSITION AND A SCREEN. It retains recent output addressably, so a client can say where it stopped reading, AND it interprets what it carries — `libghostty-vt`, the same emulator the workbench renders with — so it can also answer a client that holds nothing.
+
+Those are two different questions and neither answer serves the other. A client that still has everything up to a position wants exactly the bytes after it, and gets a seam-free reconnect; a client that has nothing — the workbench restarted — wants the screen, and a replay from raw bytes would have to guess where in the stream it is safe to begin. A screen model can be asked to emit its own state instead.
+
+Choosing the same emulator as the workbench is not incidental. Two implementations would mean the far side's idea of the screen and the near side's rendering of it could disagree, and the disagreement would surface only after a reattach — the least observable moment there is.
+
+3. TRANSPORT LOSS AND CHILD EXIT ARE DIFFERENT ANSWERS. The holder reports the child's exit distinctly from a dropped connection.
+
+Today those two are indistinguishable at the workbench — ghostty's close-surface callback fires for both — which is why ending a remote agent has to be attached to the human's explicit close and to nothing else. With a holder that says which happened, a pane can outlive a blip and still close when its shell is genuinely gone.
+
+INTERPRETING IS NOT PUBLISHING. The far side's screen model exists for one job: answering a client that asks what the screen is, so a cold reattach restores rather than guesses. It does not make any pane's screen readable by an agent, and it does not relocate [[RFC-0004]] C-PASSIVE-DETECTION off the workbench — classification stays where it is, reading the client's own grid. Both of those are capabilities this mechanism would make POSSIBLE, and possible is not decided: agent-visible screen content is [[RFC-0001]]'s L3 introspection under [[ADR-0010]]'s rules, and moving detection to the far side is a question [[RFC-0011]] C-HEADLESS-GATE already raises and leaves open. Neither arrives as a side effect of how durability was implemented.
+
+The capabilities tmux is carrying today move with the pty rather than being dropped: a process that is the shell's parent on the far side can report the shell's working directory, and ending an agent becomes ending the holder. That they are answerable is the claim; how is the protocol's.
+
+The per-host opt-out keeps its meaning and its name: a host set non-durable runs the child directly, exactly as an ordinary SSH client would.
+
+[[ADR-0008]] stage 3a stands as a decision — remote agents survive disconnection — and this replaces the mechanism it reached for. The lifecycle bookkeeping of that relationship is not this document's to perform."""
+consequences = """
+GAINED. One remote prerequisite instead of two, and it is the one the deploy path already satisfies — durability stops depending on what a machine happens to have installed. The wheel and the resize behave as they do in any ordinary SSH session, because the human's scrollback is where it belongs. A brief link loss becomes invisible rather than merely survivable: tmux and a general-purpose SSH client do not offer that, and mosh — which does handle link loss natively — pays for it by keeping no scrollback at all.
+
+PAID, and none of it hypothetical.
+
+WE NOW OPERATE A RESIDENT PROCESS ON SOMEBODY ELSE'S MACHINE. A holder that outlives its client is, by construction, a thing that can be left behind — the exact failure whose tmux form was found live in its dozens on two hosts, and whose narrower form was fixed only afterwards. Owning the mechanism means owning that lifecycle: what ends a holder, what reaps one nobody will return to, and how a human sees what is running on a host. This is the single largest cost and it is not reduced by the holder being small.
+
+THE CUTOVER MANUFACTURES THAT FAILURE ONCE. A workbench that no longer speaks tmux can neither reattach to nor end the `synapty-<id>` sessions currently alive on reachable hosts. Whatever is running at the moment of the change is orphaned by the change. The host record's tmux probe and the settings copy written around it describe a mechanism that will no longer be in use, and say something false until they are changed.
+
+TWO SHIPPED CAPABILITIES ARE DELETED AND MUST BE REBUILT, not merely re-plumbed. `RemotePwd`'s answer feeds the destination of a cross-host drop; a holder that is the shell's parent can supply it, but until it does, that destination is unknown again. The same is true of ending a remote agent. Neither is recovered by the screen model: a plain login emits no OSC 7, which is why the kernel-side answer is the one that has to be built.
+
+THE WORKBENCH MUST LEARN NOT TO CLOSE THE PANE. Invisibility across a blip is not a far-side property alone: today ghostty's close-surface callback ends the pane, and the workbench must instead hold it, re-dial, and resume. That is real work on this side, and it is the price of the benefit claimed above rather than a separate project.
+
+A COLD RESTORE IS BOUNDED BY WHAT A SCREEN DUMP CAN SAY. A spike established what is actually on offer: a state dump fed into a fresh terminal reproduced the screen TEXT byte-identically, and everything beyond text — cursor, styles, palette, modes, scrolling region, tabstops, hyperlinks, keyboard state — is opt-in on the dump and therefore a choice the protocol has to make deliberately. The dump also describes the ACTIVE screen, so a child sitting in the alternate buffer restores the alternate buffer, and the primary screen and its history beneath it are not in that answer. That is a smaller version of the asymmetry this decision indicts tmux for, and it is bounded rather than removed.
+
+WE TAKE A DEPENDENCY ON AN API ITS OWN HEADER CALLS UNSTABLE. `vt.h` states that the library is incomplete, work-in-progress, and definitely going to change. The submodule means the moment of every upgrade is ours to choose, and the workbench already tracks the same source — but this is now a second consumer of it, on machines updated by our deploy path rather than by an app release.
+
+THE ZIG BUILD BECOMES COUPLED TO THE GHOSTTY SUBMODULE. It is not today: the Zig side builds with no reference to ghostty, and GhosttyKit exists only for the Swift app. Every deploy target now builds a VT library first. Measured: four of the five deploy targets build the library as-is, and `riscv64-linux-musl` fails in the vendored SIMD library's RISC-V vector intrinsics and needs SIMD disabled for that target. A stripped musl program linking the library is 1.8 MB against a current binary of 7.4 MB, so the artifact grows by roughly a quarter, and build time by a library.
+
+MEMORY ON THE FAR SIDE IS A TERMINAL AND A RETAINED STREAM, per session, on a machine whose memory is not ours to spend freely. Both are needed — the position answers a warm client and the screen answers a cold one — and the scrollback limit becomes a figure with a bill attached.
+
+TWO SCROLLBACKS NOW EXIST AND THEY ARE NOT THE SAME LENGTH. The human's is the client's, and it is authoritative for everything they scroll back to during a session; the holder's exists to answer a cold attach and will be smaller. A workbench restart therefore returns a shorter history than the one that was on screen before it, and how much shorter is a number the protocol chooses rather than a property anyone inherits.
+
+A WRAPPER THAT INTERPRETS A PTY CAN SEE WHAT IT CARRIES. Today's wrapper is architecturally incapable of observing screen content or keystrokes, and [[RFC-0011]] C-HEADLESS-GATE reasons from exactly that. After this it is capable, and "does not" replaces "cannot". The same clause reasons from tmux being present on every remote host and from tmux-derived evidence that goes away; it also records that reactivating passive detection on a workbench-less machine would relocate the detection fleet out of the workbench layer, and calls that a decision the record has not made. A far-side model in the same emulator the manifests are calibrated against supplies the precondition for exactly that relocation, and for the keystroke recency the clause calls unrecoverable. None of it is settled here; the clause must be revisited rather than left to drift.
+
+THE VENDOR-NEUTRAL ESCAPE HATCH CLOSES. A human on any machine can today `ssh` in and `tmux attach` to a running agent with no Synapty client at all. Afterwards, reaching a durable session requires something that speaks our protocol. The per-host non-durable setting keeps an ordinary shell available; it does not keep an ordinary way back into a durable one.
+
+A PROTOCOL BECOMES A COMPATIBILITY SURFACE. Attach, resume, screen request, resize and exit are a contract between a deployed remote binary and a workbench that updates independently. Version skew is now possible on this path, where before the contract was a tmux session name.
+
+NEUTRAL. The tmux behaviour in the context was measured on one host with one tmux version; a different tmux might shift the viewport by a different amount, but the asymmetry is structural to reflow-with-history and the decision does not rest on the exact figure. The library spike measured screen-text identity after a dump-and-replay and the build results above; it did not compare viewport anchoring against tmux, because a screen-model dump and `capture-pane` do not describe the same region.
+
+NEW OBLIGATION. The attach protocol, what a screen dump must carry, the holder's lifecycle, the cutover, and the re-provision of working directory and end-of-agent are product behaviour and belong in an RFC before implementation, not in this decision. Making a pane's screen readable by an agent, and moving detection to the far side, are separate decisions that this one deliberately does not take."""
+
+[[content.alternatives]]
+text = "Keep tmux and fix what can be fixed: enable mouse reporting so the wheel reaches tmux's history, and accept the viewport shift. Cheapest by far, and it leaves the durability path proven. Rejected: it fixes neither of the two things that matter — the far side still owns the scrollback, so the resize asymmetry is unreachable from here, and tmux remains a prerequisite the host may not satisfy at all"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Adopt mosh: server-side terminal state synchronisation with roaming, which handles link loss natively. Rejected: mosh keeps no scrollback by design — it synchronises the visible screen — so it trades the tmux scrollback problem for a strictly worse one, and it is another prerequisite on a machine we do not control"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Drop durability: remote sessions are ephemeral, as they are in every general-purpose SSH client. Rejected: agent work that dies with a lid close is the failure [[ADR-0008]] stage 3a exists to prevent, and passive detection, wake injection and exec read-back all assume a pane that outlives its link"
+status = "rejected"
+
+[[content.alternatives]]
+text = "A minimal holder: keep the pty across disconnects and nothing more — no retained output, no exit-versus-loss signal — so a reattach starts from a blank screen exactly as `dtach` would. It is markedly cheaper, and it still removes the tmux prerequisite and returns the scrollback to the client. Considered and rejected: without retained output a workbench restart reattaches to a pane showing nothing, which [[RFC-0004]] C-PASSIVE-DETECTION cannot classify at all, and without the exit signal the pane must still treat every dropped link as a dead shell — leaving the two behaviours that most justify owning the mechanism unbought while paying most of its cost"
+status = "rejected"
+
+[[content.alternatives]]
+text = "A framing-aware byte holder: retain output as bytes, but parse enough of the stream to know where an escape sequence begins and ends, so a cold replay can start at a safe point (or at the last full-screen clear) instead of mid-sequence. This is the middle option, and it is the one that would remove the largest new cost this decision accepts — no terminal and no scrollback resident on somebody else's machine. Rejected on two counts: a safe START point is not a correct SCREEN, since a long-running full-screen program may have cleared once and then painted incrementally for hours beyond any bounded buffer; and a holder that has parsed the framing but not the semantics can say nothing about its own child's state, so the far side stays blind for every question later work might ask of it. Worth reopening if far-side memory proves the binding constraint"
+status = "rejected"
+
+[[content.alternatives]]
+text = "A byte-buffer holder: retain recent output as raw bytes, resume a live client from its position, and answer a cold attach by replaying whatever the buffer happens to hold. Cheaper than interpreting the stream, and it solves the case that matters most — the blip — just as well. Rejected: a cold replay from an arbitrary point in a byte buffer may begin inside an escape sequence, so the screen a restarted workbench gets is approximate, and [[RFC-0004]] C-PASSIVE-DETECTION reads that screen. A spike also removed the cost argument that would have justified accepting it: `libghostty-vt` is a supported standalone library upstream and builds for the deploy targets without source changes"
+status = "rejected"
+
+[[content.alternatives]]
+text = "The run wrapper holds the pty and interprets what it carries: `synapty run` keeps the child's terminal across client disconnects, retains recent output addressably, and maintains a screen model with `libghostty-vt` — the emulator the workbench already renders with — so a client can either resume from the position it last read or ask for the screen outright. ACCEPTED. It removes a prerequisite rather than replacing one, returns the human's scrollback to the client where the wheel and the reflow already work, makes a brief link loss seamless and a cold reattach a restoration rather than a guess, and keeps both ends of the workbench agreeing about what a screen is"
+status = "accepted"
+
+[[content.alternatives]]
+text = """Ship dtach or abduco to the host: a pty holder without a terminal server, so the client keeps its own scrollback and a resize is an ordinary SIGWINCH. Both measured tmux costs disappear, and it is far less code than writing one. Rejected: it puts a third-party runtime on every host, which the project's zero-external-runtime-dependency rule refuses — the rule reads "beyond libghostty", so reaching further into the dependency this project already has is not the same trade as adding a new one — and a pass-through holder cannot address the case a cold client presents, having neither a position to resume from nor a screen to describe"""
+status = "rejected"

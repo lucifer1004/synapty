@@ -1,0 +1,24 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L2-ORCHESTRATION"
+title = "L2 — Orchestration and Notification"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The Orchestration and Notification layer solves the attention problem: how a human operator efficiently supervises dozens of concurrent agent sessions.
+
+**OSC out-of-band communication bus.** Agents communicate status to the orchestrator by emitting OSC (Operating System Command) escape sequences on their stdout. This is an in-band signaling mechanism that requires no additional IPC — the agent simply prints a well-known escape sequence and the VT engine (L0) intercepts it before it reaches rendering.
+
+The bus supports multiple OSC namespaces:
+- OSC 9 / 777: basic desktop notifications (task started, task completed)
+- OSC 99: advanced structured notifications (progress percentage, human-intervention-required, capability advertisement)
+
+**Vertical command cockpit.** The frontend UI adopts a vertical sidebar layout rather than horizontal tabs. Each agent session occupies a pane in the cockpit. When the VT engine detects an agent emitting a "waiting for intervention" OSC sequence, the UI renders a notification ring around that pane — a visual beacon that draws the operator's eye without requiring them to poll each session manually.
+
+**Global hotkey focus.** A single keyboard shortcut cycles focus to the next agent requesting attention, enabling rapid human-in-the-loop response across large agent fleets without mouse interaction or manual pane switching.
+
+**Priority and routing.** The orchestration layer can assign priority levels to agent notifications, ensuring that critical intervention requests (security approvals, destructive operation confirmations) surface above routine status updates."""

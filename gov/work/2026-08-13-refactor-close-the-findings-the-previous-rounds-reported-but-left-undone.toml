@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-008"
+title = "refactor: close the findings the previous rounds reported but left undone"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+The two previous rounds NAMED findings and then did not act on all of them. This closes the remainder. Reporting a defect is not fixing it, and a list of known-and-unfixed problems is worse than not having looked, because the next reader assumes the list was acted on.
+
+TWO SILENT FAILURES, both previously noted and waved past.
+
+HostStore.writeRecords used `try?` on BOTH the encode and the write, so a disk-full, a permissions change or a sandbox denial ended with save() returning normally while the human's host existed only in memory. That is the one failure a user cannot detect by looking, because the list on screen still shows exactly what they typed. Failures are now logged per record and collected into an observable `unpersistedRecordIDs`, with a test that revokes write permission on the records directory and asserts the lost record is named.
+
+reconnectHub had three `catch return true` on the re-registration path, under a comment that only justified the third. A failed WRITE breaks the socket, so the reader loop comes straight back — that one is fine. A failed envelope BUILD does not: the socket is healthy, nothing brings the code back, and the pane sits connected to the hub and unregistered for the rest of its life, invisible to the agent, to `synapty agents` and to the human. The first two now retry.
+
+FOUR OVERSIZED FUNCTIONS, named in the first quality round and left alone.
+- cli.zig main: 286 -> 109. The `hub` arm was three unrelated jobs sharing one 190-line block; split into hubRemint, hubEnsure, hubServe.
+- session.zig readerThread: 244 -> 140. One function per connection shape (one-shot, subscriber, relay). RFC-0009 C-BOUNDARIES makes that separation a real invariant rather than a stylistic one: a connection is under exactly one rule set, fixed by its first frame.
+- run.zig handleIpcConnection: 205 -> 110. `recv` alone was seventy lines of blocking-wait, drain, merge and serialize inside a dispatcher whose job is to pick an arm.
+- peer.zig dialAndServe: 178 -> 118. The handshake is a self-contained exchange with eight refusal paths; inline, it buried the serve loop.
+
+The length was never the point. In each case the distance between a thing and its pair — a spawn and its join, an acquire and its release — is what the length was measuring, and that distance is exactly what let WI-2026-08-13-006's leaked peer link survive review."""
+
+[[content.acceptance_criteria]]
+text = "a failed persist is logged and surfaced on HostStore.unpersistedRecordIDs, with a test that revokes directory write permission"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a reconnect that cannot build its register envelope retries instead of reporting success"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "cli.zig main 286->109 lines, hub split into remint/ensure/serve"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "session.zig readerThread 244->140, one function per connection shape"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "run.zig handleIpcConnection 205->110, send and recv extracted"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "peer.zig dialAndServe 178->118, handshake extracted"
+status = "done"
+category = "changed"

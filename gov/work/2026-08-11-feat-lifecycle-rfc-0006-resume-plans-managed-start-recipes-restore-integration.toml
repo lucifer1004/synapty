@@ -1,0 +1,51 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-014"
+title = "feat(lifecycle): RFC-0006 — resume plans, managed start recipes, restore integration"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0006",
+    "RFC-0008",
+]
+depends_on = ["WI-2026-08-11-012"]
+
+[content]
+description = "RFC-0006 implementation. Swift: resume plans recorded per agent-bearing pane (tool, cwd, host, incantation from per-tool template + validated resume_ref — allowlist validation per C-RESUME-PLAN), persisted with the session snapshot, observable drop triggers only; resume-on-restore (surface-ready wait, focus/typing skip-to-ask-first, one attempt no retry, resume-attempted marker, auto-resume preference visible w/ ask-first, remote panes demote to ask-first); managed-start launch recipes as per-tool data (spawn-argv delivery), 'start agent' affordance, workbench attribution marker, correlation-not-proof display. Resume templates + launch recipes ship for claude/codex/gemini (formats verified 2026-08-11). Depends on WI-2026-08-11-012 (resume_ref flows + identity continuity)."
+notes = [
+    "Live restart verification PASSED (2026-08-11 ~20:40): quit with the smoke claude's session on disk -> relaunch -> snapshot restored layout+cwd (~/Workspace/synapty) -> restore engine typed 'claude --resume 0017af01-...' + Enter (ps shows the exact process) -> claude re-attached the REAL previous conversation (full smoke transcript visible) -> SessionStart hook re-registered the SAME durable identity claude-0017af01 (RFC-0008 continuity as an identity property, live-proven) -> ResumeCoordinator re-captured the plan from the registration event and the 15s autosave persisted it (record->persist->restore->resume->re-record cycle closed). Screenshot in session records. Note: initial screenshot attempt captured the user's browser (Synapty was on another display) — deleted immediately; window-id capture used instead.",
+    "Live finding (2026-08-11): the snapshot persisted RFC-0007 exec panes, restoring machine scratch space as unowned ordinary tabs after a restart. snapshot() now skips exec-pane tabs (activeTabIndex recomputed against the filtered list so it cannot point past the end). Regression test: testSnapshotExcludesExecPanes.",
+]
+
+[[content.acceptance_criteria]]
+text = "session snapshot — sessions/tabs/split layout + per-leaf cwd (OSC7 via GHOSTTY_ACTION_PWD) + wake-armed bits + resume plans persisted to ~/.config/synapty/session.json (debounced + on quit) and restored on launch; the WI-013 armed bit rides it per RFC-0005 C-AUTHORITY persistence"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0006:C-RESUME-PLAN — per agent-bearing pane {tool, cwd, host, incantation} from per-tool template + resume_ref under allowlist VALIDATION (printable, no whitespace/control, bounded); missing/invalid degrades to launch-fresh honestly; drop triggers are OBSERVABLE only (pane close, explicit unregister — never connection loss/shutdown); hub exposes resume_ref to the workbench (agents array + metadata event)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "resume templates + managed-start launch recipes as per-tool DATA files (bundled defaults + user override, detection-manifest discipline) for claude/codex/gemini; template application = substitution from a fixed field set only"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0006:C-RESUME-RESTORE — auto-resume default ON under the re-attach-never-prompt invariant; visible preference with ask-first; surface-ready wait before typing; panes the human focused/typed since relaunch skip to ask-first; ONE attempt, no retry, incantation left visible on failure; resume-attempted marker until first focus; remote panes demote to ask-first"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0006:C-MANAGED-START — Start Agent affordance spawns a NEW pane with the recipe as spawn argv through the run wrapper (never types into an existing pane); managed panes visibly attributed; registration stays the agent's act (correlation displayed, never fabricated); trigger is always a human act in the UI"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig + Swift suites green; live restart verification — quit with a live registered claude, relaunch, layout+cwd restore, resume incantation lands, agent re-registers the SAME durable identity (RFC-0008 continuity)"
+status = "done"
+category = "chore"

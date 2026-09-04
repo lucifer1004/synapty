@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LEVEL-CONTROL"
+title = "The Level Is Set While Running, Never By Restarting"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A verbosity that can only be changed by restarting is not adjustable on the machines where it matters. Restarting a hub severs A2A for every agent working on that machine — the hub outlives the workbench precisely so that work survives a workbench restart — so "raise the level and reproduce it" would cost the thing being diagnosed.
+
+Requirements:
+
+- A HUB MUST ACCEPT A LEVEL CHANGE WHILE RUNNING, on the same anonymous one-shot connection that carries `hub_info` — a connection that registers nothing and holds no identity. A DEDICATED FRAME, not a field on `hub_info`: a frame named for asking must not also set, or the next reader cannot tell which calls are safe to repeat.
+- THE WORKBENCH SETS IT ON EVERY HUB IT OPERATES, its own and each peer hub it holds a direct connection to. That connection is an OPERATOR relationship — the workbench established the tunnel — and is deliberately not the relay link: [[RFC-0009]] C-BOUNDARIES gives a hub three kinds of connection, and a control frame belongs to the OBSERVER kind rather than the relay one — that clause enumerates this frame in the observer set by name.
+- THE LEVEL IS THE HUMAN'S INTENT AND THEREFORE SHARED CONFIGURATION, so one machine's choice applies to the fleet. It is not machine state.
+- A HUB STARTED BEFORE ANY WORKBENCH REACHES IT RUNS AT ITS DEFAULT until told otherwise, and this MUST be stated wherever the setting is presented. A hub that self-heals after a reboot is exactly the case; presenting the setting as universally in force would be the same overstatement this RFC exists to remove.
+- WHAT THE APPLICATION CANNOT CONTROL MUST NOT BE PRESENTED AS CONTROLLED. On macOS, `debug` and `info` are not persisted by the unified log without a system-level configuration change the application cannot make. Lowering the level suppresses emission and works; raising it to `debug` additionally requires that change, and the interface MUST say so rather than appear to have taken effect."""

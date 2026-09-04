@@ -1,0 +1,76 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-009"
+title = "A session is identified by a claim its holder holds, not by a pid"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+[[WI-2026-08-29-008]] swept a record when `kill(pid, 0)` said its process
+was gone. That question is about a NUMBER. A holder that died and had its
+number handed to an unrelated process answers alive, which left two
+defects behind it:
+
+- the tombstone was unsweepable, so the litter that WI-008 set out to
+  clear could still accumulate; and
+- `synapty end` on such a record read `alive`, and sent SIGTERM to the
+  stranger wearing the number.
+
+The second is the serious one, and nothing in the code said the pid might
+not be the holder's.
+
+A record now carries a claim — `flock` on the record file, taken by the
+holder before it writes and held open for the session's whole life. The
+claim is bound to the open file rather than to a process id, and the
+kernel releases it however the owner dies: exit, SIGKILL, a reboot. So
+"is the holder there" stops being a guess about a number and becomes the
+kernel answering about that exact process.
+
+The record is no longer truncated before the claim is taken. A second
+holder taking a name a live one already holds is refused, and must leave
+that holder's record as it found it: truncating first would land while
+the claim did not, describing a running session with an empty file that
+nothing can parse and nothing will sweep."""
+notes = ["""
+A session started by a build without the claim reads as unclaimed and will
+be swept by the first listing from a build with it. That is not worth
+compatibility code in an unreleased project, but it is worth saying: the
+sweep unlinks the socket of a still-running holder, which leaves that one
+session unattachable and unendable until its child exits. Restarting the
+workbench after installing this build clears it. The machine this was
+written on had two such sessions, and the new binary was deliberately not
+run against the real state directory."""]
+
+[[content.acceptance_criteria]]
+text = "sys.tryClaim and sys.openForClaim wrap flock, never blocking"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Record.write takes the claim and returns it; the holder holds it open and closes it in stop"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Record.ownerGone replaces Record.alive, which is removed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty end asks the claim before signalling, so a reused pid is not sent SIGTERM"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the record is claimed before it is truncated, so a refused second holder leaves a live record intact"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a record naming this very process, held by nobody, is swept — the reused-pid shape, in the unit tests and in the holder e2e"
+status = "done"
+category = "chore"

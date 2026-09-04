@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- Wake is NOT a message channel. No payload, no sender, no count rides the
+  injection (C-TEMPLATE). Anything that turns the wake line into a data
+  carrier is out.
+- Wake does NOT answer questions. A `waiting` modal is the human's to
+  resolve; auto-confirming prompts, however convenient, is out of scope
+  for this protocol permanently, not just deferred.
+- No harness-side integration: this RFC deliberately requires nothing from
+  Claude Code / codex / gemini — no hooks, plugins, or wrapper processes.
+  If harnesses ever grow a real wake API, a successor RFC can prefer it;
+  the typed-input path is the lowest common denominator that works today.
+- No delivery guarantees. A wake can stall (C-WAKE-ACK) and the failure
+  surface is the human. Retry queues, escalation chains, and
+  cross-workbench wake routing are V2+ territory ([[RFC-0001]] L5).
+- Peer-directed prompting (agent A composes text typed into agent B's pane,
+  herdr's `agent prompt`) is explicitly NOT adopted: it moves peer-authored
+  bytes across the input boundary that C-TEMPLATE exists to seal. If a
+  future RFC wants it, it must confront that boundary head-on."""

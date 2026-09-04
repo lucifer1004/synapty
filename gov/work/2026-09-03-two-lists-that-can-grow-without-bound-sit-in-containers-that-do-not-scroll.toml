@@ -1,0 +1,64 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-013"
+title = "Two lists that can grow without bound sit in containers that do not scroll"
+status = "active"
+created = "2026-09-03"
+started = "2026-09-03"
+refs = [
+    "RFC-0014:C-END",
+    "RFC-0015:C-PANE-ARCHIVE",
+]
+
+[content]
+description = """
+Two surfaces render a list whose length the human does not control, in a
+container with no scrolling. Past the fold the rows are drawn and cannot be
+reached. Both files already scroll on a SIBLING path, so each is an
+inconsistency within one view rather than a missing convention.
+
+hub issue #4, "Still Runing List cannot scroll" — Sources/Features/Hosts/HostSidebar.swift.
+`workspacesSection` puts its rows in a ScrollView; `stillRunningSection` puts
+its rows in a bare LazyVStack, and the sidebar's own body is a plain VStack, so
+nothing above supplies scrolling either. The section's length is the number of
+archived panes plus every holder every connected host reports plus every agent
+the hub knows elsewhere — none of which the human bounds.
+
+hub issue #3, "Open port list overflow" — Sources/Features/Panel/ServicesView.swift.
+The body picks between `picker` and `nothingExposed`. `picker` — the path taken
+once something IS exposed — wraps everything in a ScrollView, `unclaimed`
+included. `nothingExposed` — the path taken when nothing is, which is where a
+human presses "Look for listening ports" — is a bare VStack, and the discovery
+puts one row on it per listening port. The issue's own words are "when opening
+services and there are too many open ports": that is this path.
+
+FIXED NARROWLY, ON PURPOSE. The obvious alternative for the sidebar is one
+outer ScrollView over the whole body, which is the ordinary macOS shape. It is
+not taken here: the existing ScrollView carries `.scrollContentBackground`, the
+`.task` ticker that drives `refreshRemoteSessions`, and a
+`.confirmationDialog`, and relocating three load-bearing modifiers on a view
+with this much recorded history about drag targets and key focus
+([[WI-2026-08-17-028]], the removed container-level Return handler) is out of
+proportion to making a list reachable."""
+notes = [
+    "THE SIDEBAR'S TWO SCROLL REGIONS SHARE THE HEIGHT, and how they share it is left to SwiftUI rather than tuned here. The reported defect is that the section could not scroll at all; giving it a scroll container answers that. What proportion of the sidebar each section deserves when both are long is a design judgement, and one nobody has looked at on screen yet — worth revisiting with eyes on it rather than settling from the source.",
+    "The Services panel needed no such judgement: `nothingExposed` has no sibling competing for the height, so one scroll container over the whole branch is the entire fix and matches what `picker` beside it has always done.",
+    'THE UI SUITE COULD NOT BE RUN, and the reason is worth writing down because it will meet the next person: macOS UI automation does not work against a locked screen. `CGSSessionScreenIsLocked` was true on this machine, and `just test-ui` fails two different ways because of it — with the app running it reports "Timed out while enabling automation mode", and with the app quit the runner launches and xcodebuild then sits at 0% CPU until it is killed. Neither is a test failure and neither has anything to do with the change under it. Quitting Synapty first, which the recipe does not do and `test-swift` does, makes no difference; the screen is what matters. So `just test-ui` needs a machine somebody is logged into with the screen awake, and the pixels here are backed by the Swift suite and by review rather than by a screenshot.',
+    "COMPLETED AND PARTLY CORRECTED AFTERWARDS. The note above records that `just test-ui` cannot run against a locked screen; `just test-swift` cannot either, and that is the worse of the two because its filter prints nothing but `** TEST FAILED **` with no failing case named — which reads as a code defect. It was read as one here: the red was blamed first on the change under test, then on a pkill poisoning the test host, and three remedies for that poisoning were tried and failed (deleting DerivedData, touching a source file and rebuilding, unregistering the installed copy). The same commit went green the moment the screen was unlocked. Both recipes in the justfile now say so above them, because the failure never will.",
+]
+
+[[content.acceptance_criteria]]
+text = "the Still Running section scrolls, so a row past the fold can be reached"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the Services panel's discovered-ports list scrolls on the path where nothing is exposed yet"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the Swift suite stays green and the change is confined to adding scroll containers — no behaviour, no data, no layout outside the two lists"
+status = "done"
+category = "chore"

@@ -1,0 +1,83 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0004"
+title = "Agent Presence Protocol — Status Vocabulary, Event Stream, and Wait Primitive"
+version = "0.2.1"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-09"
+updated = "2026-08-25"
+refs = [
+    "RFC-0001",
+    "RFC-0003",
+]
+signature = "63905aad3fec0c6e3bd82a289a06df6ae9861725400d758e7a91249b8885f8ac"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = ["clauses/C-CONFORMANCE.toml"]
+
+[[sections]]
+title = "Motivation"
+clauses = [
+    "clauses/C-NOTIFY-GAP.toml",
+    "clauses/C-ONE-LANGUAGE.toml",
+]
+
+[[sections]]
+title = "Status Model"
+clauses = [
+    "clauses/C-VOCABULARY.toml",
+    "clauses/C-OWNERSHIP.toml",
+    "clauses/C-PRECEDENCE.toml",
+]
+
+[[sections]]
+title = "Passive Detection"
+clauses = ["clauses/C-PASSIVE-DETECTION.toml"]
+
+[[sections]]
+title = "Event Stream"
+clauses = [
+    "clauses/C-EVENT-LOG.toml",
+    "clauses/C-SUBSCRIPTION.toml",
+]
+
+[[sections]]
+title = "Wait Primitive"
+clauses = ["clauses/C-WAIT.toml"]
+
+[[sections]]
+title = "Non-Goals"
+clauses = ["clauses/C-NON-GOALS.toml"]
+
+[[changelog]]
+version = "0.2.1"
+date = "2026-08-25"
+notes = "C-WAIT and C-SUBSCRIPTION carry the federation behaviour RFC-0009 C-PRESENCE requires of them"
+changed = [
+    "C-SUBSCRIPTION names peer_reachable and unknown_cause rather than describing one and omitting the other",
+    "C-WAIT fails immediately for a target whose peer cannot report presence and for a contested identity, and its payload distinguishes all five remote failures — the fifth being a view too incomplete to say whether the name exists",
+    "C-SUBSCRIPTION carries the absence rule for hosting_peer and peer_reachable, so a single-hub snapshot is byte-for-byte what it was",
+]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-11"
+notes = "RFC-0008 coordination: connection-scoped generations, scoped status preservation, extensible event kinds"
+added = ["C-EVENT-LOG kind set declared extensible by later normative RFCs; consumers must ignore unknown kinds"]
+changed = [
+    "C-WAIT generation continuity becomes connection-scoped (same-connection re-register keeps the generation; different-connection binding and the RFC-0008 identity upgrade end it with a hub-synthesized agent_unregistered)",
+    "C-OWNERSHIP status preservation scoped to same-generation re-registration (re-home/upgrade does not carry status)",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-09"
+notes = "Initial draft — presence protocol: five-state vocabulary, ownership, dual-source precedence, hub event log + subscription, wait primitive"

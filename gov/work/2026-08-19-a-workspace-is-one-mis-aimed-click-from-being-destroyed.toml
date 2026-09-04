@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-007"
+title = "A workspace is one mis-aimed click from being destroyed"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = ["RFC-0015"]
+
+[content]
+description = """
+A workspace is destroyed by a hover-revealed × in the sidebar, by a context-menu item, and by an accessibility action. None of the three asks, and nothing records what was destroyed, so nothing can put it back.
+
+RFC-0015 C-WORKSPACE: "A workspace MUST be destroyed only by an explicit human act, and that act MUST be confirmable or reversible — it discards a layout the human may have arranged over days." The act is explicit; it is neither of the other two.
+
+CONFIRMATION IS THE CHOSEN HALF. The clause allows either, and undo would be better, but undo means keeping a copy of a destroyed layout somewhere with a lifetime and a size, which is a design rather than a dialog. Confirmation is what this work item delivers; the choice is recorded so that a later reader does not read the cheaper option as the only one considered.
+
+WHAT THE CONFIRMATION MUST SAY is not "are you sure". A human with several workspaces open is told nothing by that. It names the workspace, and it says what is being discarded — panes, and on how many machines — because the cost of the act is the arrangement rather than the container.
+
+RELATED BUT NOT THIS. Restore currently drops an entire workspace when a host it referenced has been deleted from the host store, which destroys a layout with no human act at all. That is a violation of this same clause and of C-RESTORE, and it is tracked separately."""
+notes = ["The 'asks from every path' half is held by a SOURCE guard rather than a UI test: what the clause requires is that no path destroys a workspace without asking, and 'no path' is a statement about the whole file rather than about a run. Driving the gestures was tried first — the hover-revealed close button and the row's context menu are both unreliable to reach from XCUITest, the menu because SwiftUI's is not in the accessibility tree until it is open. The guard is stronger for this particular obligation anyway: it fails on a FOURTH path added later by somebody who did not know there was a question to ask, which is the failure named in the description and the one a gesture test would not see."]
+
+[[content.acceptance_criteria]]
+text = "Destroying a workspace asks first, from every path that can destroy one"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "The question names the workspace and says what is being discarded, rather than asking whether the human is sure"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The choice of confirmation over undo is recorded with its reason"
+status = "done"
+category = "chore"

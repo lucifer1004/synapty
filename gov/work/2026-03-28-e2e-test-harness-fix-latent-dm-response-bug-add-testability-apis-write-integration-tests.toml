@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-006"
+title = "E2E test harness: fix latent DM response bug, add testability APIs, write integration tests"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+description = "Fix latent bug where Hub handleDm/handleChannelMsg never send success response to sender, add HubServer.initWithAddress and RunServer.startThreads testability APIs, create src/e2e_test.zig with raw-TCP integration tests for register handshake, DM routing, channel fan-out, disconnect cleanup, and line buffering."
+
+notes = [
+    "2026-03-28 (protocol): All acceptance criteria met. Fixed latent DM/channel_msg response bug, added testability APIs, wrote 5 e2e integration tests.",
+]
+[[content.acceptance_criteria]]
+text = "Hub handleDm sends success response after delivery"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Hub handleChannelMsg sends success response after fan-out"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HubServer.initWithAddress(addr, port) with port 0 support"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RunServer.startThreads() without child process"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e test — register handshake"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e test — DM routing and delivery"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e test — DM to unknown agent returns error"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e test — disconnect cleanup"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e test — channel create + send fan-out"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

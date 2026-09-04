@@ -1,0 +1,42 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- No cross-restart message durability WAS a non-goal here; it was
+  subsequently delivered (durable hub state), and
+  [[RFC-0009]] C-DELIVERY now requires the spool to persist with the
+  mailbox for the same reason. Recorded rather than deleted, so the
+  reversal is visible.
+- No cross-machine identity MIGRATION WHILE TWO CLAIMS ARE LIVE: an
+  identity lives on one hub and does not hand off to another while both
+  hubs claim it ([[RFC-0009]] C-IDENTITY-SCOPE — the re-home arbitration
+  needs evidence no second hub has).
+  A CLAIM AGAINST A TOMBSTONE IS NOT THAT CASE and is not forbidden
+  here: [[RFC-0009]] C-DIRECTORY calls it a MOVE, which is the ordinary
+  shape of an agent changing machines — the hub it left is gone or has
+  withdrawn, so there is only one live claim and nothing to arbitrate.
+  Refusing it would make a re-home unroutable for the whole tombstone
+  retention, which is deliberately no shorter than the spool TTL. SUPERSEDED in
+  part: this bullet previously deferred all cross-hub identity to
+  [[RFC-0001]] L5. [[RFC-0009]] lifted that deferral, finding durable
+  ids already globally meaningful as derived (a session UUID collides
+  across machines only where it would collide on one) and requiring only
+  the `local-` fallback to be peer-qualified. What survives is the
+  migration restriction above.
+- No authentication or identity attestation beyond C-TRUST's two
+  adopted hardenings (known, deliberately deferred debt).
+- No human-facing naming layer: friendly aliases ("reviewer") over
+  durable ids are a UX feature, not identity semantics; they can land
+  later without touching this contract.
+- No retroactive migration: task-center artifacts already written with
+  pane ids stay as they are — the dogfood history keeps its dead ids
+  as a record of why this RFC exists. LIVE claims held by dead pane
+  ids at cutover are the human's to unclaim manually (V1); no
+  automatic reassignment."""

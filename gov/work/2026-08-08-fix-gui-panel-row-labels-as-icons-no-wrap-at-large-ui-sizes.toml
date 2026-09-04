@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-082"
+title = "fix(gui): panel row labels as icons — no wrap at large UI sizes"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Bug report: with a large UI Size, the Terminal panel's text labels (Opacity, Cursor, ...) wrap because the fixed 52pt label column is too narrow at scaled font sizes.
+
+Fix: replace the text labels with fixed-width SF Symbol icons (sun.max / moon / textformat / textformat.size / opacity / cursorarrow) that do not scale with the UI font; each icon keeps a tooltip + accessibility label. Row height stays uniform at any UI size."""
+
+[[content.acceptance_criteria]]
+text = "panel row labels are icons (no text wrap at any UI size)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "icons carry tooltip + accessibility label"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

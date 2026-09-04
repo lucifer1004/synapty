@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-016"
+title = "fix(holder): the fd lifetime rule, and the first frame that can wedge the session"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 01 #4 #5 #15. retainAndDeliver reads the client fd under the lock and
+writes after releasing it; the departed client's loop closes that fd and
+accept can hand the number to the next client — the child's output, and on
+error a shutdown, land on somebody else's connection. The hub's
+connection.zig understands this hazard and engineers around it, which is
+what makes the holder stand out. The handshake's first readFrame has no
+deadline, so one connection that never speaks wedges the whole control
+surface of that session; the query side sets deadlines, the accept side
+does not. stop() leaves a client thread parked in read touching self after
+return.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "the attached client's fd is only closed under the mutex (attach/detachClient), or every write re-validates the generation under the mutex first, so an fd reused by accept can never receive another session's output (holder.zig:1493, :1987); pinned by a test that displaces during output"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the handshake's first read has a receive timeout (holder.zig:1543) so a silent connection cannot park the accept loop and with it status, end and attach"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "stop() shuts the client fd and joins the client thread, or its contract says it is terminal (holder.zig:1407)"
+status = "done"
+category = "fixed"

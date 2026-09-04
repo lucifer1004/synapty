@@ -1,0 +1,49 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Every machine that hosts agents runs a hub; agents always connect to the
+hub on their own machine over loopback; hubs peer with one another to
+carry cross-machine traffic. This RFC specifies that peer protocol.
+
+It exists because five accepted RFCs quietly assume a single hub —
+RFC-0003, RFC-0004, RFC-0005, RFC-0007 and RFC-0008, each of which
+carries a federation qualifier from this one — and that assumption fails
+silently rather than loudly once a second hub exists.
+
+THE SHAPE IS BORROWED FROM MAIL. SMTP separated SUBMISSION, a client
+handing a message to its own server as one identity, from RELAY, servers
+handing messages to one another and carrying many identities at once.
+Keeping those apart is what lets the connection-scoped invariants in
+RFC-0004, RFC-0007 and RFC-0008 survive federation — nearly all of them
+untouched, and one displaced rather than preserved: RFC-0008 C-IDENTITY
+resolves an envelope's source from the connection binding, and a relay
+link has no binding to resolve from. C-BOUNDARIES also carries a third
+kind this summary's two do not name — an OBSERVER connection, which holds
+no identity and neither submits nor relays.
+
+The routing rule is one sentence: deliver locally what is local, forward
+to the hosting peer what is not, hold what cannot be forwarded yet. There
+are no modes and no promotion — the unreachable case is the same rule
+with a queue in it.
+
+THIS DOCUMENT WAS CUT BACK, and the shape of the cut is worth knowing
+before reading it. It had grown capability negotiation, a protocol
+version move, a taxonomy of sixteen event kinds and a re-targeting
+taxonomy of six transitions — machinery for code that did not exist,
+around a design that did. What STAYED is the part a second hub actually
+breaks, including store-and-forward: the cut first took that out too, on
+the authority of a "happy path only" posture the project has since left
+behind, and putting it back is the correction. C-NON-GOALS records what
+went and why.
+
+What federation deliberately does NOT create: a global event ordering, a
+central directory service, or any authority a single hub does not already
+have over its own machine."""

@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-033"
+title = "fix(gui): view polish — font enumeration, minSize, lastFrames prune, debounce flush, removeLeaf contract"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 warnings/info (SwiftUI views): (1) NSFontManager enumeration off the main thread is unsupported — switch to the thread-safe CoreText API; (2) AppDelegate minSize loop is likely dead under the SwiftUI lifecycle — enforce the min size where the window exists; (3) lastFrames grows unboundedly (never pruned on leaf close); (4) TerminalSettingsPanel loses the final slider value when closed within the 100ms debounce; (5) updateNSView's deferred makeFirstResponder can fire after the user already clicked elsewhere; (6) SplitTree.removeLeaf cannot distinguish removed from not-found."
+notes = ["font enumeration via thread-safe CTFontManager (NSFontManager off-main was unsupported); minSize 760x480 enforced on the real window (ContentView.onAppear); lastFrames pruned when leaves close; panel debounce flushes on disappear (slider value no longer lost); deferred makeFirstResponder re-checks state; SplitTree.removeLeaf returns .removed/.notFound explicitly (tests rewritten — the old 'returns same tree' test asserted the bug)."]
+
+[[content.acceptance_criteria]]
+text = "fix: font enumeration uses a thread-safe API (CTFontManager)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: the 760x480 minimum window size is enforced on the actual window"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: lastFrames is pruned when leaves close; panel debounce flushes on disappear; deferred focus re-checks state"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: SplitTree.removeLeaf reports removed vs not-found explicitly"
+status = "done"
+category = "fixed"

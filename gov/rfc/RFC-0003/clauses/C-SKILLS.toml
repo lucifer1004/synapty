@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SKILLS"
+title = "Skills — Teaching Agents the CLI"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Agents learn the task CLI through skills documents, not platform MCP
+configuration. This is V1 deliverable #6 ("Agent Skills", per the V1 scope) restored
+as the primary integration surface.
+
+- The canonical skills live in the repository under `src/skills/`, embedded into the binary at compile time via @embedFile, so `skills install` always distributes the version matching the binary. There are TWO and the plural is load-bearing: `synapty` teaches the task and messaging CLI, `synapty-present` teaches the presentation verbs. A clause naming one of them tells an implementer to ship half the integration surface.
+- `synapty skills install` copies both to the skill-directory convention of all three platforms — `~/.claude/skills/`, `~/.codex/skills/` and `~/.gemini/skills/`, each holding a `synapty/` and a `synapty-present/` directory — overwriting to stay current (idempotent by construction). It is the CLI's own business which names it writes and which it removes; this clause names the directories rather than the files inside them, because a clause that enumerates file paths goes stale every time a reference page is added. Skills load on demand, so they
+  never pollute global instruction files (AGENTS.md / GEMINI.md);
+  `skills install` also strips any previously appended sections from
+  those files. Manual copy is equally supported.
+- `synapty github login` remains the only credential step and runs once on
+  the login device; everything else is configuration-free.
+
+The MCP config templates in `configs/` are deprecated and no longer part of
+the onboarding path."""

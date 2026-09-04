@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-022"
+title = "feat(agents): P2 semantic agent status — synapty notify CLI, hub agent_status, leaf-agent mapping, waiting/done drive attention"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Semantic layer on top of P1. KEY simplification: every leaf's spawn command already carries a unique synapty-run agent id (local-XXXX / remote deploy id) — Swift just discarded it on split. So agent->pane location is a PURE SWIFT map (leafAgents recorded at the four spawn sites), and the Zig surface shrinks to one additive path: synapty notify --state working|waiting|done -> IPC .notify (state field, additive to IpcRequest) -> daemon (identity from the run wrapper's socket) -> hub agent_status envelope -> registry AgentInfo.status -> list_agents payload -> AgentMonitor. Semantics: waiting/done set attention (review me), working clears. Claude Code hooks (Notification->waiting, Stop->done) land in the Agent Skills deliverable (P3, separate WI)."
+
+[[content.acceptance_criteria]]
+text = "swift suite green; live E2E — synapty notify from inside a pane flips the cascade in the GUI"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "zig side — IpcAction.notify + IpcRequest.state; cli notify subcommand; daemon forwards agent_status; registry stores status; list_agents emits status; zig build test green with new round-trip/registry/handler tests"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "swift side — leafAgents map at all four spawn sites + cleanup; AgentInfo.status parsed; waiting/done -> leaf attention via the P1 pipeline, working clears; agent badge on the owning tab"
+status = "done"
+category = "added"

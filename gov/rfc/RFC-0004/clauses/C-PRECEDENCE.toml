@@ -1,0 +1,47 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRECEDENCE"
+title = "Signal Merge — Acceptance Rules in Log Order"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Merging is defined over the hub event log: signals are ingested in log
+order (hub-assigned sequence numbers — arrival order at the hub, never
+sender-supplied timestamps), and the current status is the state set by
+the most recently ACCEPTED signal. Acceptance rules:
+
+1. Agent notify signals are always accepted. The workbench `idle` signal
+   is accepted only when the prior merged status is `done` at application
+   time; otherwise it is inert — this closes the race where the human
+   focuses a pane just as it turns `waiting` and a stale-view `idle`
+   would clear an attention state gaze cannot legitimately clear.
+2. Passive signals are edge-triggered: the detector emits a signal only
+   when its classification of a pane CHANGES from its own previous
+   classification. The first classification of a never-before-classified
+   pane counts as an edge, and the detector's classification memory
+   resets when the pane's registration generation changes (C-WAIT) — a
+   new occupant's first state is always an edge even if it matches the
+   previous occupant's last. Re-observing the same screen state (a
+   completion banner sitting unchanged for minutes) is not a signal.
+   This is what makes focus-to-clear stable: after the workbench asserts
+   `idle`, an unchanged screen cannot re-assert `done`.
+3. A passive edge to `working` or `waiting` is accepted regardless of
+   prior status — this is the point of dual sourcing: an agent that said
+   `working` ten minutes ago and now shows a permission prompt is
+   `waiting`; an agent that said `waiting` but whose screen is streaming
+   output again is `working`.
+4. A passive edge to `done` is accepted only when the prior status is
+   `working` or `waiting`. Without observed prior work, a rest-prompt
+   match MUST NOT manufacture attention — a freshly opened agent sitting
+   at its prompt is not "done".
+5. No-match is inert: when no manifest rule matches, the detector emits
+   nothing and the last accepted status stands — absence of evidence is
+   not evidence of absence. `unknown` enters only through lifecycle
+   signals (C-OWNERSHIP).
+6. The merged result is THE status — exactly one value per agent, stored
+   at the hub, emitted in `list_agents`, pushed as events, rendered by
+   every consumer. Consumers MUST NOT re-derive status from raw signals."""

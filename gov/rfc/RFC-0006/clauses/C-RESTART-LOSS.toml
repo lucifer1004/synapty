@@ -1,0 +1,29 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESTART-LOSS"
+title = "Motivation — A Restart Kills the Fleet"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Experienced live on 2026-08-11: relaunching the workbench to pick up a
+build killed every pane, including two agents mid-collaboration. What was
+lost was not the layout (session restore covers that) but the processes and
+their in-context state: each harness had to be restarted by hand and had
+forgotten everything not written down.
+
+herdr demonstrates the full remedy ladder: managed starts ('agent start
+<name> --kind <tool>' spawns into a pane with validated identity), resume
+plans (after a restart, agents re-launch from a recorded plan), and at the
+top, live PTY handoff between server generations so panes survive upgrades
+entirely. Modern harnesses make the middle rung genuinely effective —
+Claude Code ('claude --resume <session>' / '--continue'), codex ('codex
+resume'), and peers persist session transcripts and can reattach to them,
+so a relaunched process recovers its conversation. The workbench's job is
+to remember WHICH session lived in WHICH pane and replay the right
+incantation — bookkeeping it is uniquely positioned to do. Registration metadata
+has an anticipated additive slot for exactly this ([[RFC-0004]]
+C-NON-GOALS deferred a resume-ref field); C-RESUME-PLAN defines it."""

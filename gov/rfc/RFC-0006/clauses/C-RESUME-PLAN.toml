@@ -1,0 +1,71 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESUME-PLAN"
+title = "Resume Plans — Per-Tool Data, Recorded at Runtime"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+A resume plan is the recorded answer to "how do I bring THIS pane's agent
+back", captured while the agent is alive.
+
+Resume identity (the additive registration extension [[RFC-0004]]
+C-NON-GOALS anticipated):
+
+- This RFC defines an OPTIONAL register-time field `resume_ref`: the
+  harness-native session identity usable by the tool's resume entry
+  point (e.g. Claude Code's session id for 'claude --resume <id>'). The
+  hub MUST store and expose it like other registration metadata; a
+  re-register MAY refresh it under [[RFC-0004]]'s metadata-update rules
+  (metadata updates never touch status). Skill packages for tools that
+  support resume MUST teach supplying it.
+- resume_ref is agent-influenced bytes destined for a typed-input
+  channel, so the defense is VALIDATION, not escaping: a resume_ref MUST
+  match a conservative allowlist — printable, no whitespace, no control
+  characters, bounded length (harness session ids are UUIDs/slugs, so
+  this costs nothing). A value failing validation, or an agent that
+  never supplied one, degrades the plan to launch-fresh (below). The
+  composed incantation MUST be a single line.
+
+Plan contents and lifecycle:
+
+- For every agent-bearing pane the workbench MUST maintain a resume
+  plan: tool, working directory, host, and the incantation derived from
+  a per-tool template plus the validated resume_ref. Template
+  application is substitution from a fixed field set only.
+- Resume templates MUST be per-tool data files (same location discipline
+  as detection manifests: bundled defaults + user override).
+- Plans MUST be persisted with the session snapshot. Drop triggers are
+  OBSERVABLE acts only: the pane closing, or the agent's explicit
+  unregister. Plans MUST NOT drop on connection loss or workbench
+  shutdown — those are exactly the moments plans exist for.
+- WHETHER A REJOINED PANE MAY BE RESUMED IS C-RESUME-RESTORE'S ANSWER, NOT THIS CLAUSE'S. This bullet used to settle it here — "there is nothing to resume", citing [[RFC-0015]] C-UNARCHIVE — and both halves have since been retracted: a live holder holds a SESSION, and whether the harness is still running in it is what [[RFC-0014]] C-FOREGROUND answers. One document cannot hold two answers to one question, and this is the clause that gives way, because the offer's existence is C-RESUME-RESTORE's subject and the plan's contents are this one's.
+  This clause governs the case where the process is genuinely gone — a
+  machine that rebooted, a holder that died, a session the human chose
+  to make non-durable ([[RFC-0014]] C-SCOPE). Resume is the fallback
+  for that case and not the ordinary path; an implementation that
+  treats it as the ordinary path is answering a question the holder
+  already answered.
+- Degrade path: no template, no resume_ref, or failed validation → the
+  plan records the tool's OWN PICKER rather than nothing at all, where
+  the tool has one. A picker asks the human which conversation this
+  pane held, and they are the only party who knows. A session id is the
+  worst available representation of that question — a UUID nobody
+  recognises — and the effort spent trying to acquire one accurately
+  was effort spent not asking whether it had to be acquired at all.
+- THE DISTINCTION IS WHETHER IT ASKS OR ASSUMES, not whether it can
+  address a specific session. An earlier form of this clause drew the
+  line in the wrong place and got its own example backwards: bare
+  `codex resume` opens a picker, and `codex resume --last` is the form
+  that silently takes the most recent. A form that ASKS is admissible
+  with two panes in one cwd, because the human resolves an ambiguity
+  the workbench cannot. A form that ASSUMES — `--last`, `--continue`,
+  or any per-directory "the previous one" — MUST NOT be typed on the
+  human's behalf and MUST NOT be presented as precise continuity.
+- Where a tool has neither a validated ref nor a picker, the plan
+  records that there is nothing to type, and the UI marks the pane
+  restarted-without-context rather than pretending continuity."""

@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-020"
+title = "fix(cli): every attach path honours the detach key, and the fallbacks stop hanging"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 02 H1 H2 M3 M4 M5 M7. The local attach learnt its lessons — detach key,
+poll-don't-block — and the newer transport paths did not inherit them: on a
+--through attach raw mode eats Ctrl-C and ^] does nothing, so the human is
+trapped, and the relay lingers after the session ends until a keystroke
+arrives. The pre-IPC direct-hub fallbacks are the other unloved half: recv
+out of a pane is dead code that hangs forever under --wait; a stale
+SYNAPTY_SOCK dumps a stack trace, which [[RFC-0003]] forbids; agents reports
+failure as success on stdout.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "attach --through and --relay run input through Detach.step so the documented ^] works everywhere (commands.zig:2950), and runRelay polls stdin with waitReadable so it exits when the session ends"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "out-of-pane recv either drains a named mailbox (--id) or refuses with the exit-2 not-in-a-session path; recv --wait can no longer hang with zero possibility of success (commands.zig:311)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a stale SYNAPTY_SOCK falls back to the hub path or exits 2 with the session error, never a propagated connect error (commands.zig:44); the agents fallback read has a timeout and reports no answer on stderr non-zero; runAsk treats a failed poll as not-yet with a bounded retry"
+status = "done"
+category = "fixed"

@@ -1,0 +1,64 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-014"
+title = "Review governance impact of synapty run wrapper design"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-27"
+refs = [
+    "RFC-0001",
+    "ADR-0001",
+]
+
+[content]
+description = "Implement the MCP agent integration plan: synapty run wrapper, unix socket IPC, MCP stdio server, CLI refactor, agent platform configs, and ADR-0001 amendment."
+
+notes = [
+    "2026-03-27 (mcp): MCP integration plan fully implemented. 6 phases complete: protocol IPC types, hub list_agents, unix socket IPC, synapty run wrapper, MCP stdio server, CLI integration with SYNAPTY_SOCK dual-path, agent platform configs, ADR-0001 amended. 49/49 tests passing.",
+]
+[[content.acceptance_criteria]]
+text = "RFC-0001 impact assessed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ADR-0001 impact assessed and amended if needed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "synapty run --id <id> -- <cmd> wrapper with persistent Hub connection"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Unix socket IPC (IpcServer/IpcClient) for child process communication"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "MCP stdio server with synapty_send/recv/agents tools"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "CLI send/recv/agents use SYNAPTY_SOCK when available"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Agent platform config templates (Claude Code, Codex, Gemini)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ADR-0001 amended with synapty run + MCP design"
+status = "done"
+category = "added"

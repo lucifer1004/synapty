@@ -1,0 +1,51 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-010"
+title = "fix(test): a suite run rewrote the operator's real settings to defaults"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "WI-2026-08-14-003",
+    "WI-2026-08-14-006",
+]
+
+[content]
+description = """
+Running `just test-swift` rewrote `~/.config/synapty/shared/settings.json` to defaults. Deterministically: restore the file, run the suite, and the font, size, both themes and the UI scale are gone.
+
+THIS WAS THE ACTUAL CAUSE OF THE REPORTED FAULT, and [[WI-2026-08-14-003]]'s diagnosis was wrong about the source. That work item blamed a second Mac uploading untouched defaults, and the mechanism it describes is real — an unconfigured machine's defaults are indistinguishable from an edit, and the fixes there stand on their own. But the settings on THIS machine were being erased by the test suite, three times over a day, while the investigation looked at sync. What made it convincing was that the suite runs constantly during development, so every check of the file came after one.
+
+The evidence that separated them: the file's mtime was 11:43, the merge base's 13:49. Sync had touched the base and not the file — so whatever wrote defaults at 11:43 was not sync, and 11:43 was a suite run.
+
+THE BOUNDARY, AGAIN. The Swift tests run HOSTED IN THE APP, so the app's own startup path and its singletons run inside the test process with the operator's machine underneath. Isolation was per-test opt-in — `setUpSettingsStorage`, `HostStore.storageOverride` — which covers only the tests that remember it and covers none of the app code a hosted test drags in. [[WI-2026-08-14-006]] drew this line for the hub and left storage where it was.
+
+`ConfigPaths.root` now resolves to a per-process temporary directory when XCTest is present, so no code path has to know it is under test. The seam that existed (`rootOverride`) stays for tests that want a specific location; what changed is that forgetting it is no longer dangerous.
+
+WORTH SAYING PLAINLY: the operator's hosts were exposed to the same hole for as long as settings were. 78 host records sat under the same root, and only the discipline of calling `setUpHostStoreStorage` kept them — a discipline that had already failed once for hosts.json before today."""
+notes = ["""
+VERIFICATION — live, and the defect was reproduced before it was fixed. Restore settings.json, hash it, run the full suite, hash again: before the fix the hash changed and the file was defaults; after it, the hash is identical and the 78 host records are still there. 390 Swift tests pass.
+
+`testATestHostNeverResolvesToTheRealConfigRoot` asserts the boundary from inside the suite, so the guarantee is checked by the thing it protects against rather than taken on trust."""]
+
+[[content.acceptance_criteria]]
+text = "a suite run leaves the operator's settings.json byte-identical"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a suite run leaves the operator's host records untouched"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the per-test seam still works for tests that want a specific location"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a test asserts the process-level boundary rather than trusting it"
+status = "done"
+category = "chore"

@@ -1,0 +1,57 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/kiro.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "kiro",
+  "rules": [
+    {
+      "id": "tool_approval",
+      "state": "waiting",
+      "all": [
+        "requires approval"
+      ],
+      "any": [
+        "yes, single permission",
+        "trust, always allow",
+        "no (tab to edit)",
+        "esc to close"
+      ]
+    },
+    {
+      "id": "subagent_approval",
+      "state": "waiting",
+      "all": [
+        "pending from subagents"
+      ],
+      "any": [
+        "tool approval",
+        "tool approvals"
+      ],
+      "regex": "(?i)approve all pending|configure individually|exit \\(cancel subagents\\)"
+    },
+    {
+      "id": "prompt_idle",
+      "state": "done",
+      "region": "bottom(5)",
+      "all": [
+        "ask a question or describe a task",
+        "/copy to clipboard"
+      ],
+      "not": [
+        "kiro is working",
+        "esc to cancel"
+      ]
+    },
+    {
+      "id": "working_marker",
+      "state": "working",
+      "contains": "kiro is working"
+    },
+    {
+      "id": "tool_spinner_working",
+      "state": "working",
+      "all": [
+        "esc to cancel"
+      ],
+      "lineRegex": "^\\s*(◔|◑|◕|●)\\s+\\p{Alphabetic}"
+    }
+  ]
+}

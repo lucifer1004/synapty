@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WORKSPACE"
+title = "A Workspace and Its Lifetime"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A workspace is the resident container for the human's work. Its lifetime is governed by their intent alone.
+
+- A workspace MUST have a stable identity that outlives every terminal it has ever contained, and a human-visible name. The name MUST be editable and MUST NOT be required to be unique — two workspaces may both be called "release" and remain distinguishable by identity.
+- A workspace MUST hold ONE split tree, the stack of panes in each of its slots, and which pane holds focus ([[RFC-0015:C-LAYOUT]]). It MUST NOT hold a host, an agent id, or a connection state; those belong to [[RFC-0015:C-CONNECTION]].
+- A WORKSPACE MUST SURVIVE BECOMING EMPTY. Closing the last terminal in it MUST leave the workspace in place, in the state [[RFC-0015:C-EMPTY]] describes. This is the clause the previous model violated structurally: a session was removed when its last pane closed, so the container for the human's work was destroyed by the act of finishing what was in it.
+- CONNECTING TO A HOST MAY CREATE A WORKSPACE, because that is how work starts. A human dialling a machine they have not worked on is beginning something, and a container is what they begin it in; refusing to make one would mean the commonest way into this application is the one way that cannot produce the thing it produces.
+- WHAT MUST NOT HAPPEN IS THE CONTAINER TAKING THE CONNECTION'S IDENTITY. A workspace holds no host, no agent id and no connection state (above), so a workspace born this way is one that happens to contain a pane on that host and nothing more — it does not belong to the host, is not named by it beyond a default the human may change, and does not end when the connection does. An earlier draft forbade creation outright; that was aimed at the old model, in which the container WAS the connection, and it hit the gesture rather than the coupling.
+- A CONNECTION OPENED FROM INSIDE A WORKSPACE SHOULD PLACE ITS PANE THERE. The human is already somewhere, and putting the pane in a new container moves them out of the arrangement they were working in. This is a default rather than a prohibition: which of the two a given entry point means — a palette invoked mid-work, a host picked from a list — is an interaction question this document does not settle.
+- A workspace MUST be destroyed only by an explicit human act, and that act MUST be confirmable or reversible — it discards a layout the human may have arranged over days.
+- WORKSPACES ARE ORDERED, and the order is the human's: it MUST be rearrangeable by them and MUST persist ([[RFC-0015:C-PERSIST]]). It is a property of the set rather than of any workspace, which is why no workspace carries its own position.
+- A workspace MAY be pinned. Pinning MUST affect only ordering and prominence; it MUST NOT change lifetime, persistence, or connection behaviour."""

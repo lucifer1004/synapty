@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty's mission is to orchestrate agents and make them work together effectively while providing an exceptional human supervision experience. The following boundaries define what Synapty MUST NOT become.
+
+Synapty MUST NOT host, run, or manage language model inference. Agents bring their own intelligence — whether via API calls to cloud providers, local model runtimes, or any other mechanism. Synapty is the orchestration substrate, not the compute layer.
+
+Synapty MUST NOT attempt to replace code editors, IDEs, or development environments. It is a workbench that complements existing tools by managing the agent sessions that interact with them.
+
+Synapty MUST NOT dictate how agents are built, what language they use, or what LLM provider they call. Any process that can run in a PTY and optionally speak the A2A envelope protocol MUST be a valid Synapty agent.
+
+Synapty MUST NOT serve as a container runtime, process supervisor, or deployment platform for arbitrary application workloads. It manages agent lifecycles within terminal sessions.
+
+**Rationale:** These boundaries keep Synapty focused on its core value proposition — orchestration and human experience — and prevent scope creep into domains already well-served by existing tools. Violating these boundaries would dilute the project's identity and multiply its maintenance surface without corresponding user benefit."""

@@ -1,0 +1,70 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-16-001"
+title = "fix: the presentation plane from a remote host, and the wiring it was missing"
+status = "done"
+created = "2026-08-16"
+started = "2026-08-16"
+completed = "2026-08-24"
+
+[content]
+description = """
+The four primitives worked from a local pane and from nowhere else. Verifying them from a real remote host found that the plane was not merely untested there — it was broken, in four separate places — and that most of what stood in the way was a last hop nobody had connected.
+
+WHAT THIS ITEM IS FOR, beyond the fixes: the work overran [[WI-2026-08-15-011]], whose scope was stage three. Recording it as notes on a closed item left a day of behaviour changes with no acceptance criteria anyone could check.
+
+THE SHAPE WORTH CARRYING FORWARD. Nearly every fault was a caller that did not exist, in code whose comments explained thoroughly why it was needed — `withdrawAll`, `closeAllMasters`, `AgentInbox`'s tilde, `PeerSummary.missing`, `AgentInfo.unknownExplanation`, and a `cancel` that did not know about a state added an hour earlier. A good comment makes unfinished work look finished, and reviewing the reasoning is not reviewing the wiring."""
+notes = ["""
+WHAT IS NOT DONE, listed because a day that fixed this much invites the assumption that everything is.
+
+KEYBOARD REACH GOT WORSE, NOT BETTER. The application has 30 buttons carrying `.buttonStyle(.plain)` against 2 marked `.focusable()`, and today added to the first number: the notification dismiss, Keep Both / Replace / Cancel in the approval sheet, and Open in Browser. Whether that ratio is a defect has never actually been established — a plain button style is an appearance, not necessarily a focus exclusion — and establishing it needs Full Keyboard Access switched on and a keyboard driven by hand. So it is not "a known bug we did not fix"; it is a question nobody has answered, on a surface that grew today. Worth answering before it grows again.
+
+THE CONFLICT QUESTION HAS NEVER BEEN CLICKED. The pause is driven by tests through a genuine local collision, and those tests found a real defect in `cancel`. But the sheet that renders Keep Both / Replace / Cancel has not been used by a human, so what is unproven is the same last inch as the drag was: whether the control the human actually touches is wired to the decision the service is waiting on.
+
+NOT DEFECTS, AND DELIBERATELY LEFT: a locale separator on a count, which is a quantity; `TransferRunner.size` inside a detached task; a one-time local ssh-keygen at first launch; NSCoder boilerplate; and one force unwrap that cannot fail by construction and now says so. Recorded because an audit whose every finding becomes a change is one that teaches its author to fix noise."""]
+
+[[content.acceptance_criteria]]
+text = "the four verbs work from an agent in a pane on a REMOTE host, end to end through that host's own hub and the peer link"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a tool request from a remote agent reaches the workbench, and its receipt returns to the hub holding it parked"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an agent-addressed delivery lands in the inbox rather than failing on a tilde no shell expands"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "nothing an agent sends replaces a file; a human is asked before their own drag does"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "no tool call can block forever — a park that expires answers, and the CLI read is bounded"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an agent can ask where it is, and read back what it exposed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "forwards and ControlMasters do not outlive the process that opened them"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a remote hub older than the workbench is replaced on connect, and said so when it is not"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "outcomes have a surface, and the badge counts only what waits on a human"
+status = "done"
+category = "chore"

@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-016"
+title = "Two names for one connection teardown"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`hubReleaseConnection` (src/hub/server.zig:35) and `releaseDialedConnection` (src/hub/peer.zig:182) have BYTE-IDENTICAL bodies: take `all_connections_mutex`, swap-remove the connection, unlock, `closeStream`, `deinit`, `destroy`. Two names, one behaviour, in two files.
+
+It is the refcount-hits-zero path, so the two are not free to drift: a fix applied to one and not the other is a leaked connection or a use-after-free, and neither shows up as a compile error. This is the shape that has produced most of this week's defects — a rule discharged at one site while its sibling discharges nothing."""
+
+[[content.acceptance_criteria]]
+text = "One function releases a connection, and both callers use it"
+status = "done"
+category = "fixed"

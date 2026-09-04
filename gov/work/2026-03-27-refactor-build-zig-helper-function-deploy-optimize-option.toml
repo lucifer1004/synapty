@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-001"
+title = "Refactor build.zig: helper function + deploy-optimize option"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Refactor build.zig to eliminate cross-compile module duplication via a helper function, and add a -Ddeploy-optimize option with ReleaseSmall default. No behavior change — pure build system cleanup."
+
+notes = [
+    "2026-03-27 (build): Refactored build.zig: extracted createModuleSet helper, added -Ddeploy-optimize option (default ReleaseSmall), used inline for to deduplicate cross-compile targets. Build, tests, cross-compile, and govctl check all pass.",
+]
+[[content.acceptance_criteria]]
+text = "Extract createModuleSet helper to eliminate cross-compile duplication"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "-Ddeploy-optimize option with ReleaseSmall default"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-29-001"
+title = "Enhanced sidebar: agents under sessions, host address, duration, counts"
+status = "done"
+created = "2026-03-29"
+started = "2026-03-29"
+completed = "2026-03-30"
+
+[content]
+description = "Redesign sidebar session rows: nest agents under their host session (remove separate Agents section), add host address, session duration, tab+split counts. 2pt accent rule for agent sub-rows."
+
+notes = [
+    "2026-03-30 (gui): Session rows enhanced: agents nested under sessions (AGENTS section removed), host address for remote sessions, duration from createdAt, tab+split counts, 2pt accent rule for agent sub-rows. Build succeeds.",
+]
+[[content.acceptance_criteria]]
+text = "Remove separate AGENTS section, agents nested under sessions"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Host address for remote sessions"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Session duration"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tab + split count"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Xcode build succeeds"
+status = "done"
+category = "chore"

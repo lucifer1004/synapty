@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-027"
+title = "chore(docs): the comments that describe a file that no longer exists"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 01 #17 #12; 02 L12; 04 lows; 05 L4. The project's own convention: a
+stale comment misdirects the next edit. These are the ones the audit found
+saying the opposite of the code beneath them.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "holder.zig's header describes the current slice (retention, resumption, restoration, the end policy) instead of what was 'not here yet'; github.zig:283 either includes the API error body or stops promising to; usageError's two overlapping comments become one; parseNoArgs names its callers; build.zig:428 and :453 comments sit above what they describe"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "chore: [[ADR-0018]] records that the UI is deliberately English-only until there is a second audience, so zero localization is a decision on the record and not an omission"
+status = "done"
+category = "chore"

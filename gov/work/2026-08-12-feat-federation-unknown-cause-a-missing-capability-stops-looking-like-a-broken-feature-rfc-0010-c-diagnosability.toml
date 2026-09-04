@@ -1,0 +1,54 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-017"
+title = "feat(federation): unknown_cause — a missing capability stops looking like a broken feature (RFC-0010 C-DIAGNOSABILITY)"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = ["RFC-0010"]
+depends_on = ["WI-2026-08-12-016"]
+
+[content]
+description = """
+Implement [[RFC-0010]] C-DIAGNOSABILITY, and the [[RFC-0009]] C-PRESENCE amendment that gives it a carrier. This is the requirement the whole RFC exists to serve, and the one that was violated at measurable cost: on 2026-08-12 a peer that could not relay presence left its agents at `unknown`, the symptom was indistinguishable from a broken feature, and several rounds of debugging went into the RECEIVING side — which was correct throughout.
+
+Scope:
+- Per-agent presence carries `unknown_cause` alongside status and reachability, with exactly three values: `no_evidence` (the hosting hub looked and has none), `peer_unreachable` (the link is down), `peer_lacks_capability` (that build does not provide presence relay).
+- It appears wherever `hosting_peer` already does — the list_agents response and the RFC-0004 C-SUBSCRIPTION snapshot. An ATTRIBUTE, not a status value: the RFC-0004 vocabulary stays closed and a consumer that ignores the attribute degrades to today's reading.
+- The workbench renders the distinction. "Remote agents show unknown" and "this peer's build does not relay presence" are the same observation with and without the sentence that makes it actionable.
+- Any surface listing peers shows what a peer does NOT provide, not only what it does.
+- No substitute status is invented to fill the gap. `unknown` remains the honest value; only the attribution was missing.
+
+Gated on WI-2026-08-12-016: the receiving side cannot say `peer_lacks_capability` until capabilities are declared and retained."""
+notes = ["""
+IMPLEMENTED 2026-08-13. `unknown_cause` is carried per agent on list_agents and the subscription snapshot, computed by the hub that negotiated the link — the workbench does not re-derive it, because only the hub knows what a peer's build declared. Three values, three different subjects: no_evidence is a fact about the AGENT, peer_unreachable about the LINK, peer_lacks_capability about the peer's SOFTWARE.
+
+The UI deliberately says NOTHING for no_evidence. "The hub has no signal yet" is what `unknown` already means, and annotating every quiet agent would bury the two cases that carry new information. The peer list shows what a peer does NOT provide rather than what it does, for the same reason: what works is invisible by working.
+
+DEFECT FOUND WHILE WIRING IT: applySnapshot forced `reachable = true` on every row, which would have overwritten exactly the fact the hub had just computed — a remote agent on a dead link would have rendered as reachable with an unknown status, i.e. the original confusion with an extra step. Removed, with a test that pins reachability as something read from the hub rather than assumed by the reader.
+
+Verified on the wire: a locally registered agent that has never signalled reports status unknown with unknown_cause no_evidence.
+
+NOT visually verified: the rendering of the explanation and the peer-capability line was not checked on screen. The running app is the pre-RFC-0010 build, so confirming it needs an install and a relaunch."""]
+
+[[content.acceptance_criteria]]
+text = "unknown_cause is carried per agent on list_agents and the subscription snapshot, with the three specified values and no new status vocabulary"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the workbench distinguishes the three causes in what a human sees; a capability-absent unknown never reads as an evidence-absent one"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "peer listings show what a peer does not provide"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a test that fails if a capability-absent unknown is reported as no_evidence — the exact confusion this exists to end"
+status = "done"
+category = "chore"

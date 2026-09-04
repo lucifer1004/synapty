@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-024"
+title = "feat(hub): RFC-0004 event log, five-state vocabulary, subscribe"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+refs = ["RFC-0004"]
+
+[content]
+description = "Implement the hub side of RFC-0004: append-only event log, registration generations, five-state status vocabulary with merge acceptance rules, and the subscribe push face. This is the foundation WI — the GUI subscription, wait primitive, and passive detector all build on it."
+
+[[content.acceptance_criteria]]
+text = "append-only bounded in-memory event ring with monotonic sequence numbers; kinds agent_registered (carries generation; live re-register emits with existing generation), agent_unregistered, agent_status_changed (old/new/signal class), message_routed [C-EVENT-LOG]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "registration generation = seq of creating agent_registered event; live re-register keeps generation; ends only at unregister [C-WAIT def]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "protocol/registry extended to five states (idle/unknown additive); merge acceptance rules 1-6 enforced at hub ingest incl. conditional workbench-idle (only from done) and passive-done-only-from-working/waiting [C-VOCABULARY, C-PRECEDENCE]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "subscribe action — snapshot (agents+statuses+generations+latest seq) then pushed event envelopes in log order [C-SUBSCRIPTION]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "write-time invariant (visible presence change ⟺ logged event, registry as materialized view); generation lifecycle tests; acceptance-rule table tests; zig build test green"
+status = "done"
+category = "chore"

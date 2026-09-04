@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-021"
+title = "test: service pure-logic coverage — AgentMonitor parsing, TaskMonitor aggregation, TunnelManager command building"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review test findings (MEDIUM): AgentMonitor.parseAgentsOutput/parseAgentsJSON/extractAgents are nonisolated static pure JSON-shape parsers (3 shapes: IPC-wrapped, direct hub, envelope) with zero tests; TaskMonitor TaskItem decoding/status mapping, projectCounts aggregation, parseEnvelopePayload, and the cli-tmp- activity noise filter are all pure and untested; TunnelManager connectCommand's fixed positional-argument contract, shellEscape, and effective* credential resolution are untested despite being the exact kind of thing that drifts. Add unit tests for all of these."
+notes = ["Completed (2026-08-08): AgentMonitorParserTests (7 tests: 3 JSON shapes, empty/garbage/malformed, tool-type mapping; parsers made internal), TaskMonitorTests (6 tests: TaskItem decode + status mapping, projectCounts aggregation incl. no-project tasks, envelope payload parsing, filterActivityNoise extracted as nonisolated static and tested), TunnelManagerTests (10 tests: shellEscape incl. injection guard, connectCommand positional layout incl. empty key/jump placeholders and forwarding rules, effective* resolution host/identity/group chain, localCommand shape)."]
+
+[[content.acceptance_criteria]]
+text = "AgentMonitor parser tests cover all three JSON shapes, garbage/empty input, and malformed JSON"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "TaskMonitor tests cover TaskItem decode/status mapping, projectCounts aggregation, envelope payload parsing, and the cli-tmp- noise filter"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager tests cover shellEscape, connectCommand positional layout, and effective* resolution (including group/identity inheritance)"
+status = "done"
+category = "chore"

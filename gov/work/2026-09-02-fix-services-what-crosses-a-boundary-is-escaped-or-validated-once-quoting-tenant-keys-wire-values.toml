@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-024"
+title = "fix(services): what crosses a boundary is escaped or validated once — quoting, tenant keys, wire values"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 03 #7 #11; 05 M4; 01 #14. Three copies of the quoting helper and two
+call sites that use none; an operator-controlled PEER_ID crossing into a
+remote sh unescaped; a tenant record minted under a label that can change
+while the pane is open, so the slot is never released; an agent-supplied
+task status silently coerced to todo on a credential path — against the
+project's stated loud-beats-lenient posture.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "fixed: one shell-quoting helper (Shell.quote) replaces TunnelManager.shellEscape, TransferRunner.shellQuote and Enrolment.shellSingleQuote; RemoteAgentSession and RemotePwd quote the agent id through it, and setup-host.sh quotes PEER_ID through its own shquote() rather than hand-written quotes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the pane tenant is keyed on host.id or the dial-time machine string recorded on the leaf, not the mutable label, so renaming a host releases its slots (TunnelManager.swift:324)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "task.update rejects a status outside todo/doing/done before the credential is loaded (tools.zig:266)"
+status = "done"
+category = "fixed"

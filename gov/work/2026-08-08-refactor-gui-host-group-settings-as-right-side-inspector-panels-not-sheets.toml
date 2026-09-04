@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-069"
+title = "refactor(gui): host/group settings as right-side inspector panels, not sheets"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: Group Settings and Host settings must not be modal sheets — a right-side panel (inspector) fits the workbench flow much better.
+
+Fix: AddHostSheet and GroupEditSheet become inspector panels (SwiftUI .inspector on the Hosts page): host editor (new/edit) and group settings render in a right-side panel with a header + Save; sheet presentation is removed for these two; New Group and Identity sheets stay as-is (lightweight creation forms). Naming follows the panel form: AddHostSheet → HostEditorPanel, GroupEditSheet → GroupEditorPanel."""
+
+[[content.acceptance_criteria]]
+text = "host new/edit renders in a right-side inspector panel (not a sheet)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "group settings render in the same inspector (one panel at a time)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "panels have header + Save/Close; New Group + Identity sheets unchanged"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

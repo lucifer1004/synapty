@@ -1,0 +1,81 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0014"
+title = "Remote session durability: the pty holder and its attach protocol"
+version = "0.3.0"
+status = "normative"
+phase = "spec"
+owners = ["@lucifer1004"]
+created = "2026-08-17"
+updated = "2026-09-01"
+refs = [
+    "RFC-0004",
+    "RFC-0011",
+    "RFC-0001",
+    "RFC-0006",
+    "RFC-0007",
+    "RFC-0008",
+    "RFC-0013",
+    "RFC-0005",
+]
+signature = "ebcd8bea0a20e6d026800fa16f15a4c38bd3c6b8843945c830b909f74e88973c"
+
+[[sections]]
+title = "Overview"
+clauses = [
+    "clauses/C-SUMMARY.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-SCOPE.toml",
+    "clauses/C-START.toml",
+    "clauses/C-HOLDER.toml",
+    "clauses/C-ONE-CLIENT.toml",
+    "clauses/C-ENTITLEMENT.toml",
+    "clauses/C-INPUT.toml",
+    "clauses/C-SIZE.toml",
+    "clauses/C-RESUME.toml",
+    "clauses/C-RESTORE.toml",
+    "clauses/C-TERMINAL-TYPE.toml",
+    "clauses/C-RETENTION.toml",
+    "clauses/C-STALLED-CLIENT.toml",
+    "clauses/C-EXIT-SIGNAL.toml",
+    "clauses/C-LIVE-CHILD.toml",
+    "clauses/C-DETACH.toml",
+    "clauses/C-END.toml",
+    "clauses/C-PWD.toml",
+    "clauses/C-FOREGROUND.toml",
+    "clauses/C-CONFINEMENT.toml",
+    "clauses/C-OPT-OUT.toml",
+    "clauses/C-CUTOVER.toml",
+    "clauses/C-VERSION.toml",
+    "clauses/C-LIVENESS.toml",
+    "clauses/C-CLIENT-LABEL.toml",
+    "clauses/C-SESSION-NAME.toml",
+]
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-09-01"
+notes = "Displacement is told to the human on both sides of it"
+changed = [
+    "C-ONE-CLIENT requires the displaced client's human to be able to read why the session ended — a notice written into a surface the same act destroys has not been delivered",
+    "C-ONE-CLIENT requires an attach offered to a person as a way back to their own work not to displace another client unannounced, and requires a client to be able to learn beforehand that it would",
+    "C-ONE-CLIENT records that input having no owner, not the pseudoterminal having one size, is why a second attached client is refused, and that an observer sending no input is not decided here",
+]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-29"
+notes = "One determination for whether a holder is running, and the remains of one that is not"
+added = ["C-LIVENESS requires liveness to be decided by a fact the system ties to the process, never by a process identifier alone, and requires every surface to reach the same determination"]
+changed = ["C-END adds that a holder that is gone is not a session — enumeration must neither report nor retain what named it"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-17"
+notes = "Initial draft"

@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-066"
+title = "refactor(gui): breadcrumb navigation — All Hosts is the default view, not a group block"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: All Hosts must NOT be a group block — the default view IS All Hosts. Termius navigates into a group and shows a breadcrumb (All Hosts / Group); clicking All Hosts returns to the initial view.
+
+Fix: remove the All Hosts and Ungrouped blocks from the GROUPS section (only real groups + New Group remain); when a group is selected, the section header becomes a breadcrumb "All Hosts › Group" with All Hosts clickable (back to the default .all view); ungrouped hosts stay visible in the default view and hosts leave a group via the edit sheet's Group picker (existing). HostFilter.ungrouped stays in the model API (tests unchanged); drag-to-group stays."""
+
+[[content.acceptance_criteria]]
+text = "GROUPS section shows only real groups + New Group (no All Hosts / Ungrouped blocks)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "selecting a group shows a breadcrumb (All Hosts › Group); clicking All Hosts returns to the default view"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ungrouped hosts remain visible in the default view; leaving a group works via the edit sheet"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

@@ -1,0 +1,70 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0019"
+title = "Archive is one act at two granularities, and closing a pane ends it"
+status = "accepted"
+date = "2026-09-03"
+refs = [
+    "RFC-0014",
+    "RFC-0015",
+]
+
+[content]
+context = """
+[[RFC-0014]] C-DETACH requires every implementation to say what closing a pane means, and warns that both obvious answers are harmful when chosen silently: as a detach it leaks a holder every time a human tidies a window, as an end it kills an agent that was working. [[RFC-0015]] C-SET-ASIDE answered with the first: closing a durable pane set it aside, the holder kept the child, and the pane joined a Still running list in the sidebar from which it could be returned or ended.
+
+That answer was right about the harm and wrong about the remedy, and the workbench's own other level shows why. A WORKSPACE already has two acts: Close, which ends everything in it after a question that counts the machines about to be affected, and Archive, which writes the arrangement down, releases what nothing else needs, and leaves the far side running. A PANE had one act, ✕, which meant the opposite of the workspace's ✕ — keep, not end — and its second act lived in a list the human had to know to visit. Measured in use: every durable pane took two gestures in two places to be finished with, and the most common case, a shell with nothing running, went to the list anyway.
+
+Terminals settled the question this clause was worried about long ago: the close gesture ends the session, and the terminal asks first exactly when a foreground process would die with it. The harm C-DETACH names comes from ending SILENTLY, not from ending."""
+decision = """
+ARCHIVE IS ONE CONCEPT AT TWO GRANULARITIES. A pane can be archived, and so can a workspace; archiving a workspace is archiving every pane in it and putting away the arrangement. What was "set aside" is an archived pane: it leaves the layout, what runs in it keeps running, it stays listed under the workspace it belongs to, and unarchiving returns it to that workspace attached to the same child.
+
+CLOSING A PANE ENDS IT, at both levels the same. The question comes first when — and only when — the pane's foreground is a process rather than its shell, as terminals do; that question offers Archive as its default button, so the human who meant "put it away" is one Return away from it and the human who meant "I am done" is one click. A pane whose foreground is its own shell closes without asking. Local and remote panes get the same answer, because the gesture cannot show which machine a pane is on.
+
+THE HOLDER'S TWO ACTS DO NOT CHANGE. Detach and end are what [[RFC-0014]] C-DETACH requires and what the holder offers; this decision moves both onto the pane instead of splitting them between the pane and a list. Connection release follows the meaning of the act: archiving is a decision the human stated and releases what nothing open still references at once, like archiving a workspace; closing is everyday churn and keeps [[RFC-0015]] C-RELEASE's grace period.
+
+[[RFC-0015]] C-PANE-ARCHIVE supersedes C-SET-ASIDE; C-ARCHIVE is widened to name both granularities. The Still running list keeps its one question — what of mine is running that I cannot see — and archived panes are one of its three sources, now under the same word the workspace rows use."""
+consequences = """
+GOOD:
+
+- One gesture ends a session and one gesture puts it away, at either level, and the words are the same words: Close, Archive, Unarchive, End.
+- The common case — closing a pane whose shell is idle — costs nothing and leaves nothing behind. The list holds what the human chose to keep, not what they forgot to end.
+- The question is asked where terminals have taught people to expect it, with the safe act as its default.
+
+BAD, stated plainly:
+
+- Closing an idle durable pane now discards its scrollback along with the holder. Set-aside kept it by accident of keeping everything; nothing in this decision replaces that, and a "recently closed" affordance would be a separate design.
+- A human who has learned that ✕ keeps things will lose one process to the new meaning before the sheet teaches them otherwise. The sheet appears exactly when that would matter, which is the mitigation and the whole of it.
+
+NEUTRAL:
+
+- The snapshot field is renamed, not migrated: the product is unreleased and writes no compatibility code.
+- The sidebar's merged list, and the reasoning that merged it, stand; only the name of one of its sources changes."""
+
+[[content.alternatives]]
+text = "Unify set-aside into archive, and make closing a pane end it with the terminal's question"
+status = "accepted"
+pros = [
+    "The two levels speak one language; a session is finished with in one gesture",
+    "The question is asked when a process would die and nowhere else, which is what every terminal has taught its users",
+]
+cons = ["An idle pane's scrollback goes with the holder on close"]
+
+[[content.alternatives]]
+text = "Keep ✕ as set-aside and add an explicit End gesture on the tab (⌥-click, context menu, key)"
+status = "rejected"
+pros = ["No behaviour reverses; the safe act stays on the plain gesture"]
+cons = ["The two levels still disagree about what ✕ means, and the idle shell still goes to the list to be ended there"]
+
+[[content.alternatives]]
+text = "Keep ✕ as set-aside and make the Still running list clean itself of idle sessions"
+status = "rejected"
+pros = ["Removes the second visit for idle shells without changing any gesture"]
+cons = ["It is the workbench deciding a session looks finished, which RFC-0014 C-END forbids in so many words"]
+
+[[content.alternatives]]
+text = "Ask on every close of a durable pane, offering Archive and End"
+status = "rejected"
+pros = ["Nothing is ever ended without the human choosing it by name"]
+cons = ["A sheet on every ✕ is a sheet nobody reads by the third one; the question has to be rare to be heard"]

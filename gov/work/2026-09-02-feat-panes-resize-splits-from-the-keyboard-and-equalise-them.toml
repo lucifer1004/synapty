@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-008"
+title = "feat(panes): resize splits from the keyboard, and equalise them"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Dividers can only be dragged. The model has resizeSplit(splitID:ratio:)
+already; what is missing is a keyboard route to it and an equalise verb
+(tmux select-layout even-*). Register the chords in the one dispatch table
+([[RFC-0016]] C-TABLE) — the old view-switch for chords was retired for a
+reason."""
+
+[[content.acceptance_criteria]]
+text = "chords resize the focused pane's split by a fixed step in each direction, through the same resizeSplit path the divider drag uses"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an equalise command sets every split under the workspace root to even ratios"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the chords live in the [[RFC-0016]] table, not in a view switch"
+status = "done"
+category = "chore"

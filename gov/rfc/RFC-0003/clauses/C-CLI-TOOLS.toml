@@ -1,0 +1,86 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CLI-TOOLS"
+title = "CLI Tools — synapty task Subcommands as the Agent Interface"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+The agent interface is the `synapty task` command group — no MCP server
+required. Task operations are low-frequency, on-demand, JSON-in/JSON-out
+calls; a CLI fits them better than a long-lived protocol server (no config
+step, no resident tool schemas in the agent's context, trivially debuggable
+in the terminal).
+
+Subcommands:
+
+- `synapty task list [--project <p:label>]` — list issues with state.
+- `synapty task show <issue>` — the issue's body and its comments, in the
+  order the forge holds them.
+- `synapty task claim <issue>` — transition `s:todo` -> `s:doing`
+  (self-assign).
+- `synapty task update <issue> <status>` — transition per C-ISSUE-STATES.
+- `synapty task comment <issue> <body>` — append a comment.
+- `synapty task create <title> [--project <p:label>] [--body <text>]` —
+  file a new issue, initial state `s:todo`.
+
+Output contract: success = JSON on stdout, exit 0; failure = human-readable
+error on stderr, non-zero exit. An issue nobody has commented on is
+an empty list and exit 0: a question that has not been answered yet is the
+ordinary case, not a failure to read.
+
+READING DISCUSSION IS PART OF THE INTERFACE. The group carried `comment` and
+no way to read one, so an agent could write onto an issue and never see what
+was written back — a human answering an agent's question on the issue was
+answering into a void, which reads as the agent ignoring them. `show` returns
+the body with the comments rather than the comments alone, because an agent
+handed an issue number wants to know what the issue SAYS, and one round trip
+answers that where two would. Commands are composable with `jq` and safe
+for agent invocation.
+
+Exit vocabulary. "Non-zero" is not enough for a caller that must decide
+what to do next, and agents do decide: the codes below are a contract they
+branch on, so they are fixed here rather than left to each verb.
+
+- `0` — done.
+- `1` — the command was used wrongly. The caller's own call is at fault.
+- `2` — not inside a Synapty pane. The required piece of the environment
+  is named on stderr. One code for this condition across every verb: a
+  caller that read a missing pane as its own typo would go on to fix a
+  call that was correct.
+- `3` — a human has been asked and has not answered. RETRYING LATER IS
+  CORRECT, and this is the distinction the vocabulary exists for. A
+  transfer waiting on approval and a transfer to a host that does not
+  exist are both "not done", and a caller that cannot tell them apart
+  either abandons work that would have succeeded or loops on work that
+  never will.
+- `4` — the workbench will not do this as asked. Retrying changes
+  nothing.
+
+The distinction between `3` and `4` MUST be carried by a marker the
+workbench sets, not by matching the error text: a reworded refusal must
+not silently change what every caller does next. Absent or unrecognised,
+the marker means `4` — a caller told to stop is better off than one told
+to retry forever.
+
+Connection resolution: inside a Synapty pane, SYNAPTY_SOCK routes the
+request to the hub via the existing run-server IPC; outside a pane, the
+CLI falls back to a direct hub TCP connection (existing transport.zig
+behavior). Remote devices need no installation step: the deployed binary
+speaks the same protocol over the reverse tunnel (C-EVENTS).
+
+The `synapty mcp-serve` command is retained as a deprecated compatibility
+layer and is no longer the primary path.
+
+Identity amendments ([[RFC-0008]]): `synapty register` accepts an
+optional `resume_ref` — the harness-native session identity (defined in
+[[RFC-0006]] C-RESUME-PLAN, identity derivation in [[RFC-0008]]
+C-IDENTITY; distinct from the free-text session-description metadata).
+Task attribution (claim/comment authorship) uses the durable agent id
+when one is bound. Version-skew rule: hub-side mailbox queueing
+([[RFC-0008]] C-MAILBOX) is authoritative; a previously-deployed daemon's
+local queue is out of contract — redeploy is required."""

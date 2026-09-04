@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-012"
+title = "feat(terminal): pane layout presets — one-click arrange of the active tab's splits into Columns / Rows / Grid / Main+Stack; pure SplitNode tree builder preserving leaf identity (surfaces & PTYs survive), tab-bar layout menu + View-menu shortcuts"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Approved 2026-08-09. Feasible because SplitContentView renders surfaces in a FLAT ForEach keyed by leaf UUID — the split tree only computes frames, so rebuilding the tree with the same LeafData values preserves SwiftUI identity and never deinits a ghostty surface (the PTY-killing removal class is structurally avoided). Presets are pure tree folds over the active pane's existing leaves (rearrange-only V1; menu disabled below 2 panes): Columns (equal-width nested h-splits), Rows (vertical), Grid (rows of two, odd leaf gets a full-width last row), Main+Stack (first leaf 0.65 main, rest stacked trailing)."
+
+[[content.acceptance_criteria]]
+text = "SplitNode.LayoutPreset + arranged(leaves:preset:) pure builder — leaf IDs preserved in order, equal ratios per level, grid chunks rows of two"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TerminalPaneManager.applyLayout(_:) rearranges the ACTIVE pane's splitRoot in place; focus and active leaf unchanged"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "tab-bar layout menu (DSDropdown-pattern Menu, icon rectangle.split.2x2) with the four presets, disabled below 2 leaves; View menu gains the four commands"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TDD — SplitTreeTests cover count/ID preservation, grid shape, main+stack ratio, single-leaf no-op; full suite green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "screenshot verification — 3-pane session arranged via Columns and Grid, surfaces alive (PTY content persists across rearrange)"
+status = "done"
+category = "chore"

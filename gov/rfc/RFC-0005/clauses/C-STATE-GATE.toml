@@ -1,0 +1,56 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-STATE-GATE"
+title = "State Gate — Inject Only into Idle or Done"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Injection is permitted ONLY when the recipient pane's agent is provably at
+rest. The gate exists because the initiator is machinery: unlike a peer
+agent typing into a pane it can read (herdr's model, C-PRIOR-ART), the
+workbench's wake path has no intelligence in the loop at injection time, so
+it MUST be conservative.
+
+The gate reads two channels with distinct roles:
+
+- POSITIVE EVIDENCE (mandatory): a fresh manifest-backed classification of
+  the recipient pane, taken immediately before injection — never a cached
+  sample older than one sampling interval (~2s per RFC-0004
+  C-PASSIVE-DETECTION). The workbench MUST inject only when this fresh
+  sample classifies the pane as `idle` or `done`. No manifest for the
+  tool, or no rule matching, means the workbench cannot see clearly and
+  MUST NOT inject.
+- VETO (mandatory): the merged RFC-0004 status. The workbench MUST NOT
+  inject while the merged status is `waiting` — the harness is displaying
+  a modal question, and injected text could select an option on the
+  human's behalf. This is an absolute prohibition on BOTH channels, not a
+  deferral heuristic: the wake stays pending until the modal resolves.
+  The workbench MUST NOT inject while the merged status is `working` —
+  the hub may know more than the screen (an explicit hook signal beats a
+  stale-looking frame), and input would queue into the live turn as
+  steering text.
+- A merged status of `unknown` does NOT by itself block injection when
+  the fresh sample provides rest evidence. Rationale (amended after the
+  first live delivery attempt, 2026-08-11): RFC-0004 C-PRECEDENCE
+  deliberately parks a freshly registered at-rest agent at `unknown` —
+  passive `done` is accepted only from working/waiting priors so that
+  rest chrome cannot manufacture attention, and passive `idle` is inert.
+  Requiring merged `idle`/`done` therefore made the C-WAKE-TRIGGER
+  fresh-edge scenario (registration with waiting mail — the protocol's
+  primary case) undeliverable: wake exists to create the agent's first
+  turn, but the gate demanded evidence only a previous turn could
+  produce. The gate's own mandatory fresh sample IS the "can see
+  clearly" evidence; a merged `unknown` carries no contrary information.
+
+Further requirements:
+
+- The workbench MUST verify the registered agent is still the pane's living
+  process (e.g. the surface's child has not exited) before injecting —
+  never type into a bare shell that inherited a dead agent's pane.
+- If the human has typed into the pane within a short recency window
+  (SHOULD: ~3s), the workbench MUST back off and retry later — injected
+  text must never splice into a half-composed human input."""

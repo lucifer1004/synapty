@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-UNARCHIVE"
+title = "Unarchive Re-Dials and Reattaches"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Unarchiving restores the arrangement and re-acquires what it needs.
+
+- Unarchiving MUST reconstruct the workspace exactly as [[RFC-0015:C-RESTORE]] reconstructs one at launch, and MUST acquire connections by host under [[RFC-0015:C-DIAL]].
+- A leaf RUNNING A CHILD MUST attempt to rejoin it through the [[RFC-0014]] holder, wherever that child is. Where the holder is present and still holds the child, the human returns to what was running. A leaf whose kind does not run a child ([[RFC-0015:C-CONTENT]]) has nothing to rejoin and is reconstructed from what it persisted.
+- WHERE NO HOLDER KEPT THE CHILD, unarchiving restores the working directory rather than the process, and MUST NOT be presented as returning the human to what was running. Which sessions have a holder is [[RFC-0014]] C-SCOPE's to say and not this clause's.
+- AN EARLIER FORM OF THIS CLAUSE CALLED THE LOCAL CASE'S MORTALITY INHERENT, and it was wrong. A holder is a process on the machine its child is on; the workbench's own machine is such a machine, and a locally started holder was measured outliving the process that started it, keeping its child working, and being found again by name with no hub running. What differed was that the workbench ended its own wrapper on exit — a choice, made for a reason that has since been answered by the holder being enumerable and endable by name. The correction is recorded rather than quietly applied because the sentence did the specific damage a false necessity does: it told every reader there was nothing to ask about.
+- It says nothing about the kinds that never had a process: those come back from their persisted state and are whole.
+- Any resume incantation typed into an unarchived pane is governed by [[RFC-0006]] C-RESUME-RESTORE, unchanged. Unarchiving is not a new authority to type into panes. A pane that REJOINED a holder is governed by that same clause and not by a rule of this one. This clause used to say such a pane "MUST NOT be typed into at all: there is nothing to resume" — which is not a fact about a rejoined pane. A holder holds a SESSION; whether the harness is still running in it is a separate question that [[RFC-0014]] C-FOREGROUND answers, and a human who quit their harness has a live session with nothing in it. The concern the sentence carried is real and survives where it belongs: an incantation sent to a live shell is a command the human did not issue, which is why C-RESUME-RESTORE requires the evidence before the offer exists at all.
+- Unarchiving MUST NOT block on connections. The arrangement MUST appear immediately with its panes in `connecting`, rather than after every host has answered."""

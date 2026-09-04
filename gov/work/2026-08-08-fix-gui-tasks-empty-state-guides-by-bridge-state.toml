@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-055"
+title = "fix(gui): Tasks empty state guides by bridge state"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Audit follow-up (UI/UX hierarchy round): the Tasks page empty state tells the user to "create with synapty task create" even when no GitHub bridge is connected — the action hierarchy is inverted (connect first, then create). TaskMonitor already carries bridgeStatus, but the page ignores it.
+
+Fix: the empty state branches on bridge state: not configured → "Connect GitHub to get started" with a Connect button (opens GithubConnectSheet, refreshes tasks after); configured but no tasks → the existing create hint; error → show the error with a path to the Hub page."""
+
+[[content.acceptance_criteria]]
+text = "empty state branches on bridge status — not-configured shows Connect GitHub + button that opens GithubConnectSheet"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "configured-but-empty still shows the task-create hint"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "bridge error state surfaces the error and links to the Hub page"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

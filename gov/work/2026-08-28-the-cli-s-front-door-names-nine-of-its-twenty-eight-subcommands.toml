@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-017"
+title = "The CLI's front door names nine of its twenty-eight subcommands"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`src/cli.zig` printed, for a missing or unknown subcommand:
+
+    usage: synapty <task|agents|activity|github|skills|hooks|run|hub|mcp-serve> [args]
+
+The parser accepts TWENTY-NINE: activity, agents, ask, attach, channel, end, exec, expose, exposed, fetch, github, hook-event, hooks, hub, identify, mcp-serve, notify, present, put, recv, register, run, send, sessions, skills, task, tools, unexpose, wait — plus version/--version/--help/-h, which are answered before the gate and are not subcommands.
+
+(This item and its commit first said twenty-eight. The miscount came from a `sort -u` that included those four flags; corrected here, and the code was never wrong.)
+
+EVERY VERB THE SKILLS TEACH AGENTS IS MISSING FROM IT — ask, put, fetch, send, recv, exec, wait, present, expose. The line is printed exactly when the caller got the invocation wrong, which is the moment they are reading it, and the caller is often an agent deciding what to try next.
+
+Same class as the menu paths ([[WI-2026-08-28-011]]): a list written by hand beside the structure it claims to describe, with nothing keeping the two in step."""
+
+[[content.acceptance_criteria]]
+text = "The usage line names the subcommands the parser accepts, with a test that fails when one is added and not named"
+status = "done"
+category = "fixed"

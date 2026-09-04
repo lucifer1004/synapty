@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-064"
+title = "refactor(gui): drop group Quick Connect — per-host one-click terminal from the Hosts list"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: batch "Quick Connect — N hosts" sessions (WI-2026-08-08-058) is a false need; what is actually needed is opening a terminal for ONE host quickly, directly from the Hosts list.
+
+Fix: remove the group-context-menu Quick Connect (and its plumbing: GroupRow.onQuickConnect, HostsPageView.onQuickConnect, ContentView batch closure); add a one-click "Open Terminal" action on each host block that starts a session immediately through the existing shared connect path (placeholder + tunnel)."""
+
+[[content.acceptance_criteria]]
+text = "each host block in the Hosts list offers a one-click Open Terminal action"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Open Terminal starts the session via the shared connect path (placeholder + tunnel), same as the sidebar picker"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "group Quick Connect (batch sessions) removed, including all plumbing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

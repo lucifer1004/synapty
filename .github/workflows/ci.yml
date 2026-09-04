@@ -1,0 +1,90 @@
+name: CI
+
+# THE GATE IS WHAT `just verify` RUNS. A PR is green when the same suites
+# a developer runs before committing are green here — the Zig tests with
+# every e2e script, the Swift suite, shellcheck over the scripts, and the
+# governance checks — not a subset that happened to be wired in first
+# ([[WI-2026-09-02-018]], delivered by [[WI-2026-09-02-031]]).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # coreutils for GNU `timeout`, which the e2e scripts declare as a
+      # dependency and the macOS image does not ship.
+      - name: Install xcodegen, just, shellcheck and coreutils
+        run: brew install xcodegen just shellcheck coreutils
+
+      # FETCHED FIRST, AND RETRIED. ghostty's transitive dependencies come
+      # over zig's own HTTP client, which drops GitHub tarball connections
+      # now and then ("invalid HTTP response: HttpConnectionClosing" ended
+      # the first run of this job). A fetch that fails is retried; a build
+      # that fails is a build failure, and the two are kept apart.
+      - name: Fetch Zig dependencies
+        run: |
+          for attempt in 1 2 3 4 5; do
+            zig build --fetch && exit 0
+            echo "fetch attempt $attempt failed; retrying" >&2
+            sleep 15
+          done
+          exit 1
+
+      # `just test` is the Zig unit tests AND every shell e2e script; each
+      # script picks a free hub port and ends the sessions it creates.
+      - name: Zig tests and e2e
+        run: just test
+
+      - name: Shell scripts
+        run: just lint-sh
+
+      - name: Federation e2e
+        run: ./scripts/test-federation-e2e.sh
+
+      - name: Methods a test exercises and nothing ships
+        run: just unshipped
+
+      # GhosttyKit.xcframework is git-ignored (built from the submodule) —
+      # CI must build it before the Swift tests can link. `just xcgen`
+      # generates the project WITH the version from build.zig.zon; a bare
+      # `xcodegen generate` would leave MARKETING_VERSION empty.
+      - name: Build GhosttyKit.xcframework
+        run: just ghosttykit
+
+      - name: Swift tests
+        run: just test-swift
+
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: extractions/setup-just@v4
+
+      # THE RELEASED BINARY, PINNED — no Rust toolchain, no compile, no
+      # cache to keep warm. govctl publishes prebuilt tarballs per target;
+      # the action picks this runner's and puts it on PATH.
+      - uses: jaxxstorm/action-install-gh-release@v3.0.0
+        with:
+          repo: govctl-org/govctl
+          tag: v0.19.1
+          platform: linux
+          arch: x86_64
+
+      - name: Governed documents
+        run: just gov-check
+
+      - name: Governance prose
+        run: just gov-lint

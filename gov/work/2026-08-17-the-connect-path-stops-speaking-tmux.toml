@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-008"
+title = "The connect path stops speaking tmux"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "ADR-0012",
+]
+
+[content]
+description = """
+[[ADR-0012]] carried out. The remote connect path starts a holder and attaches to it; tmux leaves, and the remote prerequisite list returns to one entry — the binary the deploy path already puts there.
+
+The holder can now do everything the multiplexer was doing for this project: it survives a disconnect, a returning client resumes without a seam, and a client that holds nothing is given the screen. What remains is the two capabilities that grew on tmux's presence rather than on durability, and they must arrive in the same change that removes it — a cutover that deletes them and fixes them later is a cutover that ships a regression on purpose.
+
+A REMOTE PANE'S WORKING DIRECTORY was `tmux display-message -p '#{pane_current_path}'`, and it is the only source that works: the kernel answers for the local ssh process, and a plain login emits no OSC 7. The holder is the shell's parent, so it can answer for the foreground process group ([[RFC-0014]] C-PWD). That answer is the destination a cross-host drop delivers into.
+
+ENDING A REMOTE AGENT was `tmux kill-session`. It becomes `synapty end`.
+
+WHAT IS RUNNING IN A SESSION becomes askable ([[RFC-0014]] C-FOREGROUND), which the resume gate will need — a recorded procedure may run only where the program it would resume is absent.
+
+SESSIONS THE OLD MECHANISM LEFT must not be silently orphaned ([[RFC-0014]] C-CUTOVER). Whatever is running on a reachable host at the moment of this change cannot be attached to by a client that no longer speaks tmux, and the interface must not offer it as though it could.
+
+The host record's tmux probe and the settings copy written around it describe a mechanism that is no longer in use, and say something false until they are changed."""
+notes = ["""
+2026-08-17: two kernels, two answers. Linux publishes a process's working directory and command in `/proc`; Darwin has no such filesystem and answers through `proc_pidinfo`. A holder that could only answer on one of them would leave a cross-host drop's destination unknown on the other.
+
+And a second platform split, opposite to the first: `tcgetpgrp` answers on the pty MASTER on Darwin and refuses on the slave, which is the mirror image of the winsize ioctls. Rather than encode two tables a third platform would falsify, both ends are asked and the first real answer is taken.
+
+The holder is asked about the FOREGROUND PROCESS GROUP, not about the child it started. The child is a shell; what the human is looking at may be an editor three levels down, and its directory is the one a drop should land in — which is what tmux's `#{pane_current_path}` was answering all along.
+
+Ending a session ends BOTH mechanisms: a host may still be running one a previous release started, and the tmux line is a no-op where there never was one. Leaving it out would strand exactly what C-CUTOVER forbids stranding.
+
+`hasTmux` survives on the host record as a vestigial field, decoded and read by nothing. Removing it outright would make every host stored by an earlier release fail to load — the half-synthesised Codable trap this project documented once already."""]
+
+[[content.acceptance_criteria]]
+text = "A holder reports the working directory of its child's foreground process group, and reports it unknown rather than guessing"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A holder reports what its foreground process group is running, and classifies nothing about it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The connect path starts a holder and attaches to it, with no multiplexer involved"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A remote pane's working directory is answered by the holder, so a cross-host drop still knows its destination"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Ending a remote session ends the holder rather than a tmux session"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Sessions left by the previous mechanism are not offered as attachable, and can still be listed and ended on their host"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The host record's durability probe and the copy around it describe the mechanism actually in use"
+status = "done"
+category = "chore"

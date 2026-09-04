@@ -1,0 +1,29 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-INJECTION-MECHANICS"
+title = "Injection Mechanics — Text, Delayed Enter, Backoff"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Injection happens at the ghostty layer — the workbench types into the
+surface exactly as a keyboard would. This is the only viable locus: the
+pane daemon does not own the harness's stdin, and the surface path works
+identically for local panes and remote (SSH) panes, focused or unfocused.
+
+Requirements:
+
+- Text MUST be submitted via the surface input path
+  (`ghostty_surface_text`), respecting the pane's live input modes; if the
+  application has enabled bracketed paste, the implementation SHOULD let
+  the terminal's paste encoding wrap the template rather than emitting raw
+  bytes.
+- Enter MUST be sent as a separate key event after a settle delay
+  (SHOULD: ~300ms, herdr's empirically proven constant — C-PRIOR-ART) so
+  TUI harnesses reliably treat text and submit as distinct inputs.
+- Injection MUST NOT require or steal window/pane focus, and MUST NOT
+  scroll or otherwise disturb the user's viewport.
+- At most one wake injection MAY be in flight per pane at any time."""

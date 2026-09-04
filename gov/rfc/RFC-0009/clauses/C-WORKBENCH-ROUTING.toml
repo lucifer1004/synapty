@@ -1,0 +1,216 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WORKBENCH-ROUTING"
+title = "Workbench-Directed Requests Across Hubs"
+kind = "normative"
+status = "deprecated"
+since = "0.1.0"
+
+[content]
+text = """
+Some requests are not messages between agents: they ask a WORKBENCH to
+act on the human's machine — [[RFC-0007]] exec (open, run, wait-output,
+read, close) and [[RFC-0003]] task tools, which run with the human's
+credentials. Those RFCs forward such a request to "the workbench",
+wording that is unambiguous only while exactly one exists.
+
+They divide into two kinds, and conflating them was an error this clause
+exists to avoid: a RESOURCE-BOUND request needs a specific machine's
+resource, while a CREDENTIAL-BOUND request needs a human's credential
+and does not care which machine holds it.
+
+RESOURCE-BOUND ([[RFC-0007]] exec):
+
+- The resource is the PANE, and a pane is hosted by the hub of the
+  machine whose WORKBENCH OWNS THE SURFACE — not the machine whose shell
+  runs the command. An exec pane opened against a deployed host
+  ([[RFC-0007]] C-PRIMITIVES' optional `host`) is a local ghostty surface
+  running an
+  SSH session: the workbench holding it can type into it, and no other
+  workbench could. [[RFC-0007]]'s `host` argument and C-EXEC-AUTHORITY's
+  "all deployed hosts" therefore survive federation unchanged, because
+  such a pane never stopped being local.
+- A hub MUST refuse an exec request for a pane it does not host rather
+  than relaying it to a peer. Exec panes are single-owner by id and
+  generation ([[RFC-0007]] C-EXEC-SCOPE) and a peer's workbench could not
+  drive one
+  if it tried.
+- A hub with NO WORKBENCH attached MUST refuse exec with `no_workbench`
+  — NAMED HERE, because the clause below requires the credential-bound
+  refusal to be DISTINGUISHABLE from it, and a distinctness obligation
+  against an undefined string cannot be met; [[RFC-0007]] C-EXEC-SCOPE
+  says only that such a hub "refuses exec entirely", and MUST NOT queue it.
+  Exec has side
+  effects and its meaning decays: a command run hours after it was asked
+  for is worse than a refusal. This is deliberately the opposite of the
+  mailbox rule, because mail is an observation the recipient interprets
+  when it arrives, while an exec is an action aimed at a world that has
+  since moved.
+
+CREDENTIAL-BOUND ([[RFC-0003]] task tools):
+
+- The resource is the shared task centre, which NEITHER hub hosts. What
+  the request needs is the human's GitHub credential, and [[RFC-0003]]
+  C-EVENTS normatively guarantees that an agent on any device may use
+  task tools with no GitHub configuration of its own. Federation MUST
+  NOT revoke that.
+- A hub WITH NO LOCALLY ATTACHED WORKBENCH THAT HOLDS THE CREDENTIAL
+  MUST relay a task-tool request over a relay link to a peer that
+  DECLARES IT CAN SERVE ONE, and the result MUST return by the same
+  path.
+  A RELAYED TOOL REQUEST IS NOT A FORWARDED MESSAGE AND MUST NOT BORROW
+  ITS RULES. C-DELIVERY gives `relay_forward` an ack, a NACK, a hold, a
+  minted id and receiver idempotency, and every one of those is built on
+  a message being safe to deliver twice. These are not: [[RFC-0003]]
+  C-CLI-TOOLS makes `claim`, `update`, `comment` and `create` the verbs,
+  and only `list` reads. So:
+  THE FRAMES, because this was the only MUST-bearing feature in the
+  document with no wire shape at all. `relay_tool_request` carries
+  `{request_id, agent, tool, args, hub_repo?}` — `request_id` minted by
+  the relaying hub and echoed by the answer, `agent` the requesting
+  agent's identity (qualified as any relayed identity is), `tool` and
+  `args` the call itself, and `hub_repo` the requester's own configured
+  task-centre identity. `hub_repo` is OMITTED, not empty, when the agent
+  has none: the clause below makes absent and present-but-different
+  behave oppositely, so an empty string that reads as either is the one
+  spelling this frame cannot use.
+  `relay_tool_response` carries `{request_id, outcome, result?, reason?}`
+  where `outcome` is `ok`, `awaiting_human`, `refused`, `no_server` or
+  `wrong_hub_repo`. `answer_lost` is NOT among them — it is what the
+  REQUESTING hub answers when nothing came back, so it can never arrive
+  on this frame, and a hub that received it would be reading a peer's
+  claim about its own silence.
+  THE SERVING SIDE IS BOUNDED AND RECORDS WHAT IT DID, because this is
+  the widest authority in the protocol and it was the only write with no
+  bound at all. A relayed tool request executes `claim`, `update`,
+  `comment` or `create` with a human's credential on a machine the
+  requester has no authority over, so: a hub MUST bound the relayed
+  requests it will serve for any ONE peer, at a rate an implementation
+  MUST state; it MUST refuse past that bound rather than queue, on the
+  same ground the clause gives for refusing what cannot be served; and
+  every relayed request it serves MUST be recorded on the serving hub's
+  own event log, naming the peer and the requesting agent. Without the
+  record the machine that acted has no account of acting: a peer whose
+  harness retries a `task create` it never sees answered — the ordinary
+  bug, not the hostile case — creates issues in the human's task centre
+  until GitHub's own rate limit stops it, and the only trace is in
+  GitHub.
+  THIS IS THE EXCEPTION C-NON-GOALS' "no authority in the hub" ADMITS,
+  and it is named here rather than left to look like a contradiction:
+  that bullet says a peer MUST NOT make a hub act with authority its own
+  machine does not already grant it. A workbench that declared
+  `task-tools` HAS granted it, for that capability, to peers its human
+  configured — and the bound and the record are what keep the grant from
+  being unlimited.
+  A RELAYED REQUEST IS NEVER RETRIED AUTOMATICALLY. A retry after a lost
+  answer is a second issue created, a second comment posted — the harm
+  the ordinary rule prevents by making delivery repeatable, which these
+  cannot be.
+  IT IS BOUNDED, at an implementation-owned interval it MUST state, and
+  the bound exists for the reason C-DELIVERY gives its own: an agent
+  waiting on a side-effecting call with no deadline is a hang the system
+  never reports.
+  A SERVING PEER THAT REFUSES ANSWERS `no_server`, not a fourth value.
+  The ordinary cause is the race the capability model makes routine — a
+  workbench detaching between its declaration and the request, which
+  C-CAPABILITIES handles with an update that has not arrived yet — and
+  from the requester's side the fleet state is then exactly what
+  `no_server` describes: no reachable machine can serve this now. It
+  differs from the pre-flight case in history and not in what the human
+  does next, which is to try again once something declares.
+  WHEN THE BOUND ELAPSES THE ANSWER IS `answer_lost`, and it is DISTINCT
+  from the three refusals above, which are all pre-flight. `no_server`,
+  `no_workbench` and `wrong_hub_repo` all mean nothing was attempted;
+  this one means something may have happened and nobody can say what. It
+  is the only honest answer, and collapsing it into a refusal would tell
+  a human their `task create` did nothing when it may have created an
+  issue. What they do next — look, then retry by hand — is a decision
+  that needs the difference. THE TRIGGER IS THE SAME TWO CONDITIONS AS THE DECLARATION, and
+  an earlier form of this bullet triggered on "a hub with no workbench"
+  alone — so a hub whose workbench had never run `github login` never
+  relayed, and the agent on that machine got a local failure. That is
+  exactly the case this clause separates two bullets down, and
+  [[RFC-0003]] C-EVENTS' guarantee fails in it.
+  ONE HOP, TO A DIRECT PEER: relaying is bounded by the same
+  non-transitivity rule as everything else (C-BOUNDARIES), and a request
+  that cannot be served is refused rather than queued — a side-effecting
+  operation deferred until the world has moved is worse than a
+  refusal. This is not credential travel: the REQUEST
+  moves and the credential stays, which is exactly [[RFC-0003]]'s existing
+  arrangement with the reverse tunnel in a new topology.
+  MUST RATHER THAN MAY, because [[RFC-0003]] C-EVENTS' guarantee is
+  normative and this is the only mechanism that keeps it: an
+  implementation that never relays would conform to a MAY and revoke the
+  guarantee the paragraph above says federation must not touch.
+- THE PREDICATE IS A DECLARED CAPABILITY, NOT AN ASSUMPTION ABOUT A
+  PEER. C-DIRECTORY closes an advertisement to identity, hosting
+  peer and the hosting hub's generation for it, and `relay_hello`
+  carries peer id, a supported version RANGE and capabilities — so "a peer whose workbench holds
+  the
+  credential" is not a fact any hub can evaluate, and an earlier form of
+  this clause required exactly that. What a hub can know is what a peer
+  DECLARED: a peer that can serve task tools MUST advertise the
+  `task-tools` capability ([[RFC-0010]] C-CAPABILITIES), and it MUST
+  declare it only while a workbench is attached AND that workbench has
+  DECLARED it can serve — the two conditions the old wording confused
+  for one, a peer with a workbench that has never run `github login`
+  satisfying one and not the other.
+  THE SECOND CONJUNCT NEEDED A CARRIER AND NOW HAS ONE: a workbench
+  declares what it can serve on `workbench_capabilities` (C-BOUNDARIES).
+  Without it the fact was unobtainable at BOTH ends and not only the far
+  one — this clause retired the remote form of that mistake in the
+  sentence above and kept the local form of it in this one. A hub cannot
+  read a keychain it holds no key to, and none of the other observer
+  frames reports credential state.
+  A HUB THAT HAS BEEN TOLD NOTHING DECLARES NOTHING. Silence is not
+  consent: relaying into a hub whose workbench cannot serve turns a
+  request another machine could have answered into a refusal, and
+  `no_server` is at least true.
+  Withdrawing the capability when either stops being true is a
+  capability update, not a new mechanism — and a human logging out of
+  GitHub is now an event a hub CAN be told about, because the party that
+  observes it is the party that declared.
+- WHAT TRAVELS WITH IT. [[RFC-0003]] C-HUB-REPO requires a relayed
+  task-tool request to carry the hub-repo identity the requester
+  believes is current, so a fleet cannot silently split across two
+  repositories. The relaying hub has no workbench and therefore no
+  hub-repo configuration of its own, so it CANNOT supply that — the
+  requesting AGENT's own configured identity travels with the request,
+  and the serving workbench refuses a request whose identity does not
+  match its own rather than serving it against a different repository,
+  answering `wrong_hub_repo`. NAMED, for the reason the two refusals
+  above are: a human cannot act on "refused" alone, and the remedies are
+  opposite — `no_server` says no machine in this fleet can serve the
+  request, while this one says the machine that can is pointed at a
+  different task centre.
+  ABSENT IS NOT A MISMATCH. [[RFC-0003]] C-EVENTS guarantees an agent
+  needs no GitHub configuration at all, so the commonest case — a
+  detached agent on a credential-free server — carries NO identity, and
+  refusing it would revoke the guarantee this bullet exists to keep. An
+  absent identity is served against the serving workbench's own
+  repository, which is the only one it has; a PRESENT identity that
+  differs is refused. The line is between an agent with no opinion and
+  an agent whose opinion disagrees.
+- A hub MUST fail fast when no reachable peer declares the capability,
+  answering `no_server` — distinct from `no_workbench`, which names the
+  wrong absence when peers exist and none can serve.
+  WHEN BOTH ABSENCES HOLD, `no_workbench` WINS, because the two
+  descriptions overlap and a rule that names both names neither. NEITHER ANSWER IS DUE WHILE ANYTHING CAN SERVE. A
+  request some declared peer can serve is RELAYED and gets no refusal at
+  all — the bullet above makes that a MUST and [[RFC-0003]] C-EVENTS
+  guarantees it from the other side, so a hub refusing here because it
+  happens to have no workbench of its own would revoke the guarantee this
+  section exists to keep. The precedence applies ONLY once no reachable
+  peer, this hub's own workbench included, has DECLARED the capability.
+  Then it is `no_workbench` when this hub has no workbench attached, and
+  `no_server` when it has one and nothing declared, so the answer names
+  the absence nearest the human. Both halves are things a hub can look at:
+  a local attachment is a connection it holds, and a declaration is a
+  frame it received. "A workbench is attached somewhere" is not, since a
+  peer with a workbench and no credential declares nothing and is
+  indistinguishable on the wire from a peer with no workbench at all. The
+  nearer absence is also the actionable one: attaching a workbench here
+  is a thing the human can do, and "no machine in this fleet can serve
+  it" is not an answer they can act on while their own machine has
+  nobody listening."""

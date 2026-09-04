@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-023"
+title = "fix(transfers): a failed probe is unknown, not absent — and a cancelled copy does not run"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 03 #4 #8 #9 #10 and the RemoteFS.exists low. ConflictName's header calls
+silent overwrite the worst of three outcomes, and two small holes end
+there: test -e over ssh returns false on any failure, so the rename policy
+returns the original name and scp overwrites; after 1000 collisions the
+function returns the taken name. A cancel during the destination probe is
+lost and the copy runs while the UI says cancelled.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "a cancel that lands during the destination probe is honoured (TransferService.swift:389); the copy does not run and finish reports what happened"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fixed: existence probes are tri-state (present / absent / unknown) in TransferRunner.presence, and unknown refuses rather than overwrites; ConflictName.available returns nil after exhausting names and the delivery refuses on it; RemoteFS.exists and its parent-listing fallback had no caller left and were deleted rather than re-stated"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SubprocessRunner's buffers are not read while a timed-out drain handler may still append (SubprocessRunner.swift:141)"
+status = "done"
+category = "fixed"

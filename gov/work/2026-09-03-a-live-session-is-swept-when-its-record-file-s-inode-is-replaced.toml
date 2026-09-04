@@ -1,0 +1,78 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-009"
+title = "A live session is swept when its record file's inode is replaced"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+refs = [
+    "RFC-0014:C-HOLDER",
+    "RFC-0014:C-SCOPE",
+    "WI-2026-09-03-007",
+    "WI-2026-08-29-009",
+    "WI-2026-08-30-010",
+]
+
+[content]
+description = """
+A session's claim is an flock on its own record file, and flock binds to an
+INODE, not to a path. Anything that replaces the file at that path — an atomic
+write, a rename, a restore — hands the next reader an unlocked inode, so
+`claimState` answers `free`, `ownerGone` agrees, and `sweepEnded` removes the
+record and the socket of a session whose holder is still running.
+
+What is left is unreachable in every direction: `synapty sessions` cannot list
+it, `synapty end` cannot end it (it reads the pid out of the record that was
+just deleted), the GUI never learns of it, and the holder goes on holding a
+terminal nobody can get back to. On the machine that prompted this there were
+49 of them against 7 live records, accumulated over a few days.
+
+Reproduced minimally: start a held session, copy its record to a sibling path
+and rename it back — byte-identical content, new inode — and the session
+disappears from `sessions` while its process keeps running.
+
+WHAT REPLACES THE INODE IS NOT ESTABLISHED. Excluded: `Record.rewrite` writes
+in place through the held descriptor; `record_fd` is closed only in
+`Holder.stop`; neither `paths.migrate` nor Swift's `ConfigPaths.migrate` walks
+the sessions directory; `SyncEngine` and `SyncBaseStore` do write with
+`.atomic` — which is exactly temp-plus-rename — but only under `shared/`, and
+sessions live under `machine/`.
+
+So the claim moves off the file that carries data and onto one that carries
+nothing else: a `<name>.lock` that is only ever created and locked, never
+written, truncated, renamed or replaced. That removes the whole class rather
+than the one member of it that has been identified, and it keeps flock's
+semantics exactly — no pid, and so no question about a reused one
+([[WI-2026-08-29-009]])."""
+notes = [
+    "LOCK BEFORE RECORD. `Record.write` takes the claim first and writes the record second, so the intermediate state is a claim with no record — which is inert, because `sweepEnded` needs a record it can read before it removes anything. The reverse order would leave a readable record with no claim beside it, which is indistinguishable from a tombstone and would be swept as one.",
+    "The Swift side had a second, separate divergence from the Zig oracle: `live()` swept on `!isLive`, collapsing `absent` into `free`. The Zig `sweepEnded` removes a record only when the claim is `free` — a record with no claim beside it is a session still starting up, and sweeping it deletes one on its way to being born. Swift now distinguishes the same three states. This also means the sessions that predate the lock file are left alone rather than swept on the first listing after the change; they read `absent` until their holders restart, which costs them only the start guard (`startWouldJoin` answers false, so a start under such a name would not be refused).",
+    "`SessionRecord.live()` and its sweep have no production caller in Sources — only tests reach them; the GUI's only use of this file is `isLive` via `Rejoining`. So the records swept in the wild went through the Zig path (`collectSessions` -> `sweepEnded`, i.e. `synapty sessions`, and `runEnd`), not through the GUI.",
+]
+
+[[content.acceptance_criteria]]
+text = "a session's claim lives on a dedicated <name>.lock that is only created and locked — never written, truncated, renamed or replaced"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "replacing the record file's inode under a live holder leaves the session held, listed and endable"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the GUI's isLive and sweep read and remove the lock alongside the record, so listing from Swift agrees with listing from the CLI"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a byte-identical rename over a live session's record keeps claimState held and makes sweepEnded refuse"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a tombstone — record and lock present, holder gone — is still swept, and a name never used is still absent"
+status = "done"
+category = "chore"

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-012"
+title = "The cursor travels with the restoration, rather than landing wherever the paint ended"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+A reconnected pane showed the prompt on its first line and the cursor two hundred columns away at the right-hand edge.
+
+A SCREEN WRITTEN AS SEQUENCES ENDS WHERE ITS LAST CELL WAS. On a mostly empty screen that is the far edge, and nothing in the paint says otherwise — so the cursor went there and stayed. [[RFC-0014]] C-RESTORE asks for the cursor position, its visibility and its shape by name, and the reason is exactly this: it is not recoverable from the content.
+
+It travels in the frame now, and the client places it after painting. The wire carries what the terminal library reports, which is zero-indexed; the sequence that moves a cursor is one-indexed, and the conversion happens once, where the sequence is written."""
+
+[[content.acceptance_criteria]]
+text = "A restored screen puts its cursor where the session's cursor is"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The restoration carries the cursor position and visibility, and the client applies them after the paint"
+status = "done"
+category = "added"

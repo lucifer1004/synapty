@@ -1,0 +1,65 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-004"
+title = "A holder that outlives its connection, and the two commands that can find and end it"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "WI-2026-08-17-003",
+]
+
+[content]
+description = """
+[[WI-2026-08-17-003]] left the holder reachable only for as long as whatever started it stayed alive. Over ssh that means it dies with the connection, which is the one thing it exists not to do.
+
+Detaching is the whole of this work, and it MUST NOT ship alone. A holder that survives its connection is, from that moment, a resident process on somebody else's machine — and one nothing can enumerate or end is exactly the failure the previous mechanism produced, found live in its dozens on two hosts. So the escape hatch lands in the same change as the thing that makes it necessary.
+
+IN SCOPE: `run --hold --detach` returns once the session is answering and leaves it running in a session of its own ([[RFC-0014]] C-HOLDER); `synapty sessions` enumerates the holders this account owns on this host, reporting for each its name, whether a client is attached, and whether its child has exited; `synapty end --id` terminates a holder and its child ([[RFC-0014]] C-END, C-DETACH). Enumeration and ending are possible from the host itself with no graphical client, which is the property the multiplexer carried for free and this must now provide.
+
+A QUERY IS NOT AN ATTACH. Asking a holder what it is doing must not displace the client that is using it ([[RFC-0014]] C-ONE-CLIENT), so the first frame a connection sends decides what kind of connection it is.
+
+OUT OF SCOPE: retention and resumption, the screen model and restoration, the reap policy ([[RFC-0014]] C-END's declared threshold), and the connect path. The last is deliberate and ordered: a cold attach today receives a blank screen, so pointing the remote connect path at the holder before restoration exists would make every reconnect worse than what it replaces."""
+notes = ["""
+2026-08-17: three defects, each found by the test rather than by reading, and each in a different layer.
+
+THE FORK WAS IN THE WRONG PLACE. `--detach` forked inside the hold path, which runs AFTER the wrapper's hub connection and pane socket are built — so the grandchild inherited descriptors the returning parent then tore down in its own deinit, and the holder sat forever joining threads that could not finish. The comment in that code claimed to detach before anything was opened; it did not, and moving the fork ahead of the wrapper's construction is what made the claim true.
+
+TWO FLAGS WERE READ ACROSS THREADS WITHOUT ATOMICS. `ending` is set on the accept thread and read by the thread that owns the holder's life; `running` is written by whoever stops it and read by three loops. This repository already writes `running` atomically in the wrapper, so the convention was there to follow and was not.
+
+A LISTING MUST TOLERATE A READER THAT STOPS READING. `sessions | grep -q` closes the pipe on its first match; treating that as an error made the most ordinary use of the command exit non-zero.
+
+Also found, and filed rather than fixed: two connections registering one agent id crash the hub when the second exits ([[WI-2026-08-17-005]]). The refused-start path used to provoke it by registering before it checked the name, which it no longer does."""]
+
+[[content.acceptance_criteria]]
+text = "run --hold --detach returns once the session answers, and the session outlives the process that started it and the terminal it was started from"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty sessions lists this account's holders on this host with, for each, its name, whether a client is attached, and whether its child has exited"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty end --id terminates a holder and its child, and says so when there is nothing by that name"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A status query does not displace the attached client"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A holder left by a crashed or killed process is not listed as live, and its socket file does not prevent a new session of the same name"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An end-to-end test covers detach, enumerate, end, and query-does-not-displace through the real CLI"
+status = "done"
+category = "chore"

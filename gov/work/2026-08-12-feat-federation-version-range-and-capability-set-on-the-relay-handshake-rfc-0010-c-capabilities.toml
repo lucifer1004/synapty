@@ -1,0 +1,70 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-016"
+title = "feat(federation): version range and capability set on the relay handshake (RFC-0010 C-CAPABILITIES)"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = ["RFC-0010"]
+
+[content]
+description = """
+Implement [[RFC-0010]] C-CAPABILITIES. `relay_hello` carries `protocol: 1` today and NOTHING READS IT — which is how a remote hub predating the relay-presence emitter linked normally on 2026-08-12 and then silently never relayed presence.
+
+Scope:
+- relay_hello carries a supported version RANGE (min, max) and a capability SET. A range because "a version it can speak" is a set; one integer makes "incompatible" unfalsifiable, which is the same defect this work exists to fix, one level up.
+- The link proceeds at the HIGHEST version both sides support. Non-intersecting ranges refuse the link, with BOTH ranges in the refusal payload so a human can see which side to move.
+- A hub MUST NOT refuse on VERSION grounds when the ranges intersect. Deliberately scoped: the other refusals (id already held, id fails validation) are untouched and remain mandatory.
+- Within a compatible version, a missing capability REDUCES FUNCTION rather than refusing the link — a peer that cannot relay presence is still worth exchanging mail with. Each side retains what the other declared and never invokes a behaviour the peer did not declare.
+- Capabilities are retained per peer for the life of the link and exposed on hub_info alongside that peer's id and reachability. That exposure is what makes WI-2026-08-12-017 possible and what makes this clause testable at all.
+
+The first capability name to define is the one whose absence caused the incident: presence relay. Note the meaning test the RFC settles on, because it governs every future addition — a change needs a VERSION bump if a peer that does not implement it could MISINTERPRET a frame it already accepts; a capability is sufficient only when the peer's non-participation is semantically equivalent to the behaviour that existed before. "What frames exist" is the wrong test."""
+notes = [
+    """
+IMPLEMENTED 2026-08-13. relay_hello carries protocol_min/protocol_max and a capability name list; both halves of a link negotiate before the link comes up, so a version we cannot interpret is refused at the handshake rather than discovered frame by frame. Non-intersecting ranges refuse with BOTH ranges in the payload and a message naming the remedy. The refusal is scoped to version grounds only — the id-collision and validation refusals from WI-015 are untouched.
+
+BACKWARD COMPATIBILITY IS THE POINT, not a concession. A hello carrying the old single `protocol` field is read as a one-wide range, and a hello carrying nothing at all is read as the oldest version with NO capabilities — which is exactly what a pre-negotiation build is, and exactly the peer that caused the incident. Refusing those would mean a system that stops federating whenever a server is a day behind. `protocol` is still emitted alongside the range for one release so an old peer reading only that field still sees something it understands.
+
+Capabilities gate behaviour: relayPresenceLocked and relayPresenceAllTo skip a peer that did not declare presence_relay. Sending anyway is not harmless — it would make THIS side believe presence is flowing, which is the confusion the negotiation exists to end. Unknown capability names are COUNTED rather than dropped, because a peer declaring things this build cannot name means it is newer, and losing that fact makes "does less than us" and "does more than us" identical from here.
+
+Retained per link (version + caps) and exposed on hub_info's peer entries, which is what WI-017 will read. The Swift side parses it with the distinction that matters: a peer present with an EMPTY capability set is linked and provides nothing optional, which is different from a peer that is absent.
+
+The e2e asserts the incident shape from the SENDING side — strip presence_relay from a live link and confirm mail still crosses while presence is not attempted. That is the assertion that would have caught the original defect where it happened, rather than in the receiver that was correct throughout.""",
+    """
+REVISED same day at the operator's direction: DROP backward compatibility with pre-negotiation builds. Synapty is unreleased, so no such build exists, and carrying the leniency was not free.
+
+The removed behaviour was: a hello with no versioning read as "oldest version, no capabilities", and the old single `protocol` field honoured as a one-wide range. That is a SILENT-FAILURE PATH of exactly the kind this negotiation exists to remove — any future bug that dropped the capability field would have presented as "that peer is older" rather than "that handshake is broken", which is the same confusion, one level up, that cost the original debugging session.
+
+Now: protocol_min, protocol_max and capabilities are all REQUIRED, and a hello missing any of them is refused with a `malformed_hello` reason. An inverted range is refused rather than repaired, because a silent repair hides whatever produced it. An EMPTY capability list stays valid and meaningful — "I provide nothing optional" is a statement a peer can act on, and "I did not say" is not.
+
+What was KEPT and is not backward compatibility: the version RANGE and the highest-common-version rule. Those are forward-looking — a future v2 hub must still link with a v1 hub, or federation would require synchronised deploys across a fleet. That is a different property from tolerating a shape this protocol never defined.
+
+The e2e was reframed from "an old peer links" to "a peer lacking a capability links": the case is permanent (any peer may lack any capability) rather than historical.""",
+]
+
+[[content.acceptance_criteria]]
+text = "relay_hello carries a version range and a capability set; the link proceeds at the highest common version"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "non-intersecting ranges refuse the link with both ranges in the payload; intersecting ranges are never refused on version grounds, while the id-collision and validation refusals are unaffected"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a declared capability is required before its behaviour is invoked — a hub never sends a frame for something the peer did not declare"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "each peer's declared capabilities are retained and exposed on hub_info next to its id and reachability"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "two-hub e2e where one side declares no presence-relay capability — the link comes up, mail flows, and presence relay is not attempted"
+status = "done"
+category = "chore"

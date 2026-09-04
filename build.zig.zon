@@ -1,0 +1,20 @@
+.{
+    .name = .synapty,
+    .version = "0.1.0",
+    .dependencies = .{
+        // The terminal emulator the workbench renders with, as a library.
+        // A path dependency on the submodule that is already here: the
+        // far side's idea of a screen and the near side's rendering of it
+        // must not be two implementations, because a disagreement between
+        // them would surface only after a reattach ([[ADR-0012]]).
+        .ghostty = .{
+            .path = "ghostty",
+        },
+        .clap = .{
+            .url = "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.12.0.tar.gz",
+            .hash = "clap-0.12.0-oBajB7foAQDqlSwaSG5g0yq7xGbQARUsBk5T64gAOqP5",
+        },
+    },
+    .paths = .{""},
+    .fingerprint = 0xff220db17ebba5ff,
+}

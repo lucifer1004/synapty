@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-023"
+title = "fix(gui): log views auto-scroll at their caps; hoist DateFormatter"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P2: ActivityLogView auto-scroll keys on taskMonitor.activities.count — once the stream hits its 100-item cap the count stops changing and new events render below the fold with no hint; HubStatusView has the same bug at the 500-line log cap (and keys ForEach rows by array offset). ActivityRow also allocates a DateFormatter per body evaluation (one of the most expensive Foundation objects) in a 5s-re-rendered list."
+notes = ["ActivityLogView auto-scroll now keys on activities.last?.id (stable ts id) — works at the 100-item cap; HubLogLine gains a monotonic sequence id (rows keyed by offset shifted identity on trim) and HubStatusView scrolls on logs.last?.id; ActivityRow uses a hoisted static DateFormatter."]
+
+[[content.acceptance_criteria]]
+text = "activity/log auto-scroll keys on the last item's identity, not the capped array count — new events always scroll into view"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hub log rows get stable identities (sequence number) instead of array offsets"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ActivityRow uses a hoisted DateFormatter (no per-body allocation)"
+status = "done"
+category = "fixed"

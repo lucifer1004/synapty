@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-06-002"
+title = "feat(gui): searchable system font picker for terminal font settings"
+status = "done"
+created = "2026-08-06"
+started = "2026-08-06"
+completed = "2026-08-06"
+
+[content]
+description = "The font family picker currently offers only a hardcoded suggestion list, so users cannot select any installed system font. Enumerate installed font families via NSFontManager, present them in a searchable popover grouped by monospace vs all fonts with per-row preview in the family's own typeface, keep a Default (unset) option, and reuse the picker for adding fallback fonts. Keep a small pure sorting/filtering helper that is unit-testable."
+
+[[content.acceptance_criteria]]
+text = "font family picker lists all installed system fonts with search"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "monospace fonts grouped/tagged distinctly; rows preview the family typeface"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "same picker reused for adding fallback fonts"
+status = "done"
+category = "added"

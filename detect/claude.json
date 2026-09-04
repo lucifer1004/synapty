@@ -1,0 +1,180 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/claude.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done, unknown+skip_state_update->skip. Order encodes herdr's priorities; the bottom(5) working fallback is a Synapty addition for title-less environments.",
+  "tool": "claude",
+  "rules": [
+    {
+      "id": "title_working",
+      "state": "working",
+      "region": "title",
+      "regex": "^[\\u2800-\\u28FF] "
+    },
+    {
+      "id": "transcript_viewer",
+      "state": "skip",
+      "region": "bottom(3)",
+      "all": [
+        "showing detailed transcript"
+      ],
+      "any": [
+        "ctrl+o",
+        "ctrl+e",
+        "↑↓ scroll",
+        "? for shortcuts"
+      ]
+    },
+    {
+      "id": "modal_confirm_form",
+      "state": "waiting",
+      "region": "after_rule",
+      "all": [
+        "esc to cancel",
+        "enter to confirm"
+      ]
+    },
+    {
+      "id": "modal_select_form",
+      "state": "waiting",
+      "region": "after_rule",
+      "all": [
+        "esc to cancel",
+        "enter to select"
+      ],
+      "any": [
+        "tab/arrow keys to navigate",
+        "arrow keys to navigate",
+        "arrows to navigate",
+        "↑/↓ to navigate",
+        "↑↓ to navigate"
+      ]
+    },
+    {
+      "id": "dynamic_workflow",
+      "state": "waiting",
+      "all": [
+        "run a dynamic workflow?",
+        "esc to cancel"
+      ]
+    },
+    {
+      "id": "btw_overlay",
+      "state": "working",
+      "region": "bottom(5)",
+      "lineRegex": "^\\s*/btw(\\s|$)"
+    },
+    {
+      "id": "overlay_close",
+      "state": "working",
+      "region": "bottom(5)",
+      "lineRegex": "(?i)esc to close\\s*$"
+    },
+    {
+      "id": "working_footer",
+      "state": "working",
+      "region": "bottom(5)",
+      "any": [
+        "esc to interrupt",
+        "ctrl+b to run in background"
+      ]
+    },
+    {
+      "id": "prompt_box_idle",
+      "state": "done",
+      "region": "prompt_box",
+      "lineRegex": "^\\s*❯",
+      "not": [
+        "enter to select",
+        "esc to cancel",
+        "tab/arrow keys",
+        "arrow keys to navigate",
+        "↑/↓ to navigate"
+      ]
+    },
+    {
+      "id": "model_picker",
+      "state": "skip",
+      "all": [
+        "select model",
+        "enter to set as default",
+        "esc to cancel"
+      ],
+      "not": [
+        "do you want to proceed?",
+        "enter to select"
+      ]
+    },
+    {
+      "id": "bash_permission",
+      "state": "waiting",
+      "all": [
+        "do you want to proceed?"
+      ],
+      "any": [
+        "bash command",
+        "bash(",
+        "contains expansion",
+        "tab to amend",
+        "ctrl+e to explain"
+      ],
+      "lineRegex": "(?i)^\\s*(?:❯?\\s*yes|1\\.\\s*yes|2\\.\\s*no)\\b"
+    },
+    {
+      "id": "generic_permission",
+      "state": "waiting",
+      "region": "after_rule",
+      "all": [
+        "do you want to proceed?",
+        "esc to cancel"
+      ],
+      "lineRegex": "(?i)^\\s*(?:❯\\s*)?(?:1\\.\\s*yes|2\\.\\s*(?:yes|no)|3\\.\\s*no)\\b"
+    },
+    {
+      "id": "legacy_do_you_want",
+      "state": "waiting",
+      "all": [
+        "do you want to"
+      ],
+      "any": [
+        "yes",
+        "❯"
+      ],
+      "notRegex": [
+        "(?m)^\\s*❯\\s*$"
+      ]
+    },
+    {
+      "id": "legacy_would_you_like",
+      "state": "waiting",
+      "all": [
+        "would you like to"
+      ],
+      "any": [
+        "yes",
+        "❯"
+      ],
+      "notRegex": [
+        "(?m)^\\s*❯\\s*$"
+      ]
+    },
+    {
+      "id": "legacy_misc_blockers",
+      "state": "waiting",
+      "any": [
+        "waiting for permission",
+        "do you want to allow this connection?",
+        "tab to amend",
+        "ctrl+e to explain",
+        "review your answers",
+        "skip interview and plan immediately"
+      ],
+      "notRegex": [
+        "(?m)^\\s*❯\\s*$"
+      ]
+    },
+    {
+      "id": "title_idle",
+      "state": "done",
+      "region": "title",
+      "regex": "^✳ "
+    }
+  ]
+}

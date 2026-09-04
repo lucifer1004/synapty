@@ -1,0 +1,29 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-002"
+title = "ADR: V1 scope and phase boundaries"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-26"
+refs = [
+    "RFC-0001",
+    "ADR-0001",
+]
+
+[content]
+description = "Draft ADR defining V1 scope boundaries within the RFC-0001 vision. Clarify what V1 delivers, what is deferred, and ensure decisions do not block V2 extension."
+
+notes = [
+    "2026-03-26 (adr): ADR-0001 drafted, reviewed, and all 3 reviewer warnings addressed: bounded GUI scope, expanded agent skills spec, added CLI-as-permanent-contract neutral consequence. govctl check passes clean.",
+]
+[[content.acceptance_criteria]]
+text = "ADR drafted with context, decision, consequences, and alternatives"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

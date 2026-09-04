@@ -1,0 +1,77 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0015"
+title = "Workspaces and connections: a resident container, a shared link, and the leaf that binds them"
+version = "0.4.0"
+status = "normative"
+phase = "spec"
+owners = ["@lucifer1004"]
+created = "2026-08-17"
+updated = "2026-09-01"
+refs = [
+    "RFC-0006",
+    "RFC-0008",
+    "RFC-0013",
+    "RFC-0014",
+    "RFC-0004",
+    "RFC-0001",
+    "RFC-0005",
+]
+signature = "38988a0afb6f5538a64eddee0e8aeed5539aa47c7732eb12fe3a0a3d3396ff51"
+
+[[sections]]
+title = "Summary"
+clauses = [
+    "clauses/C-SUMMARY.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-WORKSPACE.toml",
+    "clauses/C-CONNECTION.toml",
+    "clauses/C-LEAF-BINDING.toml",
+    "clauses/C-DIAL.toml",
+    "clauses/C-RELEASE.toml",
+    "clauses/C-FAILURE.toml",
+    "clauses/C-EMPTY.toml",
+    "clauses/C-PERSIST.toml",
+    "clauses/C-RESTORE.toml",
+    "clauses/C-ARCHIVE.toml",
+    "clauses/C-UNARCHIVE.toml",
+    "clauses/C-HONESTY.toml",
+    "clauses/C-IDENTIFY.toml",
+    "clauses/C-CONTENT.toml",
+    "clauses/C-LAYOUT.toml",
+    "clauses/C-UNRELEASED.toml",
+    "clauses/C-PANE-WRITES.toml",
+    "clauses/C-DERIVED.toml",
+    "clauses/C-SET-ASIDE.toml",
+    "clauses/C-PANE-ARCHIVE.toml",
+]
+
+[[sections]]
+title = "Overview"
+
+[[changelog]]
+version = "0.4.0"
+date = "2026-09-01"
+notes = "Added C-SET-ASIDE: closing a pane sets it aside — it leaves the layout, what runs in it keeps running, and it stays listed and reachable. This is the answer RFC-0014 C-DETACH requires every implementation to give to what closing a pane means, and it is neither of the two that clause calls harmful: the leak it names is closed by a list rather than by a kill. One answer for every machine, where there were two decided by which machine a pane was on and visible from neither. Restore lists them rather than reconnecting them. C-PERSIST amended to carry them, since they are not in the layout tree and an enumeration that stops at the tree writes a store missing every live session nothing then names."
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-08-31"
+notes = "Added C-DERIVED: what the workbench may read from a pane, and what it may then do — authorising a scrollback read, and keying the rules to the properties of an act rather than to a list of destinations. Five rules: contents are data and never instruction; an act must be what it appears to be; nothing happens until the human asks; what the human did not send does not travel; and what is handed to another program must be judgeable from what was shown. Resolution may read what is already on the pane's own machine and may never reach another one."
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-27"
+notes = "The prohibition on persisting a control socket is a property of the fact, not of this store"
+changed = ["C-PERSIST's live-connection rule read as a rule about the workspace file, because that is where it was first needed. A reader taking the scope literally writes the same falsehood into a different file, and one did: a control socket path recorded elsewhere, surviving the process, read back as authoritative about where a live channel should go. The rule now says it binds the fact wherever it is recorded."]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-17"
+notes = "Initial draft"

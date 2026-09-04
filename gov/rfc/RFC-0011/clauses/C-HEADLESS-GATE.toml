@@ -1,0 +1,43 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HEADLESS-GATE"
+title = "What Evidence Exists Without A Screen"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+INJECTION IS NOT AUTHORISED BY THIS RFC. This clause records what a machine without a workbench can and cannot establish, and states the conditions any future authorisation must meet. It is the clause that blocks shipping, and it says why in the specific rather than the general.
+
+[[RFC-0005]] C-STATE-GATE decides whether typing into a terminal is safe. Its evidence is the passive detector's fresh classification of the screen, plus merged status as a veto channel, plus liveness and human-recency checks.
+
+THIS INVENTORY WAS DERIVED FROM tmux, AND tmux LEFT. Until 2026-08-17 a detached remote agent ran under tmux and this clause reasoned about `tmux capture-pane`. [[RFC-0014]] replaced that with a holder: `connect.sh` launches `synapty run --hold --detach`, and the holder OWNS the child's pseudoterminal. The substitution changed ANSWERS, not only names — two items this clause listed as unresolved are resolved by the new component, one of them the item it called genuinely unrecoverable, and one item got HARDER. An evidence inventory is only worth its accuracy, so it is re-derived below against what is actually on that machine.
+
+WHAT IS ACTUALLY ON THAT MACHINE. The holder, and this project's own `run` wrapper inside it. The wrapper exports the pane IPC socket every hook is gated on (`SYNAPTY_SOCK`) and waits on the agent process, so the hook stream and wrapper lifecycle are architecturally AVAILABLE headlessly. The holder maintains the child's terminal state and can produce the screen ([[RFC-0014]] C-RESTORE), reports the foreground process group ([[RFC-0014]] C-FOREGROUND), reports whether the child is still running ([[RFC-0014]] C-EXIT-SIGNAL), and receives every byte a client sends as input.
+
+WHAT THE OLD WRAPPER DID NOT GIVE AND THE HOLDER DOES. The superseded text said the wrapper "passes the agent's standard streams THROUGH rather than proxying a pseudoterminal, so it observes neither screen content nor keystrokes", and concluded that every screen-derived item stood unchanged. That was true of the wrapper alone and is false of the holder: it owns the pty, so screen content and typed bytes both pass through it. The items below are re-answered on that basis rather than inherited.
+
+WHAT IS RESOLVED BY THE HOLDER, stated as resolved so no future reader argues against a gate that no longer applies:
+
+- THE SCROLLED-VIEWPORT HAZARD IS GONE. [[RFC-0004]] C-PASSIVE-DETECTION requires reading the live grid "never the user-scrolled viewport", precisely so a human scrolling back cannot change a classification. `tmux capture-pane` read a scrollable viewport; the holder has no viewport to scroll. Scrollback lives in the client, which is where the wheel is, so what the holder can produce IS the live grid.
+- HUMAN-KEYSTROKE RECENCY IS AVAILABLE. The superseded text called this "the one requirement genuinely unrecoverable from what is present" and stated it as a cost. It is recoverable: input reaches the child only by passing through the holder, so the time of the last human byte is a fact the holder holds. Any authorisation MUST still USE it — C-STATE-GATE's backoff is not satisfied by the datum merely existing — but it is no longer a reason the model cannot be built.
+- LIVENESS IS ANSWERED, and by a component whose whole purpose is to answer it. C-FOREGROUND reports what is running and C-EXIT-SIGNAL reports whether the child is, which is stronger than what a multiplexer offered.
+
+WHAT IS STILL UNRESOLVED:
+
+- THE CLASSIFICATION CHANNEL IS NARROWER AND FAILS TOWARD A WRONG ANSWER, AND THIS GOT HARDER. C-PASSIVE-DETECTION matches ordered patterns over the read region PLUS THE OSC TITLE, first match wins. The holder does not track the title: it maintains terminal state for repainting and carries no notion of a window title at all. Because the list is ordered, losing an input does not degrade to "no match, emit nothing" — a manifest whose title rule would have matched `working` can fall through to a text rule matching `done`, and the gate would open on a live turn with nobody watching. The escape route this clause used to name was that tmux exposes the title separately from the capture; that route left with tmux. Any authorisation MUST either establish that classification without the title channel is sound for the manifests in use, or give the holder a title channel of its own — which is an amendment to [[RFC-0014]], not to this clause.
+- ROW GEOMETRY IS CALIBRATED, NOT PORTABLE. The manifest regions are calibrated against the local reader's window; a remote session's dimensions are its own. This project has already paid for that assumption once, when a fixed bottom-anchored window read entirely blank against top-anchored output. The holder knows and reports its dimensions ([[RFC-0014]] C-SIZE), so this is resolvable rather than blocked — but it is resolved by a manifest model that reads dimensions rather than assumes them, and no such model exists.
+- [[RFC-0004]] C-CONFORMANCE DECLARES C-PASSIVE-DETECTION VACUOUS on exactly this machine — "a hub with no workbench attached satisfies the workbench-addressed clauses VACUOUSLY". Reactivating it there is a relocation of the detection fleet out of the workbench layer, and that is a decision the record has not made. Nothing about the holder changes this: it is a question of which layer owns detection, not of what can be observed.
+- THE RECEIPT CHANNEL EXISTS AND IS UNPROVISIONED — A DEPLOYMENT GAP, NOT AN ARCHITECTURAL ABSENCE, and the distinction decides the remedy. C-WAKE-ACK requires watching for a `working` edge within an acknowledgement window, with a stall event, one retry, and a surfaced failure. The `working` edge is precisely what the hook stream carries, and the hook stream reaches the hosting hub through the wrapper's socket. What is missing is that the remote deploy path does not install the agent's hooks on that host, so the channel is present and empty. Any authorisation MUST therefore (a) make hook installation part of deploying an agent, or refuse to honour a delegation on a host where it is absent, and (b) say where a stall is surfaced, since surfacing to a human still requires a workbench that may not be running — the pending carrier C-DEFAULT names is the natural answer and MUST be stated rather than assumed.
+
+THE MERGED-STATUS VETO IS AVAILABLE HEADLESSLY AND MUST BE USED. A draft of this clause claimed the veto "may have only the screen" available; that is false. [[RFC-0009]] C-PRESENCE puts presence ownership on the HOSTING hub, and explicit `synapty notify` reaches it through the wrapper's pane socket — subject to the same provisioning condition as the receipt channel, since both ride the hooks. C-STATE-GATE's prohibition on injecting while merged status is `waiting` is absolute, and a harness showing a modal prompt is exactly the case where injected text could answer on the human's behalf.
+
+REQUIREMENTS THAT BIND NOW:
+
+- A hub MUST NOT inject until an amendment to this clause names a resolved evidence model covering every item under WHAT IS STILL UNRESOLVED.
+- AN AMENDMENT MUST RE-DERIVE THE INVENTORY AGAINST WHAT IS THEN ON THE MACHINE, rather than editing the list in place. This clause's value is entirely in the accuracy of its facts, and it has now been wrong twice in the same way: once about a wrapper that did less than claimed, once about a multiplexer that had been gone nine days. A list of facts about a machine is a thing that goes stale without anyone touching it.
+- No headless-only relaxation of what counts as rest may be introduced. Less evidence buys MORE caution: a human is present to notice a bad local injection and there is nobody to notice a bad remote one.
+- A CHANNEL THAT IS PRESENT BUT UNPROVISIONED MUST NOT BE TREATED AS PRESENT. The hooks either are installed on that host or they are not, and a gate that assumes them would read an empty channel as agreement — the same silent-failure shape [[RFC-0010]] C-DIAGNOSABILITY names. Any authorisation MUST make the provisioned state checkable at the hub rather than inferred.
+- The liveness check MUST be preserved in any model — never type into a pane whose registered agent is no longer its living process. The hazard is higher remotely, where a stray line lands in a shell nobody sees."""

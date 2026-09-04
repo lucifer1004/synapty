@@ -1,0 +1,128 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CLI-MCP"
+title = "CLI and MCP Interface"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = '''
+Agents interact with the messaging system through two interfaces: the synapty CLI and MCP tools. Both route through the daemon's IPC socket to the Hub.
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `synapty register --tool <t> [--project <p>] [--session <s>]` | Register agent identity with metadata |
+| `synapty send <target> <text>` | Send a DM (`target` = agent ID) or channel message (`target` = `channel:<name>`) |
+| `synapty recv` | Drain unread messages from the daemon's local queue |
+| `synapty agents` | List registered agents with metadata |
+| `synapty channel create <name> [--description <d>]` | Create a group chat channel |
+| `synapty channel invite <channel> <agent-id>` | Invite an agent to a channel |
+| `synapty channel leave <channel>` | Leave a channel |
+| `synapty channel list` | List channels the agent is a member of |
+
+### MCP Tools
+
+All CLI commands are mirrored as MCP tools for AI agent consumption:
+
+| Tool | Input Schema |
+|------|-------------|
+| `synapty_register` | `{ tool: string, project?: string, session?: string }` |
+| `synapty_send` | `{ target: string, text: string }` |
+| `synapty_recv` | `{}` |
+| `synapty_agents` | `{}` |
+| `synapty_channel_create` | `{ name: string, description?: string }` |
+| `synapty_channel_invite` | `{ channel: string, agent_id: string }` |
+| `synapty_channel_leave` | `{ channel: string }` |
+| `synapty_channel_list` | `{}` |
+
+### IPC Protocol
+
+CLI commands and MCP tools send IPC requests to the daemon via the Unix socket. The IPC request is a JSON object with an `action` field and action-specific parameters:
+
+| Action           | Required Fields | Optional Fields |
+|------------------|-----------------|-----------------|
+| `register`       | `tool`          | `project`, `session` |
+| `send`           | `target`, `text`| — |
+| `recv`           | —               | — |
+| `agents`         | —               | — |
+| `channel_create` | `name`          | `description` |
+| `channel_invite` | `channel`, `agent_id` | — |
+| `channel_leave`  | `channel`       | — |
+| `channel_list`   | —               | — |
+
+Example IPC request:
+```json
+{"action": "send", "target": "dev-server-ghi3", "text": "hello"}
+```
+
+The daemon translates IPC requests into Hub protocol envelopes and returns the Hub's response (or the local queue contents for `recv`).
+
+### `recv` Behavior
+
+`recv` is a **local operation** — it drains the daemon's in-memory message queue, not the Hub. The daemon's queue is fed by the Hub's TCP push stream. Messages are returned in chronological order and removed from the queue.
+
+`recv` response format:
+```json
+{
+  "messages": [
+    {"from": "local-abc1", "channel": null, "text": "hello", "ts": 1711612800},
+    {"from": "dev-ghi3", "channel": "design-review", "text": "LGTM", "ts": 1711612810}
+  ]
+}
+```
+
+| Field     | Type    | Description |
+|-----------|---------|-------------|
+| `from`    | string  | Sender's agent ID |
+| `channel` | string? | Channel name, or `null` for DMs |
+| `text`    | string  | Message content |
+| `ts`      | integer | Seconds since Unix epoch, set by Hub at processing time |
+
+### Output Format (CLI)
+
+`synapty agents` MUST output one agent per line in tab-separated format:
+```
+<agent-id>\t<tool>\t<project>\t<session>
+```
+Absent fields are represented as `-`.
+
+`synapty recv` MUST output one message per line in tab-separated format:
+```
+<from>\t<channel-or-dm>\t<timestamp>\t<text>
+```
+Where `<channel-or-dm>` is the channel name or `dm` for direct messages.
+
+### `list_agents` Response Payload
+
+```json
+{
+  "ok": true,
+  "data": {
+    "agents": [
+      {"id": "local-abc1", "tool": "codex", "project": "/path", "session": "auth refactor"},
+      {"id": "dev-ghi3", "tool": "claude", "project": "/path", "session": "-"}
+    ]
+  }
+}
+```
+
+### `list_channels` Response Payload
+
+```json
+{
+  "ok": true,
+  "data": {
+    "channels": [
+      {"name": "design-review", "description": "Auth module redesign", "members": ["local-abc1", "dev-ghi3"]}
+    ]
+  }
+}
+```
+
+**Rationale:** Mirroring CLI and MCP interfaces ensures agents can participate regardless of whether they use MCP (Claude Code, Codex, Gemini) or direct CLI calls (human operators, shell scripts). The local `recv` model avoids a Hub round-trip for message polling and matches the push-based IM delivery model. Tab-separated CLI output enables simple parsing by both the GUI's AgentMonitor and shell scripts.
+
+*Since: v0.1.0*'''

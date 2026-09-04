@@ -1,0 +1,66 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/amp.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "amp",
+  "rules": [
+    {
+      "id": "title_plugin_confirmation",
+      "state": "waiting",
+      "region": "title",
+      "contains": "Plugin confirmation needed"
+    },
+    {
+      "id": "title_working",
+      "state": "working",
+      "region": "title",
+      "regex": "^[\\u2800-\\u28FF] "
+    },
+    {
+      "id": "approval_footer",
+      "state": "waiting",
+      "any": [
+        "waiting for approval",
+        "invoke tool",
+        "run this command?",
+        "allow editing file:",
+        "allow creating file:",
+        "confirm tool call"
+      ]
+    },
+    {
+      "id": "approval_approve_variants",
+      "state": "waiting",
+      "all": [
+        "approve"
+      ],
+      "any": [
+        "allow all for this session",
+        "allow all for every session",
+        "allow file for every session",
+        "deny with feedback"
+      ]
+    },
+    {
+      "id": "status_footer_working",
+      "state": "working",
+      "region": "bottom(5)",
+      "lineRegex": "(?i)^\\s*╰\\s+\\S+\\s+(thinking|streaming|running tools|waiting)\\s+─"
+    },
+    {
+      "id": "esc_cancel_working",
+      "state": "working",
+      "contains": "esc to cancel"
+    },
+    {
+      "id": "title_idle",
+      "state": "done",
+      "region": "title",
+      "contains": " - amp - ",
+      "not": [
+        "plugin confirmation needed"
+      ],
+      "notRegex": [
+        "^[\\u2800-\\u28FF] "
+      ]
+    }
+  ]
+}

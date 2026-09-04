@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-005"
+title = "feat(gui): one chrome surface for everything that flanks the content, with a switch"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+
+[content]
+description = """
+"现在右侧面板是淡米色,左侧面板是毛玻璃,界面不一致了。整体思考下。"
+
+THE INVENTORY, WHICH IS WHERE THE ANSWER WAS. The window had four chrome surfaces in three treatments: the navigation sidebar on `DSVisualEffect(.sidebar)`, the settings inspector on `DS.background`, the status bar on `DS.background`, and the content area also on `DS.background`. So the inspector and the status bar shared a surface with the CONTENT, which is why they read as more content rather than as chrome — and why the sidebar looked like the odd one out when it was the only one doing it right.
+
+THE RULE, rather than a patch for one panel: everything that FLANKS the content is chrome and shares one surface; the content itself is opaque. That is the macOS idiom — Xcode's navigator and inspector are one material, Pages and Notes do the same — and it is the reason the sidebar and the inspector should not read as different kinds of thing when they play the same structural role.
+
+`DSChromeBackground` is that one surface, and all three flanking surfaces use it.
+
+TWO THINGS CAN FLATTEN IT, ANSWERING DIFFERENT QUESTIONS.
+
+The system's `accessibilityDisplayShouldReduceTransparency` always wins. The app honoured it NOWHERE before this — no reference anywhere in the tree — and an accessibility setting that has to be turned off a second time inside an app is not being honoured. It is re-read on the change notification rather than cached, because it can be toggled while the app runs.
+
+The app's own switch covers what the system's cannot. Synapty lets a human make the TERMINAL translucent, and someone running that may want solid chrome so the window keeps a figure and a ground. That combination exists only here, and a global system setting is too blunt for it. Default on; disabled, with a reason in its tooltip, while the system setting is on — a switch that looks live while something else overrides it is worse than one that says why.
+
+THE COST, stated rather than discovered later: every chrome surface now has two states to check, in light and dark, at four UI sizes."""
+notes = [
+    """
+VERIFIED BY LOOKING, both states captured: with the switch on, the two flanks and the status bar are one material and the terminal is the opaque figure between them; with it off, all three are solid and nothing else moves.
+
+NOT VERIFIED: the system Reduce-transparency path. Turning that on changes the operator's accessibility settings machine-wide, which is theirs to do, so the code path is read and reasoned about rather than exercised. It is one boolean and a notification.
+
+THE PROPOSAL THAT PROMPTED THIS was to make the frosted glass a setting. Worth recording that a switch alone would not have fixed the complaint: the inconsistency was that one surface behaved differently from two others, and a switch on one panel leaves that intact. The rule had to come first; the switch is then three lines, because there is one place to switch.""",
+    """
+THE WARM TONE WAS DROPPED BY THIS CHANGE, and putting it back is where the round earned its keep.
+
+Unifying the three surfaces onto `DS.sidebar` — a neutral grey 0.97 — replaced the inspector's warm paper with neutral. The sidebar had always been neutral vibrancy and the inspector had always been warm, so I unified them ONTO THE WRONG ONE: I took the first surface I looked at as the reference instead of asking which was the app's palette. The design system says so in its own comment, one screen up: "white cards on WARM PAPER in light mode". Unifying is not unifying onto whichever you saw first.
+
+`DS.chrome` is now the one chrome tone, and the frosted state is the material under a 0.55 wash of that same paper — the material alone is neutral and blends the desktop, which would leave chrome the only part of the window outside the app's palette.
+
+A ROUND SPENT ON A RULE I INVENTED. Measuring dark mode showed chrome LIGHTER than content when frosted and darker when solid, and I decided chrome must recede in both. Two attempts to force that: a heavier wash landed dark chrome at rgb(39) against a page at rgb(39) — the boundary vanished — and `.underWindowBackground`, which I assumed was more recessive, measured LIGHTER still at rgb(54). Reaching the rule in dark needed a 0.95 wash, at which point nothing was translucent.
+
+The rule was wrong. Finder and Music look the same way; a frosted surface picking up light is what the material DOES. What has to hold is that all chrome matches and that chrome is distinguishable from content, and both hold in all four combinations. The detour is recorded beside the constant so nobody repeats it.
+
+MEASURED, not eyeballed — twice the eye was wrong. The two dark states looked identical in a screenshot and were rgb(54) against rgb(33); a toggle read as off in a downscaled capture and was on. Final numbers, sampling all three chrome surfaces against the page background:
+
+  dark  frosted  54,53,52 = 54,53,52 = 54,53,52   page 39,38,36
+  dark  solid    33,32,30 = 33,32,30 = 33,32,30   page 39,38,36
+  light frosted  241,239,237 (all three)          page 250,249,246
+  light solid    246,245,242 (all three)          page 250,249,246
+
+Three surfaces identical in every row, every one carrying the warm R>G>B offset, and every one distinguishable from the content it frames.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the sidebar, the inspector and the status bar share one surface"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the system's Reduce transparency setting is honoured, and re-read when it changes"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a switch chooses the chrome material for all of it at once"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the switch is disabled with a reason while the system overrides it"
+status = "done"
+category = "chore"

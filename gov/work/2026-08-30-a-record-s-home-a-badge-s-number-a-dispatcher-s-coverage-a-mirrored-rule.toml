@@ -1,0 +1,64 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-009"
+title = "A record's home, a badge's number, a dispatcher's coverage, a mirrored rule"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Four more from the sweep.
+
+WHERE A SESSION RECORD LIVES WAS STATED TWICE. `paths.sessionsDir` owns it
+on the Zig side; Swift built `machine/sessions` from the root by hand, and
+`ConfigPaths.Entry` had no case for the directory, so there was no owner to
+call. Rename or move it and the holder writes and sweeps in the new place
+while `SessionRecord.isLive` opens a path nothing writes — false for EVERY
+live session, so every surviving holder reads as gone and its name is
+conferred on a new child. It is a classified entry now, which also puts it
+inside the redirected-root and shared-cannot-reach-machine guards, and the
+record's filename has one owner in `SessionRecord.url(for:)`.
+
+A NUMBER AND THE SENTENCES UNDER IT DISAGREED. The approvals badge summed
+three sources and the tooltip beneath it enumerated two, so a human read "3"
+and hovered onto two lines with nothing to say where the third had gone —
+the missing one being a transfer stopped on a name it will not take. The
+list is the owner now and the number is its count, so a source can only be
+added to both at once.
+
+A TABLE ROW WITH NO DISPATCH ARM DID NOTHING, SILENTLY. Adding a command to
+the table is one edit and giving it an arm is another, in another file, and
+the dispatch ends in a chain of prefix tests and then falls off the end. It
+says whether anything answered now, and a test walks every row.
+
+A RULE WRITTEN TWICE CLAIMED TO BE WRITTEN ONCE. `isValidExecCommand`'s
+comment said it was "shared so the CLI (convenience) and the workbench
+(enforcement) agree byte-for-byte", and nothing was shared: Swift
+re-implements the predicate over unicode scalars. They agree today, C1
+included. Swift cannot import Zig, so what can be shared is the list of
+CASES: both sides now assert the same boundaries, and tightening one without
+the other takes the other red. The comments say mirrored rather than shared,
+and both say why C1 passes — a decision, not an oversight."""
+
+[[content.acceptance_criteria]]
+text = "ConfigPaths.Entry.sessions classifies the session directory and SessionRecord.url(for:) owns the filename"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AppNotifications.waitingLines is the owner; the badge count is its count and the tooltip is its lines"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "KeyDispatcher.performed says whether anything answered, and a test walks every row of the table"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the exec validators say they are mirrored rather than shared, and both sides assert the same list of cases"
+status = "done"
+category = "fixed"

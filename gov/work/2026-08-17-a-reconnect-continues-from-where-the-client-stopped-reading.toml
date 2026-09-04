@@ -1,0 +1,78 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-006"
+title = "A reconnect continues from where the client stopped reading"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "WI-2026-08-17-003",
+]
+
+[content]
+description = """
+[[RFC-0014]] C-RESUME and C-RETENTION. Today a client that comes back sees whatever the child says next and nothing about what it missed, which makes a brief link loss a hole in the human's scrollback — indistinguishable from work that never happened.
+
+The holder retains recent output and can answer "everything after the point I last received". A client presents a POSITION; the holder either delivers exactly the bytes following it, or says explicitly that it cannot. Nothing in between: a partial or repositioned stream is worse than an admitted gap, because the client renders it as continuous.
+
+A POSITION NAMES AN INCARNATION as well as an offset. One holder's lifetime under a name is one incarnation; a later holder of the same name is another, and an offset from the first means nothing in the second. Rejecting a foreign position is the difference between a refusal and a stream resolved against unrelated bytes.
+
+RESUMED BYTES CARRY THE GEOMETRY THEY WERE WRITTEN IN. A client reconnecting at a new size receives what it missed first and is resized afterwards, as a single resize — bytes written for eighty columns rendered into a hundred wrap and address the wrong cells, which is the seam this work exists to remove.
+
+Retention is bounded and discoverable, stated in bytes, and at least a mebibyte ([[RFC-0014]] C-RETENTION): a holder that satisfies "bounded" with a token amount makes resumption fail in every real case.
+
+OUT OF SCOPE: the screen model and restoration ([[RFC-0014]] C-RESTORE), which is what a client with NO position needs. That client still gets an empty screen here, and the answer it receives says so rather than pretending otherwise."""
+notes = [
+    """
+2026-08-17: retention is a ring addressed by ABSOLUTE STREAM OFFSET, because the offset is what a client presents on its way back and it has to keep meaning the same thing after the buffer has wrapped — which a position into the buffer would not. The incarnation is minted rather than counted: two holders of one name never overlap in time, but a client can be away across both, and a counter restarting at zero would make the second holder's offsets look like the first's.
+
+The catch-up does NOT hold the lock across its writes. A megabyte into a socket while the pump waits to append is the child stalled behind its own audience — the failure C-STALLED-CLIENT forbids from a slow client, and worse from a returning one. The flag that stops the pump writing directly is cleared under the same lock that guards the ring, which is what makes the handover seamless: no byte can slip between "caught up" and "live".
+
+THE FIRST RESIZE-ORDERING TEST DID NOT BITE. It asserted that the backlog said the old size, which is true however the implementation behaves, because the retained stream serializes everything regardless of when a resize lands. Rewritten to assert what actually distinguishes them: with the first backlog frame in hand, the CHILD is still the size those bytes were written at. Mutation-checked in both directions.
+
+Two defects fixed on the way, neither in the resumption work. `sys.setRecvTimeout` went through `std.posix.setsockopt`, which marks EINVAL `unreachable` — a panic no caller can catch, reached by asking a descriptor that has stopped being a socket. It now maps errno like everything else in that module. And a `gap` frame exists for a catch-up the child outruns, but nothing tests it yet: producing that race deliberately needs a child that outpaces a local socket, which is left for the screen-model slice where a slow client is already being simulated.""",
+    "2026-08-17: the gap test turned out to be straightforward after all — a memcpy outruns a socket, which is the whole point: overrun the ring from the test thread while the catch-up walks it, and the window moves out from under the reader. Fifteen holder tests, three consecutive clean runs.",
+]
+
+[[content.acceptance_criteria]]
+text = "A client can determine, from what it has received, a position it can present later"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A reattach with a position delivers exactly the output after it, in order, with nothing repeated"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A position from an earlier incarnation is refused rather than resolved against this holder's output"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A position older than what is retained is refused explicitly, and the client is told which answer it got"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Resumed output is delivered before a new size is applied, and the resize happens once"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Retention is bounded, at least one mebibyte, and its size is reported to a client before it relies on it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A catch-up the child outruns ends in a stated gap, never a silent one"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tests cover resumption after a real absence, a foreign incarnation, an expired position, and the resize ordering"
+status = "done"
+category = "chore"

@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DISCOVERY"
+title = "Telling the human what a key does"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+What the human is told a key does MUST be read from the table.
+
+- THE WORKBENCH MUST CARRY A SURFACE LISTING EVERY COMMAND IN THE TABLE, including those holding no chord, showing the EFFECTIVE chord rather than the default, and marking those that differ from their default. It is the same surface bindings are edited on or another that reads the same table; what it may not be is a document maintained by hand.
+- EVERY SURFACE THAT INVOKES A COMMAND IN THE TABLE — a menu item, a tooltip, an empty state offering an action — MUST take the chord it displays FROM the table. The test is what the surface INVOKES, never which chords the table happens to name today: scoped the second way, a menu item with a chord typed into it by hand would be in violation while the human left the default alone and become exempt the moment they rebound or cleared that command — exempt exactly when its printed chord went stale, which is the harm this clause exists to prevent.
+- A SURFACE INVOKING ONE OF THE PLATFORM'S OWN ACTS ([[RFC-0016:C-TABLE]]'s OUT list) and nothing else is not addressed here. It shows what the platform gives it, and this clause makes no demand of it either way.
+- A SURFACE THAT INVOKES A TABLE COMMAND IN SOME FOCUS CONTEXTS AND A PLATFORM ACT IN OTHERS TAKES ITS CHORD FROM THE TABLE. A single Copy item that means the terminal's copy in a terminal and the platform's copy in a text field is one surface with two meanings ([[RFC-0016:C-DISPATCH]] settles which a keystroke has, but a menu shows only one chord) — and of the two candidates only the table's can go stale, so only the table's may be displayed.
+- A SURFACE THAT DISPLAYS A CHORD WITHOUT INVOKING ANYTHING — a help page, a first-run tip reading "press ⌘K to connect" — MUST take it from the table too, WHEREVER THE SURFACE NAMES A COMMAND IN THE TABLE. Prose goes stale exactly as a menu item does, and is read by the people least able to tell that it has.
+
+  SCOPED BY THE COMMAND IT NAMES AND NEVER BY THE CHORD IT PRINTS, for the same reason the table is the only permitted source at all — a chord goes stale where the name of a command does not: a tip saying "press ⌘K to connect" names the command "connect", and a rule keyed to the chord would exempt that tip the moment the human moved quick-connect off ⌘K — exempting it exactly when it went stale. An implementation that scans prose for chord literals and substitutes the ones the table currently names satisfies the words and ships the defect.
+
+  WHERE THE NAMED COMMAND HOLDS NOTHING, the surface MUST name its non-keyboard path instead ([[RFC-0016:C-UNBOUND]]) rather than print an empty chord or drop the sentence. The human still needs to be told how to do the thing. A chord written into such a surface by hand is a claim about behaviour that nothing keeps true, and it stays on screen looking authoritative for as long as it takes someone to notice.
+- WHAT THESE SURFACES MAY SAY ABOUT A CHORD IS BOUNDED BY [[RFC-0016:C-HONESTY]]."""

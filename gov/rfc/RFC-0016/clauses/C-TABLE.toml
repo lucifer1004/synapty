@@ -1,0 +1,55 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TABLE"
+title = "One table names every chord"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Every chord the workbench itself answers to is named by a COMMAND in ONE table, and the command a chord NAMES is a function of that table alone.
+
+## What a command is
+
+| Column | Meaning |
+|---|---|
+| **identifier** | TEXT, stable, and what a stored override names. It MUST NOT change when the displayed name does, and MUST NOT be a position in a list. Text because it is written into a store a human may read, and because [[RFC-0016:C-CONFLICT]] orders overrides by it. |
+| **name** | What the human reads. |
+| **default chord** | What it holds before anyone changes it. MAY be `none`, which is the same holds-nothing state a human reaches by clearing ([[RFC-0016:C-REBIND]]) and is spelled the same way throughout. |
+| **domain** | `workbench` or `terminal` — which decides where it is dispatched and when ([[RFC-0016:C-DISPATCH]]). |
+| **yields to text entry** | For a `terminal` command only, and consulted in exactly ONE place — row 2 of [[RFC-0016:C-DISPATCH]], where a text-entry surface BELONGING TO A TERMINAL LEAF has focus. Copy and paste yield to it; clearing the screen and changing the font size do not. It says nothing about text fields elsewhere in the workbench, which row 4 already keeps every `terminal` command away from. |
+| **non-keyboard path** | The menu item or control that invokes it without a chord ([[RFC-0016:C-UNBOUND]]). Required: unlike the chord, this column has no `none`. |
+
+A command holds AT MOST ONE chord, and may hold none.
+
+## Indexed families
+
+A COMMAND MAY BELONG TO AN INDEXED FAMILY — one act taken over an index, such as "go to workspace N". Its members are ordinary commands in every other respect: each holds at most one chord, each is subject to the injectivity of [[RFC-0016:C-CONFLICT]] and to the dispatch function of [[RFC-0016:C-DISPATCH]], and each has its own identifier and its own non-keyboard path.
+
+WHAT DIFFERS IS WHAT THE HUMAN MAY CHANGE. A family is rebound AS A WHOLE, by its MODIFIER SET; each member's chord is that modifier over the member's index. Rebinding one member alone is not offered, and neither is clearing one.
+
+- BECAUSE A FAMILY IS ONE ACT AND NOT NINE. Nine rows for "go to workspace N" bury the dozen commands a human came to change, and a family whose members carried different modifiers would be a set of bindings nobody could describe to themselves or read off a list.
+- AND BECAUSE THE ESCAPE MUST SURVIVE. The reason [[RFC-0016:C-REBIND]] exists is that a chord another application has taken cannot be detected, only avoided — so a family MUST remain rebindable, at the level of its modifier. A family fixed outright would be exactly the trap this specification is written against: nine chords the human cannot escape.
+- A FAMILY'S MEMBERS ARE STILL SHOWN, so the human can see which nine chords the modifier produces. They are shown without the controls that would rebind one of them.
+
+## What is in the table and what is not
+
+- IN: every act of the WORKBENCH a chord may invoke, and every act of the TERMINAL ENGINE this workbench exposes — whether or not it has a default chord. Membership is decided by the act, never by whether a chord happens to point at it today, because a command admitted only when it has a chord is one the human can never bind.
+- OUT: acts the PLATFORM performs through its own menus and responder chain — quitting, hiding, minimising, closing a window, and the standard editing verbs AS THEY APPLY TO A TEXT FIELD. Opening THIS workbench's settings is NOT among them: the workbench draws that surface itself, so by the test above it is an act of the workbench and is IN. These are not the workbench claiming a chord; they are the platform doing what it does in every application, and a table that owned them would make the workbench answer for behaviour it does not implement.
+- The two lists do not overlap even where a chord appears in both: copying FROM A TERMINAL is a command in this table, and copying from a text field is the platform's. Which one a keystroke means is settled by [[RFC-0016:C-DISPATCH]] and not by precedence between two owners of one chord.
+
+## The invariant
+
+THE COMMAND A CHORD NAMES IS A FUNCTION OF THIS TABLE ALONE. Nothing outside it may test for a chord, hold a chord of its own, or change which command a chord reaches.
+
+NAMES, NOT INVOKES. What a named command then does — whether it runs, against what object, or whether the responder chain takes the keystroke instead — is [[RFC-0016:C-DISPATCH]]'s and depends on focus. This clause fixes where the chord-to-command map lives; it does not claim that a chord has one effect everywhere.
+
+Stated over the outcome rather than over the mechanisms that could violate it, because the mechanisms are the implementation's to choose and the property must survive their replacement.
+
+A chord written anywhere else is not a second binding — it is, by this clause, a defect.
+
+## Why one table
+
+A binding written in two places can be changed in one, and the half that was not changed goes on working — so the failure is not a dead key, which would be noticed, but two behaviours for one key selected by something the human cannot see. Which alternatives were weighed, and what the chosen one costs, is the decision record's and not this clause's — governance here runs one way, so the pointer lives on that side."""

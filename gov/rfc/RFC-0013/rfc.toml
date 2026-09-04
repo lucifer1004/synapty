@@ -1,0 +1,68 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0013"
+title = "The Presentation Plane — primitives, addressing, and brokered authorization"
+version = "0.4.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-15"
+updated = "2026-08-27"
+refs = [
+    "RFC-0002",
+    "RFC-0007",
+    "RFC-0008",
+    "RFC-0015",
+]
+signature = "fe8b343535d44dfb752f25f18c40e0b36da51e6ed6b325b4c626b2c8566c7576"
+
+[[sections]]
+title = "Summary"
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-PRIMITIVES.toml",
+    "clauses/C-REQUEST-NOT-SEIZE.toml",
+    "clauses/C-BROKER.toml",
+    "clauses/C-AUTHORIZATION.toml",
+    "clauses/C-ADDRESSING.toml",
+    "clauses/C-CONTROL-PLANE.toml",
+]
+
+[[changelog]]
+version = "0.4.0"
+date = "2026-08-27"
+notes = "Withdrawal becomes the fifth property, having been relied on as one while absent"
+changed = ["C-AUTHORIZATION gains WITHDRAWABLE. Every standing grant must be enumerable to the human who made it and revocable one at a time without quitting, and a withdrawal must reach work the grant has ALREADY ADMITTED -- the grant is consulted once, when an agent asks, so a rule binding only future asks leaves a transfer the human just refused waiting its turn to run. It need not reach bytes already crossing, and the surface offering it must say which of the two it does."]
+fixed = ["C-BROKER's argument for preferring the relay to a key in authorized_keys rests on the ability being scoped, gated, recorded and WITHDRAWN, and cites C-AUTHORIZATION for all four -- which listed four properties, none of them withdrawal. MORTAL is not it: mortal means the grant dies with the process, which makes quitting the application the only way to take one back, and that is the same answer a key on a server gives. The clause the argument leans on now carries the property the argument needs."]
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-08-27"
+notes = "Closing a connection unrecords what rode it, and a record does not decide unless it still names one"
+added = ["Where the records live is part of the contract — they are a durable artifact on the human's own machine outliving every process this specification describes. Two consequences stated because both were already true and neither obvious: a name embedding a human-editable label is orphaned when the human edits it, and a set distinguishing members from metadata by filename has a schema an implementation must be able to state."]
+changed = [
+    "C-AUTHORIZATION's mortality paragraph gains the half it was missing. Opening was inseparable from recording, which forbids under-recording; nothing forbade over-recording, and a durable record produces it. A record outlives its writer and a connection's name is derived rather than minted fresh, so a dead run's record and a live run's connection are reunited across a process boundary without either being the same thing — and a mismatch that would have cost one process's lifetime costs forever.",
+    "A record MUST NOT decide where a channel goes unless it still names a live member. Reads that merely FORGET may go unverified, and the two MUST be distinguishable at the call site, because a reader who cannot tell them apart reaches for whichever is shorter.",
+]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-19"
+notes = "Presentation destinations named by kind, and no primitive may target a browser leaf"
+added = ["No primitive may target a browser leaf — the pane kind that shows a page the human addressed. It carries no agent's name, so content placed there would be presentation without attribution, in chrome the human reads as their own. The prohibition names a KIND rather than a manner of use, so that it does not reach a terminal (which agents address by design) or a file leaf (which a human navigates and which must still frame presented artifacts)."]
+changed = [
+    "ask's prohibition WIDENED, and is recorded as a change rather than as wording. It read 'MUST NOT be rendered in the panel' — one container beside the layout. It now reads 'MUST NOT be rendered in a pane', and a pane is the only layout type there is, so the rule reaches the whole layout where before it reached one panel. The reason is unchanged and now covers more: a pane can be closed, and a blocked agent must not be left waiting on something the human cannot see.",
+    "The presentation destinations are named by the pane kinds RFC-0015 C-CONTENT defines, rather than as views inside a panel that no longer exists. THIS IS A BEHAVIOUR CHANGE AND NOT A REWORDING, recorded as one after a review caught it being filed as the latter: a panel was one container that always existed, while a leaf is optional, may exist several times over, and is bound to one connection — so a destination that may be absent is a case the old wording did not have. What happens when no leaf of the required kind is open is now specified rather than left to the reader.",
+    "expose's definition no longer requires a port forward unconditionally: on the local connection nothing is unreachable and none is opened, and the offer is the naming and the attribution rather than the reach. Recorded because the old wording defined the primitive by a mechanism that the local case does not have.",
+    "C-ADDRESSING now derives a drop's destination directory from the RECEIVING leaf rather than from the terminal alone: a terminal leaf's is its reported working directory, a file leaf's is the directory it is showing. RFC-0015 C-CONTENT names those two kinds as the ones that accept a drop, and the previous wording answered for only one of them.",
+    "The ELIGIBLE predicate excludes a leaf whose connection has failed or been released. A leaf keeps its binding across a failure, so naming the right machine is not the same as being able to show anything.",
+    "C-PRIMITIVES asks where a caller is in terms of its WORKSPACE rather than its session — the container the session model was replaced by, per RFC-0015 C-IDENTIFY, which owns that contract.",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-15"
+notes = "Initial draft"

@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-009"
+title = "feat(hosts): open a group as a grid — one pane per machine"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The point where Termius-style host management meets the multiplexer:
+a group of machines becomes a wall of terminals in one act. Also the
+prerequisite for broadcast — a grid is the natural target set. The
+layout presets (--layout grid) already know how to shape N leaves."""
+
+[[content.acceptance_criteria]]
+text = "a host group offers 'Open as grid', which creates one connected pane per member in a grid layout in a new workspace named after the group"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "members that fail to connect show the existing lost-link state in their own pane rather than aborting the grid"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "grid shape for N members is pinned by tests"
+status = "done"
+category = "chore"

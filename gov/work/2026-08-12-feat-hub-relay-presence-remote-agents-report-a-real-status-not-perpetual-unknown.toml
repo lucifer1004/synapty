@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-009"
+title = "feat(hub): relay presence — remote agents report a real status, not perpetual unknown"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["RFC-0009"]
+
+[content]
+description = """
+Remote agents show status `unknown` forever. The receiving half of [[RFC-0009]] C-PRESENCE is complete — the peer_presence_relayed event kind, the write-through path that bypasses the local acceptance rules, and the relayPresence handler that refuses a peer speaking for identities it does not host — but NOTHING SENDS relay_presence. WI-2026-08-12-007 shipped with that stated; this closes it.
+
+Why it matters more than the size of the change suggests: status is the single most valuable column in this class of tool (the whole of herdr's sidebar is blocked/working/done/idle). Cross-machine visibility without status is a list of names. Observed live on 2026-08-12: remotehost-2ca7 was running normally and the merged view reported `unknown`.
+
+The hosting hub owns the conclusion (C-PRESENCE: a peer relays a conclusion, it does not re-merge evidence it never saw), so the emitter belongs where applyStatusSignal already produces a merged status change — the same critical section that appends agent_status_changed. Send on CHANGE, not on a timer, and send the full set once on link-up so a fresh link starts consistent, mirroring what advertiseAllTo already does for the directory."""
+notes = ["""
+IMPLEMENTED 2026-08-12. Emitter added in applyStatusSignal's existing critical section — a visible change and its announcement must not be separable, which is the same reason the event append lives there. On CHANGE only; a timer would relay a conclusion the peer already holds. relayPresenceAllTo sends the current set once on link-up from both halves of a link, without which an agent that reached `waiting` BEFORE the link came up would sit at `unknown` on the peer until it moved again — and for a waiting agent that may be never.
+
+Scope grew by one thing the criteria implied but did not name: the receiving hub had nowhere to PUT a relayed conclusion, so list_agents still hardcoded `unknown` for every remote identity. Directory.Entry now carries a status, set by relayPresence and served by buildAgentsArray only while the peer is reachable — the stored value survives a tombstone (the tombstone keeps everything) but is not served, because a stale status is indistinguishable from a fresh one."""]
+
+[[content.acceptance_criteria]]
+text = "a hub emits relay_presence to every peer link when a locally hosted identity's MERGED status changes, and sends its full current set once on link-up so a fresh link starts consistent"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the receiving hub stores the peer's conclusion verbatim through the write-through path and does NOT re-run acceptance rules on it; a peer speaking for an identity it does not host is still refused"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "two-hub e2e — an agent's status change on one machine becomes visible on the other, and a link drop reverts those identities to unknown rather than freezing the last value"
+status = "done"
+category = "chore"

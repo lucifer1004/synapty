@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-END"
+title = "Ending, And Being Found"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A holder ends when its child exits and the interval required by [[RFC-0014:C-EXIT-SIGNAL]] has elapsed, or when it is explicitly ended. It MUST NOT end for any other reason.
+
+AN AGENT'S WINDOW IS CLOSED BY THE HUMAN. Nothing else ends a session: not a threshold, not a period of nobody watching, not the workbench deciding the work looks finished. What the mechanism owes instead is that no session can hide from the human who has to decide — which is what the rest of this clause is about.
+
+- An explicit end MUST terminate the child and release the pseudoterminal.
+- A holder MUST NOT be ended for the absence of a client. Absence is the condition this mechanism exists to survive, and its duration says nothing about whether the work is wanted: the session unattended longest is as likely to be the valuable one as the abandoned one. An earlier form of this clause required a reap threshold and called a holder that could not be reaped "a leak by design", while permitting a policy of never in the next sentence. The two could not both be followed. The leak it feared is real and is addressed by the obligations below: a session that can always be found and always be ended is not a leak, whatever its age.
+- THE POLICY MUST BE STATED. Whatever ends sessions, or that nothing does, MUST be declared where a client can read it rather than discovered by waiting to see what happens.
+- Every holder on a host MUST be enumerable on that host, reporting at least its name, whether a client is attached, whether it has ever been attached, how long it has been unattached, and whether its child has exited. The last two are what a human decides on; a listing without them shows sessions and withholds the grounds.
+- ENUMERATION MUST NOT DEPEND ON THE SESSION ANSWERING. A holder that is running and cannot be reached MUST still be listed, and MUST be distinguishable from one that is running and reachable — being unable to attach to a session is not evidence that it is gone. A mechanism whose list is its only namespace loses both together.
+- A SESSION MUST REMAIN ENDABLE WHEN IT CANNOT BE ATTACHED. Attaching and ending travel by different means, and the human who can see an unreachable session but not end it has been shown a problem and denied the remedy.
+- Enumeration and ending MUST both be possible from the host itself, without this project's graphical client.
+- A HOLDER THAT IS GONE IS NOT A SESSION. Enumeration MUST NOT report one, and MUST NOT retain whatever named it. Nothing in this clause ends a session; what outlives a holder is not a session to be ended but the remains of one, and remains that are kept accumulate without bound until the sessions a human has to decide about are buried among them. What is retained MUST be released on the determination required by [[RFC-0014:C-LIVENESS]], and on nothing weaker.
+
+A holder that nothing can see is the failure the previous mechanism produced, found later in its dozens on two hosts. A holder that something ends on a timer is the opposite failure, and the more expensive one: the first wastes a machine's memory, the second destroys work somebody meant to come back to."""

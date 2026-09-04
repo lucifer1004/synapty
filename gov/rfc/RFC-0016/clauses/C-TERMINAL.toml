@@ -1,0 +1,17 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TERMINAL"
+title = "The terminal's own commands"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The terminal's own commands are in this table too, and the engine holds none of its own.
+
+- A COMMAND MAY DECLARE THE `terminal` DOMAIN ([[RFC-0016:C-TABLE]]) — clearing the screen, copying the selection, searching the scrollback, changing the font size. It is dispatched as an action against a terminal, under [[RFC-0016:C-DISPATCH]].
+- THE ENGINE'S OWN BINDING SET MUST BE EMPTY. Stated as a set relationship and not as a precedence, because precedence is evaluated over the chords the table names AT THE TIME — and a chord the human rebinds away or clears stops being named, which would hand it straight back to the engine and undo their act. With the engine bound to nothing there is no second authority for a keystroke to fall back to.
+- WHAT THE ENGINE DOES WITH KEYS THAT ARE NOT CHORDS IS UNTOUCHED. This clause empties its BINDINGS; its input handling, its escape sequences, and everything a program inside the pane does with a keystroke are not this specification's business.
+- THE DISPLACEMENT MUST BE STATED IN THE WORKBENCH'S OWN DOCUMENTATION. The engine's configuration file remains a real file a human may edit, and one who writes a keybind into it will see nothing happen with nothing on screen to explain it. A displacement is discoverable only if it is written down."""

@@ -1,0 +1,106 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0013"
+title = "A workspace is not a connection: the session splits, and the machine moves down to the leaf"
+status = "accepted"
+date = "2026-08-17"
+refs = [
+    "ADR-0001",
+    "ADR-0010",
+    "ADR-0012",
+    "RFC-0006",
+    "RFC-0008",
+    "RFC-0013",
+    "RFC-0014",
+    "RFC-0001",
+    "RFC-0015",
+]
+
+[content]
+context = """
+The workbench's `Session` is three different things wearing one name, and pane docking is about to make the disagreement between them unresolvable.
+
+WHAT IT IS TODAY, from the type itself (`TerminalPaneManager.Session`):
+
+- A CONNECTION. `let hostEntry: HostEntry?` — immutable, chosen at construction — plus `agentID` and `state: .connecting/.connected/.failed`. Those three fields describe an ssh link and the agent on the far end of it.
+- A LAYOUT CONTAINER. `panes: [Pane]`, each with a `SplitNode` tree of terminal leaves. This is the tab bar and the splits inside it.
+- A LIFETIME, and this is the one that is not merely untidy. `closeLeaf` removes a pane when its last leaf closes, and then removes the SESSION when its last pane goes. A session exists only while at least one terminal inside it is alive. The human's container for their work is destroyed by the act of closing the last thing in it.
+
+THE MACHINE IS ANSWERED BY WALKING UP. "Which host is this leaf on" is `session(ofLeaf: leafID)?.hostEntry` — the leaf knows nothing, so the answer comes from its owning session. Four shipped capabilities read it that way: the destination a cross-host file drop delivers into (`TerminalDropCoordinator`), the origin a presentation-plane primitive is stamped with (`FileToolServer`), the host label an agent's lifecycle record carries (`AgentLifecycle`), and the `RemotePwd` query itself. The lookup is correct today for exactly one reason: a session cannot contain a leaf from a machine other than its own, because it only ever had the one.
+
+DOCKING REMOVES THAT REASON. The point of dragging a pane into another pane's tree is that a tab can hold surfaces the human chose to put side by side, and the human does not group their work by which machine it runs on — they group a build on one host next to the log tailing it on another. The first such drop makes every upward lookup return the machine of whatever container the leaf happens to have landed in. The cost of getting that class of question wrong is already on the record here: two file-transfer bugs delivered to the wrong machine, one of them logged as `remotehost:/home/operator/Caddyfile -> otherhost:~`, and those came from a subtler confusion than this one.
+
+PERSISTENCE ALREADY CONCEDES THE POINT. `snapshot()` writes a full layout — tabs, splits, per-leaf cwd, resume plans — for local sessions only. A remote session is written as `label + hostID` and nothing else, and comes back as an empty shell for the caller to re-dial. That asymmetry was correct when it was written: there was nothing on the far side to reattach a restored layout TO, so restoring one would have produced panes pointing at dead ptys.
+
+[[ADR-0012]] removes that constraint. A holder that keeps the pty across the client's departure, and can describe its screen to a client that holds nothing, is precisely the thing a restored remote layout needs to attach to. The reason remote work could not be durable across a workbench restart is gone, and the container that would hold it is the one thing that cannot survive its own contents closing.
+
+So the three roles are not three problems. A container that is born from a connection, dies with its last terminal, and answers questions about a machine on behalf of leaves that will soon not all be on it — is being asked to be a durable workspace, and it is structurally incapable of being one."""
+decision = """
+`Session` splits into two types with different lifetimes, and the question "which machine" moves down to the leaf that knows the answer.
+
+A WORKSPACE IS WHAT THE HUMAN IS WORKING ON. It holds tabs, splits and focus; it has a name they chose; it can be pinned or archived. It does not have a host, an agent id, or a connection state, and it is not created by connecting to anything. Critically, IT SURVIVES BEING EMPTY: closing the last terminal in a workspace leaves the workspace, exactly as closing the last file in a project leaves the project. Its death is an explicit act by the human and nothing else.
+
+A CONNECTION IS A RESOURCE, SHARED. One per host: the `HostEntry`, the agent id, the `connecting/connected/failed` state, and the tunnel. Leaves reference it by id. Two panes on the same machine — in one workspace or in five — use one connection, which is what the ControlMaster underneath already assumes.
+
+THE LEAF CARRIES ITS CONNECTION, so "which machine" is read DOWNWARD from the thing being asked about rather than upward from the container it is sitting in. This is the change that makes docking safe: after a drag the leaf is in a different tree, and its answer to every host question is unchanged because the answer never lived in the tree. The four capabilities that walk up today are re-pointed at the leaf, and the class of bug where a container's identity is imputed to its contents becomes unrepresentable rather than merely avoided.
+
+ARCHIVE IS A REAL RELEASE OF RESOURCES, NOT A VIEW STATE. Archiving a workspace closes the connections nothing else is using and writes the layout — tabs, splits, cwd, resume plans — to disk. What was running on a remote host keeps running, held by [[ADR-0012]]'s pty holder; unarchiving re-dials and reattaches. A local pane's process does not survive, and unarchiving restores its cwd rather than its process. That asymmetry is inherent — there is no local holder — and is stated so the human is not promised otherwise.
+
+This makes remote layout persistence load-bearing for the first time, and it is the concrete reason the [[ADR-0012]] holder and this decision belong to the same arc rather than being independent improvements.
+
+THE SIDEBAR LISTS WORKSPACES AND NOTHING ELSE. Pinned at the top, archived collapsed at the bottom. A host is no longer a row that can be in a state; it becomes a searchable picker at the moment a pane is created, and connection state is drawn on the pane that has the connection — which is the only place it can be drawn once one tab can hold two machines. This retires the "Host Management Sidebar" shape named in [[ADR-0001]] deliverable 2 while keeping every capability it named: hosts, identities, groups and one-click deploy all persist, relocated. One-click deploy becomes "new pane, pick a host", which is the same click count from the human's side.
+
+WHAT MOVES AND WHAT DOES NOT, for a reader who will reasonably fear the worst. Agent identity itself is untouched: an agent's durable id under [[RFC-0008]] is its own, and every identity, re-homing and mailbox rule survives this split. But the id lives on the LEAF and always did — every spawn mints a fresh one — so a connection carries no agent identity, and the container's dial-time id, which the prior model handed to agents as their `session_id`, names a different agent for every leaf but the first. That field is replaced by the workspace's own name and identifier: the thing an agent is really being told is which piece of work it belongs to, and after this split that is a workspace. This is a change to what agents see, and it is one the split forces rather than one it could avoid. [[ADR-0012]]'s division of labour is likewise unaffected: the workbench still owns layout and the holder still owns the pty. And [[ADR-0010]] continues to govern the pane as the session's screen — a docking affordance is workbench UI drawn over a pane, never bytes written into it.
+
+ONE LAYOUT TYPE, AND A TAB IS NOT ONE OF THEM. The workspace held a tab bar whose every tab held a split tree of its own — two container species, at different levels. The arrangement docking is FOR is "these two panes share a position", which in that shape means converting a split leaf into a tab a level up: an operation with no type to write it against. So the tree inverts. A workspace holds one split tree, its slots hold ordered stacks of panes, and a tab is what a slot with more than one shows rather than a thing that exists. The pane is the atom, and everything below is about what an atom carries.
+
+A PANE IS NOT NECESSARILY A TERMINAL. The workbench already shows a host's files and its exposed web services, in a fixed right-hand panel beside the terminal. Once panes can be arranged by dragging, that separation stops paying for itself: a file browser beside the build that is writing those files is the arrangement this whole change exists to permit, and a surface that cannot be placed there is a surface the human has to leave their layout to reach.
+
+So the leaf carries a content kind — a terminal, a file browser, a web view — and those three leave the panel. Each is host-bound, so the binding above is unaffected: "which machine is this leaf on" is the right question for all three, and the answer arrives the same way. Only the terminal kind has a command.
+
+THE PANEL SURVIVES FOR APPEARANCE, which is the occupant it was built for and the one that cannot be a pane. It has no machine, so it has no answer to the question every leaf answers — and it is precisely a surface that wants to sit BESIDE a live terminal while the human adjusts theme, font and opacity against what they are actually looking at. Moving it into settings would take the one thing it is for. What the panel loses is its segmented control: it stops being a place where three unrelated subjects compete and goes back to being the appearance panel it started as.
+
+WHAT THIS DOCUMENT DOES NOT DECIDE. The docking gesture itself — what is grabbed, what the drop regions are — is interaction design and belongs to the work, not here. The rule for when an unreferenced connection actually closes (immediately, or after a grace period) is a lifecycle question this decision creates and deliberately leaves to the specification, because the answer wants measurement rather than assertion."""
+consequences = """
+GAINED. A tab can hold a remote build beside the local editor watching it, which is the arrangement the workbench exists to make possible and the one thing today's model forbids. Work becomes a thing the human names, pins and puts away rather than a by-product of having connected somewhere — and closing the last terminal in it stops destroying it. Archive genuinely releases links and tunnels instead of hiding rows. And a connection shared by every leaf on a host finally matches what the transport already does: the connect path was reworked so that a single ControlMaster per host carries every subsequent call, and the model above it can now say so rather than contradicting it.
+
+PAID, and the first item is the largest.
+
+CONNECTION LIFETIME BECOMES OURS TO GET WRONG, and it is the near-side twin of the cost [[ADR-0012]] accepted on the far side. Nothing today asks "is any leaf still using this link" because the answer was structural — the session owned it and died with it. A shared connection needs a rule for when the last reference releases it, and both failure modes are real: too eager and a human closing one of two panes on a host tears down the link the other is using; too lazy and archived work leaves tunnels open, which is precisely the leak this decision claims to fix. This wants measurement, and it is why the rule is left to the specification rather than asserted here.
+
+EVERY CONTAINER-SHAPED ASSUMPTION IN THE SWIFT LAYER IS IN SCOPE. `TerminalPaneManager` is written throughout in terms of `sessions[sIdx]`; `HostSidebar` renders connection state as sidebar rows; `ContentView` creates sessions by dialling; `AgentStatusBar`, `PaneTabBar`, `TerminalDropCoordinator`, `FileToolServer` and `AgentLifecycle` each read a session to answer a question about a machine. This is not a rename. The label allocator shows how deep it goes: names are asked of the live sessions rather than of a counter, and after the split there are two namespaces — workspace names the human chose and typed, and connection names derived from hosts — with different uniqueness rules and different moments of allocation.
+
+CONNECTION PROGRESS LOSES ITS PLACE TO STAND. The dialling account was deliberately put in the workbench's own UI rather than onto the terminal, which [[ADR-0010]] requires, and it is keyed to the session — a thing that after this no longer has a host. It has to move onto the pane whose connection is being dialled, and a workspace where two hosts are connecting at once must show two.
+
+AN EMPTY WORKSPACE IS A STATE THAT HAS NEVER BEEN RENDERED. It is the direct consequence of the decision's central claim, and today there is nothing to draw: a session without panes is a session mid-dial, not a resting state. A resident workspace with no terminals needs an empty state that offers the host picker, and that is new UI rather than a relocated one.
+
+THE ARCHIVE PROMISE OUTRUNS ITS DEPENDENCY. Unarchiving remote work reattaches through [[ADR-0012]]'s holder, whose protocol is [[RFC-0014]] and is still a draft. Until it lands, archive can release resources and restore layout and cwd, but reopening remote work restarts it rather than rejoining it — which is a weaker promise than the one above and must be said to the human rather than silently delivered.
+
+[[ADR-0001]] DELIVERABLE 2 IS RETIRED AS A SHAPE while its capabilities survive. "Host Management Sidebar" named a place, and this decision removes the place: hosts, identities, groups and one-click deploy all persist, relocated to a picker and a settings surface. A reader comparing the app to the V1 scope will find the deliverable's wording no longer describes what exists, and the projection in [[ADR-0001]] is that document's to correct, not this one's.
+
+THE MIGRATION IS CHEAP EXACTLY ONCE. The persisted snapshot changes shape — sessions with hosts become workspaces plus connection references — and the moment to pay that is now, while the workbench holds no work anyone depends on. Deferring it until it does means writing a real migration for real layouts instead of accepting the loss of a test arrangement."""
+
+[[content.alternatives]]
+text = 'The session splits into a resident workspace and a shared per-host connection, and each leaf references its connection by id so "which machine" is read downward from the leaf. ACCEPTED. It is the only option in which a container holding leaves from two machines is expressible at all, which is the whole point of docking; it gives the connection a single owner that can hold state and be shared by every leaf on that host (matching the one-ControlMaster-per-host reality underneath); and it lets a workspace outlive both its terminals and its links, which is what "resident" has to mean if archive is to release anything.'
+status = "accepted"
+
+[[content.alternatives]]
+text = """Keep `Session` and forbid the drop that breaks it: pane docking is allowed only within one session, so a tree can never hold two machines and every upward host lookup stays correct. Cheapest by an order of magnitude, and it ships docking. Rejected: it concedes the interaction that motivates the work — the human's build on one host beside the log tailing it on another is the case they actually have — and it leaves the workspace still dying with its last terminal, so "resident, pinnable, archivable" remains unbuildable. It buys a gesture and forfeits the reason for wanting it."""
+status = "rejected"
+
+[[content.alternatives]]
+text = 'Put `hostID` and `agentID` on the leaf and introduce no connection entity: the upward lookup inverts, docking becomes safe, and nothing else in the model changes. Markedly smaller than the accepted option and it fixes the bug class this decision is most afraid of. Rejected: connection STATE then has no owner. Three leaves on one host each carry a private copy of `connecting/connected/failed`, and there is no single object to answer "is this host up", to hold the tunnel, or to be the thing a re-dial acts on — so the workbench would either dial per leaf or maintain the shared link in an implicit side table, which is the accepted option built badly. Archive also has nothing to close.'
+status = "rejected"
+
+[[content.alternatives]]
+text = "Bind the host to the tab rather than the leaf: a `Pane` carries the connection, all splits inside one tab share a machine, and a workspace mixes tabs from different hosts. The upward lookup moves down one level instead of two, and cross-machine work is expressible at the tab level. Rejected: the split screen is exactly where side-by-side cross-machine work wants to happen — a remote build beside a local editor in one view — and this permits it everywhere except there. It also leaves a real container still owning a machine, so the same imputation bug simply moves up a level rather than becoming unrepresentable."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Make `Session` multi-host in place: let `hostEntry` become a set, keep one type, and have leaves index into it. No new types, no sidebar change, and the snapshot format grows a field rather than changing shape. Rejected: it is the accepted option with the two entities fused, so it inherits the fusion this document indicts — the container still holds connection state, still needs a lifetime rule that differs from its links', and a connection still cannot be shared between two workspaces because it is owned by one of them. The cost saved is the naming; the cost kept is the coupling."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Archive as a pure view state: a flag that collapses the workspace in the sidebar while its connections and ptys keep running. Trivial to build, and unarchiving is instantaneous and lossless. Rejected: it releases nothing, so ten archived workspaces are ten live ssh links and their tunnels, and the feature's whole purpose — putting work away so it stops costing anything — is not delivered. It also makes the durability question invisible rather than answering it: the human is never shown that reopening old work depends on a far-side holder, until the day one is gone."
+status = "rejected"

@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-004"
+title = "fix(run): a pane outlived its workbench — no hangup watchdog, and the hub socket leaked into the shell"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["ADR-0008"]
+
+[content]
+description = """
+The report was "实际没有 3 panes 了啊,现在只有一个 session 一个 tab 一个 pane" against a popover reading "3 terminal panes are registered but not running an agent." The count was truthful. The world was wrong: the hub really held three registrations, and `ps` found three `synapty run` processes for one visible pane.
+
+TWO INDEPENDENT DEFECTS, both of which let a pane outlive the window that owned it.
+
+FIRST, NO HANGUP. `synapty run` had no parent watchdog. When the workbench exits — quit, crash, or replaced by `just install` — the wrapper is reparented to init, keeps its pty, and RECONNECTS to whatever hub next binds the port. So the next workbench inherits agents no window can reach and reports them as registered indefinitely. Two survivors from a build replaced the previous day were still being counted. Nothing is preserved by letting them live: resume does not reattach to a surviving process, it re-runs the incantation in a fresh pane (RFC-0006 C-RESUME-RESTORE).
+
+The hub already had exactly this ([[ADR-0008]], `--parent-pid` and `svc.watchParent`); panes never got it. `run` now takes `--parent-pid` and, when the workbench dies, SIGHUPs its own process group — which is what a hangup IS. The child and every job it started go down together, there is no child pid to track across the moment it is reaped, and so no window in which a reused pid could be killed instead. Local panes only: a remote pane runs on another machine, where this machine's pid means nothing and could name one of its processes.
+
+SECOND, THE SOCKET LEAKED INTO THE SHELL. Sockets were created without FD_CLOEXEC, so the pane's login shell inherited the wrapper's hub connection, and so did every command that shell exec'd — `lsof` caught an unrelated `jenv-rehash` holding it. Two consequences:
+- The hub never saw the connection close when a wrapper exited, because a descendant still held it. The registration outlived the pane. This is why a registration with no process anywhere was still being served in `list_agents`.
+- Any process in a pane could write A2A frames to the hub as that pane's agent. That is leaked authority, not a leaked descriptor, and it stands on its own regardless of the phantom count.
+
+Fixed centrally in `sys.socket()` and `sys.accept()` rather than at the hub connection: nothing in Synapty hands a socket to a child across exec, so close-on-exec is the correct default for all of them. macOS has no SOCK_CLOEXEC, so it is a second fcntl call; Zig 0.16 dropped `std.posix.fcntl`, so libc's variadic one is called directly — the same reason src/sys.zig exists at all.
+
+WHAT THIS DOES NOT FIX. A pane registers when it opens, before any agent runs, so an empty pane still counts as registered — the popover says exactly that and it is now true rather than stale. Whether an agent-less pane belongs in that message at all is a separate question."""
+notes = ["""
+VERIFICATION — live, against real processes, because the hermetic tests could not have found either of these. Both were run against an isolated hub (scratch port, own discovery and identity paths) and a pane in its own session, so nothing touched the operator's running workbench.
+
+- HANGUP: a stand-in workbench was killed; the wrapper exited within 0.5s and its child shell was gone with it. Before the fix, two such wrappers had survived their app by a day.
+- CLOEXEC: `lsof` on the wrapper shows the hub fd; `lsof` on its child shows none. Before the fix the live app's pane shell (pid 18486) held it as `3u`, and an unrelated `jenv-rehash` had inherited it too.
+
+Zig suite passes. 383 Swift tests pass.
+
+The two survivors were reaped with SIGHUP — the same signal the fix sends — after confirming they contained nothing but idle login shells. The remaining phantom registration is held by a shell that inherited the old binary's socket and will clear when that shell exits; it cannot be fixed in the running app, which still runs the pre-fix binary."""]
+
+[[content.acceptance_criteria]]
+text = "a pane hangs up when the workbench that spawned it exits, taking its child shell with it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the hub connection is close-on-exec, so no process inside a pane inherits it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a hand-launched wrapper with no --parent-pid keeps running"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "refusing to start the watchdog kills the child rather than running as an unsupervised pane"
+status = "done"
+category = "chore"

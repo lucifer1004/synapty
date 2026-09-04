@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-REQUEST-NOT-SEIZE"
+title = "Agents Request Presentation; They Never Seize It"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An agent may REQUEST presentation. It MUST NOT be able to seize it. Four requirements, binding on every primitive in C-PRIMITIVES and on any future one.
+
+- QUEUED, NOT FOREGROUNDED. A request MUST land in a queue the human consults, and MUST NOT replace, cover or reorder what the human is currently looking at.
+- ATTRIBUTED. Every presented thing MUST carry the identity of the agent that requested it. There MUST be no anonymous presented content, including content that arrives while no agent is registered.
+- FOCUS IS THE HUMAN'S. A request MUST NOT move keyboard focus away from a pane the human is typing in. `ask`, which is the primitive most tempted to interrupt, is bound by this like the rest: it raises a badge, it does not steal the caret.
+- VISUALLY QUARANTINED. Agent-presented content MUST be rendered inside a container that marks it as an agent's content, and MUST NOT be rendered in chrome that could be mistaken for the application's own.
+
+THE THREAT THIS ADDRESSES IS NOT AN AGENT BEHAVING BADLY. It is an agent behaving as instructed by material it read — a README, an issue body, a page — which is a live technique against coding agents, not a hypothetical one. Without quarantine, an injected agent can draw a convincing credential prompt inside the window the human trusts most in the system.
+
+QUARANTINE HAS A DEADLINE. It costs almost nothing while no agent-presented pixel exists yet, and cannot be retrofitted once content has accumulated in places it appears to belong. It MUST therefore be in place before the first primitive ships, rather than once they are all in place."""

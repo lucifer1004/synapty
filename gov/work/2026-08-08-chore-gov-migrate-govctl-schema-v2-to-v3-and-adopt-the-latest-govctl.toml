@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-018"
+title = "chore(gov): migrate govctl schema v2 to v3 and adopt the latest govctl"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "The installed latest govctl (0.19.0, ~/.cargo/bin) refuses the project's schema v2 config with E0505 ('minimum: 3') — the documented governance workflow (just gov-check/status/render) is dead and past 'govctl check passes' acceptance criteria are unverifiable. The project has been limping along on a Nix-store govctl 0.7.4 (.devenv/profile/bin/govctl). Fix: run the versioned migration pipeline with an intermediate govctl that supports v2→v3 (0.14.0 ships the migrate command: RFC amendment content signatures + schema bump + bundled schema sync + gitignore entries), then verify the LATEST govctl (0.19.0) operates on the migrated repo and becomes the canonical toolchain."
+notes = ["Upgrade complete (2026-08-08): govctl migrated v2 -> v3 (0.14.0 migrate: RFC content signatures + schema sync) -> v4 -> v5 (0.19.0 migrate: conformance cases + source-scan ignore files). Latest govctl 0.19.0 now runs check/status/render with ZERO diagnostics. Work items: govctl removed the legacy content.journal field in schema v3 — 56 files carrying journals were silently dropped by the loader; journal content was preserved 1:1 by folding each entry into content.notes with its date/scope prefix (scripted conversion; govctl itself has no journal->notes migration). Follow-ups surfaced by 0.19.0 and fixed: E0107 unknown refs (resolved by the conversion), W0112 inline [[...]] refs in ADR-0001/ADR-0003 (two minimal hand-edits where govctl's adr/clause edit tooling refuses: ADR-0003 has no alternatives for projection validation; clause content.text is not exposed), E0112 RFC->ADR mention rephrased in C-SKILLS, W0108 placeholder description replaced with the real scope. The .devenv 0.7.4 binary is retired; ~/.cargo/bin/govctl 0.19.0 is canonical."]
+
+[[content.acceptance_criteria]]
+text = "gov/config.toml schema version is 5 (migrated v2->v3->v4->v5) and govctl 0.19.0 runs check/status/render without E0505"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the migration is done via govctl's own pipeline (never hand-edited gov/ files)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "0.19.0 check passes with no NEW diagnostics beyond known pre-existing ones; the placeholder-description warning is resolved if 0.19.0 surfaces it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the synapty binary + 129 Zig tests are unaffected (gov-only change); WI ledger intact (all 18 WI files readable by 0.19.0)"
+status = "done"
+category = "chore"

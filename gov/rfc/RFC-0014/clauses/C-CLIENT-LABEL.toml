@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CLIENT-LABEL"
+title = "Who Is Attaching"
+kind = "normative"
+status = "active"
+since = "0.3.0"
+
+[content]
+text = """
+A client MAY say who it is when it attaches, and a holder MUST keep and repeat what it was told.
+
+- The hello MAY carry a LABEL after the resume position: a short UTF-8 string naming the client's kind (`gui`, `cli`, `relay`), the machine it runs on and its process, in a form a human can read. A holder MUST accept a hello without one; a client that presents none is reported as unlabelled, never guessed at.
+- The holder MUST keep the attached client's label for as long as that client is attached, and MUST include it in the status it answers with ([[RFC-0014:C-ONE-CLIENT]] already requires the status to say WHETHER a client is attached; this says WHICH).
+- When a client is displaced, the notice MUST carry the displacing client's label, so the displaced side can tell its human not only that the seat was taken but by whom. Empty when the displacing client presented none.
+- The label is an OPTIONAL TRAILING extension of the hello and the status, ignored by a holder or a client that does not read it. It therefore MUST NOT change the protocol version ([[RFC-0014:C-VERSION]]): neither side misreads the other for its absence.
+
+Before this, the hello was version plus dimensions, the welcome a fixed header, and a displaced client was told only that it had been displaced. A workbench whose pane stopped could say "taken", and nothing more — not "taken by the CLI on deskmac", which is the sentence the human can act on."""

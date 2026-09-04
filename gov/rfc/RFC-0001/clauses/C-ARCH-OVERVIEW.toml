@@ -1,0 +1,30 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ARCH-OVERVIEW"
+title = "Architecture Overview"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty is organized as five architectural layers, each building on the one below:
+
+```
+┌─────────────────────────────────────────────┐
+│  L4  A2A Control Plane (a hub per machine)  │
+├─────────────────────────────────────────────┤
+│  L3  Terminal Introspection (2D DOM)        │
+├─────────────────────────────────────────────┤
+│  L2  Orchestration & Notification (OSC Bus) │
+├─────────────────────────────────────────────┤
+│  L1  Session Lifecycle & Routing (Daemons)  │
+├─────────────────────────────────────────────┤
+│  L0  VT Computation Engine (libghostty-vt)  │
+└─────────────────────────────────────────────┘
+```
+
+L0 is the foundation: a headless terminal state machine that maintains grid state at SIMD-accelerated speed. L1 manages per-agent PTY sessions with crash-isolated daemons. L2 provides human-facing orchestration via OSC-based notifications. L3 exports terminal state as structured data for LLM consumption. L4 provides the inter-agent messaging fabric.
+
+Each layer is independently useful but designed to compose. An early implementation may deliver L0 + L1 + L4 without L2 or L3 being complete."""

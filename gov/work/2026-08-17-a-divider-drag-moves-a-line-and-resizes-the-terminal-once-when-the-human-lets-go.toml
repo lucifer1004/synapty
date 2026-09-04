@@ -1,0 +1,50 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-002"
+title = "A divider drag moves a line, and resizes the terminal once — when the human lets go"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["WI-2026-08-08-051"]
+
+[content]
+description = """
+`DraggableDivider` has an `onChanged` and no `onEnded`: every frame of a drag writes a new ratio into the split tree. Two things follow from that, and both are paid on every drag.
+
+THE TERMINAL IS RESIZED THE WHOLE WAY ACROSS. `TerminalSurface.updateSurfaceSize()` calls `ghostty_surface_set_size` on each layout pass with no throttle, so every cell boundary the divider crosses is a real PTY resize. A resize is not "smaller" — it rewraps scrollback and repaints whatever TUI is running, and in this application the pane beside the one being resized is usually an agent mid-render. Dragging a divider across forty columns reflows it forty times to arrive at one answer.
+
+THE LAYOUT CACHE MISSES EVERY FRAME. `AllPanesSplitView.cachedLayout` is keyed on (size, tree), and the drag mutates the tree per frame, so the frames and dividers for every leaf in the pane are recomputed for the whole gesture.
+
+A drag becomes a line the human moves. The committed tree — and therefore every surface — is untouched until they let go, at which point the ratio is applied once.
+
+DEFERRED RATHER THAN LIVE, deliberately. A text editor reflows for free and can afford a live sash; a terminal cannot, because the reflow is destructive to scrollback and to the state of whatever is drawing in it. The preview line is what makes the deferral legible: the human still sees where the edge will land.
+
+Out of scope: the resize that happens when a pane is opened or closed. That one is a single reflow the human asked for by changing the layout."""
+notes = ["2026-08-17: verified by mutation — dropping the clamp in `update` fails the clamp test, and returning from `commit()` without clearing fails both the commit-once and the clears-after-commit tests. Both reverted; 609 Swift tests green. The one claim no unit test carries is that a drag no longer writes to the tree at all: that is true by construction (`onPreview` reaches only `DividerDrag`, and nothing else calls `resizeSplit`), and wants a human's hands on a divider to confirm it FEELS right, which is a different question from whether it is correct."]
+
+[[content.acceptance_criteria]]
+text = "A divider drag updates a preview line only — the split tree and every surface are untouched until release"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Releasing the divider commits the ratio once"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The preview line is clamped to the same range a committed ratio is, so the ghost never promises an edge that cannot happen"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tests cover the preview geometry, the clamp, and the commit-once state machine"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A drag whose divider vanishes mid-gesture is dropped — SwiftUI has no onEnded for a view that went away"
+status = "done"
+category = "added"

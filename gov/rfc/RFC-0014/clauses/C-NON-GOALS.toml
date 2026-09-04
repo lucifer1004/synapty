@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "What This Does Not Authorise"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder interprets the stream it carries in order to answer a client that asks what the screen is. That capability makes several other things POSSIBLE, and none of them is authorised here.
+
+- NO AGENT-VISIBLE SCREENS. Nothing in this document lets an agent read a pane's contents, and [[RFC-0014:C-CONFINEMENT]] forbids the holder from offering a path to one. That capability is [[RFC-0001]]'s L3 introspection and requires its own decision.
+- NO RELOCATION OF DETECTION. Pane classification stays where [[RFC-0004]] C-PASSIVE-DETECTION puts it, reading the client's own grid. [[RFC-0011]] C-HEADLESS-GATE records that moving it is an open question; this document neither performs the move nor authorises it. A classification is a status rather than contents, so the authority to relocate it would come from those clauses rather than from [[RFC-0014:C-CONFINEMENT]].
+- NO MULTIPLEXING. The holder has no panes, windows, tabs, key bindings, or status line. Layout belongs to the workbench.
+- NO MOBILITY. The holder does not roam between transports or addresses. It survives a client's absence, not a change of network identity.
+- NO TRANSPORT OF ITS OWN. This protocol rides the connection the workbench already establishes; it does not define authentication of that connection, encryption, or discovery. What it does define is which local account may reach a holder once the connection exists ([[RFC-0014:C-ENTITLEMENT]])."""

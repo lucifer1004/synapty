@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-002"
+title = "Implement synapty task CLI (list/claim/update/comment/create) as the agent interface"
+status = "done"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] C-CLI-TOOLS.
+
+Acceptance criteria:
+- synapty task list/claim/update/comment/create with JSON stdout + exit
+  codes; --project filter on list; create supports --body
+- requests route SYNAPTY_SOCK (pane) or direct hub TCP (outside pane);
+  never talk to GitHub directly — the login-device bridge executes API
+- works identically for local and remote agents (reverse tunnel)
+- mcp-serve remains as deprecated compat layer only
+"""
+
+[[content.acceptance_criteria]]
+text = "synapty task list/claim/update/comment/create with JSON stdout + exit codes; --project filter on list; create supports --body"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "requests route via SYNAPTY_SOCK (pane) or direct hub TCP (outside pane); never talk to GitHub directly — the login-device bridge executes API calls"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "works identically for local and remote agents (reverse tunnel)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "mcp-serve remains as a deprecated compatibility layer only"
+status = "done"
+category = "chore"

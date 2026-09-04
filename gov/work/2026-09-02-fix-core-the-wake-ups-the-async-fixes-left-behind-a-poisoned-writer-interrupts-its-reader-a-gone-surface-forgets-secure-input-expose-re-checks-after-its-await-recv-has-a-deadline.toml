@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-033"
+title = "fix(core): the wake-ups the async fixes left behind — a poisoned writer interrupts its reader, a gone surface forgets secure input, expose re-checks after its await, recv has a deadline"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The 2026-09-02 re-audit's pattern: fixes that moved work off a thread or
+put a bound on it left a hang or a wake-up unaccounted for. A hub writer
+that fails poisons the connection and exits without interruptStream, so
+the reader sleeps on and a relay peer's directory stays reachable=true
+forever ([[WI-2026-09-02-015]]). SecureInput.forget has no caller, so a
+pane closed at a password prompt leaves secure input on for good and a
+reused pointer can hit a stale entry ([[WI-2026-09-02-019]]).
+PortForwardService.expose checks idempotency before an await and acts
+after it, so two concurrent calls open two forwards
+([[WI-2026-09-02-022]]). IpcClient.recv has no read deadline, so a wedged
+pane daemon hangs every in-pane verb and hook-event — the one gap in the
+hooks' never-block-the-harness rule. The holder's displaced notice is
+written outside the write count ([[WI-2026-09-02-016]])."""
+
+[[content.acceptance_criteria]]
+text = "writerThread's failure and OOM exits call interruptStream after poisoning, so the reader wakes and tears the connection down; covered by a test in hub/connection.zig or e2e_test.zig"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "GhosttyNSView.freeDetached calls SecureInput.forget(surface:) before the surface is freed; expose re-checks the existing-exposure index after its await and returns the one that won; the holder's displaced notice goes through beginWriteLocked/endWrite"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "IpcClient.recv polls with a deadline (default 10 s) and returns a distinct error on timeout; the two CLI callers report or ignore it explicitly, and hook-event never blocks past it"
+status = "done"
+category = "fixed"

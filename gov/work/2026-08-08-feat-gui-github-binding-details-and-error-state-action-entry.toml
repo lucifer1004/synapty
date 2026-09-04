@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-044"
+title = "feat(gui): GitHub binding details and error-state action entry"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "User-scenario gaps #3/#7/#8/#9: the GUI never shows which owner/repo/account is bound (config.toml is invisible), the error state has no action entry (just a red text / hover tooltip), and switching accounts leaves the old identity silently in place. Deliver: the Hub page GitHub Bridge section shows the bound owner/repo/username (fetched via 'github status'); .error and .notConfigured states gain 'Connect/Change' and 'Disconnect' buttons that open the WI-043 sheet (pre-filled from the current binding); the status-bar error icon opens the Hub page."
+notes = ["Hub page GitHub Bridge section now shows the bound owner/repo/username (parsed from 'github status', refreshed onAppear + after connect/disconnect); every state has an action: Connect (notConfigured), Change (configured), Disconnect (with busy state); the status-bar error icon is now a button that jumps to the Hub page (merged notification onReceive in ContentView)."]
+
+[[content.acceptance_criteria]]
+text = "fix: Hub page shows the bound owner/repo/username"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: error/not-configured states offer Connect/Change/Disconnect actions (no dead-end red text)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: status-bar bridge error icon opens the Hub page"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

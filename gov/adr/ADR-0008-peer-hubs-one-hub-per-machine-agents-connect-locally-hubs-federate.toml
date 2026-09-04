@@ -1,0 +1,72 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0008"
+title = "Peer hubs: one hub per machine, agents connect locally, hubs federate"
+status = "accepted"
+date = "2026-08-12"
+refs = [
+    "ADR-0001",
+    "ADR-0004",
+    "ADR-0006",
+    "ADR-0007",
+]
+
+[content]
+context = """
+[[ADR-0007]], accepted hours earlier, decided the hub is a relocatable standalone service with ONE active instance that the workbench selects. Working the operator's requirements through to first principles produced three findings that invalidate its topology decision while leaving its analysis intact.
+
+FINDING 1 — the precondition no hub topology addresses. Remote agents do not survive the laptop at all. scripts/connect.sh runs `ssh -t -R TUNNEL:localhost:HUB host "synapty run --id X --hub 127.0.0.1:TUNNEL -- $SHELL -l"`: the remote agent is a child of the SSH session with no nohup, setsid or tmux, so it takes SIGHUP and dies when the laptop sleeps; and its A2A routes back through a reverse tunnel to the laptop's hub, so it depends on the laptop even to be reachable. The operator's goal therefore decomposes into four independent problems — (a) remote agent processes surviving disconnection, (b) a hub they can reach, (c) message durability, (d) the human observing everything on return — and (a), the precondition for the other three to matter, is not a hub problem at all. A perfect cloud hub would have been furniture in an empty room.
+
+FINDING 2 — what the hub irreducibly is. Delete the hub and ask what breaks that cannot be solved elsewhere: RENDEZVOUS (how a sender finds a recipient) and STORE-AND-FORWARD (where a message waits for an offline recipient). Presence merge and the audit log must additionally be queryable because both `synapty wait` and the human consume them. Conversely, what must NOT be in it: secrets and authority. The hub today loads a GitHub PAT from the macOS Keychain and calls the API itself (handlers.zig -> github.loadToken), and THAT — not any process boundary — is what makes it non-relocatable. A hub that holds a secret cannot move to a machine that lacks it.
+
+FINDING 3 — the selection question dissolves. "Which hub does the workbench select, and how do we degrade when it is unreachable" is a symptom, not a requirement. The hub must be CO-LOCATED WITH THE AGENTS THAT MUST SURVIVE: agents on a server need a hub on that server, or they depend on the laptop; agents in local panes need a local one. Once every machine hosting agents runs a hub and agents always connect to their own, selection disappears and local A2A never depends on the network. ADR-0007's relay design with automatic degradation was 80% of a peer hub already — its degraded path had to implement local routing, a local mailbox and a local event log, which IS an autonomous hub — and it bought a whole second set of semantics (mode state machine, hysteresis, promote/demote visibility, spool-versus-deliver ambiguity) for strictly less capability than simply always being one."""
+decision = """
+Every machine that hosts agents runs a hub. Agents always connect to their OWN machine's hub over loopback. Hubs peer with one another to carry cross-machine traffic. There is no "current hub" and nothing to select.
+
+1. LOCALITY. An agent's `synapty run` wrapper connects to 127.0.0.1 on its own machine — zero configuration, always available, and local A2A never depends on the network. The reverse tunnel that today carries a remote agent's traffic back to the laptop's hub is removed from that path; a remote agent talks to the hub on its own host.
+
+2. TWO BOUNDARIES, TWO TRUST MODELS (the SMTP submission/relay distinction, which the mail system settled decades ago and whose shape fits exactly):
+   - SUBMISSION (agent to its own hub): one connection carries one identity, exactly as today. This is where impersonation defence belongs, and it is a local, loopback-scoped problem.
+   - RELAY (hub to peer hub): an authenticated peer link carrying many identities. Authentication is the existing SSH machinery. Multiplexing many identities is legitimate here and only here.
+   Keeping these separate is what lets the existing connection-scoped invariants (generation, ownership, re-home, displacement) survive federation untouched.
+
+3. DIRECTORY. Each hub knows its own local identities and learns its peers' over the peer link, exchanged on connect and on change. At this scale — a few machines, tens of agents — this is a small table, not a routing protocol, and it must not grow into one.
+
+4. STORE-AND-FORWARD EVERYWHERE, ONE RULE. Mail for a local identity is delivered locally. Mail for a remote identity is forwarded to the peer hosting it, or spooled locally with a TTL when that peer is unreachable and flushed on reconnect. There are no modes, no promotion, no degradation states — the unreachable case is the same rule with a queue in it.
+
+5. LIFETIME BY ROLE, NOT BY LOCATION. A hub a workbench spawns for itself is supervised (parent-death watchdog plus lease) and dies with it. A hub on a machine hosting detached agents is a service and must outlive every workbench connection. Both are the same binary; the supervision contract is what differs.
+
+6. THE HUB HOLDS NO SECRETS AND NO AUTHORITY. tool_request (the GitHub task tools) moves from hub execution to WORKBENCH execution, so the human's credential never leaves the machine they authorized it on. This is independent of topology, which is precisely why it is a principle and not a workaround.
+
+7. EVENT LOGS ARE PER-MACHINE. The workbench presents a merged view across the hubs it observes. A machine's audit trail belongs to that machine; fabricating a single global log would require inventing an ordering that does not exist.
+
+Retained from ADR-0007 and ADR-0006: the port as a runtime detail (ladder plus SYNAPTY_HUB_PORT), the discovery file as the local out-of-process contract, the finding that the workbench-hub boundary was always protocol-mediated (so this is deployment work, not redesign), and the supervised-versus-service lifetime asymmetry.
+
+REQUIRED BEFORE FEDERATION SHIPS: an RFC specifying the peer protocol — directory exchange, cross-hub routing, spool and TTL semantics, presence federation, generation semantics across hubs — together with the submission-boundary impersonation defence. Specification precedes code, for the same reason ADR-0006 was written: implementation that drifts from specification is how this project got its worst bugs.
+
+STAGING. The program is ordered so that each stage is independently valuable: (1) hub as a standalone supervised process per machine, which restores crash isolation regardless of federation; (2) durable hub state; (3) remote agents run DETACHED from the SSH session and connect to their own host's hub — this is the stage at which the operator's actual requirement is met; (4) hub peering; (5) the workbench's merged multi-hub view. Stages 1-3 are single-machine work and need no peer protocol."""
+consequences = """
+Gained: local A2A never depends on the network, so two agents in two panes on the same laptop keep talking with the machine offline; the "which hub" question and its whole degradation machinery cease to exist rather than being answered; remote agents stop depending on the laptop for reachability; one store-and-forward rule replaces a mode state machine with hysteresis and promote/demote visibility; the submission/relay split gives impersonation defence a clean home and keeps every connection-scoped invariant intact under federation; and the architecture scales to N machines without a central server or a rendezvous service.
+
+Paid: a directory and cross-hub routing are genuine distributed-systems work — bounded by a small scale, but real, and they must not be allowed to grow into a routing protocol. Event logs fragment per machine and the workbench must merge them for presentation; this is judged correct rather than regrettable, since a single global ordering across machines does not exist and fabricating one would be a lie. V1 scope grows materially. The peer protocol must be specified before it is built, which front-loads work that feels like delay.
+
+Not bought by topology at all: remote agent PROCESS survival. Running them detached from the SSH session is a separate stage and the true precondition — without it, every other part of this decision is furniture in an empty room. This is stated here because the requirement that prompted the whole redesign ("my machine may shut down") is not satisfied by any hub arrangement on its own.
+
+Churn acknowledged: this is the second supersession of the hub topology decision in one day (ADR-0006 embedded it, ADR-0007 made it relocatable, ADR-0008 federates it). Each step was driven by a finding rather than a preference — the cloud requirement, then the offline-local case, then the credential location, then the discovery that remote agents die with the SSH session. The record is kept rather than rewritten so the path is visible, including the two arguments that did not survive: that a hub crash costs little because it severs connections anyway, and that divergence during an outage would be unmergeable."""
+
+[[content.alternatives]]
+text = "Peer hubs: every machine hosting agents runs a hub, agents always connect to their own machine's over loopback, hubs federate over authenticated peer links. Selection disappears, local A2A never depends on the network, and one store-and-forward rule replaces the mode machine"
+status = "accepted"
+
+[[content.alternatives]]
+text = "Single relocatable hub with workbench selection (ADR-0007 as accepted). Rejected: the selection question it answers is a symptom rather than a requirement; local A2A would depend on the network even between two panes on the same laptop; and it cannot address the actual precondition, which is that remote agent PROCESSES do not survive disconnection"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Single hub plus a local relay with automatic promotion on outage. Rejected: the degraded path must implement local routing, a local mailbox and a local event log, which is precisely an autonomous hub — so it pays for a second set of semantics (mode state machine, hysteresis, promote/demote visibility, spool-versus-deliver ambiguity) to obtain less than always being one. It is a detour to peer hubs, not a destination"
+status = "rejected"
+
+[[content.alternatives]]
+text = "No hub at all: a direct agent-to-agent mesh. Rejected: rendezvous and offline delivery are irreducible, so a resident per-machine service must exist to hold them — and that service is the hub. Useful only as confirmation that hub-per-machine is the minimal resident shape"
+status = "rejected"

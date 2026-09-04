@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-010"
+title = "A holder whose socket file is removed becomes unreachable and unkillable"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+Removing a session's socket file leaves its holder running with nothing able to address it. `synapty sessions` cannot see it, `synapty end` cannot reach it, and the only remaining way to stop it is to find its process by hand — which is the precise failure [[ADR-0012]] names as the largest cost of owning this mechanism, reachable by one careless `rm`.
+
+FOUND BY DOING IT. Clearing test leftovers with `rm -f /tmp/synapty-hold-*` in front of `synapty end` left thirteen holders running and unreachable on this machine.
+
+The socket is the holder's only address, and it lives in a world-writable directory that anything may tidy. A holder that noticed its own socket had gone could re-create it and be findable again; one that cannot must at least be discoverable some other way, or "enumerable on that host" ([[RFC-0014]] C-END) is true only while nothing has touched /tmp.
+
+This is not urgent — nothing removes those files but a human with a wildcard — and it is exactly the kind of thing that is cheap now and grim later, when the human doing it is doing it on a machine full of somebody's running agents."""
+notes = ["Delivered by the same change as WI-2026-08-22-001, which was raised without searching for this one first and covers the same ground plus RFC-0014 C-END's reap policy. A session is now a record in this machine's own state directory carrying its holder's pid, so enumeration does not depend on the socket: a holder whose socket is gone is listed as unreachable with its pid, and ending it signals that process. The e2e removes a live session's socket and then ends it through the ordinary interface."]
+
+[[content.acceptance_criteria]]
+text = "A holder whose socket has been removed becomes addressable again, or is discoverable by some other means that does not depend on that file"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test removes a live session's socket and then ends it through the ordinary interface"
+status = "done"
+category = "added"

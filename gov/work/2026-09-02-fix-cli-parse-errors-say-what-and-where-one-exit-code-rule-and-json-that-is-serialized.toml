@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-021"
+title = "fix(cli): parse errors say what and where, one exit-code rule, and JSON that is serialized"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 02 L8–L14, M6; 01 #12. A two-tier parse regime: file/view got the
+careful usageError treatment, the rest map every clap error to 'missing
+required argument' with no subcommand named. Several parsers ignore extra
+arguments — the bug class skills install was fixed for, not applied to its
+neighbours. Hand-interpolated ids can inject a frame into the hub stream;
+the send path already serializes properly. The attach chooser I added
+today exits 2 on a usage error while parse-time errors exit 1: the rule
+should be one rule.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "every clap-backed parser uses the usageError distinction with the subcommand and flag named; trailing junk is rejected everywhere (github logout, task claim/update/comment, activity, identify, hook-event, exposed); --help works for exposed, task update and task comment; a test pins each"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one exit-code rule for usage errors, written down and applied to parse-time and in-command errors alike (today parse exits 1 and runExec/hooksConsent/the attach chooser exit 2)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hand-built JSON (exec register envelope, wait's stdout, hubRemint, hubEnsure) goes through protocol.serializeEnvelope or ids containing quotes, backslashes or control characters are refused at register; github writeJsonString escapes all C0 controls; the PAT prompt disables echo; the three not-in-a-session blocks and five SYNAPTY_AGENT_ID gates are one helper each"
+status = "done"
+category = "fixed"

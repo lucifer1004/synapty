@@ -1,0 +1,95 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/codex.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. The '⏎ send' done fallback is a Synapty addition for title-less environments.",
+  "tool": "codex",
+  "rules": [
+    {
+      "id": "title_blocked",
+      "state": "waiting",
+      "region": "title",
+      "contains": "Action Required"
+    },
+    {
+      "id": "title_working",
+      "state": "working",
+      "region": "title",
+      "regex": "(?:^| )[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?: |$)"
+    },
+    {
+      "id": "transcript_viewer",
+      "state": "skip",
+      "all": [
+        "↑/↓ to scroll"
+      ],
+      "any": [
+        "esc to edit prev",
+        "esc/← to edit prev"
+      ]
+    },
+    {
+      "id": "strong_blocker",
+      "state": "waiting",
+      "any": [
+        "press enter to confirm or esc to cancel",
+        "enter to submit answer",
+        "enter to submit all",
+        "allow command?"
+      ]
+    },
+    {
+      "id": "weak_blocker",
+      "state": "waiting",
+      "any": [
+        "[y/n]",
+        "yes (y)"
+      ]
+    },
+    {
+      "id": "legacy_do_you_want",
+      "state": "waiting",
+      "all": [
+        "do you want to"
+      ],
+      "any": [
+        "yes",
+        "❯"
+      ]
+    },
+    {
+      "id": "legacy_would_you_like",
+      "state": "waiting",
+      "all": [
+        "would you like to"
+      ],
+      "any": [
+        "yes",
+        "❯"
+      ]
+    },
+    {
+      "id": "working_line",
+      "state": "working",
+      "region": "bottom(3)",
+      "lineRegex": "^[•◦]\\s+Working \\([^)]*esc to interrupt\\)(?: · .*)?$",
+      "not": [
+        "■ conversation interrupted"
+      ]
+    },
+    {
+      "id": "send_footer_idle",
+      "state": "done",
+      "contains": "⏎ send"
+    },
+    {
+      "id": "title_idle",
+      "state": "done",
+      "region": "title",
+      "regex": "\\S",
+      "not": [
+        "action required"
+      ],
+      "notRegex": [
+        "(?:^| )[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?: |$)"
+      ]
+    }
+  ]
+}

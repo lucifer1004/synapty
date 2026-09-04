@@ -1,0 +1,55 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-025"
+title = "A remote arrangement is not written down, so a restart cannot bring it back"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "RFC-0014",
+    "RFC-0006",
+]
+depends_on = ["WI-2026-08-17-024"]
+
+[content]
+description = """
+`snapshot()` writes a full arrangement for local sessions — tabs, splits, ratios, per-leaf working directory, resume plans — and for a remote session writes a label and a host id. Nothing else. A restart therefore brings back local work as it was and remote work as a single pane to be re-dialled, whatever the human had built there.
+
+THAT ASYMMETRY WAS CORRECT WHEN IT WAS WRITTEN. Before the pty holder there was nothing on the far side for a restored layout to attach to, so restoring one would have produced panes pointing at dead ptys — a worse outcome than not restoring at all.
+
+[[RFC-0014]] removes the premise, and [[RFC-0015:C-PERSIST]] removes the exemption: remote layout is persisted on the same terms as local, and [[RFC-0015:C-RESTORE]] re-acquires one connection per host rather than one per leaf.
+
+Two things this must get right that the local path never had to. A restored leaf whose host has since been deleted from the host store MUST survive with its binding rather than being dropped — removing a host is not an instruction to discard the layouts that mentioned it. And restore MUST NOT wait on the network: the arrangement appears with its panes dialling, not after every host has answered.
+
+Depends on the model, since there is no per-leaf host to write down until [[WI-2026-08-17-024]] lands.
+
+What may be TYPED into a restored pane is unchanged and remains [[RFC-0006]] C-RESUME-RESTORE's. This adds no authority; it restores more layout."""
+
+[[content.acceptance_criteria]]
+text = "A remote arrangement survives a restart — tabs, splits, ratios, focus and per-leaf working directory come back as they were"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Restore acquires one connection per host however many leaves name it, and the arrangement is on screen before any host has answered"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A restored leaf whose host no longer exists in the host store is kept with its binding and reported, not silently dropped"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A restore that finds no workspaces at all creates one empty workspace rather than none"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Round-tripping an arrangement through the store is covered by tests, including the deleted-host and empty-store cases"
+status = "done"
+category = "chore"

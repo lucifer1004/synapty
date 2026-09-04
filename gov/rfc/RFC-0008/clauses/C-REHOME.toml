@@ -1,0 +1,50 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-REHOME"
+title = "Re-Homing — Same Identity, Fresh Generation"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Two transitions bind an identity to a connection; both are evented.
+
+IDENTITY UPGRADE (same connection — the COMMON path): the run wrapper
+auto-registers the pane identity at spawn, and the session-bearing
+registration (hook or skill) arrives later on the same connection.
+
+- The upgrade ends the pane-identity registration: its generation ends
+  ([[RFC-0004]] observers see generation-end; waits pinned to it exit
+  4), agent_unregistered/agent_registered are logged, and the durable
+  identity begins a fresh generation on that connection.
+- Mail queued under the pane identity at upgrade time MERGES into the
+  durable identity's queue (same pane, same occupant — the mail was
+  addressed to whoever lived there, and that is who is claiming it);
+  the merge is evented.
+
+RE-HOME (different connection): a known durable identity registers
+from a connection other than the one currently (or last) hosting it.
+
+- The hub MUST treat it as the SAME agent id starting a fresh
+  [[RFC-0004]] generation. Everything generation-scoped inherits
+  existing semantics: `synapty wait` pinned to the old generation
+  exits 4, pending [[RFC-0005]] wake candidates for the old generation
+  are cancelled (but see C-COORDINATION: a non-empty mailbox at
+  re-home counts as a fresh edge), the passive detector's edge memory
+  resets, and the event log records the transition.
+- The displaced connection, if alive, reverts to its fallback pane
+  identity, MUST be notified over its own connection so its surfaces
+  stay truthful, and its subsequent identity-bearing traffic is
+  resolved under the fallback identity (connection binding wins over
+  self-stamps, C-IDENTITY). If the pane is live in the GUI, the
+  displacement MUST surface as an attention-worthy notice, not merely
+  a log line.
+- Conflict rule: LAST REGISTER WINS. Ping-pong (two panes repeatedly
+  re-claiming one identity) is permitted-but-evented; the human sees
+  it and resolves it — no merging, no sharing — merging would pick a winner silently, and sharing would make delivery depend on which pane the hub reached first, so the one party who knows which claim is the mistake is the one asked to settle it.
+- Undelivered mail for the identity survives the re-home and is
+  available to `recv` from the new pane immediately. Status is NOT
+  carried: the new generation starts per [[RFC-0004]] rules like any
+  fresh registration."""

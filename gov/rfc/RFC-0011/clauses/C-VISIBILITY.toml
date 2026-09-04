@@ -1,0 +1,52 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-VISIBILITY"
+title = "Where An Unattended Grant Is Shown"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0005]] C-AUTHORITY requires an armed pane to be visibly marked in
+the GUI for as long as it is armed. A detached agent has no pane in any
+GUI; this clause says what replaces that rather than dropping it.
+
+Requirements:
+
+- A DELEGATED AGENT MUST BE MARKED WHEREVER IT APPEARS in the merged
+  multi-hub view, using the same affordance vocabulary a locally armed
+  pane uses. Stated as a concrete obligation rather than "the same
+  prominence", which is an aesthetic comparison across two view types and
+  could not be failed; how attention is delivered remains the GUI design
+  system's concern under [[RFC-0004]] C-NON-GOALS.
+- THE MARK MUST CARRY which workbench granted the delegation and when it
+  expires. Locally the human sees their own choice on their own machine;
+  here they may be seeing a grant another workbench made to a machine they
+  have not opened in a week.
+- IT RIDES THE TWO SURFACES THE PRESENCE ROW IS SERVED ON — the `list_agents` response and the [[RFC-0004]] C-SUBSCRIPTION snapshot, beside `hosting_peer` and `peer_reachable` — rather than a separate query. C-SUBSCRIPTION owns that row and enumerates it.
+  Two reads that can disagree is exactly the failure the next requirement
+  is trying to prevent, and a delegation reported on its own path would be
+  one.
+- HONOURING A DELEGATION AND REPORTING ONE ARE ONE CAPABILITY AND MUST NOT
+  BE SPLIT. [[RFC-0010]] C-CAPABILITIES governs this field as it governs
+  the pending-wake flag, but the answer differs and the difference is the
+  point. Absence here MAY be read as "not delegated" — safely, and only
+  because a peer that does not declare the capability cannot honour a
+  delegation either, so the absent mark and the absent permission are the
+  same fact. That equivalence is exactly what a split would destroy: a
+  build that honoured delegations while declaring only the presence
+  half would render every one of them as ungranted, and the surface most
+  responsible for showing an unattended permission would be the one
+  hiding it. So the capability MUST cover both halves, and a hub MUST NOT
+  honour a delegation it cannot report.
+- THE MARK IS RENDERED FROM WHAT THE HOSTING HUB HONOURS, never from what
+  a granting workbench believes it granted. A workbench that granted a
+  delegation and missed its revocation elsewhere would otherwise display a
+  permission that no longer exists.
+- THE HONEST LIMIT: while no workbench is running, nobody can see the
+  mark, because there is no surface to see it on. This is a visibility
+  limit and NOT the reason delegations expire — C-EXPIRY's reason is that
+  a delegated grant fires when nobody is present at all, which no amount
+  of marking addresses."""

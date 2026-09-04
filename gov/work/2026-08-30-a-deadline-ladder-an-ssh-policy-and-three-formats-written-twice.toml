@@ -1,0 +1,80 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-010"
+title = "A deadline ladder, an ssh policy, and three formats written twice"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+The last of the sweep.
+
+A DEADLINE LADDER STATED IN PROSE AT EACH RUNG. A caller must outlast what
+it waits on at every hop, or it gives up while the work is still running and
+the answer lands on nobody. Three processes hold a rung — the workbench
+running a tool subprocess, the hub holding the requester's connection
+parked, the CLI waiting on the reply — and each stated its own number with a
+paragraph explaining how it related to the others. Prose is not a relation.
+`protocol.zig` owns two facts and derives the rest: the budget the workbench
+gives a tool, and the slack the hub is willing to pin a file descriptor for
+beyond it, which is a different decision about a different resource. A test
+asserts the property rather than the numbers, and inverting the slack takes
+it red. Swift holds the innermost rung and cannot import it, so that value
+is named and pinned on its side too.
+
+AN SSH POLICY WRITTEN OUT THREE TIMES, AND THE COPIES DIFFERED. The pooled
+master carried BatchMode, a timeout, `accept-new` and the keepalives; the
+one-off opener and the file-browser session carried the first two and NOT
+the host-key policy. So a first connection to a host the human had just
+added succeeded through the pool and prompted — that is, hung — through the
+other two. One owner now, and all three openers take it.
+
+THREE FORMATS EACH BUILT IN MORE THAN ONE PLACE. The connect channel's line
+is a cross-process contract that no shared function can express, but each
+process can own its own writing of it: `connect.sh` had two functions
+building the same line and only one was called the writer, and
+`ConnectProgress` formatted it inline in `note`. Both go through one place
+now.
+
+WHAT WAS NOT DONE, and why. The Swift test that pins `connect.sh`'s
+positional order asserts by index, which is the right check — the script
+owns the order and something has to hold it. What was wrong was the doc
+comment RESTATING the order in prose beside the assertions; that copy is
+gone and the assertions point at the script. Replacing them with a test that
+runs the real script under a stubbed `ssh` was considered and not done: the
+script execs a local client through two branches, and the harness for that
+is more fragile than the thing it would check, while
+`scripts/test-connect-launch.sh` already runs the script for real."""
+
+[[content.acceptance_criteria]]
+text = "protocol.zig owns the tool deadline ladder, deriving the hub's park and the CLI's wait from the workbench's budget"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the ladder only goes one way, asserted as a property, and Swift's rung is pinned against it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "SSHPolicy.opening owns what every ssh this workbench opens carries; three openers take it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the one-off opener and the file-browser session carry the host-key policy they were missing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connect.sh builds a channel line in one place, and ConnectProgress.line owns the Swift side"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the test that pins connect.sh's positional order stops restating that order in prose"
+status = "done"
+category = "chore"

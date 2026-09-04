@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-012"
+title = "The last session on a host never leaves the Still Running list"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+refs = [
+    "RFC-0014:C-END",
+    "WI-2026-09-03-007",
+    "WI-2026-09-03-010",
+]
+
+[content]
+description = """
+Reported as hub issue #5, "[Synapty] Still Running List update lagging severely".
+The lag is not slowness. Once a host has reported any session, the list can
+never go back to reporting none, so its last row stays until the app is
+restarted.
+
+The information is destroyed at the bottom. `RemoteSessions.parse` answers a
+failed ssh with the same value as a host that holds nothing:
+
+    guard exitCode == 0 else { return [] }
+
+So `refreshRemoteSessions` cannot trust an empty answer and, correctly given
+what it is handed, refuses to act on one:
+
+    guard !rows.isEmpty || self.remoteSessions[host.id] == nil else { return }
+
+The reasoning above that guard is sound and stays — "a host that could not be
+reached has not said it holds nothing, and blanking its rows would turn a
+dropped link into a claim about that machine". What is wrong is that the type
+cannot tell the two apart, so the guard has to treat every empty answer as a
+dropped link. A host going from one session to none is exactly the transition
+a human is watching for, and it is the one the list cannot show.
+
+Non-empty answers do replace wholesale, so three sessions becoming one is
+reported correctly. Only the step to zero is stuck.
+
+The existing test says so in its own name and cannot assert it:
+`testAFailedCallIsNoRowsRatherThanAnEmptyHost` comments "a host that could not
+be asked has not answered nothing" and then asserts `== []` — the same value
+an empty host produces.
+
+FOUND BENEATH TWO OTHER DEFECTS. The six rows that prompted the report were
+holders wedged in their own teardown ([[WI-2026-09-03-007]]) behind an End
+that could not be retried ([[WI-2026-09-03-010]]). With both fixed, this is
+the remaining half of the same symptom: end the last session on a host and its
+row stays."""
+notes = [
+    "MADE UNREPRESENTABLE RATHER THAN GUARDED. The listing's type now carries the distinction, so the caller's decision is `guard let rows else { return }` and the old conflation cannot be written back in. The guard itself sits behind a live ssh connection and a TunnelManager and is not reachable from a unit test; what is pinned instead is the two halves it now rests on — `parse` answering nil for a call that did not complete and an empty list for one that did, and `noteRemoteSessions([])` clearing a host's rows.",
+    "THE 60-SECOND CADENCE IS LEFT ALONE, and named here rather than changed. The sidebar's ticker runs at 10s and refreshes sessions on every sixth tick, with a recorded reason: it is a round trip per host, and a session that has been alone for two days is not one a faster poll would have caught in time. That argument is about DISCOVERING a forgotten holder and it holds. It is silent about the case a human is actually watching — a session that has just ended — but that case is now covered from the other side: a successful End removes the row when the far side confirms it ([[WI-2026-09-03-010]]), so the poll is no longer what the human waits on. What remains behind 60s is a session ended by some other means, which is the discovery case again. Changing the number would be re-deciding a recorded decision without new evidence.",
+]
+
+[[content.acceptance_criteria]]
+text = "a host that answers with no sessions clears its rows; a host that could not be asked keeps them"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the failure is representable — the listing's type distinguishes 'could not ask' from 'asked, holds nothing', so the old conflation cannot be written again"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a non-zero or absent ssh exit code yields the could-not-ask answer, and a zero exit with no rows yields the empty one"
+status = "done"
+category = "chore"

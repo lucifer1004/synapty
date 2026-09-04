@@ -1,0 +1,26 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-019"
+title = "Code nothing reaches: a second find bar, a dead font path, four orphans"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+Four things nothing can reach, found by counting references against declarations.
+
+A SECOND FIND BAR. `SplitContentView.runSearch(_:in:)` and `closeFind(_:)` are a copy of ContentView's find implementation. `closeFind` has no caller; `runSearch` has exactly one, `closeFind`. The live bar is `ContentView.findBarOverlay` with its own `runSearch` at ContentView:1217.
+
+A DEAD FONT PATH. `.synaptyFontIncrease`, `.synaptyFontDecrease` and `.synaptyFontReset` are observed by a three-way publisher merge in ContentView and posted by nothing. The handler maps them to `increase_font_size:1`, `decrease_font_size:1`, `reset_font_size` — the same three strings `KeyDispatcher.engineActions` already holds for the same command ids. It is a duplicate dispatch on a bus with no sender.
+
+TWO WAYS TO STOP THE HUB. `HubManager.stopHub()` has no caller; `shutdown()` is what runs at quit. Both respect the adopted-hub rule, so nothing is wrong today — there is simply one more of them than there are callers.
+
+AND TWO PASS-THROUGHS: `RemoteFS.releaseSession(for:)` forwards to `Pool.shared.release` and is called by nobody; `MasterPool.isLoaded(_:)` and `AgentMonitor.parseAgentsJSON(_:)` likewise have only their own declarations."""
+
+[[content.acceptance_criteria]]
+text = "Nothing in the project is reachable only from its own declaration, and the suite is green without them"
+status = "done"
+category = "chore"

@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-003"
+title = "feat(detect): manifest hot reload — retire the restart tax on rule calibration"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "ADR-0005",
+]
+
+[content]
+description = "herdr's calibration loop is read pane -> edit rule -> hot reload -> verify; ours is edit -> rebuild/relaunch, and post-v2 the manifests ARE the calibration surface, so the restart tax now dominates tuning. Scope: watch ~/.config/synapty/detect/ (DispatchSource file monitor), recompile a changed/added/removed manifest and swap the CompiledManifest atomically; per-tool edge-tracker memory resets on swap (a rule change is a new observer — its first classification is a legitimate edge). GOVERNANCE FIRST: ADR-0005 explicitly rules out hot reload for V1, so this WI's first deliverable is the govctl-managed amendment/supersession recording why the projection is reversed (v2 made manifests the tuning surface; the cost/benefit flipped). Origin: herdr gap analysis 2026-08-11 (tier 'cheap and high-value')."
+
+[[content.acceptance_criteria]]
+text = "ADR-0005 no-hot-reload projection formally amended or superseded via govctl, with the reversal rationale (post-v2 calibration economics) recorded; govctl check clean"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "override directory watched; manifest edit/create/delete takes effect without app restart (bundled copies remain the fallback)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "reload swaps compiled manifests atomically on the main actor; per-tool detection edge memory resets on swap so the new rules first classification is an edge"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "reload unit tests — changed file yields new classification behavior, deleted override falls back to bundled, malformed JSON keeps the previous compiled manifest (fail closed)"
+status = "done"
+category = "chore"

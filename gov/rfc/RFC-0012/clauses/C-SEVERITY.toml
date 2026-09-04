@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SEVERITY"
+title = "Severity Is What The Reader Must Do"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Twelve files logged and none agreed on what a level meant. `warn` outnumbered `err` 34 to 24, which is backwards for a system whose position is that silent failure is the enemy: the lines saying a promise had been broken sat at the same level as the ones saying a retry was about to happen.
+
+The rule is about WHAT THE READER MUST DO, not how bad the event feels. Severity that tracks feeling drifts; severity that tracks required action does not.
+
+Requirements:
+
+- `err` — a PROMISE WAS BROKEN, or a feature silently did not happen. Something the system already told someone it had done is now untrue, or a capability is gone and nothing else will say so. Dropping queued mail belongs here; so does failing to persist a machine's own identity, and so does a background loop that never started.
+- `warn` — the system DEGRADED AND HANDLED IT, but what the user can expect has changed. A retry is scheduled, a peer refused a link, one connection lost a property the others keep. WHICH SIDE OF A REFUSED LINK matters: `warn` is the DIALLING side, which was told and can try again. On the REFUSING side it is `err`, because the only party it answered is the machine at fault — a peer claiming an id already held by a live link, or this hub's own — and [[RFC-0010]] C-COLLISION requires the reason to reach a human. The test below decides it rather than this example overriding it. Nothing was silently lost: the caller was told, or the loop will come back. If nobody is told and nothing comes back, it is `err`.
+- `info` — a STATE TRANSITION worth having in a timeline when someone later asks what this machine was doing at 03:00. Link up, link down, hub bound, spool flushed. NOT per-message.
+- `debug` — flow detail.
+- THE TEST WHEN IT IS UNCLEAR, stated so it can be applied rather than argued: assume nobody reads the line. If the system still ends up correct — a retry fires, the caller got an error back — it is `warn`. If the only consequence is somebody confused later by behaviour nothing explains, it is `err`."""

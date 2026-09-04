@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-27-008"
+title = "Fix code review findings: shell injection, split focus, clipboard, tests"
+status = "done"
+created = "2026-03-27"
+started = "2026-03-27"
+completed = "2026-03-27"
+
+[content]
+description = "Fix four code review findings: (1) shell injection via unescaped host fields in commands, (2) splitFocusedLeaf focuses wrong pane on non-rightmost splits, (3) clipboard callbacks use global activeSurface instead of per-surface context, (4) test target broken by API refactor."
+
+notes = [
+    "2026-03-27 (gui): Fixed all four review findings: (1) shell-escape host fields in connectCommand, (2) splitLeaf returns new leaf ID directly, (3) clear activeSurface on destroySurface, (4) rewrote TerminalPaneManagerTests for session/pane/split API. Build and govctl check pass.",
+]
+[[content.acceptance_criteria]]
+text = "Shell-escape host fields in TunnelManager connect/setup commands"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "splitFocusedLeaf returns new leaf ID from splitLeaf"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Clipboard callbacks clear activeSurface on destroy"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Update TerminalPaneManagerTests to match current API"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

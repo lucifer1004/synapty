@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-START"
+title = "Starting Is Not Attaching"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Creating a session and returning to one MUST be distinct requests, and a holder MUST answer them differently.
+
+- A start MUST NOT attach to an existing holder. If the name a start proposes is already held, the start MUST fail and say so; it MUST NOT join the existing session and MUST NOT displace it.
+- An attach MUST NOT create a holder. A client asking to return to a session that is gone MUST be told it is gone ([[RFC-0014:C-HOLDER]]).
+- A client that intends to return to a session it started MUST retain that session's name across its own restart. A name held only in memory is a session that cannot be returned to.
+
+The two failure modes this separates are the ones a single ambiguous request produces: a start that silently attaches hands a human somebody else's live agent, and an attach that silently starts hands them a fresh shell wearing the name of the work they were looking for."""

@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-06-001"
+title = "fix(settings): wire hub/tunnel ports end-to-end, apply ghostty config live"
+status = "done"
+created = "2026-08-06"
+started = "2026-08-06"
+completed = "2026-08-06"
+
+[content]
+description = "Settings persistence and the ghostty config fragment are complete, but three wiring gaps remain: (1) the hub port setting is never passed to the hub process (hardcoded 9000); (2) the reverse tunnel forwards to localhost:TUNNEL_PORT on both ends, so remote agents silently break when tunnel and hub ports differ — the tunnel must forward to the hub port; local sessions also target the tunnel port instead of the hub port; (3) the ghostty fragment is only read at app launch — settings changes need an app restart, and on the very first launch the fragment may not exist yet when ghostty loads its config. Pass --port to the hub subprocess, add hub-port to the fixed connect/setup-host argument layout and forward -R to the hub port, target the hub port from local run commands, and apply fragment changes live by rebuilding the ghostty config (ghostty_app_update_config) plus ensure the fragment exists before the initial config load."
+
+[[content.acceptance_criteria]]
+text = "hub process launched with --port from settings (Restart applies the change)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "reverse tunnel forwards remote TUNNEL_PORT to localhost:HUB_PORT; local sessions target the hub port"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ghostty config rebuilt and propagated to all surfaces on settings change (live apply)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "fragment ensured before initial ghostty config load (first-launch ordering)"
+status = "done"
+category = "added"

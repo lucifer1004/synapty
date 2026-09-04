@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-072"
+title = "refactor(gui): cross-page dedup — repeated counts/indicators, captions into help popovers"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Hierarchy audit (cross-page): the Hosts page shows the host count twice (page header + sub-nav row); the Hub page shows a bare status dot in the header AND a labelled status row; static explanatory captions remain inline on the Terminal quick panel, Group editor, GitHub connect sheet and Hub bridge section.
+
+Fix: remove the duplicate Hosts header count and the bare Hub header dot; static captions become help popovers (Terminal panel header help; GroupEditor defaults help; GithubConnectSheet help via DSSheetHeader enhancement; Hub bridge keep dynamic state text, move only static explanation)."""
+
+[[content.acceptance_criteria]]
+text = "Hosts page shows the host/group count once (sub-nav row)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Hub page has no bare header dot; status appears once with its label"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "static captions on Terminal panel / Group editor / Connect sheet / Hub bridge moved to help popovers"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

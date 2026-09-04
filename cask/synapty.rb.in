@@ -1,0 +1,24 @@
+# Rendered by `just package` into zig-out/package/synapty.rb and released
+# beside the zip it names: the version comes from build.zig.zon and the
+# sha256 from the zip that was just built, so neither can be stale
+# ([[WI-2026-09-02-028]]). Install the released file, not this template.
+cask "synapty" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/lucifer1004/synapty/releases/download/v#{version}/Synapty-#{version}.zip"
+  name "Synapty"
+  desc "Terminal-native orchestration platform for multi-agent systems"
+  homepage "https://github.com/lucifer1004/synapty"
+
+  # Developer ID signed and notarized, ticket stapled — so this cask does
+  # NOT strip the quarantine attribute. Stripping it was the workaround for
+  # not being notarized, and leaving it in place would discard the check
+  # the notarization exists to pass.
+  app "Synapty.app"
+
+  zap trash: [
+    "~/.config/synapty",
+    "~/.synapty",
+  ]
+end

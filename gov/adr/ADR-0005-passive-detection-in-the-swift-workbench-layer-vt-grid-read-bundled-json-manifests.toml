@@ -1,0 +1,29 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0005"
+title = "Passive Detection in the Swift Workbench Layer — VT-Grid Read + Bundled JSON Manifests"
+status = "accepted"
+date = "2026-08-10"
+refs = ["RFC-0004"]
+
+[content]
+context = "RFC-0004 C-PASSIVE-DETECTION mandates workbench-side screen classification but delegates the implementation locus, manifest format/location, and reload mechanics to an ADR. The in-memory VT grid lives inside libghostty in the GUI process; the Zig side (hub/daemon) has no access to it. libghostty exposes ghostty_surface_read_text over an explicit selection with GHOSTTY_POINT_ACTIVE coordinates — the active screen, unaffected by user scrollback, which is exactly the clause's screen-not-viewport requirement. Detection rules need tuning against real harness UIs (Claude Code, Codex, Gemini CLI), so the rule format should be editable without touching classifier code."
+decision = "Passive detection runs entirely in the Swift workbench layer: an AgentDetector service samples each agent-bearing pane every ~2s by reading the final rows of the ACTIVE screen via ghostty_surface_read_text (selection points tagged GHOSTTY_POINT_ACTIVE — the active screen, unaffected by user scrollback), classifies the text with per-tool declarative manifests, applies edge-triggering (first classification is an edge; classification memory resets when the agent's registration generation changes), and submits edges to the hub as anonymous one-shot agent_status signals with class=passive. Manifests are JSON files bundled in the app's Resources (detect/claude.json etc.); a user override directory (~/.config/synapty/detect/) is checked first at load. AMENDED 2026-08-11: the override directory is watched and hot-reloads without an app restart — the original launch-only rule was written when manifests were three best-effort files; once the schema-v2 engine made manifests the primary calibration surface (structural regions, per-rule evidence, a 19-tool fleet), the edit-relaunch loop became the dominant tuning cost and the happy-path argument flipped sides. Bundled copies still load once at launch and remain the fallback when an override is removed; a malformed override keeps the previous compiled manifest (fail closed). The classifier's only output is a Status enum: screen text is untrusted input and is never forwarded, logged verbatim, or parsed as instructions."
+consequences = "Detection quality is bounded by manifest quality: initial rules ship best-effort and are expected to be tuned against real harness sessions — the override directory makes user-side tuning possible without a rebuild. The ~2s sampling loop reads local memory only (no subprocesses, no sockets); it is not presence polling in the RFC-0003 C-EVENTS sense, and hub traffic occurs only on classification edges. Agents registered without tool metadata are not classified (no manifest applies) and stay honestly unknown until register --tool arrives. If skill+bell+passive detection still miss states in practice, the documented escalation path remains native harness plugins."
+
+[[content.alternatives]]
+text = "Zig-side detection (daemon or hub reads the screen): rejected — the VT grid lives in the GUI process's libghostty; shipping screen content over IPC to Zig is the full L3 introspection surface that ADR-0001 explicitly defers, and it would put untrusted screen bytes on the wire for no V1 benefit"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Swift workbench layer detection via ghostty_surface_read_text over GHOSTTY_POINT_ACTIVE bottom rows, with bundled JSON manifests + user override directory, loaded at launch: chosen — zero IPC, zero new protocol surface, direct grid access, rule tuning without code changes"
+status = "accepted"
+
+[[content.alternatives]]
+text = "Native harness plugins/hooks reporting state directly: rejected on Occam grounds during the agent-skill design round — the skill teaches explicit notify, the bell covers permission prompts, and passive detection exists precisely to cover agents that install neither; requiring per-harness plugins would reintroduce the integration burden this feature avoids"
+status = "rejected"
+
+[[content.alternatives]]
+text = "herdr-style TOML manifests with runtime hot reload: adopted in two steps — the declarative per-tool rule-file model was taken at acceptance; hot reload was initially rejected for V1 (happy-path rule) and then adopted by the 2026-08-11 amendment, because the schema-v2 engine turned manifests into the primary calibration surface and the edit-relaunch loop became the dominant tuning cost"
+status = "accepted"

@@ -1,0 +1,27 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TURN-GAP"
+title = "Motivation — A Mailbox Nobody Watches"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Found live, not hypothesized: two real agents (claude local-2c69, codex
+local-4194) dogfooding A2A chat on hub issue #2 independently converged on
+the same limitation after the `recv --wait` fix landed — blocking receive
+lets an agent WAIT inside a turn it already has, but replies that arrive
+after the turn ends land in a mailbox nobody watches. Their joint layering
+conclusion: L1 (blocking recv) is CLI plumbing; L2 — "message arrival should
+wake an idle agent into a new turn" — is a workbench capability, because
+only the workbench owns the panes.
+
+Interactive harnesses (Claude Code, codex, gemini) expose exactly one way to
+start a turn from outside: typed input at the prompt. They have no wake API,
+no signal, no hook that creates a turn. The tmux-orchestrator ecosystem
+(herdr, send-keys drivers) proves typed injection is viable and is the de
+facto standard; what those systems lack — and Synapty has — is a presence
+protocol with edge semantics to gate the typing. This RFC is [[RFC-0004]]'s
+perception layer promoted to actuation gatekeeper."""

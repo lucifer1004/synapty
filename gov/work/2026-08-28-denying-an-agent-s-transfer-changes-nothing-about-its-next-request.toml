@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-004"
+title = "Denying an agent's transfer changes nothing about its next request"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`deny(_ id:)` removes the pending row and records nothing else, so `requiresApproval` still answers `!isGranted(pair)` and the agent's next `file.put` along that route re-creates the question. The sibling answer, `grant`, records itself in `granted` for the session.
+
+THE WORKBENCH ACTIVELY INSTRUCTS THE RETRY. `src/skills/synapty-present/references/verbs.md` tells agents the `awaiting approval` reply "is not a permanent failure … once they agree, retry and it goes". So a human pressing Deny gets the same question again on the agent's next attempt, indefinitely, and the only escape is quitting.
+
+[[RFC-0013]] C-AUTHORIZATION's WITHDRAWABLE property was added on 2026-08-27 for the granted case; a refusal has no equivalent record."""
+
+[[content.acceptance_criteria]]
+text = "A denied route is refused for the session rather than re-asked, and the agent is told refused rather than awaiting-human, with a test that fails if a second request re-creates the question"
+status = "done"
+category = "fixed"

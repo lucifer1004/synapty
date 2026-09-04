@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-041"
+title = "perf(gui): pause the activity poll while the Activity page is hidden"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Perf: TaskMonitor polls `synapty activity` every 5s even when the Activity page is hidden — a wasted process spawn + JSON parse + (change-detected) UI churn per 5s cycle. The activity stream is only consumed by ActivityLogView; on re-show it refetches the hub's recent log, so pausing while hidden loses nothing. Add an enable flag; ContentView drives it from the page."
+notes = ["TaskMonitor.setActivityPollingEnabled pauses the 5s activity poll while the Activity page is hidden (driven by ContentView's page onChange + initial onAppear state). Pausing loses nothing — re-showing refetches the hub's recent log. Agents/task polls unaffected (status bar needs them). One less process spawn + parse per 5s in the common case."]
+
+[[content.acceptance_criteria]]
+text = "fix: activity polling pauses while the Activity page is hidden (and resumes with an immediate fetch)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: agents/task polling are unaffected (status bar needs them)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

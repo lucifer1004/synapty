@@ -1,0 +1,122 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0016"
+title = "Connections are grown from evidence, not assigned by traffic class"
+status = "accepted"
+date = "2026-08-26"
+refs = [
+    "RFC-0013",
+    "ADR-0012",
+]
+
+[content]
+context = """
+A connected host holds TWO ControlMasters split by traffic class ([[RFC-0013]] C-BROKER): one for interactive panes and A2A traffic, one for transfers. That split was written against a measurement, and the measurement stands — an interactive round trip on a shared master went from 0.36-0.39s idle to 8.06-17.90s during a 60 MB transfer, because SSH channels multiplex over one TCP connection and a bulk channel fills the send buffer that every keystroke then queues behind.
+
+What has since been falsified is not the measurement but the classification built on it. FIVE THINGS, and they arrived separately.
+
+THE CLASS WE NAMED "BULK" IS NOT THE ONE THAT LOADS THE LINK. Copies are a rare event on this bench. Port forwards are not: a forward can carry a sync, a database replication stream or a build's artifact pull for minutes at a time, and every forward is attached to the INTERACTIVE master — setup-host.sh accumulates each local and remote forwarding rule onto the same ssh -MNf that carries the panes. So the dedicated low-latency lane is permanently held for a tenant that almost never speaks, while the continuously-loaded tenant sits on the lane the terminals are on. This is precisely the failure C-BROKER exists to prevent, occurring in the tenant it did not classify.
+
+A TWO-LANE MODEL CANNOT EXPRESS FORWARD AGAINST FORWARD. All of a host's forwards share one connection with each other. Renaming which lane they live on moves the collision; it does not remove it. Any model with a fixed number of named lanes has this ceiling by construction.
+
+THERE IS A SECOND, LATENCY-INDEPENDENT LIMIT ON A SHARED MASTER, and nothing in the system handles it. A terminal pane is an SSH session channel, and sshd bounds session channels PER CONNECTION. The bound lives in the remote host's configuration and this project has never read it; a search of the sources for that setting, or for a failed channel open, returns nothing. So the eventual behaviour of opening many panes on one host is that one of them silently fails to start and no code knows why.
+
+ONE OF C-BROKER'S TWO REASONS FOR PRE-ESTABLISHING THE BULK MASTER IS VOID. The clause requires both masters in the same connection event partly so that a password-only host is not left without an interactive path to authenticate on. The workbench refuses password authentication; there is no such host.
+
+AND THE CLAUSE'S CLOSING CLAIM IS NO LONGER TRUE OF TERMINALS. C-BROKER ends by asserting that two connections cannot migrate, and treats that as a transport-layer fact. Since [[ADR-0012]] the work behind a pane runs in a holder on the far side and the pane is a client of it: connect.sh execs the attach client, and the holder answers a returning client from the position it stopped reading. Killing a pane's channel and re-attaching it on another connection costs a round trip and a repaint. It does not cost the work."""
+decision = """
+A HOST HOLDS A POOL OF CONNECTIONS WHOSE SIZE IS OBSERVED, NOT DECLARED. There are no named lanes. Nothing is classified in advance by the kind of tenant it is, because every advance classification this project has made about which tenant is noisy has been wrong at least once.
+
+One placement rule: a new channel goes on the connection carrying the fewest, and a connection that refuses to open a channel causes another to be opened and the channel retried there. That second half is the entire handling of the remote session bound. It needs no knowledge of the bound's value, which is why it is correct on a host that permits five and on a host that permits a hundred.
+
+Placement and growth are both driven by what has happened rather than by what things are, so the common case degrades to today's behaviour exactly: one host with a few panes stays at one connection, with nothing extra opened and nothing extra reaped.
+
+MIGRATION IS PERMITTED FOR EVERY TENANT, and what it costs differs by tenant rather than being forbidden by the worst of them.
+
+A pane migrates without loss. The holder keeps the pty and resumes a returning client from where it stopped reading, so moving a pane off a loaded connection costs a round trip and a repaint.
+
+A FORWARD MIGRATES BY BEING CANCELLED AND RE-ADDED, AND THE CONNECTIONS FLOWING THROUGH IT DIE. This is accepted rather than mitigated. The listening endpoint returns; whatever was open across it does not, and the workbench neither reconnects it, holds it open, nor asks before dropping it. A forward is a pipe, and this project does not promise that a pipe survives — anything needing a durable stream over a link that can drop has to provide that itself.
+
+Transfers, probes and listings are placed by the same rule and have no migration case at all: they are re-run rather than resumed, and always were.
+
+WHAT THIS DELETES from [[RFC-0013]] C-BROKER: the interactive and bulk lane names, the pre-established second master, the requirement that both masters be established in one connection event, and the rule binding transfers to one particular master. Also the clause's closing claim that two masters are the ceiling of what TCP allows — TCP's actual constraint is that ONE connection cannot avoid head-of-line blocking, from which it follows that connections are the only lever available, not that there are two of them.
+
+WHAT SURVIVES UNCHANGED: the relay topology, the measurement that motivated the split, and the reason a transfer must not share a connection with a waiting human. The pool reaches that outcome by observing the load rather than by naming the tenant, so the property C-BROKER protects is kept while the mechanism that guessed at it is not."""
+consequences = """
+THE RISK THAT MATTERS IS REAPING, and it is a correctness risk rather than a tidiness one. [[RFC-0013]] C-AUTHORIZATION binds mortality to the connection: nothing the workbench opens may outlive the process, because ControlPersist means nothing else will reap it. Two named socket paths could be closed from a list written by hand. A pool cannot, so the pool's membership becomes the authoritative record of what must be torn down, and a connection that is opened without being recorded is an authenticated connection left running on the human's machine after the app exits. This is the one place where the change can make the system worse than it is today, and it is where the tests belong.
+
+A FORWARD THAT USED TO STAY UP CAN NOW BE DROPPED BY A DECISION NOBODY ASKED FOR. Migration cuts every connection crossing that forward, and the human sees a database client or a held HTTP stream fail with no explanation from us. The decision accepts this, and the honest statement of the cost is that a human who has not read this record will experience it as a bug.
+
+DETECTION IS NOT PREVENTION. The first channel to land on a connection that later becomes loaded is still on it when the load arrives; only the ones placed afterwards benefit. Migration covers the residue for panes and forwards, which is why migration is part of the decision rather than an optimisation left for later — without it, the pool is only correct about the future.
+
+A COMMENT IN THE TRANSFER SERVICE GOES STALE AND MUST BE REWRITTEN RATHER THAN LEFT. The concurrency limit on simultaneous copies is justified in the source by the claim that they share the connection carrying the human's keystrokes. That was already inaccurate once the bulk lane existed, and under the pool it is simply false. The limit may well survive on its own merits — several copies at once on one connection is slower than a few — but the stated reason has to become the real one.
+
+AMENDMENT COST, stated here and not left to be discovered. In [[RFC-0013]]: C-BROKER is re-formed, and C-AUTHORIZATION's mortality paragraph needs to name a set of connections where it now names one. Nothing in [[RFC-0015]] is affected, since a pane's binding to a machine is unchanged by which connection carries it. The implementation reaches setup-host.sh, connect.sh, TunnelManager's lane surface and TransferService.
+
+THE MEASUREMENT SHOULD BE REPEATED AGAINST THE POOL, not assumed to carry over. The numbers in C-BROKER were taken against a two-master arrangement; what this decision claims is that a pool reaches the same interactive latency without naming the tenants, and that claim is unverified until an interactive round trip is timed on a pooled host while a forward carries a sustained load."""
+
+[[content.alternatives]]
+text = "A pool whose size is grown from observed contention, with no traffic classes"
+status = "accepted"
+pros = [
+    "Nothing is classified in advance, so no future discovery about which tenant is noisy can invalidate it the way the bulk/interactive split was invalidated by forwards",
+    "Forward against forward has an answer for the first time, and it needs no label from the human and no new UI",
+    "The remote session bound is handled without its value being known, because a refused channel is itself the signal to grow",
+    "Degrades to today's shape on the common case: one host with a few panes stays at one connection",
+]
+cons = [
+    "A stateful pool manager where there were two named socket paths. Reaping goes from closing two known sockets to closing an unbounded set, and MORTALITY BINDS THE CONNECTION under [[RFC-0013]] C-AUTHORIZATION, so getting that set wrong leaves authenticated connections alive after the process exits",
+    "A migrated forward drops every connection flowing through it, silently and without a prompt. Accepted deliberately, and it is the one visible regression against the current shape where a forward, once up, stays up",
+    "Contention has to be detected before it can be acted on, so the first channel to collide with a loaded one still collides. Placement prevents the second and later ones, not the first",
+    "Amends [[RFC-0013]] C-BROKER substantially and touches setup-host.sh, connect.sh, TunnelManager's lane surface and TransferService",
+]
+
+[[content.alternatives]]
+text = "Keep two lanes and move the human's port forwards onto the bulk one"
+status = "rejected"
+pros = [
+    "Two lines of shell. The forwarding arguments move from the interactive ssh -MNf to the bulk one and the immediate complaint — a terminal stalling while a forward carries data — is gone",
+    "No new state, no pool, nothing new to reap, no change to how disconnection works",
+]
+cons = [
+    "IT PUTS THE FORWARDS BEHIND THE COPIES. A folder is one recursive scp running for minutes, so the lane the forwards moved to is not idle when it matters; the collision is relocated from terminal-against-forward to forward-against-copy",
+    "Forward against forward is untouched, and that is the case with no other remedy",
+    "The remote session bound is untouched, since panes still all share one connection",
+    "It is a THIRD advance classification of tenants after two were wrong, made with no new reason to trust the method",
+]
+
+[[content.alternatives]]
+text = "One connection per tenant: every forward and every pane on its own master"
+status = "rejected"
+pros = [
+    "Complete isolation with no detection, no thresholds and no migration: nothing can ever queue behind anything else",
+    "Cheaper than it first appears in wall-clock, since masters can be opened in parallel — the pattern already exists in setup-host.sh, which backgrounds the second master and waits for it",
+]
+cons = [
+    "CONNECTION COUNT TRACKS CONFIGURATION RATHER THAN CONTENTION. A host with ten forwarding rules holds eleven or more TCP connections from the moment it connects, whether or not any of them ever carries a byte",
+    "Ten authentications and ten processes to reap, for a host that in the common case would have been fine with one connection",
+]
+
+[[content.alternatives]]
+text = "Keep one connection per class and rate-limit the transfer instead"
+status = "rejected"
+pros = [
+    "One flag on the scp invocation. No new connections, no new sockets to reap, and no additional pressure on the remote session bound",
+    "Addresses the cause directly: the terminal stalls because the buffer is full, and a transfer that never fills it never stalls anything",
+]
+cons = [
+    "THE LIMIT IS A NUMBER WE CANNOT KNOW. Link capacity varies between a machine on the desk and one across an ocean by orders of magnitude, far more than the remote session bound does, so a fixed value is a guess in exactly the way a fixed pane cap is",
+    "Discovering it instead of fixing it means sampling throughput and adjusting during the transfer — a control loop, and a larger piece of machinery than the pool it was proposed as the cheap alternative to",
+    "It buys a responsive terminal with a longer copy, and a folder copy is already minutes",
+    "It says nothing about forwards, which is where the load actually is",
+]
+
+[[content.alternatives]]
+text = "Keep the two lanes and cap panes per host at the remote session bound"
+status = "rejected"
+pros = ["Turns a silent failure into a stated one, which is strictly better than the present behaviour of a pane that does not start for no visible reason"]
+cons = [
+    "IT IS A CLIENT-SIDE GUESS AT A SERVER-SIDE VALUE and is wrong in both directions: it cripples a host configured to allow many, and still fails on a host configured to allow few",
+    "Reacting to the refusal needs no number at all, so the guess buys nothing that handling the error does not",
+]

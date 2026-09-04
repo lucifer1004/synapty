@@ -1,0 +1,30 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This RFC gives agents a workbench-mediated way to run ordinary commands in
+panes of their own: open a scratch pane, run a command in it, wait for
+output to match a pattern, read a bounded excerpt back, close it. It is the
+capability herdr ships as 'pane run' / 'pane wait-output' / 'pane read',
+adapted to Synapty's trust model.
+
+The entire design hangs on one distinction: these are panes BORN for
+machine execution (created by the requesting agent through this API,
+visibly marked as such), never the human's panes and never another agent's
+harness pane. Typing into an existing pane's foreground process remains
+sealed by [[RFC-0005]]'s template boundary; this RFC does not weaken that
+seal — it routes the legitimate need (run a build, watch a log, check a
+long test) around it.
+
+Every action is receipted: opens, runs, wait outcomes, and closes are
+hub events on the [[RFC-0004]] log, so the human can reconstruct what
+machinery executed where for as long as the log retains them (durable
+receipt storage inherits whatever retention upgrade the event log
+itself gets)."""

@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-FAILURE"
+title = "Where a Connection's State Is Shown"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Once one slot can hold two machines, a connection's state has exactly one place it can honestly be shown: on the panes that reference it.
+
+- The dial state of a connection — `connecting` with its progress, or `failed` with its reason — MUST be presented on each leaf bound to it. It MUST NOT be presented as a property of the SLOT or the workspace containing that leaf, because neither of those has one connection to be in a state about — a slot's stack may hold panes from two machines ([[RFC-0015:C-LEAF-BINDING]]). A pane's own tab is not a container in that sense: it is that one pane's handle, so it names that one pane's connection, and showing the state there is showing it on the leaf.
+- A workspace in which two hosts are dialling at once MUST be able to show both, independently.
+- A failure MUST carry the reason it failed and MUST persist until the human dismisses it or a reconnect succeeds. A failure that clears itself leaves the human with a pane that stopped working and no account of why.
+- ALL OF THIS IS WORKBENCH UI AND MUST NOT BE WRITTEN INTO THE TERMINAL. The pane is the session's screen: progress, failures, docking affordances and connection chrome MUST be drawn by the workbench over or around the pane, and MUST NOT be emitted as bytes into it.
+- The workbench MUST NOT require the human to open a workspace to learn that something in it failed. A workspace containing a failed connection MUST be distinguishable in the sidebar — without that, work put aside fails silently and is discovered only on return."""

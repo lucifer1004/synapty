@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-003"
+title = "feat(gui): quick connect — command-palette overlay (Cmd+K): fuzzy host search + ssh-target parse + Enter to connect"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """Termius's top search doubles as a connect entry ("Find a host or ssh user@hostname..."); Synapty adopts the stronger form: a Cmd+K command-palette overlay available from EVERY page (user request, follows WI-2026-08-08-090). One DS-styled floating panel (ultraThinMaterial, DSInputChrome field, top-center like Spotlight): typing filters saved hosts (label/address/tags, case-insensitive substring; reuse HostStore.searchHosts) with keyboard navigation (arrows + Enter, Esc closes); when the input parses as an ssh target (user@host[:port], or plain host[:port]) the FIRST row becomes "Connect to <target>" — Enter opens an ad-hoc terminal session via the existing host-connect path WITHOUT persisting a HostEntry, and the result row offers a secondary "Save as host…" action that opens the host editor prefilled. Selecting a saved host row connects exactly like double-clicking its card. Wiring: Cmd+K in SynaptyCommands + a notification (same pattern as synaptyShowPage); palette state lives in ContentView; local terminal stays reachable by an always-present "Local Terminal" row when the query is empty. Happy-path V1: no MRU ranking, no fuzzy scoring beyond substring, no ssh-config completion."""
+
+[[content.acceptance_criteria]]
+text = "Cmd+K opens the palette on every page; Esc closes; field autofocuses (DSInputChrome look on ultraThinMaterial panel)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "typing filters saved hosts via HostStore.searchHosts; arrow keys + Enter select and connect (same path as card double-click)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ssh-target parse — user@host[:port] / host[:port] yields a leading Connect row; Enter connects ad-hoc without persisting; parser unit tests (valid/invalid forms, port bounds)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "'Save as host…' from an ad-hoc target opens the host editor prefilled (label defaults to host)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "empty query shows Local Terminal + all hosts; palette honors DS.scaled at XL (no clipping, screenshot check)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Swift test suite green"
+status = "done"
+category = "chore"

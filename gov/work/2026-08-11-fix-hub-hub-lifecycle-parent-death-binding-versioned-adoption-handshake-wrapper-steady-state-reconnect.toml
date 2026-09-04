@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-017"
+title = "fix(hub): hub lifecycle — parent-death binding, versioned adoption handshake, wrapper steady-state reconnect"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0008",
+    "ADR-0006",
+]
+
+[content]
+description = """Live incident (2026-08-11, during the WI-2026-08-11-013 smoke relaunch): the old app's owned hub survived the app quit (HubManager.shutdown is a best-effort process?.terminate()), and the NEW app's ensureRunning() silently adopted the responding port as an "external" hub with zero version or ownership checks — a new GUI (wake coordinator, RFC-0005/0008) ran against a pre-WI-012 hub with nothing surfaced to the human. Design decision (with the operator, 2026-08-11): BIND THE HUB TO THE APP — every failure mode here (orphan, version skew, silent adoption, owned/external state machine, restart choreography) exists only because the hub is a separately-lived process, and "hub outlives app" has NO V1 use case (panes and tunnels die with the app). This also FIXES DRIFT from ADR-0001, whose V1 deliverable literally reads "Embedded Hub — A2A message router in-process. No separate Hub binary to manage"; the subprocess shape slipped in with ADR-0004's unified binary. Shape: (1) hub embedded IN-PROCESS — zig staticlib + small C ABI (start/stop), linked into the GUI the way GhosttyKit already is; HubServer is already library-form (zig tests start it in-process). Orphans and version skew become impossible by construction; a port conflict becomes a plain error affordance, not an adoption state machine. `synapty hub` stays as a subcommand for zig e2e tests and V2 remote hubs (RFC-0001 L5) — the GUI never spawns or adopts one. Hub crash = app crash is accepted for V1 (hub state is in-memory; a hub crash already severs every agent). (2) Port demoted from identity to runtime detail: default 9000, sequential backoff 9001..9009, port 0 as last resort; SYNAPTY_HUB_PORT env var is the ONLY override (escape hatch per operator); the hubPort setting leaves the Settings UI. 9000 is a contested port (SonarQube/Portainer/php-fpm) — with backoff plus in-process binding, "someone else on 9000" becomes a non-event instead of adopting a foreign service as the hub. Consumers never hand-align: GUI components share in-process, wrappers get --hub from the spawn args, in-pane CLI rides SYNAPTY_SOCK, tunnels are built by TunnelManager which knows the real port. (3) Discovery file (~/.config/synapty/hub.json: port + pid + build id, 0600) written on bind, removed on exit — bare CLI (outside panes) and mcp-serve read it when SYNAPTY_SOCK is absent, with a pid liveness check against stale files. Bonus: two app instances become semantically clean — each workbench auto-gets its own port, own hub, own agent island (V1 is one island per workbench; cross-workbench is L5/V2). Wrapper steady-state reconnect stays in scope for the in-app hub-restart path. Migration notes: RunArgs.hub_port stops promising 9000 (app passes it explicitly); docs stop hardcoding 9000."""
+notes = [
+    "Implementation notes: (1) mcp-serve needed nothing — it rides SYNAPTY_SOCK (unix socket), no TCP port to resolve; the discovery-file consumers are the bare CLI's direct-TCP paths (agents/wait/tool roundtrips). (2) Wrapper reconnect targets the ORIGINAL --hub address: the embedded hub restarts in place on the same preferred port; a full app restart replaces the panes anyway, so cross-port drift has no live-pane scenario. (3) Hub log lines now ride a C callback (std_options.logFn in the lib root) into HubManager's existing throttled console — the embedded lib is silent until the host registers a sink. (4) hub_api entry points are host-serialized by contract (@MainActor HubManager) instead of internally locked — zig 0.16 removed std.Thread.Mutex and std.Io.Mutex needs the io that start() itself installs. (5) Live verification of the embedded hub (app boots, binds, discovery file appears, panes register) rides the next user-approved relaunch.",
+    "Live boot verification PASSED (2026-08-11 ~19:0x): port 9000 listener pid == app pid (in-process confirmed, no child process), discovery file written with correct {port,pid,build}, hub answers list_agents, pane wrapper registers.",
+]
+
+[[content.acceptance_criteria]]
+text = "hub embedded in-process — zig staticlib + C ABI (start/stop) linked into the GUI (GhosttyKit pattern); HubManager drops Process spawning AND external adoption entirely; hub lifetime is the app's by construction (orphan impossible, version skew impossible); synapty hub subcommand retained for tests/V2 only, never used by the GUI"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "port = default 9000 with sequential backoff (9001..9009, then port 0); SYNAPTY_HUB_PORT env var is the ONLY override; hubPort setting removed from the Settings UI; discovery file ~/.config/synapty/hub.json (port+pid+build, 0600) written on bind and removed on exit; bare CLI and mcp-serve read it when SYNAPTY_SOCK is absent, with pid liveness check"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "pane wrapper reconnects to the hub with backoff after mid-life connection loss and re-registers (durable identity re-claimed via resume_ref, fresh generation); e2e: kill+restart hub under a live wrapper, in-pane CLI works again without pane recreation"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ADR amendment records hub lifecycle = app lifecycle (fixing the subprocess drift from ADR-0001's embedded-in-process deliverable), port as runtime detail, and the discovery file as the only external contract"
+status = "done"
+category = "chore"

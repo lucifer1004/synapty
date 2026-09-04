@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-025"
+title = "A live registration contract exists only inside a deprecated RFC"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+refs = [
+    "RFC-0002",
+    "RFC-0008",
+]
+
+[content]
+description = """
+`RFC-0002:C-AGENT-IDENTITY` carried the registration contract and was deprecated wholesale on 2026-08-05, when that RFC's chat/DM+channel surface was reduced to the task-center model ([[RFC-0003]] C-A2A-REDUCTION). Code cited it afterwards, which `govctl check` reported as a reference to a deprecated RFC — with no honest fix, because the obvious one (repoint at RFC-0003) would have cited a document that does not carry the rule.
+
+NARROWED ON INSPECTION, and the narrowing is the useful part. Most of the clause WAS superseded and by live clauses in [[RFC-0008]]: identity derivation and id shape by C-IDENTITY, the two-stage registration and the same-id-from-another-connection case by C-REHOME. What had no live home was one paragraph — the registration METADATA contract: `id` required, `tool`/`project`/`session` optional at every registration, and a repeat overwriting only the fields it supplies. That is exactly what the two citing sites cited it for.
+
+THREE STATEMENTS WERE LEFT BEHIND AS FALSE rather than moved:
+
+- "The Hub MUST reject registration if an agent with the same ID is already connected" — C-REHOME requires the OPPOSITE and has since it was written: the same id from another connection is the same agent starting a fresh generation, and the displaced connection reverts to its pane identity. The old MUST was contradicted by shipped behaviour and by a live clause.
+- `synapty_register` as an MCP tool — `mcp-serve` exposes send, recv and agents, and never exposed this.
+- "The daemon forwards an `agent_update` envelope" — no referent since [[ADR-0004]] merged hub, daemon and CLI into one binary.
+
+RFC-0002's own deprecation note is NOT wrong and was left alone: it says the chat surface was superseded, which is true, and never claimed the identity clause was. govctl offers no path to edit that field anyway. The full account lives in RFC-0008's 0.2.0 changelog, which is where an amendment record belongs."""
+
+[[content.acceptance_criteria]]
+text = "The registration contract lives in a normative RFC, and the code cites that one"
+status = "done"
+category = "fixed"

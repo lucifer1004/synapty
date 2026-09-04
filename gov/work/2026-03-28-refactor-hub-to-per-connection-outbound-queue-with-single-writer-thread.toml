@@ -1,0 +1,46 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-007"
+title = "Refactor Hub to per-connection outbound queue with single writer thread"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["RFC-0002"]
+
+[content]
+description = "Replace cross-thread stream writes with per-Connection outbound queue. Each connection gets a dedicated writer thread; handlers enqueue instead of writing directly. Eliminates EBADF race, gives deterministic ordering, clean disconnect semantics."
+
+notes = [
+    "2026-03-28 (hub): Refactored Hub to per-Connection outbound queue model. 50/50 stress test passes. All e2e and unit tests pass.",
+]
+[[content.acceptance_criteria]]
+text = "RoutingTable maps agent_id -> *Connection"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Connection struct with outbound queue, mutex, condvar"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "dedicated writer thread per connection"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "all handlers enqueue instead of writing to stream"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "50/50 stress test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

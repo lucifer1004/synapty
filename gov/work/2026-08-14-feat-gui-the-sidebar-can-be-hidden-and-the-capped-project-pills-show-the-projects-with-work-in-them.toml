@@ -1,0 +1,66 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-008"
+title = "feat(gui): the sidebar can be hidden, and the capped project pills show the projects with work in them"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["WI-2026-08-08-053"]
+
+[content]
+description = """
+Two requests, both about the workbench giving the terminal more room and telling the truth in less of it.
+
+HIDING THE SIDEBAR. It was drag-resizable between 180 and 320pt and could not be removed, so a workbench set up around one wide terminal always paid for a navigation column it was not using. ⌃⌘S toggles it — the system-wide Hide/Show Sidebar equivalent in Finder, Mail and Notes; ⌘0, which Xcode uses for the same idea, is already Reset Font Size here. The state is persisted, so a window arranged that way stays that way.
+
+THE TOGGLE IS ALWAYS VISIBLE, not only while the sidebar is hidden. A control that removes a surface has to offer the way back without the human remembering a chord, and one that appears only in the hidden state is a control they must discover twice. It sits in the title-bar band the window's safe area already reserves, and insets past the traffic lights when the sidebar is gone.
+
+THE PROJECT PILLS. The cap was not the problem — [[WI-2026-08-08-053]] already limited the row to three with a "+N", so a long project list has never crowded the 30pt bar. What was wrong was WHICH three, and what "+N" did.
+
+The three were chosen alphabetically. With a cap, the ordering is the whole decision, and alphabetical is the one ordering that carries no information: a project with twelve tasks in flight drops behind an idle one whose name sorts earlier. They are now ranked by activity — in-progress first, then queued by depth — with the name as a tie-break only, so equal counts do not reshuffle the row between polls.
+
+"+N" was a `Text` with a tooltip reading "open the Tasks page", which it was the one pill in the row that could not do. It is now a button like the others."""
+notes = [
+    """
+VERIFICATION. `ContextStatusBar.ranked` was extracted so the ordering rule is testable without a view, and two tests cover it: activity outranks name, and equal counts fall back to a stable name order. Falsified by restoring the alphabetical sort — the first test fails showing ["p:aaa", "p:bbb", "p:ccc"] where "p:aaa" is idle (0 doing, 0 todo) and "p:ddd" with 3 queued is the one dropped, which is the reported defect exactly.
+
+387 Swift tests pass.
+
+NOT YET SEEN RUNNING. The sidebar toggle is layout, and layout is the kind of thing a suite cannot confirm — its inset past the traffic lights, the animation and the title-bar band placement need eyes on a running build. Deliberately not checked by launching a second instance: that would take over this machine's hub on port 9000, which is the hazard [[WI-2026-08-14-006]] closed for test hosts and did not close for a second app.""",
+    """
+THE FIRST PLACEMENT WAS WRONG, TWICE, and both were caught by looking rather than by the suite.
+
+First it was an overlay at the HStack's top-leading corner. The window's safe area already puts the first line of content immediately below the traffic lights, so that corner is not empty — the button landed ON the Terminal navigation row with the sidebar shown, and ON the pane tabs without it. An overlay competes for space by construction; the control had to become a layout participant.
+
+Then it participated, but in two different places: the sidebar's top-right while shown, the tab bar's leading edge while hidden. That is the version Zihua called odd, and correctly — a control that MOVES when you press it has to be found again after every press. Finder, Mail, Notes and Xcode all keep the sidebar toggle in ONE position, immediately right of the window buttons, in both states.
+
+It is now one position. Both hosts — the sidebar's top row and the content column's top row — reserve the same traffic-light width first and carry the same leading inset and row height as the pane tab bar, so the button is at the same window coordinates either way and the two top rows line up across the divider. Verified by screenshot in both states, on the terminal page and a management page.""",
+    """
+THE THIRD PLACEMENT IS THE RIGHT ONE, and the first two shared a mistake: they tried to reach the traffic lights' row from inside SwiftUI. The window is `.hiddenTitleBar` with `fullSizeContentView`, so its safe area starts content BELOW the titlebar band — anything positioned from SwiftUI begins one row too low, which is why it first landed on the navigation rows and the pane tabs, and then sat in a row of its own beneath the window buttons.
+
+Reaching that row means leaving SwiftUI's coordinate space. `NSTitlebarAccessoryViewController` with `layoutAttribute = .leading` is the system mechanism: AppKit places the control in the titlebar after the traffic lights and keeps it there. It is the row Finder, Mail, Notes and Xcode use, no app content can occupy it, and the position is identical in both states because the titlebar does not change when the sidebar does.
+
+It also deleted work: the sidebar's own toggle row and the copies threaded into the pane tab bar and the shared page header are all gone, along with the traffic-light spacer they each needed.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the sidebar hides and restores, and the choice survives a relaunch"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the toggle is reachable without the keyboard, in both states"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the capped pill row shows the projects with work in them, not the alphabetically first"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the overflow pill opens the Tasks page, as its tooltip already claimed"
+status = "done"
+category = "fixed"

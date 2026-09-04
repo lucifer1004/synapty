@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-008"
+title = "fix(hosts): the key fallback offered an unauthorised identity to every host that named no key, and broke connecting"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "WI-2026-08-14-012",
+    "ADR-0009",
+]
+
+[content]
+description = """
+"会话恢复连接失败我觉得有问题呀——明明是可以连上的。"
+
+They were right, and it was a regression I introduced hours earlier in [[WI-2026-08-14-012]].
+
+That work item made `TunnelManager.effectiveKeyPath` fall back to this machine's dedicated key when the configured one is not present, so that a host record synced from another Mac — naming a path that exists there and not here — still has a key to offer. The reasoning was sound for that case. The implementation collapsed TWO different situations into it:
+
+  a key is NAMED and missing here   →  fall back    (the sync case, correct)
+  NO key is named at all            →  fall back    (WRONG)
+
+A record with no `sshKeyPath` is the ordinary setup for anyone using ssh-agent or `~/.ssh/config` — 13 of this operator's 14 hosts — and the correct behaviour is to pass NOTHING and let ssh use what it already knows. Instead every one of those hosts was handed `-i ~/.ssh/synapty_<peer>`, an identity no host has ever authorised.
+
+MEASURED AGAINST THE LIVE HOST, which is the only thing that settles it:
+
+  ssh -o BatchMode=yes operator@…                                  exit 0
+  ssh -o BatchMode=yes -i ~/.ssh/synapty_studio-2630 operator@…     Permission denied (publickey,password)
+
+The same command, one flag apart. `IdentitiesOnly` is not set, so ssh should in principle have fallen through to the agent; it did not, and the measurement outranks the theory.
+
+The guard is now explicit: no key named means return nil and let ssh decide. The fallback applies only where a path IS named and is absent here, which is the case ADR-0009 enrolment exists to answer.
+
+WHY THE TESTS DID NOT CATCH IT, which is the more useful finding. [[WI-2026-08-14-012]] added three tests and all three asserted PATH RESOLUTION — that the right string comes out for a given record. None of them asked whether a connection still worked, and no test could, because the answer lives in another machine's sshd. The unit tests were green while the app could not open a session, and the operator found it by using the app."""
+notes = ["""
+VERIFIED at the level that matters, and honest about the level that is not covered.
+
+Verified: the two raw ssh invocations above, against the operator's own host — succeeds without the flag, refused with it. And 403 Swift tests, including a new one pinning that a record naming no key resolves to nil.
+
+NOT VERIFIED: reconnecting from inside the app. That needs a click on a host and this environment has no accessibility permission to perform one. The session that failed in the screenshot had already been dropped from the snapshot by the time the fix was built, so there was nothing to watch reconnect.
+
+THE LESSON IS ABOUT THE TESTS, not the logic. Three tests were written for the change that caused this and every one of them asserted which string comes out of a function. That is worth asserting, and it cannot answer the only question that mattered — whether a host still accepts the connection — because that answer is on another machine. A green suite sat alongside an app that could not open a session for most of a day."""]
+
+[[content.acceptance_criteria]]
+text = "a host that names no key is given no identity, and connects as it did before"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a host naming a key absent on this Mac still falls back, which is what enrolment is for"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a test pins the no-key case, which is the common one and was the broken one"
+status = "done"
+category = "chore"

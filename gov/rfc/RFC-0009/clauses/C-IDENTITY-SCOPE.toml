@@ -1,0 +1,95 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-IDENTITY-SCOPE"
+title = "Identity Scope Across Machines"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0008]] derives a durable identity from (tool, resume_ref) and falls
+back to a pane-local id when no resume_ref exists. One of those two is
+safe across machines and the other is not.
+
+Requirements:
+
+- DURABLE IDS ARE GLOBALLY MEANINGFUL AS THEY STAND. A harness session
+  id is a UUID or equivalent, so `claude-<first 8>` collides across
+  machines only when it would also collide on one, which [[RFC-0008]]
+  C-IDENTITY already handles by refusing the claim. No change.
+- THE FALLBACK PREFIX IS MACHINE-SCOPED AND MUST BE QUALIFIED. Today a
+  pane without a resume_ref registers as `local-<4 hex>`, which two
+  laptops will collide on routinely — a 4-hex space per machine, and
+  every machine drawing from the same one. Under federation a fallback
+  id MUST be qualified by its hosting peer so that two machines' panes
+  are distinguishable. A hub MUST NOT advertise an unqualified fallback
+  id to a peer. The form is `local-<4 hex>@<peer-id>` ([[RFC-0010]]
+  C-PEER-IDENTITY defines the peer id and excludes `@` from it by name;
+  C-BOUNDARIES defined it before that clause superseded this part); `@` is
+  RESERVED and MUST NOT appear in any
+  locally derived identity, which extends [[RFC-0008]] C-IDENTITY's existing
+  character discipline rather than replacing it.
+  A PROHIBITION NEEDS A MECHANISM, and this one had none. [[RFC-0008]]
+  C-IDENTITY derives `<tool>-<fragment>` from two agent-influenced
+  strings validated only as printable, whitespace-free and bounded —
+  which `@` passes — and derived ids are advertised UNQUALIFIED. A peer
+  splitting on `@` to strip a qualifier then either fails to strip or
+  trips its own reject-my-own-identity rule: the defect [[RFC-0010]]
+  C-PEER-IDENTITY excluded `@` from peer ids to prevent, left open on
+  the other side of the separator. The rule is therefore the one
+  [[RFC-0008]] already states for the `local-` prefix: a derivation that
+  would contain `@` is REJECTED TO FALLBACK and evented. Sanitizing is
+  not available — C-IDENTITY requires derivation to be deterministic and
+  independent of hub state, and a rewrite is neither.
+- WHAT THIS LEAVES, said because it is the whole of the conflict case.
+  Once fallback ids are qualified, two peers cannot claim one identity by
+  accident: a derived id is a harness session id, so two live claims mean
+  one session is genuinely visible on two machines — a home directory
+  shared across cluster nodes is how that happens. The remedy is on the
+  machines, not in the routing: C-DIRECTORY refuses to route to either
+  claimant and says so, and no rule here tries to guess which of them the
+  human meant.
+
+- QUALIFICATION IS AN ENCODING AT THE RELAY BOUNDARY, NOT A RENAME.
+  [[RFC-0008]] C-IDENTITY makes derivation deterministic and independent of
+  hub state precisely because these ids land in persistent artifacts;
+  a peer-qualified id is configuration-dependent, so it MUST NOT become
+  the identity the agent holds. Concretely: the hosting hub qualifies FALLBACK
+  IDS ONLY on
+  the way OUT (directory advertisements and the `source` of relayed
+  frames) — a durable id is globally meaningful as it stands and takes
+  "No change" per the first bullet, so qualifying one outbound while the
+  strip below only ever removes a fallback qualifier would leave every
+  reply to it unroutable — and strips the qualifier on the way IN (the
+  `target` of a
+  relayed frame addressed to one of its own fallback ids). What the strip
+  prevents is a hub
+  failing to recognise its OWN pane: a frame addressed to
+  `local-1a2b@thishub` names an identity this hub hosts as
+  `local-1a2b`, so without the strip the lookup misses and the sender is
+  answered `unknown` about an agent standing right there. (An earlier
+  form of this sentence invoked the ORIGIN rule, which is fixed by
+  qualifying the source rather than by stripping the target — an
+  implementer following it literally strips the wrong field.)
+  A TARGET QUALIFIER NAMING A THIRD PEER MUST BE REFUSED: non-transitivity
+  forbids forwarding it and the qualifier is not ours to strip, so the
+  frame is neither deliverable nor relayable, and saying so is better
+  than leaving an unhandled case.
+- Qualification is for ROUTING and DISPLAY, not authority. It does not
+  make the id more trustworthy: it is still self-reported by a local
+  process (C-BOUNDARIES), and a qualified id is exactly as attested as
+  an unqualified one.
+- RE-HOME REMAINS WITHIN A HUB. [[RFC-0008]] C-REHOME's last-register-wins
+  displacement is arbitrated by the identity's own resume_ref presented
+  on a NEW connection to the SAME hub. This RFC does NOT extend it
+  across machines: an identity two LIVE hubs both claim is the
+  conflict case in C-DIRECTORY, refused and surfaced, not a silent
+  migration. A claim against a tombstone is the other thing entirely —
+  C-DIRECTORY calls it a move, and it is how an agent changes
+  machines.
+  Cross-machine hand-off of a live identity would need evidence neither
+  hub has — which of them saw the agent more recently is not something
+  either can establish — and inventing an answer would produce exactly
+  the split-brain the design otherwise avoids."""

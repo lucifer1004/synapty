@@ -1,0 +1,40 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/gemini.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting. The 'type your message' done rule is a Synapty addition (herdr gemini has no idle rule).",
+  "tool": "gemini",
+  "rules": [
+    {
+      "id": "apply_or_allow",
+      "state": "waiting",
+      "any": [
+        "│ apply this change",
+        "│ allow execution"
+      ]
+    },
+    {
+      "id": "confirm_yes",
+      "state": "waiting",
+      "all": [
+        "yes"
+      ],
+      "any": [
+        "waiting for user confirmation",
+        "do you want to proceed"
+      ]
+    },
+    {
+      "id": "selector_yes",
+      "state": "waiting",
+      "lineRegex": "(?i)^\\s*❯.*(yes|allow)"
+    },
+    {
+      "id": "esc_cancel_working",
+      "state": "working",
+      "contains": "esc to cancel"
+    },
+    {
+      "id": "type_message_idle",
+      "state": "done",
+      "contains": "type your message"
+    }
+  ]
+}

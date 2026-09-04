@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-015"
+title = "An untouched host record is rewritten under a full suite run"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`HostStoreTests.testEditingOneHostDoesNotTouchAnother` failed intermittently: editing one host rewrote an untouched host's record.
+
+ROOT CAUSE, FOUND BY INSTRUMENTING THE WRITE PATH. `writeRecords` decides whether to write by comparing two ENCODINGS of the same value:
+
+    if let existing = try? Data(contentsOf: url), existing == data { continue }
+
+`JSONEncoder`'s keyed container is unordered. One value encoded two hundred times in one process produced ELEVEN distinct byte strings — same keys, same values, same length, different order. Setting `.sortedKeys` gives one. The instrumented run caught it in situ, in the failing test's own temporary directory: the untouched host `remotehost` written again at 164 bytes both times, with the key order changed and nothing else.
+
+IT WAS NEVER ONLY A TEST DEFECT. `save()` hands every record it writes to `SyncEngine.noteLocalChange`, so unchanged hosts went on the wire to a last-writer-wins transport on every save — which is exactly what the comment above the comparison says the per-record layout exists to prevent. `SyncEngine`'s `ours == remote` fast path was dead for the same reason: two Macs holding an identical record compared unequal and fell through to a three-way merge every time.
+
+THE SHAPE, AGAIN. Every other store that persists here already sets `.sortedKeys` — [[KeymapStore]], [[SynaptySettings]] (with the comment "so 'did this change?' below is a byte comparison"), [[WorkspaceStore]], and `RecordMerge.data(from:)`. This was the fifth site, and the only one that actually compares bytes.
+
+RULED OUT ALONG THE WAY, and worth keeping because each looked right: cross-test contamination through the static `storageOverride` (the async writers guard on the host being in their own store); the sync engine writing into a test's root (it writes `SyncDomain.root`, which is `ConfigPaths.shared` and never the override); and file-descriptor exhaustion (measured at 19 of 1048575 at the moment of the write)."""
+
+[[content.acceptance_criteria]]
+text = "Records are written with a stable key order, so an unchanged record is not rewritten and not offered to sync"
+status = "done"
+category = "fixed"

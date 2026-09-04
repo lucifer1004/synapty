@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-009"
+title = "UI redesign: design system tokens, app-level page navigation"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "UI redesign driven by a Design System (DS tokens: adaptive teal accent, semantic colors, typography/spacing/radius scales, shared components); all views rebuilt — sidebar, pane tabs, status bar, sheets, find bar; app-level page navigation with sidebar-session return; hosts.json backup + migration tolerance."
+
+[[content.acceptance_criteria]]
+text = "DS tokens + shared components"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "all views rebuilt on DS"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "app-level navigation, no popover surfaces"
+status = "done"
+category = "added"

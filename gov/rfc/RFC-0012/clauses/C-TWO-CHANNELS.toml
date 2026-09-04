@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TWO-CHANNELS"
+title = "A Log And A UI Answer Different Questions"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A failure has two audiences asking different things, and giving them one answer fails both.
+
+THE LOG ANSWERS WHY. Cause and identifiers: the error itself, the path, the peer id, the port, the code. Its reader is whoever is debugging — a human in Console, an operator reading a hub's log file on a server, or an AGENT on that box, which is a reader this system has and most do not. That reader may arrive hours later, on a machine with no GUI, and after the process that failed is gone. It is the only channel that still exists then, because a UI cannot report its own absence, and the only one that interleaves with SSH, sandbox and network lines from the rest of the system.
+
+THE UI ANSWERS WHAT. Consequence and next step, on the object it happened to, for the person present now.
+
+Requirements:
+
+- The same failure SHOULD produce both, and the two strings MUST NOT be the same text. One string used in both places yields either a dialog reading `NSCocoaErrorDomain Code=513` or a log line reading "something went wrong" — each being the other audience's answer handed to the wrong reader.
+- A HUB HAS NO UI, so its half of the obligation differs: it logs the WHY, and makes the WHAT derivable by putting the consequence on a carrier the workbench already reads. [[RFC-0010]] C-DIAGNOSABILITY already requires exactly this for capabilities, down to naming the carrier; anything that silently changes what an agent can expect owes the same.
+- WHICH FAILURES EARN A UI: the `err` set of C-SEVERITY. A broken promise or a feature that silently did not happen is what a human needs to see. Same rule, different rendering."""

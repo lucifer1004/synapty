@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-OPT-OUT"
+title = "Durability Is Refusable Per Host"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A host MAY be configured so that its remote sessions are not durable.
+
+- With durability off, a session MUST run the child directly, with no holder, and MUST end when its connection ends.
+- With durability off, the interface MUST NOT offer resumption or restoration for sessions of that host.
+- The setting MUST be per host, MUST default to durable ([[RFC-0014:C-SCOPE]]), and MUST NOT change as a side effect of connecting, reconnecting, or deploying.
+- Turning durability off MUST NOT hide holders that already exist on that host. They MUST remain enumerable and endable until they end.
+
+The last requirement is the one a settings toggle would otherwise break: a holder that exists but can no longer be seen is an orphan created by a preference."""

@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PWD"
+title = "The Working Directory Of A Remote Pane"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST be able to report the working directory of the foreground process group of the child's terminal, and MUST NOT require the child to have announced it.
+
+- The answer MUST be that process group's directory, not the holder's own.
+- The holder MUST report the directory as unknown rather than substitute a default when it cannot determine one.
+- The working directory is not session contents, and MAY be disclosed to a requester that is not the attached client, subject to [[RFC-0014:C-ENTITLEMENT]].
+
+A shell started by an ordinary login announces nothing, and a client that guesses a home directory here is not making a smaller mistake than one that admits ignorance: this answer is used as a destination for files ([[RFC-0013]] C-ADDRESSING)."""

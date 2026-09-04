@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-035"
+title = "chore(docs): an Occam sweep of comments and documents — what restates the code, repeats itself, or describes a file that is gone"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Twenty-two thousand comment lines across src/ and Sources/, written one
+WI at a time, and three hand-maintained documents. The house rule is
+that a comment says why the code has its shape and history goes in the
+WI; a pass over the whole tree finds what has drifted from that: a
+paragraph pasted twice, a comment that contradicts the code beneath it,
+a line that restates the statement it sits on, a narration of what an
+edit did with no reason left in it, a reference to a thing that no
+longer exists. Rationale stays, however long; nothing is cut for length.
+README.md, CLAUDE.md and docs/*.md are checked against what the code
+does. gov/** is govctl's and is not touched here."""
+
+[[content.acceptance_criteria]]
+text = "every comment in src/, Sources/, Tests/ and scripts/ that duplicates another, contradicts the code it describes, restates the statement it sits on, or narrates an edit with no reason left is removed or corrected; rationale and [[refs]] are kept"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "README.md, CLAUDE.md, docs/keyboard.md, docs/libghostty-reference.md and docs/presentation-plane.md say only what the code does today; each claim checked against the tree"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "both suites, the e2e scripts and govctl check pass after the sweep; the diff removes or corrects comments and documents and changes no behaviour"
+status = "done"
+category = "chore"

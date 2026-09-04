@@ -1,0 +1,29 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-004"
+title = "The reconnect notice was written into the session's own screen"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+`[synapty: link lost — reconnecting]` was written to the pane's terminal. A pane is the session's screen, and a full-screen program owns every cell of it — so the line landed in the middle of a TUI and corrupted what the human was reading. A RESUMED attach continues from a position and never repaints, so it stayed corrupted.
+
+THE DESIGN ALREADY EXISTED AND THE CODE NEXT TO IT BROKE IT. `progress.zig`'s own header: "What a connection is doing, told to the workbench rather than written onto the session's screen … Narration printed there is displaced by the session's own screen the moment it arrives … They are not written there any more." The line was written one line below `account.say(.lost, …)`, which is that channel.
+
+WHY IT WAS THERE ANYWAY, and this is the part a deletion alone would have got wrong: the workbench STOPPED READING the channel at the first paint — `case "paint", "live": revealed = true; stop()` — on the reasoning that progress is what a pane shows BEFORE it has a screen. True of the placeholder; not of the account. A transport dies mid-session, by which time the reader is long gone, so the `lost` reached nobody. The write into the terminal was compensating for a channel that had been closed.
+
+THE RULE, now stated where the writes are: WRITE INTO THE SESSION'S SCREEN ONLY WHEN NOTHING WILL DRAW ON IT AGAIN. A reconnect, a gap and a restoration are transient — the far side goes on drawing, so an injected line is wrong from the moment it lands. An exit and a displacement are terminal — this client draws nothing further and the words are the only account the pane will carry. Three transient writes went; the two terminal ones stay."""
+
+[[content.acceptance_criteria]]
+text = "A link lost mid-session is reported without writing into the pane, and the pane says it is showing a screen nothing is updating"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The account of a connection is still being read after the pane has a screen, and is forgotten with the pane"
+status = "done"
+category = "fixed"

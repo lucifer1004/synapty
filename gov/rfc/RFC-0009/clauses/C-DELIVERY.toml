@@ -1,0 +1,97 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DELIVERY"
+title = "Delivery — One Rule, With a Queue in Front of It"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Deliver locally what is local; forward to the hosting peer what is not;
+hold what cannot be forwarded yet. One rule, no modes — the unreachable
+case is the same rule with a queue in it.
+
+Requirements:
+
+- A message addressed to a LOCALLY hosted identity is delivered exactly
+  as today ([[RFC-0008]] C-MAILBOX): queued in the local mailbox, nudged,
+  drained by the agent. Federation changes nothing about local delivery,
+  which is why local A2A keeps working with the network down.
+- A message addressed to an identity a peer advertises is FORWARDED on
+  that peer's relay link, carrying the sender's own envelope. Its
+  `source` is QUALIFIED on the way out (C-IDENTITY-SCOPE), because the
+  receiving hub admits a relayed frame by the name it was advertised
+  under (C-BOUNDARIES) — and because an agent that reads a bare pane id
+  in `from` has no name it can reply to.
+- IF THE HOSTING PEER IS UNREACHABLE THE MESSAGE IS SPOOLED locally and
+  forwarded when the link returns. This is not a degraded mode and not
+  failure tolerance bolted on. Store-and-forward is one of the two things
+  a hub irreducibly is — delete the hub and what cannot be solved
+  elsewhere is finding a recipient and holding a message for one who is
+  offline — and the local mailbox already does exactly this for a
+  registered agent that is not connected ([[RFC-0008]] C-MAILBOX). Refusing to
+  hold it only because the recipient is on ANOTHER machine would make the
+  same act answer differently depending on where the recipient happens to
+  be, which is exactly the mode this design has none of.
+  THE SPOOL IS BOUNDED AND DURABLE: a TTL (24 hours), a per-peer cap (256
+  messages, drop-oldest, and the drop RECORDED the way [[RFC-0008]]
+  C-MAILBOX records its own — the local mailbox drops its oldest under
+  exactly the same pressure, and the same act reported two different ways
+  in two documents is the mode this design has none of), and written where the
+  mailbox is written, because a `spooled` answer is a promise and losing
+  it on a restart makes the answer a lie. On expiry the message is
+  dropped and the drop is recorded, wherever the spool is recorded — a
+  queue that vanished must not read back as one that drained.
+  ON RECONNECT, SPOOLED TRAFFIC GOES FIRST, before newly submitted
+  traffic for that peer, or a sender's later message overtakes its
+  earlier one with nothing in the system reporting it.
+- FORWARDING IS ACKNOWLEDGED PER MESSAGE, and `forwarded` means the peer
+  took it — not that a socket accepted the bytes. An answer that meant
+  the latter while sounding like the former is the overstatement this
+  clause exists to prevent. A hub holds its copy until the acknowledgement
+  arrives, then releases it. SILENCE IS AN UNKNOWN OUTCOME and is never read as
+  either success or refusal, so it needs a length: a hub MUST bound the
+  wait — 5 seconds by default — and answer `spooled` when the bound
+  elapses, holding the copy and flushing it like any other spooled
+  message. Without a bound "silence" has no duration and the sender waits
+  on a link that may never answer.
+  A RECEIVER MUST NOT QUEUE THE SAME FORWARD TWICE. Holding until
+  acknowledged makes a lost acknowledgement produce a second copy, so the
+  rule that prevents loss has to answer for duplication: a forward
+  carries an id the SENDING hub mints, unique on that link, and a
+  receiver that has already accepted that id acknowledges it again
+  without queueing it. The sender does not reuse an id for 24 hours after
+  it last SENT it; the receiver remembers one for 24 hours after it
+  ACCEPTED it, restarting that clock each time it re-acknowledges. Those
+  two anchors are what make the receiver's memory outlive the sender's
+  silence, and either alone leaves a window where a reused id is
+  acknowledged for a message nobody has.
+- A HUB MUST DISTINGUISH SIX ANSWERS, and the CLI MUST expose them:
+    1. `delivered` — hosted here, queued in the local mailbox.
+    2. `forwarded` — the hosting peer acknowledged it.
+    3. `spooled` — the hosting peer is known and the message is HELD
+       here: the link is down, or it is up and the peer did not answer
+       inside the bound. Both are the same state from the sender's side —
+       somebody knows where this goes and it has not gone yet.
+    4. `refused` — the hosting peer NACKed it, with its reason carried
+       through. A refusal is not an unreachability: the peer answered.
+    5. `conflicted` — two peers claim it (C-DIRECTORY), so it is
+       addressed by nobody until one of them stops.
+    6. `unknown` — no peer advertises it and this hub does not host it.
+  THE LIST IS THE SET. `delivered`, `forwarded` and `spooled` are success
+  (JSON on stdout, exit 0, [[RFC-0003]] C-CLI-TOOLS); the other three are
+  failure (stderr, non-zero), with the status name in the machine-readable
+  payload so a script can branch on it.
+  `spooled` AND `unknown` ARE NOT THE SAME MISTAKE: one is a machine to
+  see to, the other a name to correct. Reporting a partition as a typo
+  sends the human after the wrong thing.
+- WIRE SHAPE. The direct-message response is `{status, reason?}`, where `status` is one of the six and `reason` is human-readable text, required for `refused` and `conflicted` and optional elsewhere. That `reason` is FOR A HUMAN and is not the same field as the one below.
+
+- A NACK ON `relay_forward` CARRIES A MACHINE-READABLE REASON, AND THE SET IS NAMED HERE — FIVE: `malformed` (the frame carried no envelope, or no forward id to acknowledge), `target_refused` (the target's qualifier names a peer that is neither the receiver nor the sender, which C-IDENTITY-SCOPE forbids stripping), `origin_refused` (the claimed source is not an identity the forwarding peer hosts, per C-BOUNDARIES), `not_hosted` (the target is not hosted here, so the two directories disagree and re-forwarding would be the multi-hop routing this version does not specify), and `unavailable` (the receiving hub could not queue it — its own fault, not the sender's, and the only one of the five a retry can resolve).
+
+  NAMED BECAUSE A REFUSAL AN IMPLEMENTER HAS TO INVENT A STRING FOR IS ONE TWO OF THEM SPELL DIFFERENTLY — the same argument this corpus already makes for `no_workbench`, applied to the surface where it is most load-bearing: this reason is what `refused` carries through to the sender, so a hub that spells it differently produces a `refused` nobody downstream can branch on. The set is CLOSED; a receiving hub with a reason not on it MUST use the nearest of these rather than mint a sixth, and extending it is an amendment here.
+- ONE HOP. A hub forwards only to the peer that advertises the target,
+  and a relayed message is never re-forwarded. Multi-hop routing needs a
+  loop rule, a hop count and a path, none of which this version has."""

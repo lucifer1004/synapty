@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-017"
+title = "A host with an open connection is asked to open one again, ten times per setup"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+
+[content]
+description = """
+Reconnecting to a host that was already connected took 28 seconds, of which the session itself took 0.5. The other 27.9 went to `setup-host.sh`, which the workbench runs on every launch — and which opens a NEW SSH connection for every step it takes, on a host whose multiplexed connection is sitting there open.
+
+THE SOCKET IS NAMED IN QUOTES THAT SURVIVE. The script builds `SSH_CMD="-S '$SOCKET'"` and then expands it UNQUOTED into ten ssh calls. Word splitting hands ssh two arguments: `-S`, and a path whose first and last characters are literal apostrophes. No such socket exists, so ssh does what it does when a control path is missing — it opens a fresh connection, authenticates, and tears it down again, once per step.
+
+MEASURED, on a host whose master was up the whole time: `ssh $SSH_CMD ... 'echo A'` takes 2.175s; `ssh -S "$SOCKET" ... 'echo B'` takes 0.362s. Ten of the first is most of the wait, and it is paid on every launch by every remote session at once.
+
+WHY THE STRING EXISTS. The comment beside it says an empty array under `set -u` errors when expanded, which is true of bash 3.2 — the version macOS ships. The launch script solves the same problem two files away with the `${arr[@]+"${arr[@]}"}` guard; this one reached for a string instead, and a string cannot carry the difference between quoting and content.
+
+WHAT THIS IS NOT. It is not the md5 of the remote binary, which was the standing suspicion: that step is one round trip of the ten and takes two seconds, and it is there to avoid a two-megabyte upload."""
+notes = ["2026-08-17: Found by measurement, not by reading: the progress channel from WI-2026-08-17-016 timed every step of a reconnection and showed 28 seconds of setup in front of a session that took 0.5 to attach. Every step being ~2s on a host with a live master is what pointed at the socket."]
+
+[[content.acceptance_criteria]]
+text = "A host whose connection is already open is not asked to open another one for each step of its setup"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test asserts that the master socket reaches ssh as one argument, quotes and all"
+status = "done"
+category = "chore"

@@ -1,0 +1,65 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EXEC-AUTHORITY"
+title = "Authority — Opt-In, Default Off, Visibly Marked"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An exec pane runs agent-authored commands with the human's local (or
+deployed-host) shell authority. That delegation belongs to the human.
+
+Be explicit about what arming grants: arbitrary command execution as
+the shell user. The workbench polices its own typing channel
+(C-EXEC-SCOPE) but CANNOT police what an executed command does with OS
+facilities — a command can reach other processes, files, and terminals
+the way any user process can. The safety model is delegation +
+visibility + receipts, not containment; the human arming the switch is
+owed that sentence.
+
+Requirements:
+
+- Pane execution MUST be opt-in, default OFF. The V1 granularity is a
+  deliberate choice: ONE per-workspace-session switch that arms exec
+  panes for all registered agents and all deployed hosts at once —
+  coarser than [[RFC-0005]] C-AUTHORITY's per-pane arming, which suits
+  wake's per-target risk; execution risk is dominated by the shell
+  authority itself, which is session-wide anyway. Arming is a human act
+  in the workbench UI; nothing arriving over the hub can arm it.
+- The gate covers open, run, and wait-output. read and close of an
+  agent's OWN exec panes remain available while disarmed (observation
+  and cleanup are not execution).
+- While armed, the armed state MUST be visible (status-bar affordance),
+  and every exec pane individually carries its machine-operated marker
+  (C-EXEC-SCOPE).
+- Disarming MUST take effect immediately: a run whose Enter has not yet
+  been sent is aborted (the pending Enter is suppressed, leaving inert
+  unsubmitted text; the exec_command_ran receipt records the abort),
+  in-flight waits terminate with the `disarmed` outcome
+  (C-PRIMITIVES), further gated calls are refused; existing exec panes
+  stay open as inert ordinary panes.
+- The workbench MUST NOT grant elevation: commands run as the shell
+  user; nothing in this protocol may mediate sudo or credential entry.
+  If a command prompts for credentials, machinery MUST NOT answer — the
+  wait either matches on other output, times out, or the human steps in
+  (their pane, their call).
+- Bounds: an implementation MUST bound concurrent exec panes per agent
+  (small, e.g. 2-4) and SHOULD bound run frequency per pane, so a
+  confused agent can neither tile the workspace with shells nor hammer
+  the ones it has.
+- The armed state MUST NOT persist across workbench restarts: a
+  freshly launched workbench starts DISARMED regardless of how the
+  previous one exited. This is the same authority class as a coding
+  harness's permission-bypass mode (Claude Code's dangerous-skip,
+  codex's YOLO): the grant is arbitrary command execution as the
+  shell user, so it is re-affirmed per process rather than inherited
+  from a file. Note the deliberate ASYMMETRY with RFC-0005
+  C-AUTHORITY, whose per-pane wake bit DOES persist with the session
+  snapshot: wake's blast radius is one fixed, content-free template
+  line, while exec's is any command the agent can compose. Equal
+  treatment of unequal risks is what this clause refuses. The
+  re-arming friction is accepted deliberately and MUST NOT be
+  optimized away by persisting the bit."""

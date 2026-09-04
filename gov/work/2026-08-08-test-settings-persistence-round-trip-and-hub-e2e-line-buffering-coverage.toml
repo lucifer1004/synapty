@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-022"
+title = "test: settings persistence round-trip and hub e2e line-buffering coverage"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review test findings: SynaptySettings load()/save()/writeGhosttyFragment() and the legacy themeName migration are untested (only the static themeLine helper is); the 2026-03-28 e2e work item claims a 'line buffering' integration test that does not exist in src/e2e_test.zig. Add a settings persistence round-trip test (through the WI-2026-08-08-020 seam) and a hub e2e test proving multiple newline-terminated frames delivered in one write are all processed."
+notes = ["Completed (2026-08-08): SynaptySettingsTests (5 tests: save->load round trip across 11 fields, defaults with no file, legacy themeName migration, ghostty fragment content incl. font-family clear-before-set ordering, themeLine forms). e2e_test.zig gained the line-buffering test: register + DM frames delivered in ONE write are both processed (hub reader line-buffers correctly) — fulfils the claim in WI-2026-03-28."]
+
+[[content.acceptance_criteria]]
+text = "settings save -> load round-trip preserves every field; legacy themeName migration fills both theme slots"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "ghostty fragment write emits the font-family clear + theme pair (light/dark) with correct quoting"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "hub e2e line-buffering test — two newline-terminated frames in one write are both processed (fulfils the WI-2026-03-28 claim)"
+status = "done"
+category = "chore"

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-024"
+title = "fix(gui): accessibility labels, Reduce Motion dots, dark-mode tertiary contrast"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P2: (1) PulseAnimation dims pulsing status dots to 0.4 opacity permanently when Reduce Motion is enabled (animation nil means the onAppear change applies instantly) — the intent was to disable the pulse, not the visibility; (2) icon-only buttons across the app (nav rail, plus, close, row actions) have no accessibilityLabel — VoiceOver reads nothing; (3) DS.textTertiary dark-mode value stays NSColor.tertiaryLabelColor at ~3.2:1 on dark surfaces while light mode was hand-tuned to 4.5:1."
+notes = ["PulseAnimation keeps dots fully visible under Reduce Motion (pulse disabled, opacity 1); accessibilityLabel added to 8 icon-only buttons (host row edit/delete x2, new-session plus, new-pane plus, tab close, panel toggle, panel close); DS.textTertiary dark mode hand-tuned to 0.62 gray (~4.8:1 on dark surfaces, was ~3.2:1)."]
+
+[[content.acceptance_criteria]]
+text = "pulsing dots stay fully visible under Reduce Motion (pulse disabled, opacity not)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "icon-only buttons carry accessibilityLabel (nav rail, add/close, row actions)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "DS.textTertiary dark-mode value clears 4.5:1 against the darkest DS surface"
+status = "done"
+category = "fixed"

@@ -1,0 +1,57 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-MAILBOX"
+title = "Hub-Side Mailbox — Queues Follow Identity"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Today the message queue lives in the pane daemon's process: the hub
+routes a DM to the target's connection, the daemon queues it, `recv`
+drains it. The queue dies with the pane — which is precisely the
+lifetime durable identity exists to outlive.
+
+Requirements:
+
+- Message queues MOVE to the hub, keyed by agent identity. The pane
+  daemon becomes a pure relay: `recv` (and `recv --wait`) drain the
+  hub-side queue for the identity its connection currently hosts.
+  Hub-side queues are drained ONLY through the hosting connection; the
+  out-of-pane direct-TCP recv fallback keeps its current
+  temporary-identity behavior and cannot address a durable identity's
+  queue.
+- A blocking `recv --wait` is bound to the identity it started under:
+  if that identity is released from the connection mid-wait (upgrade
+  or displacement, C-REHOME), the wait MUST terminate promptly with a
+  distinct, stable error — never silently rebind to another queue,
+  never hang to timeout.
+- Send acknowledgment semantics are explicit: a DM to a KNOWN identity
+  with no live hosting connection is queued and the sender's ack says
+  `queued` (not delivered); a DM to a NEVER-REGISTERED identity is an
+  error — a typo must fail fast, not black-hole into a queue nobody
+  will ever drain. FEDERATION QUALIFIER ([[RFC-0009]] C-DELIVERY): once a
+  hub has peers, "never registered" is a claim it can only make about
+  what it can see. The two-value ack (`queued` / error) is replaced by the C-DELIVERY answer set — ALL of it, and NOT COPIED HERE. That clause owns the set and this one takes whatever is in it, because a second enumeration is a second thing to keep in step and this pair has already fallen out of step once: the set moved, and a `queued` survived elsewhere in this clause, naming a value the replacement had retired. A status C-DELIVERY defines and an implementation does not carry is a status the implementation invents a substitute for; the way to prevent that is one list, not two lists and a rule saying they agree.
+  WHICH ANSWERS ARE SUCCESS, HOW MANY ARE FAILURES, AND HOW THEY MAP TO EXIT CODES ARE NOT RESTATED HERE. C-DELIVERY makes the split and [[RFC-0003]] C-CLI-TOOLS owns the binary contract; a count written down in two places is a count that goes stale in one of them, which is what this paragraph did when the set moved.
+  WHAT IS THIS CLAUSE'S OWN: a status MUST reach the sender distinguishably, because a mailbox that accepts everything and reports one word is a mailbox nobody can act on. And `spooled` IS THE CROSS-MACHINE FORM OF WHAT THIS CLAUSE ALREADY DOES for a registered agent that is offline — the hub holds the message and forwards it when the link returns. That is a promise, and this clause is where the local half of it lives; losing it makes the answer a lie in both halves at once.
+  Fail-fast survives unchanged for a hub whose peers are all reachable,
+  which is every hub before federation and the ordinary state of one
+  after.
+- Queues are bounded (drop-oldest with an event-log trace when full),
+  and queue DISPOSAL is likewise implementation-owned but MUST exist:
+  fallback pane identities never re-home, so their queues become
+  unreachable at pane death and must not accumulate for the hub's
+  lifetime.
+- This is the same hub-side mailbox [[RFC-0005]]'s wake trigger was
+  specified against; the trigger amendment it needs is carried in
+  C-COORDINATION.
+- Queue lifetime is HUB lifetime. This originally read "mail does not
+  survive a workbench restart", conflating two lifetimes that are no
+  longer the same: the hub is a distinct process that outlives a
+  workbench relaunch and may have no workbench at all. AMENDED on both
+  counts — hub state is now durable, so mail survives a hub RESTART as
+  well, written before the ack, so a `delivered` answer — C-DELIVERY's word for mail hosted here and queued in the local mailbox — means it is on disk. [[RFC-0009]] C-DELIVERY extends the same rule to the forwarding
+  spool."""

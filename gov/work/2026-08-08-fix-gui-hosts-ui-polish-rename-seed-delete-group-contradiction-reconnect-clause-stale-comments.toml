@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-025"
+title = "fix(gui): hosts UI polish — rename seed, delete-group contradiction, reconnect clause, stale comments"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P2: (1) GroupRow inline-rename never seeds editText with the current label (SessionRow does this correctly); (2) Delete Group is disabled for non-empty groups while its confirmation alert promises reparenting/ungrouping behavior the model does implement — one of the two is wrong; (3) reconnect-button condition 'disconnected || != connecting' contains a dead clause; (4) dead empty onAppear blocks in HostConfigSheet/ActivityLogView/TaskListView and a stale createdAt comment in HostSidebar."
+notes = ["GroupRow rename seeds editText on menu click and on editingGroupID change; Delete Group now allows non-empty groups (model's removeGroup reparents/ungroups exactly as the alert documents) with matching help text; reconnect button rewritten as explicit TunnelStatus.canReconnect switch (dead 'disconnected || != connecting' clause gone); empty onAppear blocks removed (HostConfigSheet/ActivityLogView/TaskListView); stale createdAt comment corrected."]
+
+[[content.acceptance_criteria]]
+text = "group inline-rename seeds the field with the current label"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Delete Group button and its confirmation dialog agree (model reparenting enabled or copy fixed)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "reconnect/status button logic rewritten as an explicit switch — dead clause gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "empty onAppear blocks removed; stale createdAt comment corrected"
+status = "done"
+category = "fixed"

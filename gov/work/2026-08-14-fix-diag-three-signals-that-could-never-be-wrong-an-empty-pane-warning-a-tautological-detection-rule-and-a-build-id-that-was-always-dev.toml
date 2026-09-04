@@ -1,0 +1,62 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-005"
+title = "fix(diag): three signals that could never be wrong — an empty-pane warning, a tautological detection rule, and a build id that was always dev"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "WI-2026-08-14-004",
+    "ADR-0005",
+]
+
+[content]
+description = """
+Three unrelated-looking complaints with one shape: a signal that could not come out any other way, and so carried no information while looking like it did.
+
+ONE — "N terminal panes are registered but not running an agent." A terminal with no agent in it is a terminal. It was listed as a problem because the count had been stale often enough to look like a symptom; the staleness was real and is fixed at its source ([[WI-2026-08-14-004]]). What remained was the ordinary case — open a tab, get a shell — presented as something to look at, which trains the human to ignore the list. Removed. `registeredCount` stays as the monitor's honest raw number; nothing in the UI mislabels it now.
+
+TWO — cline read `working` forever. It was the ONLY manifest of twenty with a catch-all: `regex: "(?s).+"`, state `working`. herdr's `cline.toml`, which it was ported from, scopes that rule to `region = "whole_recent"` and gives it `priority = -10`. Our engine evaluates first-match-wins in file order, so the priority survived as position — but it has no recency-scoped region at all: it offers title, screen, after_rule, prompt_box, bottom(N) and top(N), every one of which says WHERE to look and none of which says WHEN. Scoped to recently-changed output the rule means "the pane is producing output, so it is working". Scoped to the whole screen it matches any non-empty terminal. The port's own header admits "loosenings noted inline where exact fidelity was impossible" — this one was loosened into a tautology and not noted. Dropped rather than guessed at, with the reasoning recorded in the manifest: cline is now inert unless a permission prompt is visible, which is what C-PRECEDENCE rule 5 asks for. Restoring it needs a recency region in the engine and calibration against a live cline, not a regex invented here.
+
+THREE — the version-skew handshake compared a constant with itself. The hub publishes `build_id` in `hub_info` and `HubManager.decideAdoption` compares it, with a comment stating that this is "what makes silent version skew impossible". Both sides were the literal "dev": build.zig defaulted `-Dbuild-id` to it and nothing ever passed the flag, and `HubManager.expectedBuild` was a Swift literal whose own comment claimed it was injected at build time — which no Swift compile-time value could be, since Xcode copies a prebuilt helper into the bundle. So every stale hub matched. The decision logic was correct the whole time; it was never given anything to compare.
+
+  - build.zig now derives the default id from a hash of src/**.zig. SOURCE CONTENT, not a VCS revision: a dirty working copy is the case that actually bites during development, where every edit must change the id before it is committed. Content also makes it deterministic and target-independent, so a cross-compiled deploy binary and the local one agree — which is what lets a workbench compare a REMOTE hub against the binary in its own bundle.
+  - `synapty version` prints it, so the workbench can ask the binary it ships instead of carrying a guess.
+  - An undeterminable build is "unknown", and `decideAdoption` now refuses to treat two "unknown"s as a match. Two absences are not agreement — that was the old failure with a new spelling.
+  - `just installed-matches-source` was mtime-approximate because no source stamp existed. The Zig half is now exact, and it also checks the RUNNING hub via its discovery file — the case the operator hit, where an install lands but the hub started before it keeps serving the old binary."""
+notes = ["""
+VERIFICATION.
+
+- `testShippedClineManifestIsInertWithoutEvidence` reads the manifest FROM THE BUNDLE, not an inline copy — an inline one would still pass if the shipped file regressed. Confirmed it runs rather than skipping. Falsified by re-adding the catch-all: it fails with `XCTAssertNil failed: "working"` on an ordinary shell screen, which is also a direct demonstration of the reported bug.
+- `testTwoUnknownBuildsDoNotAdopt` covers the new refusal.
+- build_id verified live: `54c4a3dfd928`, stable across repeated builds, changed to `0a50004666ea` by appending one comment line to src/protocol.zig, and returned to `54c4a3dfd928` when that line was removed.
+- 385 Swift tests and the Zig suite pass.
+
+The build id cannot be unit-tested where the rest of the suite lives — it is computed in build.zig at configure time — so the evidence above is the live check, deliberately including the falsification step rather than only the happy path."""]
+
+[[content.acceptance_criteria]]
+text = "an empty terminal pane is not reported as a problem"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the shipped cline manifest asserts nothing without evidence, and still reports waiting on a permission prompt"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build_id is derived from source content, changes with any edit, and is identical across targets"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "two undeterminable builds do not count as a match"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "installed-matches-source is exact for the Zig binary and checks the running hub"
+status = "done"
+category = "chore"

@@ -1,0 +1,24 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-004"
+title = "chore(dist): the install keeps one previous bundle, not every one"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+`just install` moved the previous /Applications/Synapty.app aside under a
+timestamped .bak name and never removed any earlier one. On the
+developer's Mac that had grown to 114 bundles and 6 GB. The recipe now
+removes every older backup before making the new one, so exactly one
+previous install remains as the rollback. The accumulated bundles were
+moved to the Trash by hand (113 of them; the newest kept). Asked for by
+the user."""
+
+[[content.acceptance_criteria]]
+text = "the install recipe deletes all older Synapty.app.bak-* bundles before parking the current install; the loop is safe under set -e when no backup exists (checked with bash -c on an empty glob); just --summary parses"
+status = "done"
+category = "chore"

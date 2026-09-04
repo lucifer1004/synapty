@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "What This Specifies"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A remote agent's work survives a disconnect because a process on that host keeps its terminal alive. This document is the contract for the mechanism that does it: what the holder guarantees, what a client may ask of it, and what ends it.
+
+The shape in one paragraph. Every durable remote session has exactly one HOLDER, which owns the child's pseudoterminal and outlives the clients that come and go. A CLIENT attaches over the transport the workbench already has. A client that still holds the output it received asks to continue from where it stopped; a client that holds nothing asks for the screen. Neither question is answered with silence or with a guess.
+
+The obligations here are stated about the holder and the client rather than about the workbench, because a client is anything that speaks this protocol — including a command a human runs on the host itself, which is the only way back into a durable session when no terminal multiplexer is involved."""

@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-016"
+title = "A connection reports its progress to the workbench, not onto the session's screen"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "ADR-0012",
+    "RFC-0014",
+]
+
+[content]
+description = """
+Connecting to a host writes its narration onto the pane — "reusing this host's open connection", "ensuring a hub on this host", "started a session on this host" — and then the restoration repaints the pane and the words are gone. The human sees text flash past and cannot read it.
+
+THE PANE IS THE SESSION'S SCREEN ([[ADR-0012]]: the holder draws nothing, the pane is the session). Anything written there before the session's own screen arrives must be displaced by it. Erasing it and scrolling it out of view differ only in how the words leave; they leave either way. So the fix is not to change how the pane is cleared. It is to stop putting the connection's narration on the session's screen at all.
+
+WHERE IT BELONGS is the workbench, which already has the place for it: a session begins in `.connecting` and shows a placeholder. Today the placeholder gives way the moment the pane's process is spawned — which is exactly when the narration starts and long before the screen exists. Held until the screen is painted, the human sees "connecting", then a terminal that is already correct, and no flash at all.
+
+WHAT THIS ALSO BUYS. The narration becomes structured and timestamped rather than prose on a terminal, which means: a connection that hangs shows WHICH step it is stuck on instead of looking like one long pause; a connection that fails leaves its reason on screen instead of racing past ([[WI-2026-08-17-015]] made those words truthful, and this is what keeps them readable); and the time each step took is measured rather than guessed, which is the open question about remote reconnection being slow — the md5 of a two-megabyte remote binary on every connect is a suspect that has never been measured.
+
+A HANG MUST NEVER BE HIDDEN. The placeholder is a promise that something is happening; if nothing arrives it has to give way rather than sit there. Whatever the mechanism, silence has a deadline."""
+notes = [
+    "2026-08-17: The account has to begin where the DIAL begins, not where the pane does. Started at the pane it was empty for the whole wait and arrived all at once at the end — a spinner followed by a flash — because the slow half of a connection (platform probe, binary compare, terminfo, hub, peer link) happens in setup-host.sh before a pane exists.",
+    "2026-08-17: Two writers on one file need one clock. The shell stamped with 'date +%s', which truncates to the second, so a script line could be stamped earlier than the workbench line that preceded it and the screen showed a step at -0.5s. Both write milliseconds now, and the display refuses to render a negative elapsed whatever the clocks say.",
+    "2026-08-17: Reading the account moved off the main thread — a 4Hz Timer doing file reads where the workbench draws, once per connecting session. It rode in the WI-2026-08-17-018 commit rather than this one. The human reported a stutter when switching sessions while two were connecting, and reported it gone afterwards; that is the whole evidence, since the cause was never isolated.",
+]
+
+[[content.acceptance_criteria]]
+text = "A connection reports its steps to a per-pane progress channel, each with the time it happened, rather than onto the session's screen"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A pane shows the connection's progress until its screen has been painted, and the narration no longer appears on the session's screen and vanishes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A connection that fails leaves its reason readable on the pane instead of racing past"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A connection that stops making progress gives the pane back rather than showing a promise nothing is keeping"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The progress channel carries elapsed time per step, so a slow connection can be attributed to a step rather than guessed at"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tests cover the progress a connection reports, the reveal on first paint, and the deadline on silence"
+status = "done"
+category = "chore"

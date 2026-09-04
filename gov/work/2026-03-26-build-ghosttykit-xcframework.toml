@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-005"
+title = "Build GhosttyKit xcframework"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-26"
+completed = "2026-03-26"
+refs = [
+    "ADR-0001",
+    "RFC-0001",
+]
+
+[content]
+description = "Build GhosttyKit.xcframework from the Ghostty submodule. This is the prerequisite for all GUI work — without it, no terminal pane renders."
+
+notes = [
+    "Zig package fetch fails through local HTTP proxy (127.0.0.1:7890). Run with https_proxy= http_proxy= or disable proxy before building. If xcodebuild fails with exit code 70, delete ghostty/macos/GhosttyKit.xcframework first.",
+    "2026-03-26 (build): GhosttyKit.xcframework built successfully from ghostty submodule (universal: arm64+x86_64). Build script at scripts/build-ghosttykit.sh. Required proxy workaround (zig fetch blocked by local proxy).",
+]
+[[content.acceptance_criteria]]
+text = "GhosttyKit.xcframework builds successfully from ghostty/ submodule"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Build script or Makefile target documented"
+status = "done"
+category = "added"

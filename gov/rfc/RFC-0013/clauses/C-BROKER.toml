@@ -1,0 +1,46 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-BROKER"
+title = "The Workbench Relays; Hosts Never Learn About Each Other"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A transfer between two remote hosts MUST relay through the workbench. The workbench MUST NOT place a credential for one host on another, and no request from an agent may cause it to.
+
+WHY THE RELAY IS THE CORRECT TOPOLOGY AND NOT A COMPROMISE. The workbench is the only party in the system authenticated to both endpoints — it already holds multiplexed connections to each host in order to route A2A traffic. A direct B-to-A path would require A to hold a credential B honours, which is standing account-wide access created as a side effect of a gesture. The same trade was refused for machine enrolment, where the act was at least explicit and behind a sheet; a drag is not.
+
+THE CAPABILITY IS NOT AVOIDED, IT IS RELOCATED, and the record must say so plainly. Relaying plainly creates the ability to move data from B to A. What changes is that the ability becomes expressible: it can be scoped, gated, recorded and withdrawn (C-AUTHORIZATION), where a key in authorized_keys is account-wide, permanent and silently retained.
+
+A HOST'S CONNECTIONS ARE A POOL WHOSE SIZE IS OBSERVED, NOT DECLARED.
+
+This clause previously required transfers to reuse the connection the terminals were already on, and was then amended to split a host's traffic between two masters named for two classes. The measurement behind that amendment stands: an interactive round trip on a shared master went from 0.36-0.39s idle to 8.06-17.90s during a 60 MB transfer, while the same transfer over a separate connection left it at 0.36-0.38s and over a dedicated second master at 0.35-0.76s. Reuse's saving is real too — a cold `sftp` costs 2.97s against 1.07s over an established master.
+
+The cause is below SSH and unreachable from it: channels multiplex over one TCP connection, TCP delivers in order, and a channel carrying bulk data fills the send buffer so every keystroke queues behind it. Seventeen seconds is not a slow terminal, it is a stopped one, and the human blames the terminal rather than the copy.
+
+WHAT WAS WRONG WAS NOT THE MEASUREMENT BUT THE CLASSIFICATION. Naming two lanes required deciding in advance which tenant loads the link, and that decision was wrong: a port forward can carry a sync or a replication stream for minutes while a copy is a rare event, so the lane reserved for latency was held by the continuously-loaded tenant and the lane reserved for load sat idle. Two lanes also cannot express a forward contending with another forward, and leave the remote per-connection session bound — which panes consume and forwards do not — with nowhere to be handled.
+
+Therefore:
+
+- A connected host MUST hold at least one multiplexed connection and MAY hold more. How many it holds MUST follow from observed conditions. It MUST NOT be fixed in advance by traffic class, and MUST NOT be derived from an assumed value of any remote configuration setting.
+- A new channel MUST NOT be placed on a connection observed to be carrying load while another is available; among the rest it MUST go to the one carrying the fewest channels.
+- LOAD MUST BE MEASURED AS A RISE AGAINST A CONNECTION'S OWN QUIET ROUND TRIP, never against a fixed figure. Hosts differ by an order of magnitude at rest, so a constant would be the same client-side guess at a measurable condition that a constant session cap is at a readable setting.
+- CHANNEL COUNT MUST NOT BE TREATED AS LOAD. A pane and a port forward carrying a replication stream are one channel each, and the difference between them is the entire subject of the measurement above — a rule that counted only channels would place the pane straight onto the forward.
+- The pool MUST NOT grow in response to load when a connection carrying nothing is itself slow. That is the link rather than the connection, and another connection would be no faster; without this the pool climbs without bound on a congested network.
+- A channel a connection refuses to open MUST cause a further connection to that host to be opened and the channel retried on it. This is the required handling of the remote session bound, and it MUST NOT depend on knowing that bound's value.
+- A TRANSFER MUST BE PLACED ON A CONNECTION CARRYING NOTHING ELSE, opening one if none is free. This is what the measurement above requires and it is the one placement that is not merely least-loaded.
+- DIRECTORY LISTINGS ARE PLACED AS INTERACTIVE CHANNELS, not as transfers, even though their payload resembles bulk. A human clicked a folder and is waiting; the operation is latency-bound. Size is the wrong axis for this decision and "is someone waiting on this right now" is the right one.
+- A pane MAY be migrated between a host's connections. The migration MUST cost no more than an ordinary link drop already costs, which the holder provides by resuming a returning client from where it stopped reading, in the process and the terminal it was already in.
+- A MIGRATION MUST NOT PRESENT A GAP AS CONTINUITY. "Lossless" is not a promise this specification is entitled to make on the holder's behalf: [[RFC-0014]] C-RESUME gives a returning client exactly two answers, and the second — the retained output no longer reaches back to the position it presented — is a gap the holder MUST declare, after which the client takes the screen instead. Under a burst that outruns retention that is the answer a migrated pane gets, and the obligation here is the one C-RESUME already states: the gap is said, never smoothed over.
+- A PANE MUST BE MOVED ONLY WHEN ITS OWN CONNECTION IS LOADED OR AT ITS BOUND and another is neither. It MUST NOT be moved for a merely emptier connection: a move costs a reconnection and a repaint, and a marginal rule would have panes drifting between connections on every measurement.
+- A FORWARD MUST NOT BE MIGRATED IN RESPONSE TO LOAD. A round trip says that something on a connection is heavy and never WHICH channel, so choosing a forward to move off it is a guess that lands on an uninvolved one as often as not: the moved forward loses everything crossing it, the heavy channel stays, and the connection stays loaded. Repeated, that walks every quiet forward off one at a time and reaches the right final state by breaking everything else on the way. Per-channel attribution is not something SSH offers, and until it does the only party that can attribute is the human.
+- A FORWARD MAY BE MIGRATED WHEN A HUMAN NAMES THE ONE TO MOVE. The act is theirs, so nothing is asked twice.
+- WHEN A FORWARD IS MIGRATED, THE CONNECTIONS CROSSING IT DIE. The listening endpoint MUST be re-established on the receiving connection. The workbench MUST NOT reconnect what was flowing through it and MUST NOT hold it open across the move. A forward is a pipe and this specification does not promise a pipe survives.
+- Disconnecting MUST tear down every connection the host holds. Because that set is not a fixed list of names, the pool's recorded membership is the authority on what must be torn down, and C-AUTHORIZATION's mortality requirement binds each member.
+
+BULK TRANSFER SHOULD delegate to `scp`/`sftp` rather than to a hand-written codec. Pipelining, resumption and throughput on high-latency links are solved there; a naive request-response implementation is correct and unusably slow. Listing and navigation MAY use the SFTP subsystem directly, where the value is structured data rather than throughput. These are separate concerns and are not required to share a mechanism.
+
+CONNECTIONS ARE THE ONLY LEVER TCP LEAVES, WHICH IS NOT A STATEMENT ABOUT HOW MANY. One connection cannot avoid head-of-line blocking, cannot be told which of its channels is latency-critical, and cannot be split after the fact. From that it follows that separation must be bought with connections; it does not follow that the number of them is knowable in advance, and this clause previously drew that second conclusion."""

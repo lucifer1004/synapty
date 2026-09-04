@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-010"
+title = "refactor(diag): a unified error-handling and logging pass — the machines nobody watches were the only ones keeping no record"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+A measure-first pass over error handling and logging. The survey found four problems and one of them made the rest nearly pointless.
+
+THE DETACHED HUB LOGGED TO /dev/null. `hub --ensure` spawns the hub through spawnDetached, which dup2'd stdout AND stderr onto /dev/null. Those are precisely the hubs nobody can watch: a remote machine's, and any hub that self-heals after a reboot with no human present ([[ADR-0008]] stage 3b). Every log.err they emit — a peer refusing a link, a C-BOUNDARIES refusal, a partially restored durable state — was destroyed at the source. The machine that most needs a record was the only one keeping none. The detaching was right and the destination was wrong: stdout/stderr now go to paths.hub_log (machine-scoped, since a log is evidence about THIS machine), capped at 4 MiB and reset at spawn, which is the only moment a process is guaranteed to be between hubs. Verified live on a scratch hub.
+
+THE VERIFICATION ITSELF WAS BROKEN, found while fixing the above. `zig build test` compiles each module separately via addTestModule and never builds the installed binary, so a compile error reachable only through the exe's import graph passed a green test run. The command everyone runs before committing was reporting success for a binary that did not exist. test_step now depends on the exe. (Separately: my own shell habit of `zig build test | tail; echo $?` was reporting TAIL's exit status all session, which is how the gap stayed invisible.)
+
+SEVERITY MEANT NOTHING. Twelve files logged and none agreed on what a level meant; `warn` outnumbered `err` 34 to 24, which is backwards for a project whose stated position is that silent failure is the enemy. New src/diag.zig states the rule in terms of WHAT THE READER MUST DO rather than how bad the event feels — err is a broken promise or a feature that silently did not happen, warn is degraded-and-handled — and every logging file now imports it, so the policy is one hop from every call site instead of in a document nobody opens while writing a log line. Five messages were reclassified to err: dropping queued mail (twice), a failed mailbox merge, a peer id that could not be persisted, and a federation sweep that failed to start — that last one is the exact defect that shipped once, where tombstones never expire and delivery permanently loses its `unknown` answer.
+
+THE GUI WAS ALMOST SILENT. Eight log statements across ten thousand lines, thirteen of fifteen services with none at all, and every `.alert` in the app is a confirmation dialog — not one reports a failure. The same policy is now stated in AppLog, and the three stores that persist user state (settings, theme fragment, session layout) report instead of swallowing.
+
+TWO REAL DEFECTS FELL OUT OF THE MIGRATION PATH, both mine from WI-2026-08-13-004. The legacy migration discarded writeRecords' failures and archived hosts.json unconditionally — a migration that could not write its records still moved the only copy of the host list aside, which is data loss with a reassuring filename. And moveItem onto an existing .migrated throws; the `try?` hid it, leaving the legacy file in place so every launch migrated it AGAIN and rewrote records for hosts the human had since deleted. Deleted hosts resurrected on every relaunch. Both fixed, both with tests.
+
+NOT DONE, and stated rather than left implied: the GUI still has no user-facing failure surface. HostStore.unpersistedRecordIDs, TunnelManager.peerLinkFailed and the .failed tunnel states are all observable and none of them are shown to a human as a failure. Logs are the surface for now, which is a reason to write them, not a reason to call this solved."""
+
+[[content.acceptance_criteria]]
+text = "the detached hub writes stdout/stderr to machine/hub.log instead of /dev/null, capped and reset at spawn"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "zig build test depends on the exe, so a compile error cannot pass a green test run"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "src/diag.zig states the severity policy and every logging file imports it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "five broken-promise messages reclassified from warn to err"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "AppLog states the same policy and gains loggers for the stores that had none"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "settings, theme fragment and session layout report persist failures instead of swallowing them"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the legacy host migration keeps the document unless the records landed, and cannot resurrect deleted hosts"
+status = "done"
+category = "fixed"

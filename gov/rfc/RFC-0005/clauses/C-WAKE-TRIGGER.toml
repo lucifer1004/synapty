@@ -1,0 +1,53 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WAKE-TRIGGER"
+title = "Wake Trigger — Mailbox Empty-to-Non-Empty Edge"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The wake trigger is the recipient's mailbox transitioning EMPTY → NON-EMPTY,
+not message arrival itself. The mailbox is the hub-side identity-keyed
+queue defined in [[RFC-0008]] C-MAILBOX.
+
+Requirements:
+
+- The hub MUST emit (or the workbench MUST derive) one wake candidate per
+  empty→non-empty transition of an agent's mailbox. Further messages landing
+  in an already-non-empty mailbox MUST NOT produce additional wake
+  candidates: the woken agent drains the whole queue with `synapty recv`.
+  This mirrors [[RFC-0004]]'s edge-triggered emission philosophy — level
+  ("mailbox has mail") is state, edges are events.
+- A wake candidate that cannot be delivered immediately (state gate closed,
+  C-STATE-GATE) MUST remain pending: the workbench SHOULD re-evaluate the
+  gate on subsequent presence edges of the recipient (e.g. working→done) and
+  on its passive sampling cadence, and MUST deliver at most one wake per
+  pending transition once the gate opens.
+- A pending wake candidate MUST be cancelled when the mailbox returns to
+  empty (the agent read its mail on its own), when the agent unregisters, or
+  when the registration generation changes ([[RFC-0004]] generation semantics —
+  a new occupant inherits no wake debt).
+- Wake attempts and their outcomes MUST be recorded as hub events on the
+  [[RFC-0004]] event log, so `synapty` surfaces and the GUI can display and
+  debug wake behavior from the same source of truth as presence.
+
+Amendments folded at finalize (RFC-0008 coordination): registration or
+re-home of an identity whose mailbox is non-empty COUNTS AS a fresh
+empty→non-empty edge (one wake candidate, normal gates and arming apply)
+— without this, an agent resuming with mail waiting would never wake:
+its old candidate died at generation end and a non-empty mailbox has no
+further edges. Wake receipt events extend the [[RFC-0004]] C-EVENT-LOG
+kind set under its extensibility rule.
+
+FEDERATION QUALIFIER ([[RFC-0009]] C-DELIVERY): the candidate is minted
+by the hub that HOLDS the mailbox, which is always the recipient's own.
+A hub that merely FORWARDED a message MUST NOT mint one — it never held
+the queue, so it never saw the empty-to-non-empty edge this clause is
+defined on. A hosting hub with no workbench attached cannot inject.
+There is no delegation across machines: [[RFC-0009]] deferred it
+(C-NON-GOALS), so the only gate is [[RFC-0011]] C-HEADLESS-GATE's.
+Its candidates simply stay pending, which is this clause's existing
+gate-closed behaviour rather than a new state."""

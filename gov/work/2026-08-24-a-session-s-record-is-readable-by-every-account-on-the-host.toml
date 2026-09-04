@@ -1,0 +1,46 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-24-002"
+title = "A session's record is readable by every account on the host"
+status = "done"
+created = "2026-08-24"
+started = "2026-08-24"
+completed = "2026-08-24"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+RFC-0014 C-ENTITLEMENT: 'A holder MUST serve only the local account that owns it', and 'Enumeration MUST NOT reveal the existence, name, or state of a holder belonging to another account.' Measured on this machine, neither half holds.
+
+WHAT IS ON DISK RIGHT NOW. ~/.config/synapty/machine/sessions is mode 0755 and every record in it is 0644. Any local account can list the directory and read each record: the session's name, the holder's pid, when it started. That is precisely the existence, name and state the clause forbids revealing. The directory is created with createDirPath, which takes the process umask (022 here) — nothing sets a mode.
+
+THE SOCKET IS DEFENDED BY A CHMOD THAT ARRIVES SECOND. holder.zig binds, then chmods the socket to 0700. Between those two calls the socket carries the umask's bits, inside a directory any account may traverse, so a process that is watching can connect in the window — and once connected it is served, because there is no check on who it is. The holder has no peer-credential test at all: grep finds no getpeereid and no LOCAL_PEERCRED anywhere in src/.
+
+THE CLAUSE PUTS THIS ON THE HOLDER, not on the filesystem: 'The holder is responsible for its own checks.' File permissions are the outer fence; the holder asking the kernel who is on the other end is the requirement. The mechanism this replaced — a multiplexer's socket — carried the property incidentally, which is why the clause exists.
+
+WHAT IT COSTS ON A SHARED HOST, which is the deployment this project asks people to use: a durable session is a terminal a human types into and an agent works in. Reading the directory tells another user which agents are running and how long they have been up; reaching the socket in the window drives them."""
+notes = [
+    "The refusal cannot be exercised by a suite that runs as one account, and deleting the check left every behavioural test in holder.zig green — measured, by deleting it. So the accept path carries a source guard beside the behavioural tests: the question must be asked between 'fn acceptLoop' and the handshake, and the guard fails when it is not. The modes are covered twice: a unit test on a redirected root, and a live e2e run whose scratch root now shows drwx------ / -rw------- / srwx------.",
+    "musl does not wrap SO_PEERCRED as getpeereid, so peerUid answers the same question two ways — getpeereid on BSD/macOS, SO_PEERCRED on Linux. Found by the deploy cross-compile, which is what it is for: the native build was clean and aarch64-linux-musl failed to link.",
+]
+
+[[content.acceptance_criteria]]
+text = "the sessions directory and every record in it are readable and traversable only by the account that owns them"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "the holder refuses attach, enumeration and end from any account but its owner, asked of the kernel rather than inferred from file permissions"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "the socket is never reachable by another account, including in the window between bind and chmod"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "a test proves the modes, and a test proves the refusal — the first was already there for the socket and said nothing about the directory or the records"
+status = "done"
+category = "chore"

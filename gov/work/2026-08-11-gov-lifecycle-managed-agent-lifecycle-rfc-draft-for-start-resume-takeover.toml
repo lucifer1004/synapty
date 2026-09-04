@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-005"
+title = "gov(lifecycle): managed agent lifecycle — RFC draft for start/resume/takeover"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0001",
+    "RFC-0004",
+]
+
+[content]
+description = "herdr's server owns agent processes: 'agent start <name> --kind' spawns a managed agent into a pane with validated identity; after a restart, agent_resume re-launches agents from a resume plan; server replacement hands off live PTYs so panes survive upgrades. Synapty today: agents are started by hand (or skill) inside panes the human opened, and an app restart kills every pane — experienced live on 2026-08-11. This WI is the DESIGN round, not implementation: produce the RFC draft covering (1) workbench-managed agent start (GUI- or skill-triggered, host-aware so it composes with one-click deploy and registration/generation semantics), (2) resume-after-restart semantics (what a resume plan honestly is per harness — claude --resume / codex resume flags — and what V1.5 can promise), (3) an explicit adopt-or-defer decision on PTY handoff / hot server replacement (likely defer; record why). Include a prior-art clause crediting herdr and a non-goals clause. Implementation WIs are spawned only after the RFC settles. This is the first brick of RFC-0001's L2 cockpit. Origin: herdr gap analysis 2026-08-11 (tier 'needs design')."
+notes = ["Review round 1 (govctl:rfc-reviewer, 2026-08-11) returned 2 blockers + 6 should-fix + 3 nits; ALL addressed by clause edits the same day: resume_ref defined normatively (the additive register-time field RFC-0004 C-NON-GOALS anticipated; hub stores/exposes, skills must supply, metadata-update refresh), defense switched from shell-escaping to allowlist validation with launch-fresh degrade + single-line rule, re-attach-never-prompt invariant added (makes auto-resume-by-default sound), human-typing/focus guard on resume injection, observable plan-drop triggers (never on connection loss/shutdown), no-identity degrade path, managed-start delivery pinned to spawn-argv, C-PTY-HANDOFF re-marked informative, motivation session-identity claim corrected, RFC 2119 keyword tightening, ambiguous-resume-target honesty, stale-queued-plan demotion to ask-first. OPEN QUESTIONS logged for the finalize round: does RFC-0005 per-pane armed state persist across restart (RFC-0005 contract to settle, cross-ref recommended); which artifact owns the session-snapshot persistence format; finalize sequencing must follow RFC-0005 (delegation target must stabilize first)."]
+
+[[content.acceptance_criteria]]
+text = "lifecycle RFC draft created via govctl — clauses for managed start, resume-after-restart, prior art (herdr), non-goals; govctl check clean"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "explicit adopt-or-defer decision recorded for PTY handoff / hot server replacement, with reasons"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "review round completed (rfc-reviewer and/or human) with findings addressed or logged in the draft changelog"
+status = "done"
+category = "chore"

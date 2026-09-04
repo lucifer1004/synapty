@@ -1,0 +1,54 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TRUST"
+title = "Trust — Self-Reported Identity, Stated Consequences"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Session identity is self-reported: nothing stops a client from
+registering with another agent's resume_ref, and with re-homing that
+claim now MOVES MAIL — the consequence is identity takeover including
+the target's queued messages and task-center standing.
+
+Posture and mitigations:
+
+- The V1 trust domain is unchanged: a loopback-only hub plus SSH
+  tunnels the human explicitly established ([[RFC-0003]]) — every
+  connection belongs to the same human's own fleet. Today's pane ids
+  are equally self-reported and equally spoofable; re-homing raises
+  the consequence, not the exposure.
+- Two cheap hardenings are ADOPTED, not deferred: (1) durable-identity
+  claims are accepted only over HUB-ESTABLISHED transports — an
+  anonymous direct-TCP connection can register only temporary/pane-class
+  identities, which closes the laziest takeover path at the cost of
+  headless out-of-pane identity registration (not a supported use case).
+  AMENDED by [[RFC-0009]]: this was originally phrased as
+  "workbench-established transports (pane IPC relays and deployed-daemon
+  tunnels)", which a hub with no attached workbench cannot evaluate — it
+  would have had to refuse every durable claim, permanently demoting
+  exactly the detached agents durable identity exists to serve. The gate
+  is restated in terms the HOSTING hub can check locally: a connection
+  from a process this hub's own supervised wrapper started, or from the
+  deploy path that launched the agent. On a workbench-attached hub this
+  is the same set as before; on a workbench-less one it is satisfiable.
+  (2) displacement of a LIVE pane's identity surfaces as an
+  attention-worthy GUI notice (C-REHOME), because an event log nobody
+  reads is not an audit trail.
+- Every identity binding and displacement MUST be visible on the event
+  log regardless — trust but log.
+- Authentication, identity attestation, or signing are NOT introduced
+  here. If a future release widens the trust domain (multi-user hubs,
+  untunneled transports), attestation becomes a precondition and
+  belongs to that design round. [[RFC-0009]] C-BOUNDARIES engages this
+  trigger explicitly and concludes it is NOT tripped — submissions stay
+  loopback-only and relay links stay inside human-established SSH
+  channels — and the shared-server consequence is recorded HERE
+  rather than there, since RFC-0009 reasons about a machine with one
+  human at it: a hub on a server several people log into grants every
+  local user the authority of every agent it hosts, which is a deployment
+  constraint rather than a protocol change — this clause is the marker that the
+  debt is known, priced, and deliberately deferred."""

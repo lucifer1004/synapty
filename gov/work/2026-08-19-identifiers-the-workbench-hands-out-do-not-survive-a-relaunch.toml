@@ -1,0 +1,62 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-006"
+title = "Identifiers the workbench hands out do not survive a relaunch"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "RFC-0008",
+    "RFC-0006",
+]
+
+[content]
+description = """
+Three separate identifiers do not mean tomorrow what they meant today, and all three fail silently — nothing errors, nothing crashes, a reference simply resolves to nothing or resolves to the wrong thing.
+
+A WORKSPACE'S IDENTITY IS NOT PERSISTED. The snapshot stores a label, a tree and a focused slot index; restore builds a fresh `Workspace`, which mints a new UUID. That UUID is what the workbench hands agents as `workspace_id`. So an agent that writes it into a task or a message has recorded a value that resolves to nothing after the next relaunch — which is the failure RFC-0015 C-IDENTIFY's name-versus-identifier rule exists to prevent, arriving by a different route. C-WORKSPACE requires an identity that "outlives every terminal it has ever contained"; it does not currently outlive the process.
+
+SCOPE, DECIDED: machine-scoped for now. A workspace's identity goes in the snapshot beside the layout, under `machine/`, and this work item does not make it portable across a human's machines. That is not a judgement that it should never be — it is that the design for a workspace that exists on two machines has not been thought through, and inventing it here would be inventing it in the wrong place.
+
+THE SKILLS STILL DOCUMENT THE FIELDS THAT WERE RENAMED. The code emits `workspace` and `workspace_id`; `src/skills/synapty/SKILL.md` and `synapty-present/references/verbs.md` still teach `session` and `session_id`. An agent following the shipped skill reads a key that is not there, gets nil, and has no way to learn why. C-IDENTIFY requires the skills to be updated in the same change as the rename, "because leaving them describing the old fields is what turns a rename into a silent breakage" — the change shipped, the skills did not.
+
+A RESTORED PANE IS GIVEN THE DEAD AGENT'S ID. Restore passes the recorded agent id to the connect command, which uses it as the new launch's id. RFC-0015 C-PERSIST says the recorded id is a RECORD and not a GRANT: it may be used to re-associate a leaf with a child that SURVIVED, and must not be conferred on one that was newly started. `connect.sh` already distinguishes the two by exit code — 0 for started, 3 for returned to a running session — and nothing above it reads that code. When the holder is gone, the fresh child takes the recorded id, and another process's A2A traffic is routed to it."""
+notes = [
+    """
+DELIVERED SO FAR: a workspace's identity is written with its arrangement and restored rather than minted, so `workspace_id` resolves after a relaunch; the identify skills name the fields the workbench actually emits (`workspace`, `workspace_id`) rather than the ones they were renamed from; and on the LOCAL path a recorded agent id is only ever re-associated — the workbench asks whether a holder of that name is still running (its record carries the pid, and `kill(pid, 0)` is the kernel's answer) before building the pane's command, and mints a fresh id where it is not.
+
+The local path needed this urgently because WI-2026-08-22-001 gave local panes holders and had them return by their persisted name, which extended exactly this defect to a second route.
+
+STILL OPEN, AND WHY IT IS NOT A SMALL REMAINDER. The remote path cannot ask before it starts: the answer is on the far side, and RFC-0015 C-UNARCHIVE forbids restore blocking on connections, so an ssh round trip per pane is not available. `connect.sh` must therefore decide for itself — probe the name, start under a FRESH id where nothing answers — and then tell the workbench which id it chose, because the workbench recorded the other one and routes A2A traffic by it. The channel for that already exists (the connect log the script narrates into) but nothing reads a value out of it, and the hub's `agent_registered` handler maps an agent to a leaf through the fact the workbench recorded, so the correction has to land before the agent registers or the mapping is made against the wrong name.
+
+That is the same work as the fourth criterion — reading the script's outcome rather than assuming it — so the two are one slice, not two.""",
+    "The fourth criterion is met by removing the question rather than answering it. Reading the script's outcome would have meant a new channel, a value parsed out of narration, and a correction that had to land before the agent registered — because the hub maps an agent to a leaf through the fact the workbench recorded. Instead the workbench hands the far side BOTH names, the far side probes and picks, and the leaf answers to either until one of them registers. Only one can exist, and the registration is the event that says which — a stronger answer than the script's account of itself, and it needs no ordering guarantee.",
+]
+
+[[content.acceptance_criteria]]
+text = "A workspace keeps its identity across a relaunch, so an identifier an agent recorded still resolves"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The agent skills document the fields the workbench actually emits"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A newly started child never takes the agent id recorded for the one it replaced"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "Restore reads the connect script's outcome rather than assuming it, since the script already says which of the two happened"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A workspace identifier is machine-scoped, and nothing about it claims to be portable"
+status = "done"
+category = "chore"

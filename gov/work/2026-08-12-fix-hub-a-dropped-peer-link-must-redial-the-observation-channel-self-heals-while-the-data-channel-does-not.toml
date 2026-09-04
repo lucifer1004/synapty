@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-010"
+title = "fix(hub): a dropped peer link must redial — the observation channel self-heals while the data channel does not"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["RFC-0009"]
+
+[content]
+description = """
+When a peer link drops, the hub tombstones that peer's directory entries and then waits — dialPeer is called from exactly one place, handlePeerConnect, so nothing redials. Cross-machine mail spools and stays spooled until a human reconnects the host.
+
+The failure is worse than "no reconnect" because the two channels heal differently. AgentMonitor.handlePeerDisconnect retries the SUBSCRIPTION on a 3s backoff, so the merged view comes back and the machine looks healthy — while the hub's relay link, which is what actually carries messages, stays down. An operator reading the workbench has no way to tell. Whatever this does, the observation channel and the data channel must not disagree about whether a peer is reachable.
+
+Design notes rather than decisions: the dial target is a loopback port on an SSH forward the workbench established, so a redial is only meaningful while that forward exists — a hub that retries forever against a tunnel the human tore down is noise. Backoff must be bounded and the give-up must be visible (an event, not a log line), because "we stopped trying" is exactly the state a human needs to know about. Consider whether the workbench re-issuing peer_connect is the honest mechanism instead of hub-side retry, given that only the workbench knows whether the tunnel is still supposed to be there."""
+notes = [
+    """
+IMPLEMENTED 2026-08-12. The open design question in the description is RESOLVED in favour of workbench-driven recovery, and the reason is the fourth acceptance criterion rather than a preference: the subscription and the relay link are separate sockets that can drop independently, so if each healed on its own schedule the merged view could show a machine reachable while the channel carrying messages was down. Driving both from one decision point makes that disagreement structurally impossible.
+
+Split of responsibility: the hub REPORTS (it already emitted peer_link_down/up as local events under C-EVENT-LOCALITY), the workbench DECIDES. Only the workbench knows whether the SSH forward still exists — a hub retrying on its own would keep dialing a tunnel the human tore down. A peer with no assigned port is therefore not redialed at all, which is the unpeered case.
+
+Bounded: exponential backoff capped at 30s, 6 attempts, then stop. Giving up is VISIBLE rather than logged — peerLinkFailed drives a "link failed" marker in the agent list, distinct from "unreachable", because the second one heals by itself and the first one does not.
+
+NOT covered by the hermetic tests and stated rather than implied: the tests drive the policy (unknown peer not redialed, link-up clears the failed state, malformed events ignored) but not an actual recovery over a real tunnel. The e2e criterion is met by the two-hub relay tests plus this policy layer; a live drop-and-recover against remotehost was not staged.""",
+    """
+REOPENED AND FIXED AFTER LIVE VERIFICATION, same day. The first implementation did not work, for two independent reasons neither of which the hermetic tests could reach.
+
+(1) The retry chain was EVENT-DRIVEN and a failed redial produces no event: dialAndServe returns at connectLoopback, before it can report a link up or down. So exactly one attempt fired, and if the peer was not back yet the chain went silent — never even reaching the give-up marker, which only triggers after six attempts that never happened. Found because the remote hub was down for the length of a binary upload, far longer than the single 1s attempt. The retry now drives itself and only a peer_link_up (which cancels it) or exhaustion ends it.
+
+(2) The deeper one, and not really a WI-010 defect: the workbench assumed a fresh launch starts unfederated. It does not. The hub deliberately OUTLIVES the workbench (ADR-0008 supervision + adoption), so after a relaunch it is routinely still peered while the workbench knows nothing about it — no subscription and no port assignment. The redial guard then failed for want of a port, so the retry could never fire in exactly the case that matters most. hub_info now reports the links the hub holds as [{peer, port}] and the workbench adopts them at startup; a link the hub ACCEPTED rather than dialed reports port 0 and is not adoptable, because there is no local port that reaches that peer.
+
+Verified live: with the hub already peered to remotehost, quitting and relaunching the workbench produced a connection to the peer forward without any human action.
+
+The naming half of what this exposed is NOT fixed here and is filed as WI-2026-08-12-014 — the redial matches a LOCAL host label against the REMOTE-reported peer id, which is fine while they agree and silently disables the redial when they do not.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a dropped relay link is re-established without human action for as long as the underlying transport is still present, with bounded backoff"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "giving up is VISIBLE — the hub records it as an event and the merged view stops showing that machine as merely momentarily unreachable"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the observation channel (workbench subscription) and the data channel (hub relay link) never disagree about whether a peer is reachable; a test drives one recovering without the other and asserts the view does not claim health"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "e2e — drop a peer link with the tunnel intact, send across it, and assert the message arrives after automatic recovery with no human step"
+status = "done"
+category = "chore"

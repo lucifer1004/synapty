@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ONE-LANGUAGE"
+title = "Three Surfaces Must Speak One Status Language"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The status vocabulary is already consumed verbatim by four surfaces: the Zig
+hub registry, the `synapty` CLI (`notify`, `agents`), the skill documents
+installed into three harnesses, and the Swift GUI attention pipeline. A
+vocabulary change made ad hoc in any one surface forks the language.
+
+Convergent evidence that the current three-word vocabulary is one word short
+on each side: herdr uses blocked/working/done/idle/unknown; DSH emits
+running/settled/idle agent status events. Both distinguish (a) "finished but
+the human has not seen it yet" from "seen, nothing pending" — the distinction
+the attention UI actually runs on — and (b) "I do not know" as an honest
+first-class answer instead of a guess.
+
+Presence freshness is also currently pull-based: the GUI's AgentMonitor runs
+a `synapty agents` subprocess every 5 seconds. Event push makes status
+changes instant, removes the subprocess tax, and gives every future consumer
+(CLI wait, third-party surfaces) the same feed instead of private polling
+loops."""

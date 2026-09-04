@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-07-004"
+title = "feat(gui): polish pass — failed-connect retry, hosts empty state, contrast and motion"
+status = "done"
+created = "2026-08-07"
+started = "2026-08-07"
+completed = "2026-08-07"
+
+[content]
+description = "Small UX gaps across pages: a failed connection placeholder has no retry affordance; the Hosts page has no empty state for first-run (no hosts, no ssh config import CTA); DS.textTertiary may fail 4.5:1 contrast in light mode; pulsing status dots ignore Reduce Motion. Fix all four."
+
+[[content.acceptance_criteria]]
+text = "failed placeholder shows Retry that re-runs the tunnel setup"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Hosts empty state with ~/.ssh/config import action"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "textTertiary contrast >= 4.5:1 in light mode"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "pulsing indicators respect Reduce Motion"
+status = "done"
+category = "fixed"

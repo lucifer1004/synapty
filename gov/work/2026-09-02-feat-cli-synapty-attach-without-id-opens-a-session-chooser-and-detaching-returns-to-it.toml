@@ -1,0 +1,76 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-013"
+title = "feat(cli): synapty attach without --id opens a session chooser, and detaching returns to it"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The non-GUI mode is a fallback, not a second workbench: no resident TUI
+(that would re-grow the multiplexer [[ADR-0012]] removed). What it does
+need is the one thing a bare `attach` lacks — a way to see what is here
+and pick, and a way to pick again after leaving.
+
+TRIGGER: only a bare `synapty attach` (no --id) on a tty enters the
+chooser. With --id the behaviour is exactly today's — one attach, exit on
+detach/displaced/exit — because the GUI's panes are `exec synapty attach
+--id X` and must exit for the pane to close; scripts likewise. Bare and
+not a tty: an error.
+
+SHAPE. The present runAttach body becomes `attachOnce(id) -> Outcome`
+(detached / displaced / child_exited / gone), the printed notices staying
+where they are. `runSessions`' directory walk (sweepEnded, Record.read,
+queryStatusInto) becomes `collectSessions`, shared with the chooser, so
+the list is the same list `synapty sessions` prints: name (the holder's
+human name once [[WI-2026-09-02-012]] lands, else the id), attached,
+foreground command, cwd. The chooser is a key state machine in the shape
+of `Detach.step` — j/k/arrows, Enter, q/^C, r to refresh — drawn in raw
+mode WITHOUT the alternate screen; returning to the list CLEARS the
+screen (decided with Zihua 2026-09-02): the previous session's last
+frame is no longer live and leaving it visible reads as still being in
+the session; the holder's restore repaints on the next attach anyway.
+
+ONE CLIENT. A row already attached is marked, and Enter on it asks for a
+`y` first — [[RFC-0014]] C-ONE-CLIENT forbids displacing as the
+unannounced consequence of accepting an offer, and `queryStatusInto` is
+the "ask without taking the seat" channel that clause requires. Ending
+stays out of the chooser (C-DETACH: leaving and ending are distinct acts);
+the footer names `synapty end --id`.
+
+LOOP: choose → attachOnce → print the outcome → back to the list, for
+every outcome. ^] keeps its meaning; in chooser mode it lands on the list
+instead of the shell. Order: after [[WI-2026-09-02-012]], so rows carry names."""
+
+[[content.acceptance_criteria]]
+text = "a bare synapty attach on a tty lists this machine's sessions (holder name or id, attached, command, cwd), arrows/j/k move, Enter attaches, q leaves; without a tty it errors"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "attach --id keeps today's one-attach behaviour exactly, so GUI panes and scripts are unchanged"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "after detach, displacement or the child's exit in chooser mode, the screen is cleared and the refreshed list is shown again"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "choosing a session that already has a client asks for confirmation before displacing it, and the row says it is attached"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the chooser key state machine, the row formatting, and the after-outcome policy (list vs exit, keyed on whether --id was given) are pinned by unit tests"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "synapty sessions and the chooser read one shared collection routine"
+status = "done"
+category = "chore"

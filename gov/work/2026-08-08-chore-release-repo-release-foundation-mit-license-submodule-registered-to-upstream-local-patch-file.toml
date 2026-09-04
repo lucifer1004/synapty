@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-087"
+title = "chore(release): repo release foundation — MIT license, submodule registered to upstream, local patch file"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Release prep (GitHub Release + Homebrew Cask path, no Apple account):
+- MIT LICENSE added (user decision)
+- ghostty submodule registered as a gitlink pointing at the UPSTREAM commit (6837d7027) — no fork needed: the only local delta is the SYNAPTY_METAL_DIR build-environment workaround (Xcode 26.6 Metal Toolchain download failure on the dev machine), which is irrelevant on CI runners with a standard Xcode
+- that delta is exported to scripts/patches/ghostty-metallib-metal-dir.patch and applied by build-ghosttykit.sh only when SYNAPTY_METAL_DIR is set (local dev), keeping the submodule pristine"""
+
+[[content.acceptance_criteria]]
+text = "MIT LICENSE at repo root"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ghostty registered as gitlink at upstream commit; git submodule update --init reproduces it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "local SYNAPTY_METAL_DIR patch lives in scripts/patches and is applied only when needed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift + Zig suites still green; local build still works with the patch"
+status = "done"
+category = "chore"

@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-011"
+title = "fix(sync): the app never registered for remote notifications, so CloudKit pushes could not reach it"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+
+[content]
+description = """
+A change made on one Mac took over a minute to appear on the other, then arrived.
+
+Sending was never the problem: `automaticallySync` is on and the engine schedules a send as soon as a pending change is added. Receiving was. The CloudKit header states that CKSyncEngine "requires the CloudKit and Remote notifications entitlements" and that it populates its unfetched-zone list itself "when receiving a push notification" — so nothing has to be forwarded to the engine, but the PROCESS has to be registered or it has no push token and the silent pushes cannot be delivered at all. Without them the engine only learns of a remote change when it next fetches on its own schedule, which is exactly the delay observed.
+
+The entitlement was already declared, and its own comment described this consequence: "Without this the data still converges, but only when the app happens to fetch — a change on one Mac would not appear on another until something else prompted a sync." The entitlement was added and the one call that makes it mean anything never was.
+
+`NSApplication.shared.registerForRemoteNotifications()` now runs at launch, and both delegate callbacks are logged. A failed registration is otherwise invisible, and its only symptom is sync being slow — which reads as a sync problem rather than as a missing token.
+
+STILL NOT INSTANT, and worth stating so the next reader does not expect it to be: the header says a push makes the engine "schedule a sync and fetch changes when the scheduler task runs". Push replaces "whenever the engine next happens to fetch" with "promptly after the change", not with "immediately"."""
+notes = ["""
+VERIFIED, AND WHAT IS NOT.
+
+Verified: the shipped Release binary carries `com.apple.developer.aps-environment = production` (`codesign -d --entitlements`), and the registration call is on the launch path.
+
+NOT verified here: that registration actually succeeded, and that a remote change now arrives promptly. os_log cannot be read from this environment — a known dead end, reconfirmed with `--info --debug` returning nothing for a subsystem that is certainly logging — and the propagation check needs the second Mac. The delegate callbacks were added precisely so the operator can see the answer in Console; the honest statement today is that the necessary conditions hold and the sufficient one is untested."""]
+
+[[content.acceptance_criteria]]
+text = "the app registers for remote notifications at launch"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a failed registration is logged rather than silent"
+status = "done"
+category = "chore"

@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-010"
+title = "Host management sidebar"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-27"
+completed = "2026-03-27"
+refs = ["ADR-0001"]
+
+[content]
+description = "SwiftUI sidebar with flat host list. Each host entry: label, address, port, username, SSH key reference. Hosts persist to local storage. Clicking a host triggers the deploy flow."
+
+notes = [
+    "2026-03-27 (gui): Host sidebar implemented: HostModel (HostEntry + HostStore with JSON persistence), HostSidebar (NavigationSplitView), AddHostSheet (form with file picker). ContentView updated to use NavigationSplitView layout.",
+]
+[[content.acceptance_criteria]]
+text = "Sidebar displays list of preconfigured hosts"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Add/edit/delete host entries via GUI"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Host data persists across app restarts"
+status = "done"
+category = "added"

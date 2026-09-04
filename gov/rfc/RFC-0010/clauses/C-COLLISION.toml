@@ -1,0 +1,59 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-COLLISION"
+title = "Two Machines, One Name"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0009]] C-BOUNDARIES already requires a hub to reject a relay
+handshake from a peer claiming an id a live link already holds, and to
+surface the collision rather than renaming either side. That rule is
+correct and unchanged. What is missing is the surfacing.
+
+Requirements:
+
+- A REFUSAL MUST BE DISTINGUISHABLE FROM A TRANSPORT FAILURE. Today the
+  rejection is delivered as a generic response frame; the dialing side
+  sees "not a relay_hello", logs it, and closes — leaving a human with a
+  link that simply does not come up and no statement of why. A refusal
+  MUST carry a machine-readable reason on a frame the dialing side
+  recognises as a refusal, and the reason MUST reach the human.
+- THE REASONS ARE SPELLED, because a machine-readable reason nobody
+  spells is a reason two implementers spell differently: `peer_id_in_use`
+  (an id a live link already holds, or the refusing hub's OWN — the
+  second added by [[RFC-0009]] C-BOUNDARIES, which argues it is not the
+  first: a hub's own id is held by no link, so a rule about live links
+  alone admits the one peer that must never be admitted),
+  `invalid_peer_id` (validation failed), `version_incompatible` (the
+  ranges do not intersect), `malformed_hello` (the hello carries no
+  version range or no capability list at all) and `directory_overflow`
+  (the peer hosts more identities than this hub is willing to record for
+  one peer — below). SIX CONDITIONS, FIVE CODES, and the collapse is
+  deliberate rather than an oversight: the two collision cases share a
+  remedy — the human renames a machine — while the others do not.
+
+  `malformed_hello` IS NOT `version_incompatible` and the difference is
+  the difference between two remedies. A hello with no range at all is
+  not an old peer whose range fails to intersect; it is a frame this
+  protocol does not define, and the answer is to fix or replace that
+  build rather than to move either side's version. This code was being
+  sent before it was written down here, which is the failure this bullet
+  exists to prevent: an implementer needed a fourth string, invented one,
+  and a second implementer would have invented a different one.
+  The refusal reasons are distinct and MUST NOT be collapsed:
+  the peer id is already held by a live link (a genuine collision);
+  the peer id fails validation; the protocol version is incompatible
+  (C-CAPABILITIES). A human's next action differs for each — rename a
+  machine, fix a configuration, upgrade a build — and a single "link
+  failed" tells them none of it.
+- C-PEER-IDENTITY makes a true collision RARE rather than impossible: two
+  machines can only claim one id if their persisted values collide or one
+  was copied (a cloned disk image, a restored backup). Both are real, and
+  both are exactly the cases where a human needs to be told the truth
+  rather than have one of the two silently lose. A restored backup is
+  routine in a fleet, which is why C-PEER-IDENTITY makes re-minting a
+  supported act rather than leaving resolution out of band."""

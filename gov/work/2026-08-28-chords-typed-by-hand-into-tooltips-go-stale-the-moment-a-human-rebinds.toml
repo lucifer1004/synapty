@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-007"
+title = "Chords typed by hand into tooltips go stale the moment a human rebinds"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+Chords are typed by hand into tooltips and empty states of controls that invoke commands in the key table, so they go stale the moment a human rebinds.
+
+[[RFC-0016]] C-DISCOVERY: "EVERY SURFACE THAT INVOKES A COMMAND IN THE TABLE — a menu item, a tooltip, an empty state offering an action — MUST take the chord it displays FROM the table".
+
+The case is the one the Keys pane's own copy names: "If a shortcut does nothing, another app may have taken it. Pick another one." A human who does that then reads a tooltip advertising the chord they just abandoned."""
+
+[[content.acceptance_criteria]]
+text = "A surface that offers a command displays the chord the table currently holds, with a test that fails when a rebind leaves a hand-typed chord behind"
+status = "done"
+category = "fixed"

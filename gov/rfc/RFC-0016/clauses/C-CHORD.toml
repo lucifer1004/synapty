@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CHORD"
+title = "What may be a chord"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A chord is one key and its modifiers. Not every combination may be one, and what a key IS must be settled here.
+
+## What a chord names
+
+- A CHORD MUST CARRY AT LEAST ONE OF COMMAND, CONTROL OR OPTION. Shift alone is not enough and a bare key is never a chord: a binding without one of those three takes a character away from whatever has focus, and in this application that is usually the human typing into a shell.
+- THE KEY IS EITHER A CHARACTER KEY, named by the character it produces WITH NO MODIFIERS APPLIED, or one of a NAMED SET that produces no character: escape, tab, return, delete, forward-delete, the four arrows, home, end, page-up, page-down, and the function keys. A specification admitting only characters could not express the arrows or escape, which [[RFC-0016:C-TABLE]] requires in the table.
+- MATCHING USES THE UNSHIFTED CHARACTER, so that a chord recorded with shift held is recognisable as itself.
+- A BINDING FOLLOWS THE CHARACTER AND NOT THE PHYSICAL KEY. A human who changes keyboard layout finds their chords where the letters now are, as they do in every other application on this platform. The cost is real and is stated: a chord recorded under one layout may be unreachable under another, and the remedy is that it can be rebound.
+- THE MODIFIER TEST IS AN EQUALITY, NOT A CONTAINMENT. ⌘K is not matched by ⌘⇧K.
+
+## What the workbench refuses
+
+- A CHORD ON THIS CLOSED LIST MUST BE REFUSED, with the reason: **⌘Q**, **⌘H**, **⌘M**. These are chords this workbench declines to contest with the platform. ⌘, IS NOT AMONG THEM: opening this workbench's own settings is an act of the workbench ([[RFC-0016:C-TABLE]]) and therefore a command in the table like any other, so the chord convention gives it must be bindable to it. The list is published in the workbench's own documentation, and it is refused because THIS workbench declines them — not because they were tested and found unavailable.
+- THE LIST HOLDS ONLY CHORDS THAT REACH THIS APPLICATION. A chord the window server consumes — ⌘Tab is the example — cannot be refused at a recording surface, because it never arrives there to be refused; naming one would be an obligation no implementation can discharge, which is the shape this list replaced.
+- REFUSAL APPLIES WHEREVER A CHORD ENTERS THE TABLE: at the recording surface, to an override read from storage ([[RFC-0016:C-CONFLICT]]), and to a DEFAULT. For a default this is a WELL-FORMEDNESS CONSTRAINT ON THE SHIPPED TABLE rather than something refused at a surface — there is no human present to be given a reason — and it is checkable by inspecting the table alone. A shipped binding on this list is the same defect as a recorded one, discovered later and by fewer people.
+- REFUSING A LISTED CHORD AND REJECTING A KEYSTROKE THAT IS NOT A CHORD ARE DIFFERENT ACTS. The first says this chord may not be bound; the second says what was pressed is not a chord at all ([[RFC-0016:C-REBIND]]), and the surface goes on listening.
+- NO CHORD OFF THE LIST IS REFUSED, and nothing else may be described as unavailable ([[RFC-0016:C-HONESTY]]). There is no enumeration of what the system or another application has taken, so a rule of the form "refuse what is reserved" is one no implementation can evaluate."""

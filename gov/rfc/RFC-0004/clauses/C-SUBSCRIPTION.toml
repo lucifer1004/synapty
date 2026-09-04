@@ -1,0 +1,51 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUBSCRIPTION"
+title = "Event Subscription — Push Replaces Presence Polling"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The hub protocol gains a `subscribe` action. A subscribed connection
+receives every subsequent event as a pushed envelope (type `event`), in
+log order, tagged with its sequence number. On subscribe, the hub first
+sends a snapshot — current agents, statuses, registration generations, and
+the latest sequence number — so subscribers start consistent without
+replaying history.
+
+FEDERATION QUALIFIER ([[RFC-0009]] C-PRESENCE): the snapshot and the
+`list_agents` response MUST additionally carry `hosting_peer` and
+`peer_reachable` on the rows that have something true to say, `remote`
+marking a row this hub did not observe itself, `unknown_cause` beside a
+status that is `unknown` ([[RFC-0010]] C-DIAGNOSABILITY owns its values),
+and `pending_wake` ([[RFC-0011]] C-DEFAULT, and it reaches the wire when that feature does) — ALL OF THEM NAMED HERE. THIS CLAUSE OWNS THE ROW, and it owns it because the row exists on a hub that has no peers at all: federation adds fields to a carrier it did not create. Other documents define what their field MEANS and what may be put in it; none of them enumerates the row, and this is the only list. A field described rather than named is one two implementations spell differently, and a carrier that lists half its fields is one two implementations fill differently — which is not a hypothetical: that argument was once written in two clauses at once, each using it for a different list. The row MUST include identities hosted by peers, since a
+snapshot listing only local agents leaves the workbench blind to every
+agent it does not host, addressable yet invisible.
+
+PER AGENT DOES NOT MEAN ON EVERY ROW, and this half lives here because
+this clause owns the snapshot. A LOCALLY HOSTED AGENT CARRIES BOTH
+ABSENT — not this hub's own id and `true`. Both fields are about another
+machine; filling them in makes every row look relayed. On a single-hub
+deployment the snapshot is then byte-for-byte what it was before this
+qualifier, which is what makes the two fields additive: a consumer that
+ignores them degrades to the single-hub reading it already implements.
+
+Consumers:
+
+- The GUI subscribes over one persistent connection and stops polling
+  `synapty agents` for presence. Amendment mechanics, kept because the
+  reason outlives the act: [[RFC-0003]] C-EVENTS was edited in the same
+  change rather than silently overridden, and now reads that presence is
+  pushed over this subscription instead of polled. The GitHub bridge economics recorded
+  there are untouched. The activity view MAY later consume
+  `message_routed` events from this same subscription instead of polling;
+  that migration is optional and out of scope here.
+- `synapty agents` stays request/response for scripts and humans.
+- `synapty wait` (C-WAIT) is implemented as a filtered subscription.
+
+Push is best-effort, and the guarantee it declines to make is one nothing needs: a subscriber that
+disconnects simply re-subscribes and receives a fresh snapshot; there is
+no cross-connection delivery guarantee beyond log order."""

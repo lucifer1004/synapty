@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DIAL"
+title = "Acquiring a Connection"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A leaf that needs a host acquires the connection to it; it does not open one of its own.
+
+- Creating a leaf bound to a host MUST first look for an existing connection to that host and reference it if present. Only when none exists does the workbench dial.
+- CONCURRENT ACQUISITION MUST YIELD ONE DIAL. If a second leaf asks for a host whose connection is in `connecting`, it MUST attach to the dial already in flight rather than starting another. Two panes opened on one host in quick succession is an ordinary act, and two simultaneous dials would race for the same control socket.
+- A leaf MUST be created and displayed before its connection is `connected`. It waits in the state [[RFC-0015:C-FAILURE]] describes rather than being withheld until the link is up — a pane that appears only after a multi-second dial gives the human nothing to look at and nowhere to see progress.
+- A leaf whose dial fails MUST remain in place with its binding intact and the failure reported on it. It MUST NOT be silently removed: the human asked for a pane on a host, and its absence is indistinguishable from never having asked.
+- Reconnecting a failed or released connection MUST be available from any leaf bound to it, and MUST re-dial the shared connection rather than creating a second one."""

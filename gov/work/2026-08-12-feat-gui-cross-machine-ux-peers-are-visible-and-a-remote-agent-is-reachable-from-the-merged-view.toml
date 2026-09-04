@@ -1,0 +1,53 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-013"
+title = "feat(gui): cross-machine UX — peers are visible and a remote agent is reachable from the merged view"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+depends_on = ["WI-2026-08-12-009"]
+
+[content]
+description = """
+The merged view is read-only and the federation it displays is invisible. Two gaps that belong together because they are the same missing idea — the machine is a first-class thing in the model and not in the interface.
+
+REMOTE AGENTS ARE NOT REACHABLE. Seeing that an agent on remotehost is `waiting` produces no action; there is no way to get to it. The natural next gesture after "something over there needs me" is to go there, and it does not exist.
+
+PEERS ARE NOT VISIBLE. Which machines are peered, under what peer id, and how to stop peering one — none of it is surfaced. Peering is a side effect of connecting a host and unpeering a side effect of disconnecting it. The cost of that invisibility is already on the record: a peer-id inconsistency (the hub naming itself `deskmac` from its short hostname while the workbench sent `deskmac.local`) survived until it was found by reading a hub_info response, because no surface ever showed the value to a human.
+
+Gated on WI-2026-08-12-009: acting on a remote agent's state is only useful once that state is real rather than perpetually `unknown`."""
+notes = [
+    """
+IMPLEMENTED 2026-08-12. A "Machines" section in the hub popover lists this machine plus every peer with its peer id, its host label when the two differ, and whether the link has failed — the value whose invisibility let the deskmac/deskmac.local inconsistency survive until it was read out of a hub_info response.
+
+The third criterion is met by the UNIFICATION rather than a new control, and the surface says so: "Peering follows the host connection; disconnecting a host unpeers it." Two lifetimes to keep in sync would be one more pair that can disagree, which is the same reasoning WI-2026-08-12-010 used for the two channels. Recorded as a decision rather than left as an omission.
+
+Reaching a remote agent is an ATTACH, not a new session: connectCommand takes an optional agent id, and connect.sh already names its tmux session `synapty-<agent-id>` and attaches when one exists. Clicking a remote row in the merged view therefore lands the human ON the running agent instead of starting a second one beside it. A generated id would have done the latter silently.
+
+Drive-by: adding one closure argument to the inline ContextStatusBar call pushed ContentView's body past Swift's type-check budget. The status bar is now a computed property, which gives the checker a boundary. Noted because the failure mode ("unable to type-check in reasonable time") points at a line that is not the cause.
+
+NOT visually verified. The wiring compiles and the pure parts are tested; the rendering of the Machines section and the click-through was not checked on screen, for the reason recorded earlier today — full-screen capture kept photographing the operator's other work, and window-scoped capture needs permissions this session does not take.""",
+    """
+CORRECTION to the note above: "window-scoped capture needs permissions this session does not take" is WRONG. Screen Recording is already granted and is all `screencapture -l<windowID>` needs; the window id comes from CGWindowList, which needs no Accessibility either. Accessibility is only required for System Events — clicking and reading window properties — which is a different thing I conflated with it. The project's own visual-iteration notes documented this method, including that region capture composites whatever is frontmost and therefore grabs the wrong screen on a multi-display setup. That is exactly what happened twice today; the fix was available the whole time.
+
+Verified after the correction: the running window is at X=2560, i.e. on the second display, which is why `screencapture -R 0,31,...` photographed something else entirely. `swift winid.swift` + `screencapture -o -l<id>` captures Synapty and nothing else.
+
+The rendering of the Machines section is STILL unverified, but for a different and smaller reason: the installed app is the build from before these four items, so verifying it needs a reinstall and a relaunch, which costs the operator's live remotehost session.""",
+]
+
+[[content.acceptance_criteria]]
+text = "peered machines are visible — which are linked, under what peer id, and whether each is currently reachable"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a remote agent in the merged view can be acted on rather than only read; selecting it takes the human to it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "unpeering is a thing a human can see and do, distinct from disconnecting a host, or the two are deliberately unified and the surface says so"
+status = "done"
+category = "added"

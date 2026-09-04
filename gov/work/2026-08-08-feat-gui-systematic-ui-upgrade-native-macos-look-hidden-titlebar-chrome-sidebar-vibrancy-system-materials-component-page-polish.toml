@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-090"
+title = "feat(gui): systematic UI upgrade — native macOS look: hidden titlebar chrome, sidebar vibrancy, system materials, component + page polish"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-09"
+
+[content]
+description = "Systematic UI upgrade targeting the fit-and-finish of Apple's built-in macOS apps (Finder / Notes / Terminal). Four layers: (A) window chrome — hidden title bar with full-size content, traffic lights floating over a vibrancy sidebar (NSVisualEffectView .sidebar material, behind-window blending), drag region preserved; (B) design tokens — align DS surfaces/hover/selection/borders with system semantic colors and materials while keeping the teal brand accent; (C) component polish — sidebar rows use native selection, nav rail states, pane tabs, status bar hairlines + materials, sheet/button idioms, subtle hover/selection animations honoring Reduce Motion; (D) page-level consistency — Hosts/Tasks/Activity/Hub/Settings share one header + grouped-card pattern, ContentUnavailableView empty states (macOS 14+). Terminal surfaces stay opaque Metal; the HStack layout (not NavigationSplitView, WI-2026-08-07-006) is preserved."
+
+[[content.acceptance_criteria]]
+text = "hidden title bar + full-size content — traffic lights overlay the sidebar, window remains draggable in the top strip"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "sidebar renders on NSVisualEffectView sidebar material (behind-window vibrancy) in light and dark mode"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "DS tokens map to system semantic colors/materials (hover, selection, surface, border) with teal accent retained"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "component pass — session rows, nav rail, pane tabs, status bar, sheets follow native macOS idioms with subtle animation (Reduce Motion honored)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "management pages share one header/grouped-card pattern; empty states use ContentUnavailableView"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "xcodebuild Debug build succeeds; Swift test suite green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Hosts page Termius-grade pass — identity avatars with status, double-click connect (no redundant button), hover + right-click actions, compact uniform cards, header CTA + overflow menu"
+status = "done"
+category = "added"

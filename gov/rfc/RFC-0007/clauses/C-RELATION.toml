@@ -1,0 +1,37 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RELATION"
+title = "Relation to RFC-0005 — Why a Standalone RFC"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0005]] C-NON-GOALS requires any future crossing of the pane-input
+boundary to "confront that boundary head-on". This RFC answers that
+demand by construction: it never crosses the sealed boundary at all — it
+creates a disjoint target class outside it. It is deliberately STANDALONE
+rather than an amendment to [[RFC-0005]], because the two protocols answer different questions with
+opposite defaults:
+
+- [[RFC-0005]] (wake) is workbench-initiated typing into a pane the agent
+  does NOT own, so its content rule is maximal restriction: one fixed
+  template, zero interpolation.
+- This RFC (execution) is agent-initiated typing into a pane that exists
+  ONLY because the same agent asked for it. The content is inherently
+  agent-authored (that is the feature), so safety comes not from
+  restricting content but from restricting TARGET (C-EXEC-SCOPE),
+  requiring human arming (C-EXEC-AUTHORITY), and receipting actions
+  (C-PRIMITIVES) — delegation and visibility, not containment
+  (C-EXEC-AUTHORITY is explicit about what arming grants).
+
+Folding opposite content rules into one document would invite exactly the
+confusion the wake template exists to prevent. The two RFCs cross-reference
+instead. The invariant that nothing machinery types ever reaches a human's
+pane or a peer harness's input is OWNED by [[RFC-0005]]'s non-goals; this
+RFC's C-NON-GOALS references it rather than duplicating normative text.
+Finalization ordering follows from the dependency: this RFC leans on
+[[RFC-0005]] C-INJECTION-MECHANICS and C-AUTHORITY and cannot finalize
+ahead of it."""

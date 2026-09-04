@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-STALLED-CLIENT"
+title = "A Client That Stops Reading Must Not Stop The Child"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST NOT let an attached client's inability to consume output block the child.
+
+- The holder MUST NOT apply backpressure from a client into the child's pseudoterminal.
+- A client that has not consumed output for at least ten seconds MAY be detached; one that resumes consuming within ten seconds MUST NOT be detached for that reason. A detachment MUST be reported to the client if it can still be reached.
+- Output produced while such a client is being detached remains subject to retention ([[RFC-0014:C-RETENTION]]) and MUST NOT be lost.
+
+A half-open connection is the ordinary form of the interruption this mechanism exists to survive. A holder that stalls its child until a dead socket times out converts a network fault into a frozen agent; one that detaches on a momentary render stall converts a busy client into a disconnection."""

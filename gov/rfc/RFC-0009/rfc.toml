@@ -1,0 +1,130 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0009"
+title = "Hub Federation — Peer Links, Directory, and Cross-Machine Delivery"
+version = "0.6.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-12"
+updated = "2026-08-28"
+refs = [
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0005",
+    "RFC-0007",
+    "RFC-0008",
+    "RFC-0010",
+    "RFC-0011",
+    "RFC-0012",
+    "RFC-0015",
+    "RFC-0006",
+    "RFC-0002",
+]
+signature = "7bdd83bff538a34c453902615f9a0ee6aa275ed8dc6362acb855225b251a02a3"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-BOUNDARIES.toml",
+    "clauses/C-DIRECTORY.toml",
+    "clauses/C-DELIVERY.toml",
+    "clauses/C-PRESENCE.toml",
+    "clauses/C-IDENTITY-SCOPE.toml",
+    "clauses/C-EVENT-LOCALITY.toml",
+    "clauses/C-NON-GOALS.toml",
+    "clauses/C-WORKBENCH-ROUTING.toml",
+    "clauses/C-WAKE-LOCALITY.toml",
+]
+
+[[changelog]]
+version = "0.6.0"
+date = "2026-08-28"
+notes = "A hub must not serve a directory view it knows is incomplete"
+changed = ["C-DIRECTORY lets a hub bound what it records for one peer and forbids serving a view it knows is incomplete: at the bound the LINK is refused (RFC-0010 C-COLLISION `directory_overflow`) rather than the surplus identity dropped. A dropped identity is not merely absent -- a send to it matches no entry, and with the peer reachable the answer set forces `unknown`, whose own definition is 'no peer advertises it and this hub does not host it'. A peer did advertise it and this hub declined to record it, so the hub reported its own truncation as a name the human typed wrong. None of C-DELIVERY's six describes that, and a seventh is not available: `indeterminate` was removed once tombstoning closed the gap it covered, and a cap re-opens the one case that argument did not reach."]
+
+[[changelog]]
+version = "0.5.0"
+date = "2026-08-27"
+notes = "A refusal this hub makes is a fact this hub records"
+changed = ["C-EVENT-LOCALITY names a ninth kind, peer_presence_refused: a relayed status this hub declined to apply. It is named rather than folded into peer_link_refused because the two are not one fact -- a refused handshake at least sends a relay_refused somewhere, while a declined presence relay sends NOTHING, so neither machine says anything and the silence is total. What is being declined is usually a peer speaking for an identity it does not host, which C-BOUNDARIES refuses on purpose, and an operator who cannot see the attempt cannot tell a misconfigured peer from a quiet one."]
+fixed = ["The kind count read EIGHT while the list carried nine. A count written beside the thing it counts is one that goes stale on the next addition, and this one went stale in the same edit that added the ninth."]
+
+[[changelog]]
+version = "0.4.0"
+date = "2026-08-27"
+notes = "The relay NACK's reason is a named, closed set"
+added = ["C-DELIVERY names the five machine-readable reasons a NACK on `relay_forward` carries — `malformed`, `target_refused`, `origin_refused`, `not_hosted`, `unavailable` — and distinguishes that field from the direct-message response's `reason`, which is human-readable text for the sender. The hub emitted all five and the corpus named none of them, so a refusal an implementer had to invent a string for was one two of them would spell differently — on the surface where it matters most, since this reason is what `refused` carries through and what a script branches on."]
+
+[[changelog]]
+version = "0.3.0"
+date = "2026-08-27"
+notes = "The event set names both ways a held message is lost"
+changed = ["C-EVENT-LOCALITY names EIGHT kinds. `spool_evicted` joins `spool_expired`: a held message dropped to make room for a newer one is the same promise broken under pressure rather than over time, and reporting the second as the first sends the human after a peer that was fine. The code dropped it silently on one push path and with a log line on the other — a log line being read, on a hub running for somebody else's machine, by nobody."]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-24"
+notes = "Eight independent review passes: 5+6+4+3+4+3+3+2 critical findings, and the major and minor with them, addressed"
+changed = [
+    "C-BOUNDARIES no longer claims a relay link is authenticated — a peer id is self-reported on the same footing as an agent id, with what that bounds written as testable consequences and what would change it named",
+    "C-BOUNDARIES recognises three connection kinds; the anonymous query surface RFC-0010 and RFC-0012 already write to has a trust model of its own, and its only write is bounded to diagnostics",
+    "C-BOUNDARIES states that RFC-0008 C-IDENTITY's connection-binding rule is submission-scoped, and what authorises a relayed frame's source instead",
+    "C-DELIVERY counts one set of seven answers; forwarded means acknowledged rather than sent, refused carries a NACK, and a send answers synchronously with a stated bound",
+    "C-DELIVERY keys the spool on the target identity with the peer as a routing hint, and defines re-targeting at all three transitions",
+    "C-PRESENCE carries RFC-0010 C-DIAGNOSABILITY's unknown_cause, names peer_reachable rather than describing it, and scopes the additive-degradation property to the two fields it holds for",
+    "C-PRESENCE closes two silent-hang cases in synapty wait — a peer that never declared the presence capability, and a conflicted target",
+    "C-WORKBENCH-ROUTING routes on a declared capability rather than an unobservable fact, and its relay is a MUST because RFC-0003 C-EVENTS' guarantee is normative",
+    "C-IDENTITY-SCOPE gives the @ prohibition a mechanism — a derivation containing one is rejected to fallback — and refuses a target qualifier naming a third peer",
+    "C-EVENT-LOCALITY names the event kinds and the relay frame vocabulary",
+    "C-WAKE-LOCALITY's gate is a condition on RFC-0011 C-HEADLESS-GATE being amended rather than on its requirements being believed met",
+    "C-WORKBENCH-ROUTING drops the stale bullet that mandated a second answer for the same state, and triggers the relay on 'no attached workbench holding the credential' rather than 'no workbench'",
+    "C-WORKBENCH-ROUTING serves an ABSENT hub-repo identity rather than refusing it; only a present identity that differs is refused",
+    "C-DELIVERY's unknown requires no peer at its cap, since a capped peer is reachable and both answers were satisfiable at once",
+    "C-DIRECTORY distinguishes an ENTRY from an ADVERTISEMENT, refuses a peer claiming what this hub hosts rather than contesting it, and stops a tombstoned claim counting as a claim",
+    "C-PRESENCE gives a contested identity one marked row and defines hosting_peer's absence for a local agent",
+    "C-BOUNDARIES enumerates the anonymous query frame set and requires a relay_nack rather than silence when a relayed origin is rejected",
+    "C-IDENTITY-SCOPE scopes qualify-on-out to fallback ids, matching the strip on the way in",
+    "C-EVENT-LOCALITY names the event kinds and frames other clauses created without them, and says a link drop emits one peer_link_down and no removals",
+    "C-WAKE-LOCALITY names both gates, since C-BOUNDARIES' own prohibition would outlive an amendment to RFC-0011 alone",
+    "C-DIRECTORY: the peer-claims-what-we-host bullet was pasted three times and a sentence twice; reduced to one copy each",
+    "C-PRESENCE: unknown_cause is four values including contested, in both the enumeration and the rule that uses it",
+    "C-BOUNDARIES: an OBSERVER kind covers the GUI's persistent subscribe and the CLI's direct queries, which the three-kind taxonomy forced into SUBMISSION and its one-identity rule",
+    "C-NON-GOALS and C-IDENTITY-SCOPE qualify no-migration to two LIVE claims, since C-DIRECTORY calls a claim against a tombstone a move",
+    "C-WAKE-LOCALITY states its gate in the two-condition form everywhere, not only at the top",
+    "refs name RFC-0004, RFC-0006, RFC-0007, RFC-0010, RFC-0011, RFC-0012 and RFC-0015, and bare RFC mentions across the clauses become link syntax",
+    "C-BOUNDARIES' connection kinds are rewritten whole rather than patched: the enumeration names OBSERVER, its vocabulary is named frame by frame, and that vocabulary is explicitly NOT exclusive — the in-pane CLI reaches the hub over the pane daemon's registered connection",
+    "C-WORKBENCH-ROUTING names the refusals nothing defined: no_workbench for a hub with none, no_server for a peer set that cannot serve",
+    "C-BOUNDARIES' observer vocabulary is reconciled against the hub's own dispatch table, not only against these documents: agent_status, wake_report, exec_receipt, tool_receipt and peer_connect were frames it already served anonymously and the RFC did not name",
+    "C-BOUNDARIES' residual rule refuses an unregistered connection rather than admitting it as a submission connection with no identity",
+    "C-BOUNDARIES states who dials a relay link — a workbench, with peer_connect, naming a peer the human configured on its own machine",
+    "C-BOUNDARIES tells apart the two senses of anonymous in this corpus, and bounds each observer write separately rather than only the level change",
+    "C-EVENT-LOCALITY restores relay_refused, which RFC-0010 C-COLLISION requires, C-CAPABILITIES fills the payload of, and the hub already sends",
+    "C-EVENT-LOCALITY names peer_capabilities_changed, since a mid-link capability change moves unknown_cause for every one of that peer's agents",
+    "C-BOUNDARIES bounds tool_receipt by what its own hazard is — honoured only against an outstanding request this hub routed — since attribution bounds provenance and the hazard is delivery",
+    "C-BOUNDARIES puts peer_connect's authorising configuration in ONE place, the workbench's own host management, and leaves the hub only what it can check",
+    "C-BOUNDARIES refuses an observer every frame outside its vocabulary as a residual rather than by listing",
+    "C-DELIVERY specifies what a full spool does — drop oldest, record it, answer spooled — since a closed answer set and an unspecified overflow cannot both stand",
+    "C-DELIVERY says how long a link record outlives the entries it explains, which is the other half of the peer-set quantifier",
+    "C-EVENT-LOCALITY names spool_evicted, for the drops that are not at TTL",
+    "C-BOUNDARIES restores the half of WHO DIALS an edit severed: the hub enforces what it can see, and the sentence no longer states the obligation the one above it disclaims",
+    "C-DELIVERY says what a NACK does to a message already answered spooled: the copy is released, the drop is logged as spool_refused, and the sender is not told twice",
+    "C-EVENT-LOCALITY names spool_refused and directory_refused, the two surfacing obligations that had no kind",
+    "C-PRESENCE makes peer_reachable absent for a local agent, like hosting_peer, and says absence is read with unknown_cause rather than alone",
+    "C-DELIVERY keys forward idempotency on an id the FORWARDING HUB mints, since the sender's id collides between panes on one machine and pairing it with the peer does not reach that",
+    "C-BOUNDARIES bounds tool_receipt on a token the hub minted at forward time, and says plainly the hub does not do this yet — the connection it claimed to match on is never the same connection by construction",
+    "C-EVENT-LOCALITY's spool_refused covers a NACK after any spooled answer, not only one after a link returned",
+    "C-PRESENCE says what a contested row carries in peer_reachable: absent, because two live claims means two reachable peers and the field names one",
+    "C-DELIVERY says seven in both places, requires a reason for refused, and retries a message spooled on a live link",
+    "C-DELIVERY defines the peer set behind the answers a send can give, and makes a capped peer force the honest one rather than a typo",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-12"
+notes = "Initial draft"

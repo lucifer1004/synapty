@@ -1,0 +1,9 @@
+{
+  "_comment": "RFC-0006 lifecycle spec (WI-2026-08-11-014): the resume template. Data, not code \u2014 user overrides at ~/.config/synapty/lifecycle/. {resume_ref} is substituted AFTER allowlist validation. The launch recipe that used to sit beside it is gone with managed start (RFC-0006 C-MANAGED-START, deprecated): starting a tool is something the human does in a terminal, with the options this run needs.",
+  "tool": "claude",
+  "resumeArgv": [
+    "claude",
+    "--resume",
+    "{resume_ref}"
+  ]
+}

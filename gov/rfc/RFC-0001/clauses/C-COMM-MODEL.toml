@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-COMM-MODEL"
+title = "Unified Communication Model"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty currently operates two communication channels — the PTY data plane (stdout/stdin byte streams) and the A2A control plane (JSON envelopes over the network). The long-term vision is convergence.
+
+**The bridge: OSC sequences.** OSC escape sequences travel on the data plane but are intercepted by the VT engine (L0) and can trigger control-plane actions. This bridging mechanism already demonstrates that the PTY stream can carry structured metadata alongside terminal output without requiring a separate protocol client.
+
+**Convergence direction.** The vision is to extend OSC-based signaling so that it becomes the primary mechanism for all agent-to-orchestrator communication. An agent that can print to stdout can participate in orchestration — no WebSocket client required. The A2A WebSocket layer would then handle only agent-to-agent messages that do not originate from a terminal context (e.g., headless service agents without a PTY).
+
+This convergence simplifies the agent developer experience into a spectrum: at minimum, print OSC sequences to stdout; for richer collaboration, implement the A2A envelope protocol; or do neither and run as a plain PTY process that the workbench supervises without structured communication."""

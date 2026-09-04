@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-025"
+title = "fix(core): small holes — a line reader that drops bytes, a state file born readable, daemonize's failure paths, an oversized MCP line"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 01 #9 #13 #16 #18; 05 M3. framing.zig says of itself that a chunked
+read with carry has more failure modes than it looks — and has zero
+tests, while ipc.readLine wraps it in a way that discards pipelined bytes
+and mcp.zig re-implements the loop without it. The rest are the kind of
+edge the project usually closes: a permission window the sibling code
+already fixed for sockets, a fork failure that starts nothing and tells
+nobody.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "fixed: ipc.readLine documents its one-shot contract (a fresh LineBuffer per call; correct for the one-line-each-way IPC protocol, wrong for anything pipelined); mcp.zig reads stdin through framing.LineBuffer and drops an oversized line with a log line instead of exiting silently"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "state_store writes its temp file with mode 0600 before rename (state_store.zig:140); daemonize handles a failed second fork and the caller reaps the intermediate child (sys.zig:804)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "framing.zig has unit tests over a socketpair for StreamTooLong, resync, EOF after a partial line and the deferred-compaction overlap; hub/session.zig and hub/connection.zig at least compile under test"
+status = "done"
+category = "chore"

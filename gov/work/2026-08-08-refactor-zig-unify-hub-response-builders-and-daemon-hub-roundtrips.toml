@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-038"
+title = "refactor(zig): unify hub response builders and daemon hub roundtrips"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "DRY (Zig): (1) sendResponse and sendToolResponse are byte-identical except the envelope type — one shared builder; (2) the daemon's send/register/channel IPC branches repeat the same writeToHub -> waitForHubResponse -> serialize -> writeLine roundtrip — one helper."
+notes = ["handlers.zig: sendHubEnvelope is the one response builder; sendResponse/sendToolResponse are thin type wrappers (were byte-identical copies). run.zig: hubRoundtripAndRespond unifies the write->wait->respond sequence in the send/register/channel IPC branches (four hand-rolled copies to one helper). 124/124 Zig tests."]
+
+[[content.acceptance_criteria]]
+text = "fix: one shared hub response-envelope builder (sendResponse/sendToolResponse are thin wrappers)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: daemon IPC branches use one hubRoundtripAndRespond helper"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 124+ Zig tests still green"
+status = "done"
+category = "chore"

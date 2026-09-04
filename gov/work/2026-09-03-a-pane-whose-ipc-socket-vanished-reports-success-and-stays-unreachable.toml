@@ -1,0 +1,77 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-007"
+title = "A pane whose IPC socket vanished reports success and stays unreachable"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+refs = [
+    "RFC-0003:C-CLI-TOOLS",
+    "RFC-0002:C-CLI-MCP",
+    "ADR-0017",
+]
+
+[content]
+description = """
+A pane daemon's unix socket at /tmp/synapty-<pid>.sock can stop resolving while
+the wrapper process is still alive and still holding the bound listener: the
+path is unlinked out from under it. Observed on pane local-9ece (pid 38694,
+alive since 2026-09-01 17:36) — lsof shows fd 4 still bound to
+/tmp/synapty-38694.sock while the path itself is gone, so every connect() gets
+ENOENT and the pane is unreachable for the rest of its life.
+
+The removal's origin is NOT established. The startup sweep (run.zig
+sweepStaleSocketsIn) is guarded by pidAlive and was shown by experiment to
+leave live panes' sockets alone across concurrent launches and `end`; no
+periodic /tmp cleaner is configured on the host and there has been no reboot.
+This work item therefore does not claim a culprit. It makes the condition
+survivable and observable, which is the part that is ours either way.
+
+Two defects made that unreachability worse than it had to be:
+
+1. Every IPC verb reported SUCCESS when the daemon closed without a reply.
+   ipcRoundtripCapture maps recvWithin's EOF (null) to an empty string, and
+   ipcRoundtrip prints nothing for an empty response and returns "the IPC path
+   was used". `synapty register` therefore exited 0, printed nothing, and did
+   not register — the hub still showed tool "-". Any socket that accepts a
+   connection and speaks another protocol produces this; reaching the holder's
+   own session socket by mistake is enough. [[RFC-0003:C-CLI-TOOLS]] requires a
+   failure to be a human-readable error on stderr with a non-zero exit.
+
+2. The pane-only verbs' refusal names the wrong condition. notInSession()
+   says "SYNAPTY_SOCK not set" unconditionally, so a set-but-dead socket
+   printed two contradicting lines in sequence: "SYNAPTY_SOCK is set but no
+   pane daemon answers there" followed by "not in a synapty session
+   (SYNAPTY_SOCK not set)"."""
+notes = [
+    "WHAT REMOVED THE PATH IS STILL UNKNOWN, and this work item deliberately does not guess. Ruled out by experiment on the host that showed the failure: the startup sweep (run.sweepStaleSocketsIn) left a live pane's socket alone across four concurrent `run --hold --detach` launches; a `synapty end` tore its own session down cleanly, process and socket together; no /etc/periodic clean-tmps configuration exists on this host; and uptime shows no reboot since before the pane started. The fix is therefore shaped as recovery rather than prevention — a pane that can be reached again is the answer to every culprit at once.",
+    "The re-bind rides the accept loop rather than a watchdog thread of its own. `accept` blocked forever on a pane nobody was calling, which is exactly the pane that needs the check; bounding that wait with `waitReadable` gives the loop a moment to look up twice a second and costs nothing else. Teardown is unaffected — `stopThreads` still wakes the loop with its dummy connection.",
+    "`std.c.fstatat` compiled on the host and broke all three musl deploy targets, where it does not exist in Zig 0.16. The path check goes through `std.Io.Dir.statFile` and its `Kind.unix_domain_socket`, which is what the stale-socket sweep already uses to ask the same question. `zig build test` builds native only, so `just deploy-all` is what caught it.",
+]
+
+[[content.acceptance_criteria]]
+text = "a daemon that closes without a reply is a failure — the verb prints a human-readable error on stderr and exits non-zero, never exit 0 with no output ([[RFC-0003:C-CLI-TOOLS]])"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the pane-only refusal names the condition it actually found — a set-but-unreachable SYNAPTY_SOCK is not reported as unset"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a pane daemon whose socket path stops resolving re-binds it, so a pane that lost its socket becomes reachable again without restarting the session"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a fake daemon that accepts and closes without answering makes register exit non-zero with a message on stderr"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a RunServer whose socket path is unlinked underneath it serves an IPC request again after the re-bind interval"
+status = "done"
+category = "chore"

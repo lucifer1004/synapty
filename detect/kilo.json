@@ -1,0 +1,29 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/kilo.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "kilo",
+  "rules": [
+    {
+      "id": "permission_required",
+      "state": "waiting",
+      "contains": "△ permission required"
+    },
+    {
+      "id": "permission_dialog",
+      "state": "waiting",
+      "all": [
+        "esc dismiss"
+      ],
+      "any": [
+        "enter confirm",
+        "enter submit",
+        "enter toggle"
+      ],
+      "regex": "↑↓ select|⇆ tab"
+    },
+    {
+      "id": "esc_interrupt_working",
+      "state": "working",
+      "contains": "esc interrupt"
+    }
+  ]
+}

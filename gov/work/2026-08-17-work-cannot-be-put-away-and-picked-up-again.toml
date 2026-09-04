@@ -1,0 +1,72 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-027"
+title = "Work cannot be put away and picked up again"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-23"
+completed = "2026-08-24"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "RFC-0014",
+    "RFC-0006",
+]
+depends_on = [
+    "WI-2026-08-17-024",
+    "WI-2026-08-17-025",
+    "WI-2026-08-17-026",
+]
+
+[content]
+description = """
+There is no way to put work aside. A workspace is either open and spending a connection, or gone. What the human wants is the third thing: keep the arrangement, stop paying for it, come back later.
+
+Pin is the small half — ordering and prominence, and nothing else. It must not change lifetime, persistence or connection behaviour, or it becomes a second lifetime rule to reason about.
+
+ARCHIVE IS THE HALF THAT HAS TO ACTUALLY RELEASE SOMETHING ([[RFC-0015:C-ARCHIVE]]). It persists the arrangement and then closes every connection no still-open workspace references — immediately, without the grace period that absorbs accidental churn, because this is a decision the human has stated rather than a gesture that might be undone in a second. A workspace archived while its links and tunnels stay open has not been archived; it has been hidden, and the resources it meant to reclaim are still spent.
+
+What runs on the far side keeps running: archiving is the client leaving, and [[RFC-0014]]'s holder is what makes coming back to it possible.
+
+THE PROMISE MUST NOT OUTRUN WHAT WORKS ([[RFC-0015:C-HONESTY]]), and this is the part most likely to be got wrong by being quietly optimistic. Until the holder is implemented, reopening remote work RESTARTS it rather than rejoining it. That smaller feature is legitimate to ship and must not be described as the larger one. The four ways rejoining can fail — the holder is unimplemented, the host opted out, the holder is gone, or the leaf is local and never had one — are different things to a human deciding whether to close something, and must be reported as such rather than as one message.
+
+A local pane's process never survives; unarchiving restores its working directory. That asymmetry is inherent and is to be stated, not concealed.
+
+Depends on persistence, since archive is "write it all down, then let go"."""
+notes = ["The holder shipped for both machines (WI-2026-08-19-006, -007) before this was built, so 'holder-unimplemented' is no longer a case that can arise. Reopening reports three: rejoined, durability turned off for that machine (named), and the session gone. A pane that never named a session is reported as such and is not put in front of the human — it was promised nothing, and after a reboot there would otherwise be one notice per pane."]
+
+[[content.acceptance_criteria]]
+text = "A workspace can be pinned, which changes only its ordering and prominence"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Archiving a workspace persists its arrangement and immediately releases every connection no open workspace still references"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Archiving one workspace does not disturb a connection another open workspace is using"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An archived workspace stays listed with its name and can be reopened without the human remembering what was in it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An archive/unarchive round trip returns the same tabs, splits, ratios, focus and working directories"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Reopening says whether each pane rejoined its work or restarted it, distinguishing holder-unimplemented, host-opted-out, holder-gone and local"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Release-on-archive, the shared-connection exemption and the round trip are covered by tests"
+status = "done"
+category = "chore"

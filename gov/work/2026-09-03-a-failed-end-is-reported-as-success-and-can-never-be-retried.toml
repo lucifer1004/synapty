@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-010"
+title = "A failed End is reported as success and can never be retried"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+refs = [
+    "WI-2026-09-03-007",
+    "RFC-0014:C-END",
+]
+
+[content]
+description = """
+Pressing End on a "Still Running" row threw the outcome away three times over
+and then recorded the agent as ended regardless, so a press that reached
+nothing looked exactly like one that worked — and could never be tried again.
+
+- `RemoteAgentSession.kill` ran `synapty end ... >/dev/null 2>&1; true` over
+  ssh and discarded the result with `_ =`. The `; true` forces the exit status
+  the caller would have read, so a refused end and a successful one were the
+  same byte.
+- `remoteAgentEnder` returned Void, and silently returned early when the host
+  had no live connection.
+- `endRemoteAgents` recorded the id in `endedAgents` BEFORE asking. That set is
+  never emptied, so the first attempt — successful or not — made every later
+  attempt a no-op for the life of the app.
+- `endRemoteSession` then removed the row from `remoteSessions` without waiting
+  for any of it, so the row vanished and came back on the next poll.
+
+Reported from a live workbench: six rows that reappeared after every End,
+under fixed names. The holders behind them were wedged in their own teardown
+([[WI-2026-09-03-007]]) — they acknowledged the end, killed their child, and
+then blocked forever joining an accept thread nobody could wake, so
+`synapty sessions` went on reporting them and the sidebar went on listing
+them. That is the defect those six were a symptom of; this one is why pressing
+End a second time did nothing, and why nothing said so.
+
+The dedupe was doing two jobs with one set: keeping a close cascade from
+spending a second ssh, and — accidentally — suppressing every retry. Those are
+now two sets: one for what is in flight, which clears, and one for what the far
+side confirmed, which does not."""
+notes = [
+    "The ender closures hand back a `Task<Bool, Never>` rather than being `async` themselves. Starting the end stays SYNCHRONOUS — which is what a button press is, and what every existing test observes — while the outcome is awaited only where somebody is waiting for it. Making the closures `async` instead moved the invocation into a later turn of the run loop and seven tests stopped seeing it, which would have been a testing artefact driving a production API.",
+    "The close cascades (a pane close, a workspace close) keep the fire-and-forget path: nobody is watching them and they must not block. The sidebar's End awaits, because a human is looking at the row it is about to remove.",
+]
+
+[[content.acceptance_criteria]]
+text = "an End that failed is asked again the next time it is pressed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an End that the far side confirmed is not asked a second time by a close cascade"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the sidebar row goes when the session does, not when the press happens"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "RemoteAgentSession.kill reports whether the far side ended it, rather than forcing its own exit status to 0"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "two presses against an ender that fails produce two attempts; two against one that succeeds produce one"
+status = "done"
+category = "chore"

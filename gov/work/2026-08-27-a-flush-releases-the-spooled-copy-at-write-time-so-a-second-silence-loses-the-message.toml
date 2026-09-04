@@ -1,0 +1,46 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-27-004"
+title = "A flush releases the spooled copy at write time, so a second silence loses the message"
+status = "done"
+created = "2026-08-27"
+started = "2026-08-28"
+completed = "2026-08-28"
+refs = ["RFC-0009"]
+
+[content]
+description = """
+`Spool.take`'s own comment says the caller "will re-hold under the pending-ack table". `flushSpoolToLocked` does not: it takes, forwards, and awaits nothing. So the held copy is gone the moment the first flush writes, and a retry that is ALSO unanswered loses the message outright.
+
+WHY THAT IS A BROKEN PROMISE AND NOT A MISSING FEATURE. [[RFC-0009]] C-DELIVERY defines `spooled` as the message being HELD here — "somebody knows where this goes and it is being kept". A sender told `spooled` has been given that promise. Today the promise survives exactly one flush attempt, whether or not anything arrived.
+
+FOUND WHILE FIXING THE DUPLICATION HALF ([[WI-2026-08-25-001]]), and deliberately not folded into it: that criterion is about a lost acknowledgement delivering the message TWICE, which the forward-id reuse settles. This is the opposite failure — the message delivered ZERO times — and it wants its own fix.
+
+WHY IT IS STRUCTURAL. The obvious repair is to await the ack on a flush as the original send does, but `flushSpoolToLocked` runs under `presence_mutex` and `awaitForward` must not be called under it — five seconds under that lock would freeze every other agent on this machine, which is why the wait lives in `handleDm` outside it. So the fix is one of: re-hold the taken messages under the pending table with their forward ids and re-spool on silence or nack; or do not `take` until an ack lands, releasing on `completeForward` instead. The second is closer to what the comment already claims happens.
+
+THE THIRD COMMENT-VERSUS-CODE CONTRADICTION FOUND ON 2026-08-27 and the only one left open. The other two: a relayed presence row's comment said tool/project/session were absent while three lines below wrote `"-"`, and `Spool.Message.msg_id` said it was "echoed by the relay ack" when the ack echoes the forward id. Both fixed; this one is a behaviour change rather than a correction, so it is an item."""
+notes = ["""
+CLOSED, AND THE TWELFTH REVIEW FOUND IT INDEPENDENTLY — same defect, same framing ("one site discharges the rule, its sibling does not"), which is worth noting because I had opened this item from my own reading a day earlier.
+
+THE FLUSH NO LONGER TAKES. `flushSpoolToLocked` iterates the held copies in place, writes each under the id it already went out with — minting and STAMPING one when the copy has never left, so the next sweep reuses it rather than minting again — and leaves them held. The release happens where the acknowledgement arrives, keyed on the forward id.
+
+A NACK RELEASES IT TOO, and that is a judgement rather than an oversight: the peer has refused this message by name, so holding it means retrying into the same refusal until the TTL. The refusal is logged where a silent drop would not be.
+
+RELEASED IN THE HANDLER, NOT IN `completeForward`, which holds `forward_mutex` while the spool needs `presence_mutex`. The established order is presence then forward, and inverting it is a deadlock waiting for two peers to answer at once.
+
+A PRE-EXISTING LEAK CAME OUT WITH IT, found because the new test flushes three times. `forwardToPeerLocked` registered a pending-forward entry on every write, and only `awaitForward` drops one — which the flush never calls. So every sweep left an entry nothing would ever remove, for the lifetime of the hub. The pending table exists for a WAITER, so the write now takes `await_answer`: a submitted dm registers, a flush does not.
+
+A TEST WAS PINNING THE DEFECT, again. "a message spooled on a LIVE link is retried, not left for a reconnect" asserted `spool.count == 0` after the sweep — the flush having freed every copy at write time was the thing it checked. It now asserts the retry went out, the copy is STILL held, and an acknowledgement is what releases it.
+
+Three mutations, all caught. `just verify` includes the two-hub federation e2e."""]
+
+[[content.acceptance_criteria]]
+text = "A message answered `spooled` is still held after a flush attempt that nobody acknowledged, with a test that fails if the copy is released at write time"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "An acknowledged flush releases the copy exactly once, and Spool.take's comment describes what the code does"
+status = "done"
+category = "fixed"

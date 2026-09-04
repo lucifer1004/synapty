@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-008"
+title = "A record whose process is gone is swept, not listed forever"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+`synapty sessions` on the machine that prompted this listed 115 sessions,
+114 of them `ended`, burying the one that was running. Each `ended` row
+was `name  ended  -  -  -  -  -  -`: nothing to attach to, nothing to end,
+nothing a human could act on. Beside them sat 115 socket files nobody was
+listening on.
+
+[[RFC-0014]] C-END is why no timer ends a session, and that reasoning is
+right — any threshold ends an agent that is working and keeps a shell that
+is idle. But C-END is about not ENDING a session. It says nothing about
+keeping the RECORD of one that has already ended, and nothing removed
+those: `Holder.stop` clears its own, and a holder killed outright, or one
+a reboot took with it, never reaches `stop`.
+
+The listing already asks the kernel whether the process is there, which is
+the proof. It now sweeps what that proof condemns, and takes the socket
+with it — a socket nobody is listening on can be reached by no client and
+used by no `end`. Only for a session already proved dead: a socket with no
+record beside it is left alone, because a holder binds and listens BEFORE
+it writes its record, so that shape is also a session still starting up."""
+notes = ["""
+Ran the fix against the real machine: 115 records became 1, and the one
+live detached session was untouched. The 114 sockets were then orphaned,
+because the record sweep landed before the socket sweep was written and
+the code drives one from the other. Each was checked for a listener by
+connecting to it — none had one, the live session's was excluded by having
+a record — and then removed by hand. Going forward the two go together."""]
+
+[[content.acceptance_criteria]]
+text = "holder.sweepEnded removes the record and the socket of a session the kernel says is gone"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty sessions sweeps such a record instead of printing an ended row that outlives it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a live record is left alone, a tombstone goes with its socket, a second sweep is not a sweep, and a file that is not a record is not a tombstone"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the holder e2e plants a tombstone and asserts the listing neither reports nor keeps it"
+status = "done"
+category = "chore"

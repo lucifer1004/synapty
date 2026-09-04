@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LEAF-BINDING"
+title = "The Leaf Carries Its Connection"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Every leaf carries the identity of the connection it runs on and of the agent running in it, and those are the only admissible sources for either answer.
+
+- A leaf MUST store the identifier of its connection. The binding is established when the leaf is created and MUST survive every layout operation — moving the leaf into another slot's stack, into a different position in the tree, or into another workspace MUST NOT change it.
+- A LEAF MUST ALSO CARRY ITS OWN AGENT ID where it runs a child, because every such leaf runs one under its own identity. This is the agent's durable id under [[RFC-0008]] and is not re-derived here. It is a per-leaf fact and MUST NOT be read from a connection or a container.
+- ANY QUESTION OF THE FORM "WHICH MACHINE IS THIS?" MUST BE ANSWERED FROM THE LEAF. No consumer may derive a leaf's host, agent id, or connection state by consulting the slot or workspace that contains it. This includes at minimum the destination a file drop delivers into, the origin stamped on a presentation-plane primitive ([[RFC-0013]]), the host recorded in an agent's lifecycle, and the working-directory query for a remote pane.
+- ONE SLOT MUST BE ABLE TO HOLD PANES BOUND TO DIFFERENT CONNECTIONS, and a workspace MUST be able to hold such slots. A slot's stack is what a tab bar shows ([[RFC-0015:C-LAYOUT]]), so this is the conformance statement for a tab bar carrying two machines. An implementation that assumes otherwise is non-conformant even if no user has yet produced the arrangement.
+- THE UPWARD LOOKUP MUST NOT REMAIN AVAILABLE. It is not sufficient to stop calling it: a container-level accessor that returns a host is a correct-looking call that yields a wrong answer for any docked leaf, and the two file transfers this model exists to prevent were delivered to the wrong machine by exactly that shape of mistake. Removing the accessor is what makes the error unrepresentable rather than merely discouraged.
+- A leaf whose connection has been released or has failed MUST retain its binding. The binding names which host the leaf belongs to, which is a durable fact; whether that host is currently reachable is the connection's state and is reported separately ([[RFC-0015:C-FAILURE]])."""

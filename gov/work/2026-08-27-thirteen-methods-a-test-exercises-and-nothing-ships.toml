@@ -1,0 +1,84 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-27-003"
+title = "Thirteen methods a test exercises and nothing ships"
+status = "done"
+created = "2026-08-27"
+started = "2026-08-27"
+completed = "2026-08-27"
+
+[content]
+description = """
+`just unshipped` exists because three defects reached a green suite in one session and none was found by the tests covering the code they were in. The shape was always the same: a helper had tests and the SHIPPED path held an inlined copy that had already drifted. `migratePane` had two tests, no production caller, and a twin at its call site that had inverted the very property those tests pin.
+
+So the check does not ask "is this dead" — a general dead-code detector is loud here, since protocol conformances, SwiftUI hooks and selector targets all look unreferenced, and a loud report is one nobody opens. It asks the narrow question: DOES A TEST BELIEVE THIS SHIPS. Thirteen answers, over 819 declared methods, and names that announce themselves as test seams (`…ForTesting`) are excluded because reporting those would be reporting the convention working.
+
+THE ONE THAT MATTERS MOST IS MINE, FROM TODAY. `RemotePwd.parseForeground` is the only Swift reader of [[RFC-0014]] C-FOREGROUND, and nothing calls it. Hours earlier I amended [[RFC-0006]] C-RESUME-RESTORE so a resume MAY be offered on a REJOINED pane "where C-FOREGROUND reports that the program the incantation names is not the foreground process there". That branch has no implementation. It is NOT a conformance failure — the same clause says "an unavailable report is a no, not a maybe", and with no reader the report is always unavailable, so the offer simply never appears for a rejoined pane and the rule fails closed, which is the safe direction. But the case I argued at length for cannot happen, and a specification that permits what its implementation cannot do should say so rather than let a reader assume it works.
+
+NORMATIVE OBLIGATIONS: NONE ARE VIOLATED, and I checked the one that looked like it was. `TransferAuthority.revoke` has no caller, but C-AUTHORIZATION's normative property is MORTAL — the capability must not survive the process — and `granted` is in memory, so that holds without it. `revoke` and `grants` serve a human withdrawing mid-session, which the code's own comment calls out ("a capability nobody can enumerate is one nobody can withdraw"), and neither has a surface. Same class as `onOpenRemoteAgent` and `onAgentTap`: the mechanism exists and the affordance does not.
+
+THE REST, each needing a decision rather than a repair — wire it or drop it:
+- `WorkspaceManager.paneDidFail` — its own doc says a pane's absence is otherwise indistinguishable from never having asked, so nothing reports a failed dial.
+- `WorkspaceManager.slotNeedsAttention` — the attention mark on a stacked slot, which its doc calls "the whole point of marking it there".
+- `WorkspaceManager.fileLeafBackDestination` / `fileLeafForwardDestination` — where a file pane's back and forward would land, with no surface showing it.
+- `ExecController.handles(owner:)` — for generation-end orphan marking, which therefore does not happen.
+- `AgentMonitor.parseAgentsOutput` — a parser for the agents response that the live path no longer goes through.
+- `PortForwardService.owner(ofPort:)` and `MasterPool.isFull` — queries only tests ask. Both are seams without the naming convention that marks one.
+- `KeyDispatcher.rememberAnswered` / `forgetAnsweredKeystroke` — the answered-keystroke pair, exercised in tests and driven by nothing.
+
+THE CHECK EXITS NON-ZERO, which means it cannot join `just verify` until this list is empty. That is deliberate: an advisory nobody reads is the failure mode this project has already named once, when a prose check reported sixty-two things against three real ones and was deleted for it. Either these get decided or the check gets deleted; leaving it printing thirteen forever is the outcome neither of us wants."""
+notes = [
+    """
+SEVEN OF THIRTEEN DECIDED, AND THE DECISIONS ARE NOT ALL THE SAME — which is the argument for the check being narrow rather than a dead-code sweep.
+
+WIRED, because production held an inline copy of the named query. `PortForwardService.owner(ofPort:)` was read as `portOwners[...]` in two places; those go through the accessor now. Its tests assert a real rule with no other observable — a port that served one host may never serve another, and "withdrawal ends the forward, not the ownership" — so the answer was never to delete it.
+
+NAMED AS SEAMS, because they are seams and the convention exists so intent survives review. `MasterPool.isFullForTesting` observes a refusal that has no other consequence to watch: a migration refused because the pane is gone changes nothing else, and "nothing happened" is only an assertion if the flag it must not have touched can be read. `KeyDispatcher.rememberAnsweredForTesting` and `forgetAnsweredKeystrokeForTesting` already said "Seams for the tests" in a comment — which is a claim only that file can see, while the suffix is one a checker can.
+
+DROPPED, WITH THE RULE RE-POINTED AT THE PATH THAT SHIPS. `WorkspaceManager.paneDidFail` was a per-leaf spelling of a per-connection fact; `markWorkspaceFailed` is what runs. Its three tests assert C-DIAL's obligation — a failed dial leaves the leaf in place with its binding intact and the failure reported on it — so they moved rather than went. That is the shape this check exists to expose: the OBLIGATION was tested and the code carrying it was not.
+
+DROPPED, BECAUSE A BETTER ANSWER ALREADY SHIPPED. `WorkspaceManager.slotNeedsAttention` marked the POSITION when a pane behind a tab wanted attention. SplitContentView says why that is wrong, in its own words: "a pane BEHIND a tab wears its mark on the tab instead — a ring nobody can see is not one." The tab bar reads `isAwaitingAttention` per pane, so the case is answered where it can be seen. The test now asserts that.
+
+DROPPED, BECAUSE THE CORPUS RETIRED THE DESIGN. `AgentMonitor.parseAgentsOutput` parsed the output of `synapty agents`, a subprocess the workbench stopped spawning when [[RFC-0004]] C-SUBSCRIPTION made presence pushed rather than polled — the file says so at the polling site. Five of its six tests asserted the three STRING shapes that path accepted and went with it; the sixth asserted a rule that is still true (a row with no id is skipped rather than fatal) and now asserts it through `applySnapshot`, the door the hub's own pushes come in by. Mutation-checked.
+
+THIRTEEN TO SIX. The four remaining are the class that needs a product decision rather than a repair, and they are recorded in the description with their diagnoses.""",
+    """
+DROPPED, AND THE SPECIFICATION FOLLOWED IT DOWN. `RemotePwd.parseForeground` was the one I called the most important, because the branch it was missing was one I had argued for at length hours before. The decision went the other way: [[RFC-0006]] C-RESUME-RESTORE no longer permits a resume on a REJOINED pane at all, so the parser has no future caller either and went with its test.
+
+WHAT DECIDED IT was not the missing code. The evidence C-FOREGROUND supplies is a process NAME, and the branch compared it against a per-tool expectation — a comparison whose wrong answer types an incantation into a LIVE agent, on the human's account, in a pane they were using. A kernel reports what it reports (`claude.exe` where a manifest says `claude`), so the table doing the comparing needs verifying per tool and maintaining per release, and every entry that drifts fails in the direction that ACTS. Against that, the offer buys a human something they can already reach by typing the incantation themselves, in the pane, where they can see what is in it. [[RFC-0014]] C-LIVE-CHILD still PERMITS the case and its argument is sound; a MAY is not an obligation.
+
+THE CHECK FOUND THIS, and it is worth naming what it found. Not dead code — a SPECIFICATION that permitted what its implementation could not do, failing closed and therefore silent. Nothing was broken and no test could have gone red. RFC-0006 is at 0.3.0.""",
+    """
+FOUR DECIDED, AND WHAT EACH ONE COST. The check's remaining list was said to need a product decision rather than a repair; that was right about all four, and wrong about how much code each one was.
+
+`onAgentTap` — DECIDED: a row with an agent takes you to the AGENT'S PANE. `focusAgent` already existed and documents itself as the fix for exactly this bug; the whole change was re-pointing a call. THE "19 DAYS" WAS WRONG BY FIVE MONTHS: `AgentSubRow`, the control the parameter's doc comment names, died 19 days ago, but the parameter's last invocation was removed on 2026-03-30 (ef0147c1, 120 commits earlier) — so the control that survived until 19 days ago was itself already untappable. The ContentView closure carried a three-line comment explaining a design decision that was never once executed.
+
+`TransferAuthority.revoke` / `grants` — DECIDED: listed and withdrawable, in Settings → Agents. Pure wiring; the model half was written, doc-commented for this, and tested. The decision that MATTERED was the one underneath: a withdrawal now reaches work the grant ALREADY ADMITTED, because the grant is consulted once at request admission and never again, so binding only future asks left a transfer the human had just refused waiting its turn to start. It does not reach a running scp, and the help text says so. [[RFC-0013]] is at 0.3.0 with WITHDRAWABLE as a fifth property — C-BROKER had been resting its whole argument for preferring the relay to a key in authorized_keys on "scoped, gated, recorded and withdrawn (C-AUTHORIZATION)", and that clause listed four, none of them withdrawal.
+
+`onOpenRemoteAgent` — HALF DECIDED. Visibility shipped: an agent on another machine is readable in a sidebar section of its own, and the model layer needed four fixes to get it there, not a view. "Take me to it" is still open, and the reason I gave for deferring it was WRONG — I said it was a protocol gap; `ContentView.openRemoteAgent(machine:agentID:)` is written and attaches over `connect.sh`'s tmux session. It is unreachable, not missing. The row is deliberately not tappable rather than tappable-and-inert.
+
+`RemotePwd.parseForeground` — DECIDED AGAINST, recorded above.
+
+THE CHECK IS AT 2 and both are mine. `MasterPool.placeAfterRefusal` is the criterion I closed on the wrong half. `ExecController.handles(owner:)` is the last one nobody has decided.""",
+    """
+THE LIST IS EMPTY AND THE CHECK HAS JOINED `just verify`.
+
+`ExecController.handles(owner:)` was the last one, and it was DELETED rather than wired. Its doc named its job — "generation-end orphan marking" — and [[RFC-0007]] C-EXEC-SCOPE says what that job is: "its orphaned exec panes remain visible to the human with their machine-operated marker until closed." The marking the name promises is the marker STAYING PUT, which it already does; what generation end changes is ACCESS, and access is checked per request against the live registration. So there was nothing for a per-owner query to do.
+
+ITS TEST MOVED RATHER THAN WENT. It asserted the query's two answers; it now asserts the property the clause names, at the place that enforces it — an ended generation loses access whether a newcomer took the id or nothing holds it, another owner is undisturbed, and the record is still there afterwards, because losing access is not closing and the human is the one who closes.
+
+THIRTEEN TO ZERO, and the thirteen did not all go the same way — which was the argument for the check being narrow rather than a dead-code sweep. Two were WIRED because production held an inline copy of a named query or the retry half of a clause was missing. Three were NAMED as seams, because they are seams. Five were DROPPED with the rule re-pointed at the path that ships. Two were dropped because the corpus had retired the design behind them. One took a specification down with it.
+
+`just verify` now runs it, so the next method a test believes ships while nothing calls it fails the build rather than scrolling past in a report. That was the condition this item set for itself: "Either these get decided or the check gets deleted; leaving it printing thirteen forever is the outcome neither of us wants."""",
+]
+
+[[content.acceptance_criteria]]
+text = "Every method a test believes ships is either called by shipped code, named as a seam, or gone — and each of the thirteen is recorded with which of the three it was and why"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "just verify runs the check, so the next one fails the build rather than scrolling past in a report"
+status = "done"
+category = "added"

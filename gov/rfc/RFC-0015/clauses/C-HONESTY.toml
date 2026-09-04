@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HONESTY"
+title = "Reopening Must Not Overpromise"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The value of archiving rests on being able to come back to what was running, and that capability is not uniformly available. What the human is told MUST match what they will get.
+
+- WHERE WORK CANNOT BE REJOINED, REOPENING MUST SAY SO BEFORE IT RESTARTS ANYTHING. A pane that comes back as a fresh shell where the human expected their running work MUST be marked as restarted rather than rejoined.
+- The cases are known and MUST be distinguished rather than collapsed into one message: the far side is not durable, because the host opted out ([[RFC-0014]] C-OPT-OUT) or nothing answered for the recorded session; the child EXITED, normally with a code or on a signal, which [[RFC-0014]] C-EXIT-SIGNAL makes the holder report and which is the outcome of work that FINISHED — a list without it forces "the machine rebooted or it was reaped" onto a human whose build simply completed; the holder is gone because the machine rebooted or it was reaped; the host is unreachable; or no holder exists for that leaf — which is a fact about the
+  session, not about the machine: a local child can be held too.
+- A workspace whose panes will restart rather than rejoin MUST be distinguishable before it is opened, where the workbench can know this in advance — otherwise archiving teaches the human a promise that is only sometimes kept, and they discover which kind they had by losing something.
+- A DEGRADED PROMISE IS LEGITIMATE AND MUST NOT WEAR THE LARGER ONE'S WORDS. Where durability is absent — the host opted out, or nothing answers for the recorded session — archive releases resources and restores arrangement and working directory, and reopening restarts the work. That is a smaller feature than the one this document specifies, it is legitimate, and it MUST NOT be described to the human as the larger one. STATED AS A CONDITION RATHER THAN AS A RELEASE STATUS: an earlier form turned on "until RFC-0014 is implemented", which no conformance test can evaluate and which stopped being true without anyone editing it."""

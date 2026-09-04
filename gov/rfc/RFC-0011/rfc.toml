@@ -1,0 +1,53 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0011"
+title = "Headless Wake: Delegated Authority for Unattended Machines"
+version = "0.1.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-13"
+updated = "2026-08-13"
+refs = [
+    "RFC-0004",
+    "RFC-0005",
+    "RFC-0007",
+    "RFC-0009",
+    "RFC-0010",
+    "RFC-0014",
+]
+signature = "3708621e4abdbd7c6262bb7b3b281e1cfacac9e7044d71c175bc8d2b8dd7c6f5"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-DEFAULT.toml",
+    "clauses/C-DELEGATION.toml",
+    "clauses/C-EXPIRY.toml",
+    "clauses/C-HEADLESS-GATE.toml",
+    "clauses/C-VISIBILITY.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-13"
+notes = "Initial draft"
+added = [
+    "C-HEADLESS-GATE — a channel that is present but unprovisioned MUST NOT be treated as present, and the provisioned state MUST be checkable at the hub rather than inferred.",
+    "C-DEFAULT — the pending-wake flag crosses a peer boundary and had no capability treatment. Declared under RFC-0010 C-CAPABILITIES, with the condition that makes a capability sufficient here stated explicitly: absence MUST NOT be decoded as false, or an agent with unread mail on an older peer looks identical to one with none.",
+    "C-VISIBILITY — honouring a delegation and reporting one are ONE capability and MUST NOT be split; a build that honoured grants while declaring only the presence half would hide every unattended permission on the surface responsible for showing it. Absence here MAY be read as 'not delegated', but only because that equivalence holds.",
+]
+fixed = [
+    "C-HEADLESS-GATE contradicted itself — it stated a workbench-less hub sees no hook stream and no wrapper lifecycle, then three paragraphs later stated the veto channel is available because notify reaches the hub. Verified against the code: a detached remote agent runs 'synapty run' under tmux, and that wrapper exports the socket every hook is gated on and waits on the agent itself. Both channels are architecturally present. The receipt item is downgraded from an architectural absence to a DEPLOYMENT gap (the remote deploy does not install hooks) with its own binding requirement, because the two have opposite remedies.",
+    "C-HEADLESS-GATE now records that the wrapper passes streams through rather than proxying a pseudoterminal, so it observes neither screen nor keystrokes — every screen-derived objection and the human-recency item stand unchanged. Stated positively so the next reader does not repeat the hope.",
+    "C-DELEGATION names ADR-0007 and ADR-0008 for the submission-boundary impersonation defence. A precondition phrased as 'the decision record says so' cannot be checked, and an unverifiable precondition on the load-bearing step of an authority chain is indistinguishable from none.",
+    "qualify C-SUBSCRIPTION as RFC-0004's in C-DEFAULT and C-VISIBILITY. RFC-0009 has no such clause and the unqualified reference sat next to 'RFC-0009 C-PRESENCE'.",
+    "add RFC-0010 to refs; it was cited by C-DEFAULT and now governs two more clauses.",
+    "C-DELEGATION states the impersonation precondition as a testable PROPERTY in this RFC's own terms — a submitting connection bound to the identity it may claim — rather than by citing a decision record. The first correction named the ADRs and was rejected by the authority model (an RFC must not depend on an ADR); owning the requirement is the better fix anyway, since it makes compliance checkable against this clause alone.",
+]

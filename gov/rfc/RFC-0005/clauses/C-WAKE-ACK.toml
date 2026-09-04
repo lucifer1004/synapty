@@ -1,0 +1,30 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WAKE-ACK"
+title = "Wake Acknowledgement — Closed Loop or Stalled"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Wake is not fire-and-forget. Every injection MUST be verified against the
+presence event stream it was gated on.
+
+Requirements:
+
+- After injecting, the workbench MUST watch the recipient's [[RFC-0004]] status
+  for a `working` edge (or any lifecycle change) within an acknowledgement
+  window (SHOULD: 5s, herdr's `agent_prompt_stalled` constant).
+- Observed edge → the wake is acknowledged: record a wake-delivered event
+  and clear the pending candidate (the agent now owns draining its
+  mailbox).
+- No edge within the window → record a wake-stalled event. The workbench
+  MAY retry ONCE after the state gate re-opens; after a second stall it
+  MUST stop and surface the failure to the human (badge / event log), never
+  loop. A stalled wake is information — the manifest may be misreading this
+  harness, or the pane is not what registration claims — and nothing here can tell which, so the human is told rather than escalated to on a guess: the two readings call for opposite actions, and acting on the wrong one acts on the wrong pane.
+- Wake events (delivered / stalled / cancelled) MUST carry the recipient's
+  registration generation so late subscribers can correlate them with the
+  presence timeline."""

@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-003"
+title = "MCP socket discovery via process-tree walking"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+
+[content]
+description = "MCP server discovers daemon IPC socket by walking ancestor PIDs when SYNAPTY_SOCK env var is unavailable. Needed because MCP clients (Codex) may not pass env vars to MCP server subprocesses."
+
+notes = [
+    "2026-03-28 (mcp): Implemented process-tree discovery: @cImport for proc_pidinfo on macOS, /proc/pid/stat on Linux. getParentPid test passes, end-to-end discovery verified.",
+]
+[[content.acceptance_criteria]]
+text = "discoverSocket walks process tree and finds /tmp/synapty-<pid>.sock"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "getParentPid works on macOS (proc_pidinfo) and Linux (/proc)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

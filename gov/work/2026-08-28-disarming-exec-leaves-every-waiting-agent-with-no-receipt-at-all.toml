@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-003"
+title = "Disarming exec leaves every waiting agent with no receipt at all"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`setArmed(false)` cancels every in-flight wait task, which makes the `.disarmed` receipt in the task body unreachable: the only suspension point is the sleep, and `setArmed` runs on the same actor, so the loop never resumes to reach its own guard.
+
+An agent sitting in `synapty exec wait-output --pattern … --timeout 300` while the human flips the switch off gets NO receipt. Its CLI then blocks to its own deadline.
+
+[[RFC-0007]] C-EXEC-AUTHORITY: "Disarming MUST take effect immediately: a run whose Enter has not yet been sent is aborted …, in-flight waits terminate with the `disarmed` outcome (C-PRIMITIVES)". The outcome exists and is named; nothing can emit it."""
+
+[[content.acceptance_criteria]]
+text = "Disarming while a wait is in flight sends that wait a disarmed receipt, with a test that fails if the receipt is only attempted from the cancelled loop"
+status = "done"
+category = "fixed"

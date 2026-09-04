@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-001"
+title = "feat(detect): detection engine v2 — OSC title channel, structural regions, herdr-calibrated manifests"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "ADR-0005",
+]
+
+[content]
+description = "Upgrade the passive-detection engine (ADR-0005 locus, RFC-0004 C-PASSIVE-DETECTION) with the empirically-validated design from herdr (../herdr, Apache-2.0), our closest shipped competitor whose 19 battle-tested manifests prove the patterns. Three deltas: (1) OSC-title rule channel — Claude Code/codex write a Braille spinner (working), '✳ ' (claude idle) or 'Action Required' (codex blocked) into the terminal title; title rules are structured signals immune to screen-content spoofing, and C-PASSIVE-DETECTION already names 'the read region plus the OSC title' as the rule surface. Title text already reaches TerminalPaneManager.leafTitles via the SET_TITLE action (WI-2026-08-09-017). (2) Structural regions — after_last_horizontal_rule (where claude renders modals) and prompt_box_body (the ❯ input box between its two border rules) anchor rules to UI STRUCTURE, killing the 'agent output echoes chrome text in the bottom rows' false-positive class of the v1 bottom-15-rows read. (3) Manifest schema v2 — region/all/any/not/notRegex/lineRegex fields plus a 'skip' pseudo-state (recognized-but-uninformative UI like the transcript viewer halts evaluation without asserting: prevents '? for shortcuts' inside ctrl+o viewer from asserting done); herdr's claude/codex/gemini rules ported with state mapping blocked→waiting, idle→done (hub C-PRECEDENCE guards absorb aggressive done proposals), unknown+skip_state_update→skip. v1 manifests (contains/regex only) must still decode. Explicitly OUT of scope: OSC 9;4 progress channel (no libghostty plumbing yet), herdr's after_last_prompt_marker region, manifest hot reload (ADR-0005 V1 rule stands), and anything RFC-0005/wake-related."
+
+[[content.acceptance_criteria]]
+text = "Manifest schema v2: per-rule region (title|screen|after_rule|prompt_box|bottom(N)) + combinators all/any/not/notRegex/lineRegex + skip pseudo-state; a rule needs >=1 positive condition; v1 manifests (contains/regex only) still decode and classify (C-PASSIVE-DETECTION: format owned here, wire behavior unchanged)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "OSC title rule channel live: AgentDetector reads TerminalPaneManager.leafTitles per agent leaf; title-region rules classify with NO screen read; claude Braille-spinner->working and ✳->done ported at top priority"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Structural regions after_rule + prompt_box implemented as ports of herdr is_horizontal_rule / prompt_box_top_border_index / after_last_horizontal_rule semantics; chrome text ABOVE the last horizontal rule no longer matches modal (waiting) rules"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Bundled claude/codex/gemini manifests replaced with herdr-calibrated ports (Apache-2.0 attribution in file header): claude gains transcript-viewer/model-picker skip rules + precise permission-prompt conjunctions; codex gains title spinner/Action Required + Working-line fallback; state mapping blocked->waiting idle->done unknown->skip"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Swift tests cover: title region, after_rule scoping (same text above rule = no match), prompt_box extraction, skip halting (transcript viewer with ? for shortcuts present -> nil), all/any/not/notRegex/lineRegex semantics, v1 manifest compat, realistic claude permission-prompt + working-footer fixtures; full Swift suite green"
+status = "done"
+category = "chore"

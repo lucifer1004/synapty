@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-027"
+title = "fix(gui): ghostty polish — appliedScheme invalidation, divider rounding, hidden-leaf resize churn"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P2: (1) GhosttyApp.appliedScheme guard is a cache with no invalidation hook — invalidate after every hard reloadConfig; (2) SplitContentView computeDividers uses the raw fractional rect while computeFrames integral-rounds — divider geometry can sit off the leaf boundary; (3) hidden/inactive leaves are re-framed to the full container on every switch, forcing real PTY resizes (SIGWINCH) of surfaces the user cannot see."
+notes = ["appliedScheme invalidated after every hard reloadConfig (the guard can no longer go stale); computeDividers integral-rounds its rect exactly like computeFrames — divider geometry sits on the leaf boundary; AllPanesSplitView keeps lastFrames per leaf so hidden surfaces are not re-framed to the full container (no spurious SIGWINCH on switch)."]
+
+[[content.acceptance_criteria]]
+text = "appliedScheme invalidated after hard config reloads — the guard cannot go stale"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "divider geometry uses the same integral rounding as leaf frames"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hidden leaves keep their last visible frame — no spurious PTY resizes on switch"
+status = "done"
+category = "fixed"

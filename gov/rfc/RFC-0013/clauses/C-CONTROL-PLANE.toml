@@ -1,0 +1,24 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONTROL-PLANE"
+title = "This Is A Control Plane; Its Limits Must Be Stated, Not Discovered"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This plane is a CONTROL plane. It carries artifacts, decisions and views between a human and the agents working on their behalf. It is NOT a data plane and MUST NOT be presented as one.
+
+Every relayed byte crosses the workbench twice, and it competes for the LINK even when it no longer competes for the connection. C-BROKER places a transfer on a connection carrying nothing else, which is what keeps it out of the human's keystrokes — and the measurement behind that clause also shows the limit of it: separating the copy restored the interactive round trip to a BAND rather than to idle, because two connections still share one physical link. For a file a human drags this is invisible. For an agent that decides to move a large artifact it is not, and the failure mode — a terminal that stutters while a transfer runs — would be blamed on the terminal.
+
+This paragraph once rested the rules below on transfers sharing "the same multiplexed connections that carry the human's terminal input". C-BROKER removed that, and a normative rule whose stated premise has been retracted elsewhere is one the next reader is entitled to think moot.
+
+Therefore:
+
+- The implementation MUST apply backpressure and a size limit to agent-initiated transfers, and MUST report refusal as a refusal rather than a failure.
+- The documentation MUST state the limit. A limit discovered by hitting it reads as a defect; a limit stated in advance is a design boundary.
+- Transfer progress MUST be visible somewhere that does not depend on any one pane being open, since a pane can be closed or moved behind another while a transfer runs.
+
+WHAT THIS RULES OUT, deliberately: dataset movement, backup, and mirroring. Those wants are legitimate and belong to tools built for them; adopting them here would trade the property that makes this plane defensible — that it is small, attributable and mortal — for throughput it cannot win at anyway."""

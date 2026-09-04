@@ -1,0 +1,80 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/hermes.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "hermes",
+  "rules": [
+    {
+      "id": "title_blocked",
+      "state": "waiting",
+      "region": "title",
+      "regex": "^⚠[\\ufe0e\\ufe0f]?(?:\\s|$)"
+    },
+    {
+      "id": "title_working",
+      "state": "working",
+      "region": "title",
+      "regex": "^⏳[\\ufe0e\\ufe0f]?(?:\\s|$)"
+    },
+    {
+      "id": "interrupt_status_working",
+      "state": "working",
+      "region": "bottom(5)",
+      "any": [
+        "msg=interrupt",
+        "ctrl+c to interrupt"
+      ]
+    },
+    {
+      "id": "dangerous_command_approval",
+      "state": "waiting",
+      "region": "bottom(14)",
+      "any": [
+        "dangerous",
+        "approval",
+        "allow once"
+      ],
+      "regex": "(?i)enter (to )?confirm|↑/↓ to select|show full command"
+    },
+    {
+      "id": "clarification_prompt",
+      "state": "waiting",
+      "region": "bottom(14)",
+      "any": [
+        "hermes needs your",
+        "type your answer"
+      ],
+      "regex": "(?i)enter (to )?confirm|enter send|press enter|↑/↓ (to )?select|other \\(type"
+    },
+    {
+      "id": "credential_prompt",
+      "state": "waiting",
+      "region": "bottom(14)",
+      "any": [
+        "sudo password",
+        "skill setup",
+        "🔑"
+      ]
+    },
+    {
+      "id": "confirmation_prompt",
+      "state": "waiting",
+      "region": "bottom(14)",
+      "any": [
+        "approve once",
+        "start a new session"
+      ],
+      "regex": "(?i)enter (to )?confirm|type 1/2/3|y/n quick"
+    },
+    {
+      "id": "classic_cancel_working",
+      "state": "working",
+      "region": "bottom(5)",
+      "contains": "ctrl+c cancel"
+    },
+    {
+      "id": "title_idle",
+      "state": "done",
+      "region": "title",
+      "regex": "^✓[\\ufe0e\\ufe0f]?(?:\\s|$)"
+    }
+  ]
+}

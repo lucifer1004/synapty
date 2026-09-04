@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-030"
+title = "fix(attach): a notice written onto the session's screen resets the terminal parser first"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Seen on 2026-09-02 in a pane tailing a log: after a reattach the pane
+showed "ynapty: output was lost while this client was away" — the S was
+gone. The client writes its notices straight into the session's byte
+stream, and the stream had been cut right after an ESC (the log was
+coloured): the terminal read ESC, then the notice's "[" and "s", as CSI s
+(save cursor) and rendered the rest. Every on-screen notice — gap, link
+lost, session ended, taken by another client — can land in an unknown
+parser state, because that is exactly when they are written."""
+
+[[content.acceptance_criteria]]
+text = '''every notice the attach client writes onto the session's screen goes through one helper that first emits ST (ESC \), which returns a VT parser to ground from any pending escape, CSI, OSC or DCS state, so the notice's own bytes are never consumed as the tail of a cut sequence'''
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the notice bytes are a pure function with a unit test on the reset prefix and the text"
+status = "done"
+category = "chore"

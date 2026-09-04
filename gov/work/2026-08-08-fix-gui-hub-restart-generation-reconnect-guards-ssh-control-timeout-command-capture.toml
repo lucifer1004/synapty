@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-031"
+title = "fix(gui): hub restart generation, reconnect guards, ssh control timeout, command capture"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 warnings (Swift services): (1) HubManager.restartHub sets status .stopped during the ~2s wait — the UI offers Start, double/triple-launching the hub and orphaning the real one from process (Stop becomes a no-op); (2) reconnectTunnel has no in-flight guard and canReconnect is true while .reconnecting — double-click runs two concurrent setup scripts that fight over one ControlPath; (3) sshControl (-O check/exit) has no timeout — a wedged master piles up blocked utility threads each 10s tick, and disconnect never completes; (4) runSetup fires callbacks with connectCommand recomputed up to 60s after the request (port drift); (5) AgentMonitor.knownAgents is dead code; (6) HubManager logFlushTask cancellation would freeze log publishing forever."
+notes = ["restartHub is re-entrant-safe (isRestarting published flag + generation token; UI shows Restarting… instead of Start; old exit status logged; stopHub supersedes pending relaunches); reconnectTunnel guarded + canReconnect excludes .reconnecting; sshControl bounded at 10s with SIGKILL fallback; heartbeat skips hosts with a check in flight; connect callbacks receive the command captured at request time; knownAgents dead code removed; logFlushTask re-arms on cancellation."]
+
+[[content.acceptance_criteria]]
+text = "fix: restart is re-entrant-safe (generation token) — Start/Restart cannot double-launch; the old process's exit status is logged"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: reconnect is guarded (no concurrent setups) and canReconnect excludes .reconnecting"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: ssh -O check/exit runs with a timeout; heartbeat skips hosts with a check in flight"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: connect callbacks receive the command captured at request time"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: dead code removed (knownAgents), logFlushTask re-arms on cancellation"
+status = "done"
+category = "fixed"

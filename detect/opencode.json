@@ -1,0 +1,43 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/opencode.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "opencode",
+  "rules": [
+    {
+      "id": "permission_required",
+      "state": "waiting",
+      "contains": "△ permission required"
+    },
+    {
+      "id": "permission_dialog",
+      "state": "waiting",
+      "all": [
+        "esc dismiss"
+      ],
+      "any": [
+        "enter confirm",
+        "enter submit",
+        "enter toggle"
+      ],
+      "regex": "↑↓ select|⇆ tab"
+    },
+    {
+      "id": "interrupt_hint_working",
+      "state": "working",
+      "any": [
+        "esc to interrupt",
+        "ctrl+c to interrupt",
+        "press esc to interrupt"
+      ]
+    },
+    {
+      "id": "interrupt_line_working",
+      "state": "working",
+      "lineRegex": "(?i).*opencode.*esc (again to )?interrupt"
+    },
+    {
+      "id": "progress_bar_working",
+      "state": "working",
+      "regex": "(■|⬝){4,}"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-019"
+title = "fix(terminal): modifier releases reach the core, and links work in every pane"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 04 #2 #5 and two lows. flagsChanged always sends PRESS: for a plain
+shell invisible, for any program on the kitty keyboard protocol a modifier
+pressed and never released — in exactly the TUIs this workbench targets.
+Today's broadcast ([[WI-2026-09-02-010]]) forwards flagsChanged to every armed
+pane, so the defect now multiplies. Upstream's implementation is portable.
+Link hover and open only answer for the focused surface because
+viewForSurface checks activeView while the per-leaf registry one method
+below already knows every surface.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "flagsChanged reports press or release from the modifier bit for the event's keycode with left/right side masks and caps lock, and is skipped during IME composition, as upstream ghostty does (TerminalSurface.swift:421); a kitty-protocol TUI no longer sees a stuck modifier, and broadcast forwards the same corrected events"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "link hover and open route through the per-leaf view registry, not activeView (GhosttyApp.swift:597), so an unfocused split shows the target chip and opens on click"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SecureInput is refcounted across panes; firstRect flips with bounds.height"
+status = "done"
+category = "fixed"

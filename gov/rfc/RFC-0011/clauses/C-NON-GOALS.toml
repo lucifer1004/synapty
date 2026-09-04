@@ -1,0 +1,37 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- No arming from the remote machine. A CLI call, flag file or environment
+  variable on the host is what [[RFC-0005]] C-AUTHORITY forbids, and the
+  forbidding is not incidental: the authority to spend an agent's turn
+  comes from a human at a workbench, not from something a process could
+  arrange.
+- No implicit arming from deployment. Named separately because it is the
+  tempting one, and because the reasoning that would justify it is what
+  turns a per-pane act into an ambient permission.
+- No relaxation of the state gate for headless use, and no injection at
+  all until C-HEADLESS-GATE is amended with a resolved evidence model.
+- No new wake vocabulary. The template stays fixed and content-free
+  ([[RFC-0005]] C-TEMPLATE); a delegated wake is the same wake elsewhere.
+- No delegation of anything else. This concerns the authority to inject
+  the wake template and nothing more. It does NOT extend to [[RFC-0007]]
+  exec, whose blast radius is any command the agent can compose rather
+  than one fixed line, and which has its own arming for that reason.
+- No cross-machine wake ROUTING. [[RFC-0009]] C-NON-GOALS defers the
+  DELEGATED path, and [[RFC-0005]] C-WAKE-TRIGGER's federation qualifier
+  holds the rule that survived it: only
+  the hub holding the mailbox mints candidates, and only the hub hosting
+  the agent may inject. A delegation would let that hub act; it never lets
+  another hub act through it.
+- No claim that the delegation is unforgeable. C-DELEGATION states the
+  guarantee it actually provides, and [[RFC-0009]] C-BOUNDARIES forbids
+  presenting any identity claim as stronger than "some process reaching
+  this hub said so"."""

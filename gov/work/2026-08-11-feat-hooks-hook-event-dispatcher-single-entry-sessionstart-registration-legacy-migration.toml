@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-009"
+title = "feat(hooks): hook-event dispatcher — single entry, SessionStart registration, legacy migration"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "RFC-0003",
+]
+
+[content]
+description = "Reshape the hooks column (WI-2026-08-11-007) from three bespoke notify one-liners into ONE entry point: every hooked event runs '[ -n $SYNAPTY_SOCK ] && synapty hook-event claude; true', and the CLI reads the hook's stdin JSON (hook_event_name, session_id, cwd) and dispatches internally — SessionStart -> register --tool claude --project basename(cwd) --session <session_id>, UserPromptSubmit -> notify working, Notification -> notify waiting, Stop -> notify done, unknown -> no-op. Why: the hook input carries the REAL harness session identity, which is (1) the deterministic supplier RFC-0006's resume_ref blocker was missing, (2) the identity source RFC-0008 (durable agent identity, designed in parallel) will key on, and (3) deterministic registration means every claude pane gets tool-keyed passive detection + explicit presence without depending on skill compliance — the skill degrades to pure collaboration teaching. Hook discipline: hook-event NEVER exits nonzero and NEVER writes stdout (SessionStart/UserPromptSubmit stdout is injected into the model's context; exit 2 blocks the harness); IPC responses are discarded. SessionEnd deliberately NOT hooked: workbench teardown can fire it and an unregister there would drop RFC-0006 resume plans (review finding 5's boundary). Migration: install replaces legacy 'synapty notify --state' entries; uninstall removes both generations."
+
+[[content.acceptance_criteria]]
+text = "synapty hook-event <tool> subcommand — bounded stdin read, lenient JSON parse (malformed -> no-op), pure dispatch plan unit-testable without IPC; silent stdout, always exit 0"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "claude hooks template becomes four events (SessionStart + three states) sharing the single hook-event command; install migrates legacy notify entries in place; uninstall strips both generations; user hooks untouched throughout"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "SessionStart registration carries project=basename(cwd) and session=<session_id> through the existing register IPC (metadata refresh on re-register per RFC-0004)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "plan dispatch (register/notify/none incl. malformed + unknown event), template migration, both-generation uninstall; zig suite green; live smoke via stdin pipe against the running pane daemon with immediate honest re-register cleanup"
+status = "done"
+category = "chore"

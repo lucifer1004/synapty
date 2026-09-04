@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-A2A-REDUCTION"
+title = "RFC-0002 Reduction — What Stays, What Is Demoted"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+RFC-0002 (A2A IM-style protocol) is amended for the new model:
+
+- Kept: connection lifecycle (register/unregister), agent identity, the
+  envelope framing (type/id/source/target/payload) as the transport shell.
+- Kept: `response` envelopes used for request/ack correlation.
+- Demoted to optional: `dm`, `channel_*`, `list_agents` remain implemented
+  but are no longer the collaboration surface; no new agent-facing tool
+  exposes them.
+- Deprecated in favor of the platform model: group chat semantics; the hub's
+  message log switches from chat history to issue-activity events.
+
+The hub keeps its role as the connection registry (who is online, which pane
+maps to which agent) but no longer pretends to be a chat router.
+"""

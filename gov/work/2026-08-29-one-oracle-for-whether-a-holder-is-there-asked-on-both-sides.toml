@@ -1,0 +1,66 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-010"
+title = "One oracle for whether a holder is there, asked on both sides"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+[[WI-2026-08-29-009]] replaced `kill(pid, 0)` with a claim on the Zig side
+and left the same rule standing in Swift. `SessionRecord.isLive` is the
+load-bearing one: it decides whether the workbench RE-ASSOCIATES a pane
+with a surviving child or starts a fresh one. A reused pid reads as live
+there, and the workbench then confers a dead session's name on a newly
+started child — which [[RFC-0015]] C-PERSIST forbids in as many words,
+and which routes one agent's mail to a process that never was it.
+
+Three candidates for the one oracle, all measured rather than argued:
+
+- THE SOCKET'S BINDING is the tempting one, since the kernel maintains it
+  with exactly the holder's lifetime. It cannot be asked safely: with a
+  backlog of four, the fifth simultaneous `connect` to a live holder
+  returns ECONNREFUSED on this platform, which is the same answer as no
+  listener at all. A false negative here unlinks a running session's
+  socket.
+- LOCAL_PEERPID does hand back the bound process's pid from the kernel,
+  with no reuse hazard, but only when `connect` succeeds — so it cannot
+  answer for a wedged holder or a missing socket file.
+- THE CLAIM has no false negative: a live holder always holds it. And it
+  is what makes the recorded pid mean anything — the claim being held is
+  the kernel saying the process that wrote the record is still there, so
+  the pid in it is still that process's.
+
+So the claim is the oracle, and it is now the only one.
+
+Two things the same review turned up. `started_at` was written, parsed and
+read by nothing, while its comment called it one of "the two facts nothing
+else can answer once the process is gone" — once the process is gone
+neither field answers anything. And the record's founding justification,
+that the socket lived in `/tmp` where the system could sweep it, is past
+tense in its own comment: the socket now sits beside the record in a 0700
+directory this account owns. What justifies the record today is the claim
+it carries, and it now says so."""
+
+[[content.acceptance_criteria]]
+text = "SessionRecord.isLive asks the claim, so a reused pid can no longer hand a dead session's name to a new child"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SessionRecord.pid is removed; the claim is the fact and nothing else read the field"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Record drops started_at, which nothing has ever read"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a record naming this very running process, held by nobody, is not live — the shape C-PERSIST forbids"
+status = "done"
+category = "chore"

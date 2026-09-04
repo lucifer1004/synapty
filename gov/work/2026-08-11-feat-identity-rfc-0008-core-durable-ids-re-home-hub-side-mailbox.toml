@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-012"
+title = "feat(identity): RFC-0008 core — durable ids, re-home, hub-side mailbox"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0008",
+    "RFC-0004",
+    "RFC-0003",
+]
+
+[content]
+description = "The foundation of the implementation program: everything else (wake, resume continuity) keys on identity and the hub-side mailbox. Zig core per RFC-0008. Scope: (1) protocol — register gains resume_ref; register RESPONSE returns the bound agent id (the only way an agent learns who it is). (2) registry/hub — hub derives durable ids (<tool>-<8charfragment>, hub sole deriver, allowlist validation on tool AND resume_ref, local- prefix reserved, true collision rejects to pane fallback evented); connection-scoped generations per amended RFC-0004 C-WAIT (same-connection re-register keeps generation; identity UPGRADE on the same connection and RE-HOME from a different connection end the old generation with hub-synthesized agent_unregistered); connection-binding-wins source resolution; displaced connection notified + reverts to pane identity; last-register-wins with evented displacement. (3) mailbox MOVES hub-side keyed by identity: daemon becomes a relay for recv/recv --wait; known-offline DMs queue (ack=queued), never-registered DMs error fast; upgrade merges pane-queue into durable queue; mid-wait identity release terminates the blocked recv with a distinct stable error; bounded queues + disposal for dead pane-identity queues. (4) transport gating (C-TRUST hardening 1): durable-identity claims accepted only over wrapper IPC / deployed-tunnel connections — anonymous direct TCP registers only temporary/pane-class ids. (5) hook-event forwards resume_ref (session_id already parsed — one field rename away). GUI: minimal — display bound ids as delivered by existing event payloads; the displacement attention notice is WI-013+ territory if it needs new UI. TDD throughout; e2e for upgrade path (wrapper pane id -> hook register -> durable id, mail merge) and re-home path (second connection claims identity, first reverts + notified, queued mail drains from new home)."
+
+[[content.acceptance_criteria]]
+text = "protocol resume_ref on register + bound id in register response; hook-event supplies resume_ref"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hub identity derivation (deterministic fixed-8 fragment, allowlist both components, local- reserved, collision->fallback evented) + connection-scoped generations (upgrade + re-home end old generation with synthesized unregister; same-connection re-register keeps it)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "mailbox hub-side keyed by identity — daemon relays recv/--wait; queued-vs-error send acks; upgrade merges pane queue; mid-wait release -> stable error; bounded + disposed queues"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "transport gating — durable claims only via wrapper/tunnel connections; direct TCP limited to temporary ids"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "unit + e2e cover upgrade, re-home w/ displacement + mail drain, collision rejection, offline queueing, never-registered error, mid-wait termination; zig suite green"
+status = "done"
+category = "chore"

@@ -1,0 +1,61 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-012"
+title = "feat(gui): route away-from-keyboard failures through NotificationForwarder"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = ["WI-2026-08-13-011"]
+
+[content]
+description = """
+A state chip only works if someone is looking at it, and this product's premise is that they are not. Agents run detached, hubs federate, tunnels drop and redial while the human is elsewhere. A failure then gets a quiet mark on a page nobody has open.
+
+Notification Center is the system's own "while you were away" surface, and NotificationForwarder already reaches it. This is routing plus one correction, not new machinery.
+
+WHAT IS ALREADY RIGHT: authorization is requested `.provisional` — quiet delivery, no modal prompt. So failure notifications cost NO permission ask and do not compete with the grant that agent pings depend on. That removes the main objection to doing this at all.
+
+WHAT IS WRONG FOR THIS USE: every notification is posted with `identifier: UUID().uuidString`, so nothing can ever be replaced or withdrawn. Correct for OSC messages, which are events. Wrong for failures, which are STATES: if a peer returns thirty seconds later, "remotehost stopped responding" is a lie sitting in Notification Center. Failure identifiers must be DERIVED from the subject (`peer-failed-<peer-id>`), so a repeat replaces rather than stacks and a recovery withdraws.
+
+THE OPEN QUESTION FROM THE FIRST DRAFT IS SETTLED, and the mechanism settled it rather than taste. Marking and notifying CANNOT be alternatives: a withdrawn notification must leave the durable statement behind, or a user who was away when it cleared learns nothing ever happened. So the in-app mark ([[WI-2026-08-13-011]]) is the record and the notification is a retractable nudge.
+
+A SECOND DECISION FALLS OUT OF THE SAME DISTINCTION. Do not gate on app-active. `shouldForward(appActive:hasPayload:)` is right for OSC because those are events — "was the human here when it happened" is a sensible question about an event. It is the wrong question about a state: post when the state is entered, withdraw when it is left, regardless of where the human was. Provisional delivery is quiet, so this is not intrusive, and it closes the hole the first draft flagged (app frontmost but on another page).
+
+BOUNDS, so this does not become the thing people turn off:
+- Only EXHAUSTED retries notify — six backoffs, about a minute. A sleeping laptop drops tunnels constantly and a notification per drop is how someone disables notifications on day two and then misses the one that mattered.
+- NOT `.timeSensitive`. That needs an entitlement and is for genuinely critical things; a machine being unreachable is not, and using it would be abuse of a Focus-mode override.
+- A host that did not save does NOT notify. That happens in response to a user action, so they are present, and the inline mark is the right shape.
+
+CONTENT follows the two-channel rule: consequence, not cause. And the honest version here is the product's own value proposition rather than generic error reporting — "remotehost lost contact — 2 agents there are working without coordination" is the thing this product exists to tell someone."""
+
+[[content.acceptance_criteria]]
+text = "failure notifications carry a subject-derived identifier, so a repeat replaces and a recovery withdraws"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a peer link that exhausted its redials notifies when the app was not active"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a remote hub that died notifies when the app was not active"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a transient failure that self-healed does NOT notify, with a test"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the notification text states the consequence, not the error domain (AppLog two-channel rule)"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "posting is NOT gated on app-active — a state is posted when entered and withdrawn when left, unlike the event path"
+status = "done"
+category = "chore"

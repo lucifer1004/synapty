@@ -1,0 +1,90 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-003"
+title = "The wrapper holds a pseudoterminal, and a client can leave it and come back"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "ADR-0012",
+]
+
+[content]
+description = """
+First slice of [[RFC-0014]]: the holder exists, owns the child's terminal, and outlives the client attached to it. Nothing else from that document — no retained output, no screen model, no enumeration, no reaping, no cutover, no workbench changes.
+
+`synapty run` today spawns its child with the standard streams INHERITED, which is why the wrapper has never seen screen content or keystrokes. That changes here: the child gets a pseudoterminal the wrapper owns, and a client attaches to the far end of it over a local socket.
+
+IN SCOPE, and each is a clause: the holder keeps the child running while nobody is attached ([[RFC-0014]] C-HOLDER); at most one client at a time, with displacement told to the client it displaces (C-ONE-CLIENT); the client's input reaches the child in order and unaltered, and a displaced client's does not (C-INPUT); the attached client owns the dimensions and detach does not resize (C-SIZE); the child's exit is reported distinctly from a client's disappearance (C-EXIT-SIGNAL); a stalled client never blocks the child (C-STALLED-CLIENT); the socket serves only the account that owns it (C-ENTITLEMENT); starting is not attaching (C-START).
+
+OUT OF SCOPE and deliberately deferred: retention and positions (C-RESUME), the screen model and restoration (C-RESTORE), enumeration, reaping and ending (C-END), the terminal type declaration (C-TERMINAL-TYPE), the working directory and foreground reporting (C-PWD, C-FOREGROUND), the connect path and tmux's removal (C-CUTOVER), and every workbench-side change. A cold attach in this slice gets an empty screen; that is the next slice's job and MUST NOT be worked around here.
+
+The local watchdog stays as it is. `watchWorkbench` hangs up the pane when the workbench that spawned it dies, and that is right for a LOCAL pane — the durability this builds is for panes whose client is on the other side of a network, and the remote path passes no parent to watch."""
+notes = [
+    "2026-08-17: pty primitives land first, in the POSIX module. Two things were measured rather than assumed. The size ioctls answer ENOTTY on a Darwin `posix_openpt` master and succeed on the slave, so the holder keeps its own slave fd open and asks that end — which also removes the race where a child's last line is lost to the end-of-file the final slave close produces. And `src/sys.zig` had never been in the `zig build test` list, so the two tests it already carried had never run; adding it is what turned the size defect from silent into red.",
+    """2026-08-17: the holder itself, driven entirely through its socket — no test reaches into it to assert something a real client could not observe. Nine tests: output arrives, keystrokes arrive, the child outlives a client that leaves and is found by the next one, a second client displaces the first and the first is TOLD, a displaced client's input goes nowhere, the size the client set survives its departure, an exit code and a killing signal are reported as different things, and the socket carries no bits for group or other. Eight passed first run; the ninth failed for a defect in the test client rather than the holder — `readExactly` collapsed a read timeout into "the peer hung up", so a client that was merely waiting looked exactly like one that had gone. It now distinguishes the two, and reports a failure part way through a frame as its own thing, since that stream cannot be resynchronised.""",
+    """
+2026-08-17: the CLI reaches it. `run --hold` puts the child on a held terminal and runs the hub and pane-IPC threads beside it; `attach` is a pipe with a terminal at each end, putting the local tty in raw mode so no keystroke is interpreted twice. Terminal size is POLLED rather than signalled: a SIGWINCH handler that can only set a flag is a poll with extra machinery, and a quarter-second is invisible for something that happens when a human drags a window.
+
+`scripts/test-holder-e2e.sh` drives it as a human does — a session started by one process, two separate `attach` invocations against it, a refused duplicate start, and an attach to a name nobody holds. The child touches a file so that "is it still alive" is answerable without asking the holder, which would otherwise be a holder passing its own test.
+
+NOT DONE, and named so the next slice does not inherit a surprise: `run --hold` blocks rather than detaching from whoever started it. Over ssh that means the holder still dies with the connection, so the durability is real but not yet reachable the way it will be used. Detaching belongs with the connect path.""",
+]
+
+[[content.acceptance_criteria]]
+text = "A child spawned by the wrapper runs on a pseudoterminal the wrapper owns, as its session leader with it as controlling terminal"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The child keeps running while no client is attached, and its output is not lost for want of a reader"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A client attaches over a per-session local socket, and detaching leaves the child running"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A second attach displaces the first, and the displaced client is told so rather than left to infer it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Input from the attached client reaches the child in order and unaltered; input from a displaced client does not"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The attached client sets the terminal dimensions; detaching does not resize the child"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The child's exit is reported with its code or signal, and is distinguishable by a client from losing its own connection"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A client that stops reading does not block the child"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The session socket is refused to every account but the one that owns it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A start against a name already held fails rather than joining it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tests cover attach, detach, reattach, displacement, input direction, resize, and child exit"
+status = "done"
+category = "chore"

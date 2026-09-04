@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-028"
+title = "A pane cannot be dragged into a different place in the layout"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-18"
+completed = "2026-08-19"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "ADR-0010",
+    "RFC-0013",
+]
+depends_on = [
+    "WI-2026-08-17-024",
+    "WI-2026-08-18-001",
+    "WI-2026-08-18-002",
+]
+
+[content]
+description = """
+A pane can be split and closed but not MOVED. Its position is decided when it is created, and rearranging means closing it and opening another somewhere else — which on a remote host costs a dial and loses whatever was on screen.
+
+The mechanism is available and the hazards are known:
+
+- THE APPKIT DESTINATION EXISTS. `TerminalSurface` already implements `draggingEntered` / `draggingUpdated` / `performDragOperation` and registers dragged types for file drops. Docking extends that destination rather than starting one — SwiftUI's own drop modifiers never fire behind the terminal, because AppKit finds its destination by walking the NSView tree.
+- OVERLAPPING LEAVES ARE THE TRAP. Every leaf of every workspace sits in one ZStack at the same frame. `.opacity(0)` and `.allowsHitTesting(false)` govern SwiftUI hit testing and say nothing to AppKit; `isHidden` is the one state it honours. Two file transfers went to the wrong machine through this, and a drop that ignores it will find an invisible pane first.
+- `SplitNode` ALREADY HAS THE PIECES. `splitLeaf`, `removeLeaf` and `arranged` exist, and a dock is remove-then-insert. Leaf identity must survive it: surfaces and ptys are keyed by leaf id, which is why `arranged` reuses `LeafData` verbatim.
+- Exported drag UTIs must be declared in `project.yml` under `UTExportedTypeDeclarations`.
+
+THE GESTURE IS NOT DECIDED AND MUST BE SETTLED WITH THE HUMAN BEFORE CODE. What is grabbed, what the drop regions are, and whether a drag can leave the workspace it started in are interaction questions [[RFC-0015]] deliberately does not answer.
+
+What the model now guarantees is that the answer cannot corrupt anything: a leaf carries its own connection, so a pane dragged into a tab belonging to another machine keeps reporting its own host, and a tab holding two machines is a legal arrangement rather than a state the code will misread.
+
+Any affordance drawn during the drag — highlights, insertion previews, region hints — is workbench UI over the pane, never bytes into it."""
+notes = [
+    "2026-08-18: Gated behind [[WI-2026-08-18-002]] rather than started. The gesture questions were about to be asked when Zihua pointed out the model still has two container species — a tab bar of split trees — where docking needs one: a split tree of tab stacks. 'Drop this pane onto that one' has no operation to write while the destination type lives at a different level of the hierarchy, so a gesture built on the current shape would encode the split into the interaction permanently. Status stays active because govctl allows no path back to queue.",
+    "2026-08-18: The gesture is agreed with Zihua, and it is three answers. WHAT IS GRABBED: the tab card, and only that — which is why every slot draws a bar now. A press in the terminal body always belongs to the shell, so the drag contends with no mouse-reporting application. WHERE IT MAY LAND: the four edge bands of a pane split the position that way, the centre stacks into it — the full vocabulary, and exactly what stackPane/movePane already express. WHETHER IT MAY LEAVE ITS WORKSPACE: yes, by dropping on that workspace's row in the sidebar; the pane arrives in that layout. No spring-loading — the sidebar does not switch under the drag, so a cross-workspace move places the pane and lets the human follow it or not.",
+    "2026-08-18: Built, and two criteria are left for Zihua because only a hand can settle them. WHAT IS DONE: the tab was already a drag source and only another TAB could receive it, so the pane body became the second destination — AppKit on a terminal (a SwiftUI drop modifier behind it is never asked), SwiftUI on the panes that are not terminals, both going through one dockPane so a region cannot mean two things. The highlight is the shape the pane will TAKE, half the position for an edge and all of it for the centre, because the band is an input and the human is choosing an outcome. Tearing a stacked pane out onto its own edge is allowed; only the drop that would delete its own destination is refused. 715 Swift tests green, and four mutations were run: ignoring the near side, treating every region as a stack, dropping the tie tolerance on a corner, and letting a pane land on its own workspace's row. The first was caught by ONE test on the first pass, because every position in that arrangement held a single pane and counting them read the same for a left drop and a right one — rewritten to name the panes.",
+    "2026-08-18: The sidebar drop had to be built the long way round. A row's own drop modifier is never reached inside a List — measured in WI-2026-08-17-023, and the whole of what 'it can be dragged but not dropped' was there — so a second attempt at it would have been a known dead end. The destination is the SECTION around the list instead: each row reports its frame through a preference key, and which row a drop meant is a question about a point. Row frames do not overlap and contains() excludes the far edge, so the pixel where two rows meet belongs to exactly one of them rather than to whichever the dictionary handed over first. A drop in the heading or below the last row names no workspace and is refused rather than sent to the nearest one. NOT CONFIRMED: whether a drop over the list reaches the section's destination at all is the one thing tests cannot say, and it is the same class of question the row-level attempt got wrong. If it does not fire, the next mechanism is an AppKit destination that hit-tests only while a pane drag is in flight.",
+    "2026-08-18: Zihua: docking within a workspace works, crossing workspaces does not. The section-level destination was the wrong answer to the right diagnosis — a List delivers a drop to neither its rows nor anything around it, so wrapping it changed nothing. The List is gone instead. It was providing scrolling and nothing else: no selection (WI-2026-08-09-009 took that out deliberately), and WorkspaceRow already draws its own pill, hover, padding and tap. So the rows are a LazyVStack in a ScrollView, and both sidebar drags are now the one mechanism the tab bar has used all along — .draggable to a .dropDestination. moveWorkspace(_:before:) had been written for exactly this in WI-2026-08-17-023, tested, and left unreachable because the List forced onInsert; it is the reorder path now, with a trailing target past the last row for moveWorkspaceToEnd. moveWorkspace(_:toIndex:) and moveWorkspaces(fromOffsets:toOffset:) went with onInsert, and their five tests with them.",
+    "2026-08-18: 落点反馈,一套词汇四个接收方。此前全库 isTargeted 出现零次 —— 除终端正文外没有任何接收方有反馈,标签重排从 WI-2026-08-09-018 起就一直没有。定下的语言按操作分:有顺序的插入(标签之间、工作区之间)画 2pt accent 线在真正会落进的缝隙上,因为人在选位置;放进容器(pane 落入槽位、pane 落入工作区)整块填充,因为人在选容器。一行同时是两种接收方,所以两个 isTargeted 分开记。不做来源反馈。非终端面板(files/web)改用 DropDelegate:标记要跟着指针走,而 isTargeted 只是一个 Bool,dropUpdated 是唯一带位置的回调;载荷从拖拽剪贴板读,复用终端已经在用且已被测试的那个 seam,而不是 item provider —— provider 回读正是 WI-2026-08-17-023 测出来永远拿不到值的东西。顺带发现终端的标记用的是 NSColor.controlAccentColor(系统蓝),而其余接收方用 DS.accent(品牌青),即 ADR-0011 明确不要的那个选择;DesignSystem 现在给出同源的 accentNSColor,终端的 pane 标记和文件拖拽边框都改用它,同一个表面不再说两种语言。",
+    '2026-08-18: Zihua:功能 OK,但落位标记比同类应用丑。量下来的结论不是品味问题 —— 是这套标记绕过了本项目已有的设计系统,三处各自重造了一遍且都更差。(1) DS.selectionAccentSoft 的注释原话就是 "tinted fill for a selected or TARGETED region"(浅 12% / 深 18%),而这里硬编码了 accent 0.28,两倍多的重量,浓到把终端文字染色。(2) 同一个视图里焦点环和注意环都是 cornerRadius 2 + 2pt stroke,而落点框用了 radius 6/8 —— 一块面板上同时存在两种圆角;并且分屏后的面板是直角,圆角预览违背了本 WI 自己立的 "the highlight is the result" 规矩。(3) 这里 stroke 表示状态、fill 表示选中,而落点框两个一起上,视觉重量翻倍却没多说任何东西。修法:fill only、soft、radius 2。另外四条:AppKit 那块由 remove/add 改为同一个视图 animator().frame,不再瞬移(这是"廉价感"最大的单一来源);标签栏改为开槽让位,槽宽取被拖标签的实测宽度(拖拽剪贴板给出 pane id),且槽放在该标签自己的 destination 内部 —— 放外面会让指针落进槽后离开目标、槽关闭、再次进入,一帧一次地抖;侧栏行改为 Finder 式换装(实心 selectionAccent + DS.textOnSelection 反色),不再在自己的圆角底上再盖一层半透明圆角;侧栏保留 caret 但移到 2pt 行间隙的中心并两端内缩 —— 竖列用 caret、横条开槽是 Finder 与 Chrome 各自的做法,因为行高统一而标签宽度不统一。dropContainerFill 随之无人调用,已删。',
+    "2026-08-18: Zihua:让位时会多出一个被拖对象的克隆。这是选了开槽必然带出来的 —— SwiftUI 的 .draggable 不把原件从条上拿走,拖拽影像是副本,所以槽一开屏幕上同时有三个:原地的标签、指针上的影像、以及承诺第三个的空槽。Chrome 和 Safari 没有这个问题,是因为标签被拿起时真的离开了条。现在原件在槽打开的同时塌陷为零宽,且只在本条内某个目标被悬停时塌 —— 那正是槽存在的时刻;在此之前,标签静止在自己的拖拽影像底下是任何拖拽都有的样子。被拖 pane 的 id 每次拖拽只从剪贴板读一次并记住:塌陷后的标签量出来是零宽,再读会把它刚腾出来的槽缩掉。另外 HStack 自己的 spacing 在子视图塌陷后仍然保留,于是标签原处留下两道各 4pt 的残余间隙;间距因此改为由标签自己以 trailing padding 承担,跟着标签一起塌。",
+    '2026-08-19: Zihua 验过两条手势验收,都通过。收尾时抓到两个 bug,形状相同:同一个混淆被决定了两遍。工作区被拖走最后一个 pane 后无限转圈 —— aggregateState 把"连接状态集为空"读成 connecting,而那个兜底没有任何用例,因为 connections(ofWorkspace:) 早就把占位符的待定连接算进去了(它自己的注释就写着为什么)。修完转圈还在:ContentView 有自己的一份判断,把 layout == nil 也读成"还在拨号",于是给一个从不拨号的本地连接显示"Establishing SSH tunnel…"。三个结果现在收进 WorkspaceManager.paneArea(of:) 一处决定,空态补齐(RFC-0015 C-EMPTY 要求它不得渲染成空白面板区域并且要提供创建 pane 的手段)。两个 bug 都早于本 WI —— 关闭最后一个 pane 走同一条路,自从工作区不再随最后一个 pane 一起销毁之后就是这样,只是没人从那个方向撞上。',
+]
+
+[[content.acceptance_criteria]]
+text = "A pane can be dragged to a different position in the layout and keeps its process, its scrollback and its connection"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A pane dragged into a tab whose other panes are on a different machine still reports its own host for file drops, presentation-plane origin, agent lifecycle and pwd"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A drop lands on the pane the human is pointing at, never on an invisible leaf underneath it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The drop's effect on the split tree is covered by tests; that the drag STARTS is the human's to confirm, being a gesture rather than a state"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The gesture — what is grabbed, the drop regions, and whether a drag may cross workspaces — is agreed with the human before implementation"
+status = "done"
+category = "chore"

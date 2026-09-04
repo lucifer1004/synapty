@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-007"
+title = "The file browser draws Seti marks from a bundled Nerd Font"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+Eight categories drew every source file in a repository as the same mark,
+and a source tree is most of what this pane ever shows: `main.zig`,
+`main.swift`, `main.rs`, `main.go` and `build.sh` were five identical
+glyphs. The category is the right model for how a row BEHAVES; it was
+never the right model for what a row LOOKS like.
+
+The bundle now ships Nerd Fonts' "Symbols Only" face (MIT, 2.3 MB) and
+macOS registers it through `ATSApplicationFontsPath`, so no code has to
+remember to. Row icons are drawn from its Seti-UI and Codicon ranges — the
+same marks VS Code, yazi and eza draw file trees with, so a reader already
+knows them. They are monochrome, so they take the pane's palette and
+follow the appearance; that is what `NSWorkspace`'s document icons could
+not do.
+
+One table gives both halves — the category and the mark — so a suffix
+cannot be typed one way and drawn another. The table still answers before
+`UTType`, for the reason it did before: what the system knows depends on
+the machine, and a remote directory must look the same to everyone."""
+
+[[content.acceptance_criteria]]
+text = "fonts/ ships SymbolsNerdFont-Regular.ttf with its MIT licence, registered by ATSApplicationFontsPath"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "one table maps a suffix to both its kind and its mark; whole names cover Dockerfile, Makefile, LICENSE"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Glyph names every code point by its upstream Nerd Fonts glyph name, so a number can be proofread"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = ".pdf is a document rather than an image, which drew a photo frame for a manual"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "every mark in the table is asked of the bundled face itself, which catches a typo, a font bump and a bundle that failed to register"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "no two languages share a mark, and a directory outranks a whole name"
+status = "done"
+category = "chore"

@@ -1,0 +1,75 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-007"
+title = "A cold attach is given the screen, not an empty terminal"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "ADR-0012",
+]
+
+[content]
+description = """
+[[RFC-0014]] C-RESTORE. A client that arrives holding nothing — a workbench that restarted — has been getting an empty terminal, while the human's work sits on a machine they can reach and cannot see. The holder keeps a screen model and hands it over.
+
+THE SAME EMULATOR THE WORKBENCH RENDERS WITH. `libghostty-vt` is a supported standalone library upstream, and using it rather than a second implementation is what keeps the far side's idea of a screen and the near side's rendering of it from disagreeing — a disagreement that would surface only after a reattach, the least observable moment there is.
+
+IN SCOPE: the library linked for every deploy target; the holder interpreting its child's output; a restoration sent to a client that presents no usable position, carrying which screen it describes, its dimensions, and sequences that reproduce it; the client's size applied before the restoration is produced; the model following every resize; and the client rendering what it is given.
+
+INTERPRETING IS NOT PUBLISHING. The screen exists to answer a returning client and nothing else. No agent can read it, and pane classification stays where [[RFC-0004]] C-PASSIVE-DETECTION puts it. Both are capabilities this makes possible; neither is authorised here.
+
+OUT OF SCOPE: the connect path. With this slice a cold reattach stops being worse than what tmux gave, which is the last precondition for pointing the remote path at the holder — but pointing it is its own work, with its own cutover."""
+notes = ["""
+2026-08-17: ghostty is a PATH DEPENDENCY on the submodule that was already here, and upstream supports being one — its build installs `ghostty-vt-static` when it detects it is a dependency. Two build facts worth keeping: riscv64 needs `simd = false` (the vendored vector library's RISC-V intrinsics do not compile), and a fresh checkout must fetch ghostty's own dependencies with the proxy environment cleared, which is the same thing the xcframework recipe already does.
+
+Cost, measured: deploy binaries went from roughly 1.0–1.2 MB to 1.75–2.2 MB. The debug native binary is 13.8 MB.
+
+Every formatter extra is asked for explicitly rather than inherited. The library defaults to text alone, and an attribute left out is a difference the human sees and cannot explain — so the set written out here is the minimum C-RESTORE names.
+
+A holder whose screen model will not start still holds. The degradation is exactly what the previous slice shipped: a cold reattach is blank. That is a worse session, not a lost one, and refusing to start would make it lost.
+
+The alternate-screen test had to be rewritten: it first wrote the sequence into the pty MASTER, which is the human typing it, not the child emitting it. The screen model is fed from what the child says, so the child now emits it."""]
+
+[[content.acceptance_criteria]]
+text = "The terminal library builds and links for all five deploy targets"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The holder interprets its child's output into a screen model, and follows every resize"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A client presenting no usable position is sent a restoration before any live output"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The restoration states which screen it describes and the dimensions it is in"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A client's size is applied before its restoration is produced"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A resuming client is not sent a restoration"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A holder whose screen model cannot start still serves, degraded to what it was before"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An end-to-end test shows a cold client through the real CLI being given the screen rather than a blank terminal"
+status = "done"
+category = "chore"

@@ -1,0 +1,56 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONTENT"
+title = "What a Pane Holds"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A pane is not necessarily a terminal, and what each kind is MUST be settled here rather than assembled from mentions elsewhere.
+
+THIS CLAUSE IS A TABLE AND NOT A NARRATIVE, deliberately. An earlier form enumerated cases in prose, and every amendment that closed a gap opened another on the far side of the sentence that closed it: a rule naming the kinds that refuse a file drop lost the kind that accepts one; a rule naming three delivery situations left the fourth between them. A row with a column for every question cannot be silently partial — a kind admitted later has empty cells, and an empty cell is visible.
+
+## The kinds
+
+There are FOUR. A fifth requires an amendment, and that amendment MUST fill every column below.
+
+| Kind | Shows | Connection it names | Runs a child | Durable state | Accepts a file drop | Drag source | Primitive destination |
+|---|---|---|---|---|---|---|---|
+| **terminal leaf** | a child process on its machine | any | YES | working directory, resume plan, agent id | YES | no | none |
+| **file leaf** | a directory on its machine | any | no | the directory it is showing | YES | YES | `present` |
+| **services leaf** | what agents have exposed on its machine | any | no | none of its own | no | no | `expose` |
+| **browser leaf** | a page the human addressed | the local connection, ALWAYS | no | its address | no | no | none — see below |
+
+The bold labels are the terms this and every other document uses; a clause citing "a file leaf" cites that row.
+
+Reading the columns:
+
+- CONNECTION IT NAMES is the leaf's binding under [[RFC-0015:C-LEAF-BINDING]], which applies to every kind unchanged.
+- RUNS A CHILD is whether a leaf of that kind has a process behind it, and it is the predicate the rest of this document turns on more than any other: only such a leaf carries an agent id ([[RFC-0015:C-LEAF-BINDING]]), only such a leaf has anything to rejoin after an absence ([[RFC-0015:C-UNARCHIVE]]), and it is the only axis on which copying a pane can fail ([[RFC-0015:C-LAYOUT]]). It had no column until a review found three clauses answering it from prose.
+- DURABLE STATE is exactly what [[RFC-0015:C-PERSIST]] writes for that kind, and nothing else may be written per leaf.
+- ACCEPTS A FILE DROP and DRAG SOURCE are separate questions and are separate columns, because a kind may be one without the other: a terminal receives files and originates none, a file leaf does both. A kind marked "no" for a drop MUST refuse one: [[RFC-0015:C-LEAF-BINDING]] requires every "which machine is this?" question to be answered from the leaf, and a drop's destination is on its list, so a kind with nowhere to put a file would otherwise answer confidently and wrongly.
+- PRIMITIVE DESTINATION is which presentation primitive renders into that kind ([[RFC-0013:C-PRIMITIVES]]), which owns the delivery rules. "None" for a terminal means only that no primitive PRESENTS there; agents address terminals by execution ([[RFC-0007]]), which presents nothing.
+
+## What the rows do not say
+
+- A LEAF'S CONTENT KIND IS FIXED AT CREATION and MUST NOT change afterwards. A converted leaf is a new pane wearing an old identity, and identity is what surfaces and children are keyed by ([[RFC-0015:C-LAYOUT]]) — so a conversion is a close and an open, and MUST be visible to the human as one.
+- CONTENT AND CONNECTION ARE SEPARATE FACTS. A file browser is a browser OF a machine, and "which machine is this leaf on" is answered from the leaf whatever it is showing.
+- THE BROWSER LEAF'S CONNECTION IS A STIPULATION AND NOT A DERIVATION, and saying so is the point: the table's other rows admit any connection, so nothing about being host-bound yields this one, and an implementer told it follows has no reason to write the check. The reasoning that suggested it — a page is fetched by this machine — holds in the common case and does NOT generalise: a human may address a forwarded port on the loopback interface, and that fetch is served, in substance, over the far machine's network. A rule derived from routing would have let a browser leaf drift to whichever machine served the bytes, which is neither implementable nor testable. So the cell reads "the local connection, ALWAYS" and means it, even where the bytes came from elsewhere. A pane that fetched over a remote machine's network would be a proxy: a different capability, with a different security story, and not this kind.
+- What belongs to one kind MUST live on that kind rather than on every leaf. A command is the example: only a terminal has one, and a field that is meaningless for the kinds that have none is an invitation to read it anyway.
+- Every layout operation MUST work on every kind. Splitting, moving, closing and rearranging make no reference to what a pane is showing; where a kind changes what an operation MEANS, [[RFC-0015:C-LAYOUT]] states it as an invariant rather than as a case.
+
+## Obligations that attach to a kind
+
+- NO PRIMITIVE MAY TARGET A BROWSER LEAF, and [[RFC-0013:C-PRIMITIVES]] carries the prohibition. Content there wears no agent's name, so anything an agent placed in one would be presentation without attribution, in chrome the human reads as their own.
+- A BROWSER LEAF MUST BE VISIBLY NOT THIS APPLICATION. It renders whatever it is pointed at, and a page is the content best able to imitate the window it is drawn in. It MUST carry chrome of its own that marks it as a rendered page — a positive mark, not merely the absence of ours — and it MUST NOT wear the frame that marks agent content ([[RFC-0013:C-REQUEST-NOT-SEIZE]]), because no agent asked for it and attributing it to one would be false. This binds the browser kind and no other: a file leaf is navigated by a human too, and its agent-presented artifacts MUST still wear that frame.
+- A BROWSER LEAF MUST BOUND WHAT IT WILL LOAD. The permitted scheme space MUST be an allow-list stated in the workbench's own documentation, it MUST NOT include `file:`, and anything outside it MUST be refused visibly rather than silently ignored. An allow-list is not by itself a bound — one containing `file:` satisfies the shape of this rule and none of its purpose, since such a leaf reads the human's own disk inside the window they trust most.
+- BOTH OBLIGATIONS ABOVE MUST BE MET BEFORE A HUMAN CAN CREATE A BROWSER LEAF. They cost nothing while no such pixel exists and cannot be retrofitted once content sits somewhere it appears to belong; a gate on release would defer them indefinitely while [[RFC-0015:C-UNRELEASED]] holds.
+- WHAT A SERVICES LEAF HOLDS IS WHAT AN AGENT OFFERED. What a machine merely listens on is not an offer: it MUST NOT be enumerated for the local connection at all, and on a remote connection it MUST require an explicit human act rather than appearing of its own accord. A machine answers on many ports that are nobody's work, and a list that leads with them buries the few that are.
+- A LEAF WITH NOTHING TO SHOW MUST SAY WHAT TO DO INSTEAD. Emptiness is a state, not a failure, and it is reached most often on the surfaces thinnest by design. It MUST NOT be presented as a dead end, and MUST NOT offer an action this specification forbids.
+
+## What is not a pane at all
+
+A SURFACE THAT BELONGS TO THE APPLICATION RATHER THAN TO A MACHINE MUST NOT BE A PANE. It has no connection to bind to, so it has no answer to the question every other leaf answers, and no row above will take it. Appearance is the case in hand: it stays a panel beside the layout, which is what lets the human judge a theme, a font and an opacity against the terminal they are actually looking at. A side panel remains legitimate for exactly this — a subject that is not a piece of the human's work and not on any machine."""

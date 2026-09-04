@@ -1,0 +1,23 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-003"
+title = "CI actions track their current majors"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+Two of the governance job's actions were behind their current majors:
+extractions/setup-just was on v3 and jaxxstorm/action-install-gh-release
+on v2.1.0. Both new majors (v4, v3.0.0) only move the action runtime from
+Node 20 to Node 24, which GitHub is retiring; inputs are unchanged.
+Pointed out by the user. Not pushed — the user asks that pushes happen
+only on request, so the runner-side check waits for the next publish."""
+
+[[content.acceptance_criteria]]
+text = "the governance job uses extractions/setup-just@v4 and jaxxstorm/action-install-gh-release@v3.0.0 (Node 24 runtimes, same inputs); the runner-side check is deferred to the next requested push"
+status = "done"
+category = "chore"
