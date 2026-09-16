@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-007"
+title = "refactor(gui): IA restructure — Tasks absorbs Activity as tab; Hub page demoted to status-bar popover (process controls + agents + mini log console); sidebar collapses to Terminal/Hosts/Tasks/Settings; bridge config unified in Settings"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Approved IA decision (2026-08-09): Tasks/Activity/Hub are three facets of one subsystem (both Tasks and Activity read TaskMonitor; Activity is the task center's audit stream; Hub mixes process plumbing with bridge config). Option A chosen: first-class nav = Terminal/Hosts/Tasks/Settings; Activity becomes a segmented tab inside Tasks; Hub becomes a clickable status-bar popover (status+port, Start/Stop/Restart, connected agents, embedded mini log console with Copy — popover confirmed sufficient, no page-level log view); GitHub bridge config unified in Settings (Tasks empty-state Connect CTA stays as direct sheet); bridge-error deep-links retarget Settings instead of the deleted Hub page."
+
+[[content.acceptance_criteria]]
+text = "Sidebar navigation shows exactly Terminal/Hosts/Tasks/Settings; Activity and Hub rows removed; Tasks badge preserved"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tasks page has Board|Activity segmented control; Activity tab renders the existing timeline (card rows, auto-scroll on new events) and Board keeps filter bar + grouped cards"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Status-bar Hub item is clickable and opens a popover with status dot+label+port, Start/Stop/Restart controls honoring the isRestarting guard (WI-2026-08-08-031), connected agents list, and an embedded always-dark mini log console with Copy"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HubPageView deleted; .synaptyShowHubPage notification removed; Tasks bridge-error empty state and status-bar bridge-error icon route to Settings"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "AppPage drops .activity/.hub; --page hub/activity launch args degrade gracefully (map to tasks); build green, full test suite green"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Screenshot verification at Extra Large scale: Tasks Board tab, Tasks Activity tab, Hub popover open"
+status = "done"
+category = "chore"

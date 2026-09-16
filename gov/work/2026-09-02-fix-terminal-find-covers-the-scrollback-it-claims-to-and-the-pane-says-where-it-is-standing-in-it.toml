@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-001"
+title = "fix(terminal): find covers the scrollback it claims to, and the pane says where it is standing in it"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Zihua reported the gap directly: pane search only finds what is on the
+current screen, there is no way to know how much history a pane holds, and
+scrolling shows no scrollbar.
+
+THE ENGINE WAS NEVER THE PROBLEM, which is what made the symptom
+misleading. Ghostty's core search covers the full scrollback (ScreenSearch
+carries an incremental HistorySearch; select() scrolls the viewport to an
+off-screen match), and the core reports scrollbar geometry
+(GHOSTTY_ACTION_SCROLLBAR {total, offset, len}) on every change. The
+embedder half was the gap: the scrollbar action was dropped on the floor
+entirely, and somewhere between the find bar and the surface the search
+never reached core (measured: a needle 3000 lines up reports "none"; a
+needle ON SCREEN also reports "none"; runSearch logged `no surface for
+leaf` — the search action was issued against a leaf id the surface map
+does not hold).
+
+Because SearchResults stays empty, FindBarView disables its navigation
+arrows — so even when core searched, a human had no way to step into
+history, which reads exactly as "search only covers the screen".
+
+Scope: (1) root-cause and fix the leaf-id/surface mapping so search:
+reaches core and totals come back; (2) a scrollbar overlay fed by the
+scrollbar action — thumb size/position from tested arithmetic
+(ScrollbarMath), drag via scroll_to_row, hidden while the terminal follows
+output at the bottom; (3) dev args --pane-command and --find so terminal
+content and search are drivable for verification without accessibility."""
+
+[[content.acceptance_criteria]]
+text = "ScrollbarMath is pinned — no thumb without overflow, extremes reach the track ends, minimum thumb size, drag inverts rendering exactly, clamping at both ends"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "searching a needle that exists only in scrolled-out history reports its true count in the find bar, and navigate steps the viewport to it (verified live via --pane-command/--find)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a pane scrolled into history shows a thumb whose size and position reflect total/offset/len, dragging it scrolls the pty viewport, and a pane following its output at the bottom shows nothing"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a search issued against a missing surface, and a search result arriving for a surface no leaf claims, both log as errors instead of vanishing"
+status = "done"
+category = "fixed"

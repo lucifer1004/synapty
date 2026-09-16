@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-010"
+title = "gov(identity): durable agent identity — RFC-0008 design round"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0005",
+    "RFC-0006",
+]
+
+[content]
+description = "Synapty currently uses the ADDRESS as the IDENTITY: agent id = the pane wrapper's local-XXXX, minted per pane. Panes are ephemeral; the durable thing is the harness session ('claude --resume abc123' restores the same memory and collaboration context). Consequences already live: the task center is PERSISTENT (RFC-0003 issues model) but records dead pane ids — the dogfooding agents local-2c69/local-4194 can never reclaim their own issue #2 work; DMs to a dead pane id have no forwarding address; RFC-0006 resume brings a session back as a stranger. Design round deliverable: RFC-0008 draft specifying (1) durable identity derived from (tool, harness session id) with the pane wrapper id demoted to transport address / bare-shell fallback, (2) RE-HOME semantics — the same identity registering from a new connection is the same id with a fresh RFC-0004 generation (wait pinning, wake cancellation, event correlation all inherit existing semantics), plus a same-session-twice conflict rule (last-register-wins + event trail), (3) hub-side identity-keyed mailbox — the queue currently lives in the pane daemon and dies with it; re-homing requires hub-side queues, which is ALSO the shape RFC-0005's wake trigger (mailbox empty->non-empty at the hub) already assumed — two RFCs converge on one move, (4) trust honesty: session ids are self-reported; identity claiming means mailbox takeover is possible inside the V1 loopback+tunnel single-human trust domain — same posture as today's self-chosen ids, bigger consequence, must be stated not hidden. Distinguish properly: a NEW session in the same project is correctly a NEW agent; only resume/continue preserves identity. Implementation follows after the RFC settles; WI-2026-08-11-009's hook-event is the upstream identity supplier and lands independently."
+notes = [
+    "Review round 1 (govctl:rfc-reviewer, 2026-08-11) returned 4 blockers + 6 should-fix + 4 nits + 1 suggestion; ALL addressed same day. Blockers: (1) RFC-0004 amendment was mischaracterized — C-COORDINATION now states it is a REAL amendment (C-WAIT generation continuity becomes connection-scoped; C-OWNERSHIP status preservation scoped to same-generation), (2) wake trigger would never fire for resume-with-mail — C-COORDINATION adds the C-WAKE-TRIGGER rule that registration/re-home with a non-empty mailbox counts as a fresh edge, (3) collision-extended fragments contradicted determinism — fixed 8-char fragment, hub sole deriver, true collision rejects to fallback with event, register response returns the bound id, (4) the same-connection identity UPGRADE (the COMMON path: wrapper auto-registers pane id, session registration arrives later) was unspecified — C-REHOME now defines it (pane generation ends evented, pane-queue mail MERGES into durable queue, pane-id DMs resolve via connection binding). Should-fixes: mid-wait recv terminates with stable error on identity release; displaced connection notified + connection-binding-wins traffic rule + evented ping-pong; queued-vs-error send acks (typo DMs fail fast); version-skew rule (hub queueing authoritative, redeploy required); live-claim cutover = human unclaims manually; tool string passes the same allowlist + local- prefix reserved. Nits: resume_ref named explicitly as the wire field distinct from free-text session metadata; RFC-0001 added to refs; queue disposal rule; out-of-pane direct-TCP recv excluded from durable queues. Suggestion ADOPTED: both trust hardenings written in as requirements (durable claims only over workbench-established transports; live displacement = GUI attention notice). Reviewer verdicts logged: last-register-wins confirmed correct vs reject-second (resume racing dead TCP is the primary case); collision math assumes hex-UUID session ids — codex/gemini session id formats UNVERIFIED, check before finalize; register response ack payload path untraced (verify it can carry the bound id).",
+    "VERIFICATION RESOLVED (2026-08-11, web research): session id formats are hex UUIDs across all three launch tools — claude (UUID session ids), codex (rollout-<timestamp>-<uuid>.jsonl under ~/.codex/sessions/YYYY/MM/DD/, resume via codex resume <session-id> or --last; example 019d122d-9c09-7572-addf-ee59fab48e1b), gemini (gemini --resume <UUID> since the Jan-2026 session-management release; example 196c7382-f24e-4945-9b99-7e511fe6bc35; note upstream resume bugs reported early 2026). RFC-0008 C-IDENTITY 8-hex-fragment collision math holds. Remaining pre-finalize item: trace the register-response payload path for carrying the bound id (implementation-time).",
+]
+
+[[content.acceptance_criteria]]
+text = "RFC-0008 draft created via govctl — identity derivation, re-home + generation semantics, conflict rule, hub-side mailbox move (RFC-0005 convergence), trust clause, non-goals; govctl check clean"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "coordination impacts recorded — RFC-0003 (registration identity), RFC-0004 (generation on re-home), RFC-0005 (mailbox location), RFC-0006 (resume identity continuity) — as amendment notes for finalize sequencing"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "review round completed (rfc-reviewer) with findings addressed or logged in WI notes"
+status = "done"
+category = "chore"

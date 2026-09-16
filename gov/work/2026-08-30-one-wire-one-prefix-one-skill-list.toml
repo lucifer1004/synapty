@@ -1,0 +1,70 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-006"
+title = "One wire, one prefix, one skill list"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Three more from the sweep, all of the same shape: a fact with an owner that
+some site could not reach or did not use.
+
+TWO TOOL ROUND TRIPS AND ONLY ONE WAS CAREFUL. The printing form connected
+with the human-readable sentence [[RFC-0003]] C-CLI-TOOLS asks for and read
+under a 200s deadline chosen to outlast the hub's own 180s park. The
+capturing form — the one `synapty ask` uses, for the question and then once
+a second for the answer — did neither: it connected with a bare `try`, so
+with no hub it propagated ConnectionRefused out of main as a stack trace
+over this repository's own source paths, and it read with no deadline, so a
+request the hub parked and nobody answered blocked until the caller was
+killed. The capturing form is the owner of the wire now and the printing
+form keeps only its printing. Both also sent a fixed envelope id — "task-0"
+and "ask-0" — so two requests in flight from one caller were
+indistinguishable to anything wanting to correlate them; the owner mints
+one per request.
+
+THE HUB COULD NOT REACH THE PREFIX IT ACTS ON. `cli-tmp-` marks an id that
+names a CONNECTION rather than an agent, and three of its four consequences
+are the hub's: it withholds durable identity, it pushes a dm down the
+connection instead of into the mailbox, and the workbench filters such
+agents' polling out of the activity stream. The constant lived in
+`cli/transport.zig`, which the hub cannot import, so the hub wrote the
+literal out twice and a fifth minting site in `wait.zig` wrote it a third
+time. It lives in `protocol.zig` now, with `isTempAgent` beside it. Swift
+cannot import that either; `TaskMonitor` restates it and now says so.
+
+A SKILL FILE ADDED TO THE TREE WAS NOT INSTALLED. `skill_files` was five
+hand-written `@embedFile`s beside the directory they name. A file added to
+`src/skills/` and not to that array is not written out, and a `SKILL.md`
+linking it sends the reader to a page that does not exist. The list is
+generated at build time by walking the directory, sorted so the generated
+source depends on the tree's content rather than on filesystem order."""
+
+[[content.acceptance_criteria]]
+text = "toolExchange owns the tool wire — the unreachable-hub sentence, the read deadline, and a request id per request"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "synapty ask answers an absent hub with a sentence and exit 4 instead of a stack trace"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "protocol.temp_agent_prefix and protocol.isTempAgent are reachable by the hub, which had written the literal out twice"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the skill file list is walked from src/skills at build time"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an e2e asserts every tool verb answers an absent hub with a sentence and exit 4, which no unit test can reach"
+status = "done"
+category = "chore"

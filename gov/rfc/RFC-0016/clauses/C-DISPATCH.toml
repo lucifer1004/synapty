@@ -1,0 +1,41 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DISPATCH"
+title = "Resolving a keystroke"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Resolving a keystroke is a total function of two things: what has focus, and what the table says about the chord. This clause is that function, written out.
+
+## Classifying the focused surface
+
+The focused surface is classified by THE FIRST ROW BELOW THAT MATCHES IT, read top to bottom. Ordering rather than disjointness, because the categories genuinely overlap — a terminal's tab-rename field is both a text field and workbench chrome, and a leaf mid-dial is a terminal leaf with no terminal in it. Asserting that such things fall in one row each does not make it so; saying which row wins does.
+
+## The function
+
+| Focused surface | Chord names a `workbench` command | Chord names a `terminal` command | Chord names nothing in the table |
+|---|---|---|---|
+| **1. a surface recording a chord** ([[RFC-0016:C-REBIND]]) | not dispatched | not dispatched | not dispatched — the keystroke IS the recording |
+| **2. a text-entry surface belonging to a terminal leaf** — its find field, its tab's rename field | the command runs | runs against that leaf's terminal, UNLESS the command yields to text entry or that leaf has no live terminal — then the responder chain has it | the responder chain has it |
+| **3. a LIVE TERMINAL** — a terminal leaf whose connection is up and whose terminal exists | the command runs; the terminal is NOT offered the keystroke | the engine action runs against THAT terminal; the terminal is NOT offered the keystroke | offered to the terminal as key input |
+| **4. anything else with focus in this application** — a leaf of another kind ([[RFC-0015:C-CONTENT]]), a terminal leaf that is dialling or has failed ([[RFC-0015:C-DIAL]], [[RFC-0015:C-FAILURE]]), a workspace with no panes ([[RFC-0015:C-EMPTY]]), a PAGE OVER THE LAYOUT — a surface this application draws in the layout's place, covering it, which the layout neither shows through nor receives clicks from — and the workbench's own chrome | the command runs | not dispatched — the responder chain has it | the responder chain has it |
+
+Row 4 is the catch-all and takes everything the first three do not, so the function is total by construction rather than by enumeration. A new kind of surface lands in row 4 unless a row is added above for it, which is the safe direction: it gets the workbench's commands and offers nothing to a terminal that may not be there.
+
+## Reading the function
+
+- ONE KEYSTROKE RUNS A COMMAND AT MOST ONCE. The function above says WHICH command a keystroke reaches; this says HOW MANY TIMES, which is a different obligation and is not implied by the other.
+
+  It is stated because a platform may hand one keystroke to more than one mechanism — a menu's key equivalent and an event monitor, both reading this table, naming the same command. Nothing about the table is violated and the human still gets the act twice. A TOGGLE IS WHERE IT SHOWS: opened and shut in one press, the state is unchanged and the screen has flashed, which reads as the workbench failing to notice what it just did. Where a workbench dispatches through more than one mechanism, the SECOND arrival of a keystroke already answered MUST be dropped.
+- THERE IS NO "MATCHED BUT DROPPED". A `terminal` command with no terminal to act on is not swallowed; it is left to the responder chain, which is a destination and not a silence.
+- "OFFERED TO THE TERMINAL" IS AN OBLIGATION, NOT A DEFAULT. A terminal surface answers YES to every command-modified key equivalent it is given, so a chord the table does not claim does not reach the human's shell by being ignored — it reaches it because the workbench passed it there deliberately. What this forbids is a chord that is neither a command nor a keystroke.
+- A LEAF WITHOUT A LIVE TERMINAL IS NOT A TERMINAL. Row 3 tests for the terminal, not for the pane's kind: a leaf that is dialling or has failed draws workbench chrome with a control in it ([[RFC-0015:C-FAILURE]]), and there is nothing there to offer a keystroke to or to run an action against.
+- A `workbench` COMMAND ACTS ON THE ACTIVE WORKSPACE AND ITS FOCUSED PANE ([[RFC-0015:C-LAYOUT]]), whatever holds first responder. That is why the first column is the same in rows 2, 3 and 4: closing a pane means the same act whether the cursor is in a terminal, in a rename field, or in the sidebar.
+- AND IT MUST NOT ACT ON A LAYOUT THE HUMAN CANNOT SEE. While a page over the layout has the place, a `workbench` command that acts on the layout MUST first put the layout back in that place — showing it — and only then act. An arrangement that changed behind a page the human was reading is a change they meet later with no way to account for it.
+- A COMMAND WHOSE OBJECT DOES NOT EXIST IS UNAVAILABLE, not silent — closing a pane in a workspace that has none, splitting where there is nothing to split. Unavailability MUST be visible wherever the command is shown ([[RFC-0016:C-DISCOVERY]]); a chord that does nothing and says nothing is indistinguishable from a binding that is broken.
+- ROW 2 REQUIRES THE SURFACE TO BELONG TO A LEAF, and a surface that belongs to no leaf is row 4. A find field owned by the window rather than by the pane it was opened from is not row 2, and a `terminal` command pressed there reaches no terminal — correctly, because there is no fact saying which one it would mean. Ownership is what makes the row decidable; where a workbench has not established it, row 4 is the honest answer and not a workaround.
+- A `terminal` COMMAND ACTS ON THE TERMINAL THE FOCUS IS IN OR BELONGS TO, and nowhere else. This is not focus deciding what a chord MEANS; it is a command whose object is defined as "the terminal in front of you" having no object when there is none."""

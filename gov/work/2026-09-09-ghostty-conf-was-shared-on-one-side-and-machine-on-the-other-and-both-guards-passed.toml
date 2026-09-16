@@ -1,0 +1,64 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-013"
+title = "ghostty.conf was shared on one side and machine on the other, and both guards passed"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = ["RFC-0016:C-REBIND"]
+
+[content]
+description = """
+The config layout is stated twice — `src/paths.zig` classifies each entry
+`shared` or `machine` for the CLI's migration, and `ConfigPaths` classifies
+the same entries for the app that reads them — and nothing made the two
+answer together.
+
+`ghostty.conf` was `shared` in Zig and `machine` in Swift. Each side has a
+thorough guard and each guard only ever asks about its own tree:
+`src/paths.zig` asserted `Kind.shared` and `Tests/ConfigPathsTests.swift`
+asserted `.machine`, with a comment on each explaining why its own answer
+was right. Both green, for months, in two suites that never meet.
+
+WHICH ANSWER IS RIGHT IS SETTLED. [[WI-2026-09-02-005]] moved the fragment
+to `machine` because it is DERIVED — from the person's settings and from
+this machine's `$SHELL` — so it is regenerated wherever it lands. Carried
+as a record it became a second copy of the same intent that could disagree
+with the first, and did: a fresh machine wrote its default fragment before
+sync fetched, the remote copy lost to "keep ours" for a non-JSON file, and
+the terminal ignored the synced theme. That work moved the workbench's
+answer and left the CLI's behind.
+
+WHAT THE MISMATCH DID. The Zig entry has no reader — it exists to be
+migrated — so a flat-layout fragment was filed into `shared/`, the half
+that syncs between machines, which is precisely the artefact
+[[WI-2026-09-02-005]] removed. Nothing is lost, because the workbench
+regenerates the file; what is recreated is the condition that made it
+disagree.
+
+AND A COMMENT AGREED WITH THE WRONG SIDE. `SynaptySettings.swift`
+documented the fragment as living at `shared/ghostty.conf` while the code
+beside it wrote to `machine/`."""
+notes = [
+    "TWO GUARDS, EACH RIGHT ABOUT ITS OWN HALF, IS THE WHOLE DEFECT. Both sides had a test AND a comment arguing the classification, which is what made this survive: a reviewer opening either file found a considered answer with a reason attached. What neither file could contain is the other one's answer. The crossing test is not a third opinion — it runs both migrations against one directory and asks where the file actually ended up.",
+    "BOTH ORDERS, BECAUSE NEITHER IS GUARANTEED. The app migrates at startup and the CLI migrates on every invocation, and a pane's CLI can run before the app's next start. The mismatch only bites in one of the two orders, so a test that fixed an order would have been a coin toss.",
+    "THE SWEEP FOUND A SECOND CANDIDATE THAT WAS NOT ONE. `keys.json` failed the first version of this test because the CLI's migration does not know it — and it does not need to: the app migrates its own entries. Reporting that as a defect would have been the test's shape leaking into the finding. The version that landed runs both migrations, which is what a real machine does.",
+    "AND THE TEST ASKS A SECOND PROCESS, so it compares against whatever binary was built last. `just verify` builds before it runs the Swift suite; running that suite alone after editing `paths.zig` compares the new Swift answer against a stale CLI. That is a property of crossing a process boundary rather than a flaw to guard against — the alternative is not crossing it, which is how the two drifted.",
+]
+
+[[content.acceptance_criteria]]
+text = "The CLI classifies ghostty.conf as machine, so its migration files the fragment where the workbench reads it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SynaptySettings no longer documents the fragment at a path nothing writes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A crossing test runs BOTH migrations against one config root, in both orders, and requires every entry to land where the workbench reads it and nowhere else"
+status = "done"
+category = "chore"

@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SCOPE"
+title = "Which Sessions Have Holders, And What Names Them"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A session started through this project's connect path on a machine configured for durability MUST have a holder. Any other session MUST NOT.
+
+THE MACHINE THE CHILD IS ON, WHICHEVER IT IS. An earlier form of this clause said "a remote session", and every other document inherited the assumption: [[RFC-0015]] C-UNARCHIVE went as far as calling the local case's mortality inherent. It is not. A holder is a process on the machine its child is on, and the workbench's own machine is such a machine — measured, a locally started holder outlives the process that started it, keeps its child working, and is found again by name with no hub running. What made the local case different was that the workbench ended its wrapper on exit rather than leaving it, which is a choice this clause now declines to make on the implementation's behalf.
+
+- Durability MUST be the default for a machine. A record that predates the setting MUST resolve as durable.
+- THE OPT-OUT REACHES EVERY MACHINE INCLUDING THIS ONE. A human MUST be able to refuse durability for the workbench's own machine on the same terms as any host ([[RFC-0014]] C-OPT-OUT), and the refusal MUST be as reachable there. Durability on the machine a human is sitting at means work continues after they close the window, which is a promise and a cost at once: it is the difference between an agent that survives a laptop sleeping and one that goes on spending after its human has finished for the day.
+- Every session class started through that path is in scope, including panes opened on an agent's behalf ([[RFC-0007]] C-EXEC-SCOPE). No class is exempt on the grounds that it is short-lived; a scratch pane that outlives its owner is exactly the holder nobody will return to.
+
+A holder MUST have a name with all four of these properties. The derivation is not specified here; a derivation that lacks any of them does not satisfy this clause.
+
+- STABLE. It MUST NOT change for the life of the holder, and MUST NOT follow an identity the hub later mints or re-homes ([[RFC-0008]] C-IDENTITY, C-REHOME).
+- UNIQUE ON THE HOST. Two live holders on one host MUST NOT share a name. Uniqueness beyond that host is not required and MUST NOT be assumed.
+- ARBITRATED BY THE HOST. A name MUST be established as unique where the holders are, not asserted by whichever client proposes it. Two clients that have never met MUST NOT be able to produce the same name and have one of them silently join the other's session.
+- RECOVERABLE. A client that has lost all its own state MUST still be able to determine the name of a session it intends to return to. A name that only the client that created it can reconstruct makes every workbench restart an orphaning. A WORKBENCH THAT MINTS A FRESH NAME FOR A RESTORED PANE HAS NOT SATISFIED THIS: the name it returns with MUST be the one the pane persisted, or the session it left is unreachable by the only client that wanted it."""

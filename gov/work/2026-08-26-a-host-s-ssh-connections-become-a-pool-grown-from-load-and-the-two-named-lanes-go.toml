@@ -1,0 +1,195 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-26-001"
+title = "A host's SSH connections become a pool grown from load, and the two named lanes go"
+status = "done"
+created = "2026-08-26"
+started = "2026-08-26"
+completed = "2026-08-26"
+refs = [
+    "RFC-0013",
+    "ADR-0016",
+]
+
+[content]
+description = """
+[[RFC-0013]] C-BROKER was re-formed: a host no longer holds two ControlMasters named `interactive` and `bulk`, it holds a pool whose size follows observed load. [[ADR-0016]] carries the reasoning and the rejected options.
+
+WHAT MOVES. `scripts/setup-host.sh` stops pre-opening the second master and stops attaching every forwarding rule to the first. `scripts/connect.sh` asks the pool for a connection rather than assuming one socket path. `TunnelManager`'s `Lane` enum and `socketPath(for:lane:)` are replaced by pool membership; the two places that enumerate `[.interactive, .bulk]` for teardown become an iteration over what the pool actually holds. `TransferService` stops naming `.bulk` and instead asks for a connection carrying nothing else.
+
+THE PART THAT CAN MAKE THINGS WORSE is teardown. C-AUTHORIZATION now says opening is inseparable from recording, because with no fixed set of socket names a connection opened outside the pool is one nothing will ever close — and `ControlPersist=yes` means it survives the app. That is where the tests belong.
+
+NOT IN SCOPE HERE: repeating C-BROKER's latency measurement against the pool. It is listed as an acceptance criterion because the clause's central claim is unverified without it, but it needs a real remote host under sustained load and is a separate sitting."""
+notes = [
+    """
+MIGRATION IS NOT IMPLEMENTED, AND FOR FORWARDS THE REASON IS A HOLE IN THE DESIGN RATHER THAN TIME.
+
+C-BROKER permits migration (MAY) and says what it costs when it happens. What neither the clause nor ADR-0016 supplies is a TRIGGER, and for forwards there may not be a sound one.
+
+The trigger would have to be "this connection is carrying load". But a connection's round trip says only that SOMETHING on it is heavy, never WHICH channel — and if the heavy thing is a forward, migrating a forward off that connection has an even chance of moving the innocent one. That kills a live stream (accepted, deliberately) and buys nothing: the heavy forward stays, the connection stays loaded, and the next pass has the same coin to toss. Repeated, it walks every quiet forward off the connection one at a time until only the heavy one is left, which is the right final state reached by breaking everything else on the way.
+
+Per-channel attribution is not available from ssh. `-O check` answers about the connection.
+
+WHAT IS ACTUALLY COVERED WITHOUT MIGRATION. Placement is load-aware, so nothing NEW lands on a loaded connection, and the heartbeat opens the quiet one ahead of the pane that will want it. The residue is only "two things already sharing a connection when one of them becomes heavy" — for a pane that is a stall until the pane is reopened, and for a forward it is the forward-against-forward case.
+
+PANE MIGRATION IS TRACTABLE and is the one worth doing next: the holder makes it lossless (`connect.sh` execs `synapty attach --relay`, and the holder resumes a returning client from where it stopped reading), so it needs a pane-relaunch path in the GUI and a new SYNAPTY_SOCKET, not a new trigger — the pane itself is the thing being stalled, so "this pane's connection is loaded" is a sound trigger where "some forward on it is heavy" is not.""",
+    """
+THE REFUSAL CRITERION IS NOT MET END TO END. `MasterPool.placeAfterRefusal` exists and is tested — it marks the connection full, opens another and retries there, with no knowledge of the remote bound's value. Nothing calls it, because nothing yet DETECTS a refused channel.
+
+Where it would have to be seen: a pane's ssh writes "channel N: open failed: administratively prohibited" to the pane and exits, so catching it there means reading the terminal's own output, which is not a seam this project has. The subprocess paths — transfers, listings, control commands — do have one, since SubprocessRunner already returns their output; those are the tractable half and are the place to start.
+
+Until then the symptom is unchanged from before this work: on a host whose sshd bounds sessions low enough, a pane past the bound fails to start and nothing says why.""",
+    """
+C-BROKER'S CLAIM, MEASURED AGAINST A REAL HOST (2026-08-26, `scripts/measure-pool.sh remotehost 300`).
+
+    idle       0.45s   quietest of five over a master carrying nothing
+    shared     4.92s   worst of 73 round trips while a 300 MB copy ran on the SAME master
+    separate   1.23s   worst of 162 round trips while the same copy ran on its OWN master
+
+Sharing costs 10.9x idle; separating costs 2.7x. The clause holds: sharing stalls the round trip and a connection of its own does not.
+
+TWO THINGS THE NUMBERS SAY THAT THE CLAUSE DOES NOT.
+
+Separating does not restore idle, it restores a BAND — 2.7x, not 1.0x. Two connections share one physical link, so a saturated link is still a slower link. That is the same distinction the pool draws between a congested link and a crowded connection, and it lands on the right side of the four-fold threshold: 2.7x does not read as loaded, so an idle connection during a copy stays a usable target rather than triggering endless growth.
+
+Separating made the COPY slower: 73.0s against 64.8s, about 13%. Two connections compete for the link where one did not, and the interactive probes take a share as well. That trade is not recorded in C-BROKER, which discusses only what the copy costs the terminal and never what the terminal costs the copy.
+
+AT 60 MB THIS LINK DID NOT REPRODUCE THE STALL AT ALL — 2.1x shared, inconclusive. The clause's original table was taken at 60 MB, so the size at which the effect appears is a property of the link and not of the payload. The script says INCONCLUSIVE rather than reporting a pass when the premise fails to reproduce, because a run that never stalled cannot tell whether separating helped.
+
+NOT MEASURED: the workbench's own pool end to end. This exercises the transport claim the pool is built on, with masters this script opens itself. Driving `setup-host.sh` would deploy the daemon and start a hub on the remote machine, which is a change to somebody's host rather than a measurement, and no host is configured in the workbench on this machine to make it a no-op.""",
+    """
+DRIVEN AGAINST A REAL HOST (2026-08-26, remotehost — a machine this project had already been deployed to, per a binary backup there dated 2026-08-12).
+
+`setup-host.sh remotehost 22 operator 9000 9000 '' ''` ran to SETUP_OK: platform probe, binary upload, terminfo, remote hub, peer forward.
+
+ONE CONNECTION, WHERE THERE WOULD HAVE BEEN TWO. The socket directory afterwards held exactly `operator@remotehost:22`. Before this work it would also have held `operator@remotehost:22.bulk`, opened and held against a transfer that may never come.
+
+THE NAMING SCHEME SURVIVES A REAL SSH. A second connection opened with the pool's own argument list, at `operator@remotehost:22#2`, came up and answered. `#` in a ControlPath is fine, which was the one thing about the scheme that could only be settled by trying it.
+
+NAMING THE SOCKET REALLY DOES SELECT THE CONNECTION, and this is the property the pane path rests on. Each master has its own sshd process on the far side, so the remote parent pid distinguishes them: `operator@remotehost:22` answered 1368786 and `operator@remotehost:22#2` answered 1368853. Resolving `${SYNAPTY_SOCKET:-<derived>}` exactly as connect.sh does, with SYNAPTY_SOCKET naming the second, landed on 1368853.
+
+TEARDOWN CLOSES EVERY MEMBER — the part of this change that could have made the system worse than it was. Iterating the directory and sending `-O exit` to each closed both and left the directory empty, with no master surviving. That is what `closeAll` does, over the same filesystem read.
+
+NOT AN ISSUE, recorded because it looked like one: with TUNNEL_PORT passed as 9000 by hand, the peer forward's local port collides with this Mac's own hub. The workbench does not pass 9000 — `peerPort(for:)` skips any port already in use. The collision was in my invocation, not in the product.
+
+STILL NOT EXERCISED: growth under load through the workbench itself, which needs the GUI running against a loaded host. What is verified here is the mechanism it depends on — the naming, the selection and the teardown — over a real link rather than a fake opener.""",
+    """
+THE REFUSAL IS NOW DETECTED, AND WHAT I SAID IT LOOKED LIKE WAS WRONG.
+
+An earlier note here said that past the remote's session bound "a pane fails to start and nothing says why". Measured instead of assumed — a user-level sshd on remotehost's loopback with MaxSessions=1, since the bound cannot be reached on a host configured normally:
+
+    mux_client_request_session: session request failed: Session open refused by peer
+    I-STILL-RAN
+    exit=0
+
+THE COMMAND RAN. The client printed the refusal to stderr and then quietly opened a connection of its own. So the failure is not visible at all: the pane works, but it paid a full authentication, it is multiplexed with nothing, and the pool believes it is on a socket it has never been near. A model that wrong is worse than an error, because nothing will ever contradict it.
+
+THE EXIT STATUS IS USELESS as a signal, which is why the detection reads stderr for `Session open refused by peer` — a string captured from a real refusal rather than guessed at.
+
+WHERE IT IS DETECTED. The heartbeat's round-trip probe already opens a session channel on every member every ten seconds, so it finds the bound by walking into it. No setting is read and none is assumed, which is what makes this correct on a host permitting five and on one permitting a hundred. A connection found at its bound stops being offered — to panes, to transfers, and to short commands — and the next channel grows the pool instead.
+
+THE WINDOW IS TEN SECONDS. A pane opened between the bound being reached and the next probe still gets the silent fallback once. Closing that needs the refusal to be caught on the paths that hit it, which for a pane means reading the terminal's own output — still not a seam this project has.""",
+    """
+PANE MIGRATION IS DONE, AND IT COST ALMOST NOTHING BECAUSE THE RECONNECT ALREADY EXISTED.
+
+`runAttachThrough` in `src/cli/commands.zig` already loops: it spawns the transport, and on `.transport_lost` waits a second and spawns it again — in the SAME process and the same pty, which is why a dropped link leaves the pane's scrollback where it was. What it could not do is come back somewhere else, because it respawns the same argv and the socket was baked into it.
+
+So the transport now resolves its socket from a FILE on each attempt and records its own pid, and a migration is: write a different socket there, end the transport. The attach client stays transport-agnostic — it runs a command and knows nothing about ControlPaths — because the re-resolution happens in the shell it spawns rather than inside it.
+
+THE ORDER IS LOAD-BEARING: the file is written before the transport is ended, or the respawn races back onto the connection it was leaving.
+
+DRIVEN AGAINST remotehost. A holder started on the far side, a local attach client through the wrapper, two masters:
+
+    before:  ssh -S /tmp/panetest/m1 -T ... operator@remotehost 'synapty attach --relay --id migrate-test'
+    after:   ssh -S /tmp/panetest/m2 -T ... operator@remotehost 'synapty attach --relay --id migrate-test'
+    transport pid 88687 -> 88748, client pid 88685 unchanged
+
+The pane's output shows the shell prompt repainted by the holder's restoration and the session carrying on. Same process, same pty: the work and the local scrollback both survive, which is what C-BROKER's "migration MUST be lossless" asks for.
+
+THE TRIGGER IS THE PANE'S OWN STALL, which is why this is sound where forward migration is not. `betterThan` moves a pane only when its connection is loaded or at its bound AND another is neither — never merely less busy, since a marginal improvement would have panes drifting between connections on every heartbeat.
+
+A WART, USER-VISIBLE: the client prints "[synapty: link lost — reconnecting]" on every migration. Nothing was lost — the workbench moved it on purpose — and saying so would need the client to be told, which is a protocol change rather than a wording fix. Recorded rather than smoothed over.""",
+    """
+THE FORWARD-MIGRATION CRITERION IS DELETED RATHER THAN LEFT PENDING. A criterion for something the work established should not be built is not outstanding work; leaving it open would have read as an unfinished item forever, and the reason it is not being built would have lived only in a note nobody has to read.
+
+C-BROKER CARRIED THE SAME TRAP AND IS AMENDED. It said a forward MAY be migrated and described what that costs — permissive, written before the trigger question was asked. A permission that nothing can soundly exercise is worse than a silence, because the next reader implements it. The clause now forbids the automatic case and says why: a round trip says something on a connection is heavy and never which channel, so the choice is a guess that lands on an uninvolved forward as often as not, kills everything crossing it, and leaves the connection just as loaded. Migration by a human naming the forward is kept, because the human is the only party that can attribute.
+
+The pane bullet gained the trigger discipline the implementation follows: moved only when its own connection is loaded or at its bound and another is neither, never for a merely emptier one.""",
+    """
+THE REFUSAL CRITERION WAS TICKED `done` AND SHOULD NOT HAVE BEEN. It is `pending` again.
+
+I wrote a note in this file saying `placeAfterRefusal` exists, is tested, and that NOTHING CALLS IT — and then marked the criterion done in the same session. The criterion reads "A connection that refuses to open a channel causes another connection to that host to be opened and the channel retried there". I closed it on DETECTION: the heartbeat probe finds the bound and calls `markFull`, so the connection stops being offered. That is the avoidance half, and it is not what the criterion says.
+
+[[RFC-0013]] C-BROKER is equally specific: "A channel a connection refuses to open MUST cause a further connection to that host to be opened and the channel retried on it."
+
+AND ONE HALF WAS WORSE THAN UNIMPLEMENTED. `growIfLoaded` guarded on there being a connection that had NOT refused — `guard !usable.isEmpty` — so a host whose EVERY connection had refused a channel, which is precisely the case the clause names, was the one case that opened nothing. Growth happened under load and never under refusal. Fixed, with two tests: every connection at its bound is a reason to open another, and a refusal grows even where link congestion deliberately would not, because the remote said no rather than being slow.
+
+THE RETRY HALF REMAINS UNMET and its shape is recorded here rather than left as a tick: a pane's refusal happens inside the ssh client in the pane, which prints to stderr and silently opens its own unpooled connection, exiting zero. Nothing on this side sees it in time to retry that channel. Closing that means reading the terminal's own output, which this project has no seam for.""",
+    """
+THE RETRY HALF IS WIRED, and the criterion is closed on the half it actually names.
+
+I ticked this once on DETECTION and that was wrong: the heartbeat probes each member, walks into the remote's bound with a real session channel, and marks the refusing connection full — so demand arriving LATER is placed elsewhere. That is a connection ceasing to be offered, which is a wait. The clause says the channel is RETRIED THERE, and a transfer that walked into the bound between two probes simply failed with the remote's own message while the pool learnt nothing from it.
+
+`TransferRunner.copyRetryingRefusal` now runs the copy, and on a failure carrying the refusal signature calls `placeAfterRefusal` — which marks the connection full, opens another, and MOVES the tenant record rather than taking a second slot, so the release closure still finds it. The same copy runs on the new connection.
+
+ONCE, DELIBERATELY. A second refusal on a fresh connection is not a bound being reached, it is something else wearing the same message, and looping on it would turn one failed transfer into a connection per attempt.
+
+NO REMOTE LIMIT IS READ OR ASSUMED, which is the rest of the criterion. The refusal IS the discovery — the far side says no, that connection is marked, the next one opens — so this is right on a host permitting five sessions and on one permitting a hundred.
+
+THE DECISION IS SEPARATED FROM THE COPY (`movedAfterRefusal`) so it can be tested without a network: given the message a real refusal carries, does the copy move, is the refusing connection marked, did the pool grow. And the negative, which matters more — an ordinary scp failure must move nothing and grow nothing, or every error opens a connection, which is the opposite of a pool whose size is observed. Both mutation-checked.
+
+`MasterPool.channelRefusal` owns the signature now. It had two readers — the heartbeat and this — and was private to TunnelManager; two spellings of one string is one of them silently never matching.
+
+`just unshipped` goes 2 to 1. Unwiring the retry as a mutation makes the check report `placeAfterRefusal` again, which is the check doing exactly what it exists for.""",
+]
+
+[[content.acceptance_criteria]]
+text = "Disconnecting a host closes every connection the pool holds, verified for a host that grew past one — not for a fixed pair of socket names"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A connection opened by pool growth is in the pool's membership at the moment it exists, so process exit cannot leave an unrecorded authenticated connection behind"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A host with several panes and no load holds exactly one connection — nothing is pre-opened against a transfer that may never come"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A transfer runs on a connection carrying no other channel, and one is opened when every existing connection is occupied"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A connection that refuses to open a channel causes another connection to that host to be opened and the channel retried there, with no remote limit value read or assumed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A new channel lands on the host's connection currently carrying the fewest"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A migrated pane resumes where it stopped — the holder's reattach leaves no seam and the work is not restarted"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager's Lane enum and its two lane-enumerating teardown sites are gone, and no caller can name a lane because none exists"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "TransferService's concurrency limit is justified by a reason that is true under the pool, rather than by the connection-sharing reason that predates even the two-lane split"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "An interactive round trip on a pooled host stays inside the idle band while a forward carries a sustained load — the claim C-BROKER now rests on, and unverified until this is run against a real host"
+status = "done"
+category = "changed"

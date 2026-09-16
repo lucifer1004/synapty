@@ -1,0 +1,32 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ISSUE-STATES"
+title = "Issue States — Label State Machine over GitHub Open/Closed"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Task state is a small label-based state machine layered on GitHub's native
+open/closed:
+
+- `s:todo` (open) — created, not claimed.
+- `s:doing` (open) — claimed by an agent (or human); the assignee field names
+  the worker.
+- `s:done` (closed) — completed; closed issues carry the resolution in
+  comments/PR links.
+- unlabeled state labels — treated as `s:todo` while open.
+
+Transitions:
+
+- `s:todo` -> `s:doing`: agent self-assigns (`assignees` + label) when it
+  starts work. Claim is exclusive per issue.
+- `s:doing` -> `s:done`: agent closes the issue and adds `s:done`.
+- `s:doing` -> `s:todo`: explicit unclaim (agent abandons the task).
+
+A closed issue with `s:done` is terminal. Reopening starts a new `s:todo`
+cycle. The state machine is enforced by the Synapty bridge (MCP tools), not
+by GitHub itself — the repo remains usable by humans without any tooling.
+"""

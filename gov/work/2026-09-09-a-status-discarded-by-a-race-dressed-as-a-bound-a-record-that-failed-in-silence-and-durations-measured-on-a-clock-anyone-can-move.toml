@@ -1,0 +1,125 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-003"
+title = "A status discarded by a race dressed as a bound, a record that failed in silence, and durations measured on a clock anyone can move"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "RFC-0014:C-LIVENESS",
+    "RFC-0014:C-END",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+The last three findings of the adversarial review of [[WI-2026-09-07-004]]'s
+series.
+
+A FIFTH OF A SECOND WAS A RACE DRESSED AS A BOUND. `transportVerdict` polls
+`waitpid` for 200ms and then kills the transport, discarding whatever it
+was about to exit with. That window was chosen for "a process that is
+already exiting", and how long that takes is not ours to know. The relay
+says "no session named X" by exiting 9, and ssh propagates a remote
+command's status unchanged, so that 9 is how a human is told the session is
+gone rather than being retried at forever. Measured, two transports
+differing only by the gap between closing stdout and exiting:
+
+    sh -c 'exec 1>&-; exit 9'            end no_session at +18ms
+    sh -c 'exec 1>&-; sleep 5; exit 9'   killed at 200ms, the 9 discarded
+
+The discriminating fact was in hand and thrown away. A read that ended at
+END OF STREAM says the transport has finished writing and is on its way
+out; a read that ended any other way — the handshake deadline, a MOTD, a
+frame that is not a welcome — is a transport that is alive and not
+speaking, which may never exit at all. `readWelcomeWithin` collapsed both
+into `error.Closed`, so the caller could not tell them apart. It answers
+`error.EndOfStream` for genuine end-of-stream now, and the window is two
+seconds for a transport that is going and none at all for one that is not
+— which also makes the chatty case a fifth of a second faster on every
+attempt.
+
+A RECORD THAT FAILED IN SILENCE. `Record.describe` returned `void`, and its
+only failure mode was a bare `return`: `pathFor` answering null, or
+`createFile` meeting ENOSPC, EDQUOT or EACCES. What that leaves is a claim
+held, a socket bound and NO RECORD — a session running and attachable that
+`sessions` cannot list (it enumerates `.json`) and `sweepEnded` cannot
+remove (it needs a record it can read). A moment of full disk made a live
+session vanish from the only surface that could find it, for as long as the
+machine lasted. A session that cannot be recorded is not started now: the
+failure unwinds the claim, the socket and the pty through `start`'s
+`errdefer`, so it costs an error message rather than a permanent orphan.
+
+DURATIONS MEASURED ON A CLOCK ANYONE CAN MOVE. Every deadline and every
+elapsed-time answer in the tree used `nowMillis`, which is `CLOCK_REALTIME`.
+A step BACKWARD extends `deadline - now` by the size of the step, re-opening
+the hang `readWelcomeWithin` exists to close; a step FORWARD makes `left`
+non-positive at once and aborts a healthy handshake, or makes the link read
+as down past its budget on the very first loss. Forward steps cluster
+exactly where this code runs: a laptop waking and re-syncing NTP is when
+reconnects happen.
+
+`sys.upMillis` measures spans — `CLOCK_BOOTTIME` on Linux and Darwin's
+`CLOCK_MONOTONIC`, which unlike Linux's goes on ticking while the system is
+asleep. Sleep counting is deliberate and is the semantics [[progress.Retry]]
+already argued for: a laptop closed for a weekend should wake having spent
+its budget, not begin it. `nowMillis` stays for what it is for — stamping
+the account, which another process reads as a date."""
+notes = [
+    "THE TWO ERRORS WERE ONE ERROR, WHICH IS WHY THE CALLER COULD NOT CHOOSE. `readWelcomeWithin` answered `error.Closed` both for a stream that ended and for a frame that was not a welcome, and `transportVerdict`'s own header already said so in a different context — it corrects an earlier comment that had claimed a failed read means the writer is gone. The fact needed to size the wait was named in that header and still not passed to the function that needed it.",
+    "A `void` RETURN IS A DESIGN DECISION ABOUT WHAT MAY GO WRONG. `describe` was split out of `Record.write` during [[WI-2026-09-08-013]] and inherited its shape; the old function also returned its fd after a failed body write, so this is not a regression. What the split did was leave a function whose SOLE failure mode is silence, which is the form the failure is hardest to find in.",
+    "SLEEP COUNTING IS THE POINT, NOT AN ACCIDENT OF THE CLOCK CHOSEN. Darwin's CLOCK_MONOTONIC ticks through sleep and Linux's does not, so the two platforms need different names for the same semantics — `CLOCK_BOOTTIME` on Linux. Picking Linux's CLOCK_MONOTONIC would have given a laptop closed for a weekend a budget it had not spent, which is exactly the behaviour [[progress.Retry]]'s header argues against.",
+    "THE REVIEW IS CLOSED. Twelve Swift findings and eight Zig ones across three rounds; every one either fixed here or in [[WI-2026-09-08-016]], [[WI-2026-09-09-001]] and [[WI-2026-09-09-002]], or answered with a measurement showing it was not what it appeared to be. Two reports were wrong in their particulars and right in substance — the exit-code one understated the damage, the stderr one named the wrong pipe — and in both cases measuring rather than reasoning is what settled it.",
+]
+
+[[content.acceptance_criteria]]
+text = "A transport that closes its stdout before it exits is waited for, so its exit status still decides whether the session is gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A transport that is alive and not speaking is abandoned at once instead of after a fifth of a second"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "readWelcomeWithin answers EndOfStream for a closed stream, distinct from a frame that is not a welcome"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A session whose record cannot be written is refused, unwinding its claim and socket, instead of running unfindable and unsweepable"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A rename that cannot reach the record says so in the log instead of returning as though it had"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "sys.upMillis measures spans on a clock that counts sleep and that nothing outside the kernel can move"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Every deadline and elapsed-time answer reads upMillis; nowMillis keeps only the account's timestamps, which another process reads as dates"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A relay that takes a second to exit after closing stdout is still heard as no_session"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A session whose sessions directory cannot be written is refused with the reason"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The span clock is not the wall clock, and it advances"
+status = "done"
+category = "chore"

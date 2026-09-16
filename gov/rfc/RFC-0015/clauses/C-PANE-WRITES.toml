@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PANE-WRITES"
+title = "What a Pane May Do to Its Machine"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A pane that shows a machine's files MAY change them, and the boundary is not where a reader would guess.
+
+- A FILE LEAF MAY CREATE, RENAME AND DELETE on the machine it is bound to, AND NOTHING ELSE. It is already a write surface: a file dragged into one from outside creates a file on that machine, so the question this settles is which writes, not whether. The set is closed for the same reason the kind set is ([[RFC-0015:C-CONTENT]]) — permissions, ownership and execution are each a further grant, each with its own failure mode, and a verb list left open acquires them one convenience at a time.
+- A DELETION THE PLATFORM CANNOT UNDO MUST BE CONFIRMED, AND ONE IT CAN MUST NOT BE. On the local connection, deletion MUST use the Trash and MUST NOT be confirmed. On EVERY OTHER connection it MUST be confirmed, and the implementation MUST NOT exempt one on the grounds that the far machine has a trash of its own: a desktop trash specification the workbench does not implement and cannot restore from is not an undo this application can offer, and a rule that turns on it would skip the confirmation on exactly the machines that need it. Where the local Trash is unavailable for a particular item, that deletion MUST be treated as unrecoverable and confirmed like any other.
+- A DESTRUCTIVE CONFIRMATION MUST NAME THE MACHINE AND SAY WHAT CANNOT BE UNDONE. "Delete 3 items?" tells a human with file leaves open on three machines nothing at all. The machine's name MUST appear, and the absence of a recoverable copy MUST be stated rather than implied by the presence of a dialog.
+- A WRITE THAT WOULD REPLACE SOMETHING IS A DESTRUCTION AND MUST BE TREATED AS ONE. Renaming onto an existing name destroys what was there, and so does creating over it; neither is a transfer, so [[RFC-0013:C-AUTHORIZATION]]'s replacement rules do not reach them. A collision MUST NOT be resolved silently: the human MUST be asked, and the safe outcome MUST be the default. On the local connection what is replaced MUST go to the Trash, exactly as a deletion there does — the confirmation is asked because a replacement is not obviously one, and the recoverable copy is kept because the platform can keep it. Elsewhere the replaced bytes are gone, and the question MUST say so.
+- NO AGENT MAY DRIVE A FILE LEAF'S OWN VERBS. The prohibition is on THIS SURFACE, not on the effects: agents do create files on remote machines, because that is what a brokered transfer is, and [[RFC-0013:C-AUTHORIZATION]] permits it while scoping it, recording it with its initiator and defaulting it safe. The file leaf's rename and delete have no primitive ([[RFC-0013:C-PRIMITIVES]]), present nothing, and would arrive with none of those three — a destructive verb over a socket, unrecorded, guarded only by a dialog that nothing on that path draws. An agent that needs a file gone runs a command in its own pane, where the act is attributable to a process the human can see and scroll back to.
+- THE HUMAN'S WRITES ARE UNSCOPED, AND THAT IS A DELIBERATE BOUND RATHER THAN AN OMISSION. [[RFC-0013:C-AUTHORIZATION]] requires an agent's write to be scoped, granted, recorded and mortal, and none of the four constrains a human acting in their own file leaf: they may name any path the connection's account can reach. The reason is that the four properties exist to make an ABSENT party's actions reviewable, and the human is the reviewing party. What follows is that a destructive file-leaf operation MUST still be reported where the human can see it afterwards, on the same surface transfers are reported on — an act nobody can find again is one nobody can audit, including their own.
+- A FAILED WRITE MUST BE REPORTED AS A FAILURE. A permission error, a full disk or a lost connection MUST NOT leave the listing showing the outcome the human asked for; the pane's contents are a claim about a machine, and a claim that survives its operation failing is worse than an error."""

@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-10-001"
+title = "fix(daemon): recv --wait must block over the pane IPC path"
+status = "done"
+created = "2026-08-10"
+started = "2026-08-10"
+completed = "2026-08-10"
+refs = ["RFC-0003"]
+
+[content]
+description = "Found by two LIVE agents (local-2c69/claude + local-4194/codex) dogfooding A2A chat in panes — both independently converged on the same root cause and filed it on hub issue #2. runRecv()'s ipcRoundtrip(.recv) early-return sits before the args.wait branch, and IpcRequest cannot even express blocking receive, so --wait silently no-ops inside a pane (it only works on the direct-TCP fallback). Tests asserted flag PARSING, not blocking BEHAVIOR. Impact: agents cannot hold a conversation — replies land in a mailbox nobody watches. L2 follow-up (message arrival should wake an idle agent — a blocking CLI call occupies a turn but does not create autonomous turns) is explicitly OUT of this WI's scope; the agents' exit-4 wait discussion is likewise deferred."
+
+[[content.acceptance_criteria]]
+text = "IpcRequest gains wait flag; runRecv forwards args.wait over the IPC path"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "daemon recv handler honors wait=true by blocking until a message arrives or shutdown; served on a per-connection thread so concurrent IPC requests (notify at turn end) are never starved behind a blocked waiter"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "daemon shutdown wakes blocked waiters (MessageQueue close broadcast) and joins connection threads — no UAF on teardown"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "e2e asserts blocking BEHAVIOR over the IPC path (no response while queue empty, response delivered when a dm arrives), not just flag parsing; zig build test green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "close the loop on hub issue #2 with a comment once landed"
+status = "done"
+category = "chore"

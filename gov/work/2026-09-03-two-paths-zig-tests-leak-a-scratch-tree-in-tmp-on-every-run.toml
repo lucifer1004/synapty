@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-008"
+title = "Two paths.zig tests leak a scratch tree in /tmp on every run"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+`migration moves rather than copies, and is idempotent` and `a superseded
+legacy file is removed, not left at the old flat path` each build a scratch
+config root at /tmp/synapty-<kind>-<pid> and never remove it. The pid in the
+name means every run leaks a fresh tree rather than reusing one, so the pile
+grows with the test suite rather than with the calendar: 1598 directories and
+4110 entries were counted in /tmp, the oldest dated 2026-08-30.
+
+The sibling test in run.zig (`the sweep only judges files it owns`) builds the
+same shape and does tear it down, so the omission is local to paths.zig rather
+than a missing convention.
+
+Found while investigating an unrelated pane-socket failure — the /tmp listing
+that was meant to show pane sockets was 1598 lines of test residue instead,
+which is its own cost."""
+notes = ["Verified by counting before and after a full `zig build test`: 1598 before, 1598 after — the run added none. The 1598 historical directories were removed after enumerating their contents in full (only machine/, shared/ and machine/identity.json appeared, i.e. nothing but test artefacts)."]
+
+[[content.acceptance_criteria]]
+text = "both paths.zig scratch-root tests remove their tree when they finish, whether they pass or fail"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a full 'zig build test' adds no new /tmp/synapty-migrate-* or /tmp/synapty-supersede-* directory"
+status = "done"
+category = "chore"

@@ -1,0 +1,122 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-009"
+title = "A gate that reported clean without running, two promises kept only by a coincidence of literals, and a suite green about a platform it does not run on"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0008:C-MAILBOX",
+    "RFC-0009:C-DELIVERY",
+    "ADR-0017",
+]
+
+[content]
+description = """
+Four findings, one subject: something that could not fail, and therefore
+was believed.
+
+THE GATE FAILED OPEN. `just verify` ran `govctl check` with `|| true`
+and then grepped the output for `^error`. The `|| true` was there so the
+grep could print the errors before `set -e` killed the run — and it
+swallowed every other way of not running. A govctl that is not INSTALLED
+makes the shell write "command not found" to stderr, which does not
+begin with "error", so the gate printed `govctl: no errors` about 171
+clauses it had not read, and exited 0. Reproduced verbatim with
+`GOVCTL=govctl-does-not-exist just verify`.
+
+The comment three lines above it names this exact failure: "Piping
+govctl into grep makes grep's exit status the verdict, so a govctl that
+crashed outright would read as 'no errors' — the failure mode this gate
+exists to catch." The `|| true` put it back.
+
+CI never had the hole: it runs `just gov-check`, which has the `_govctl`
+prerequisite this recipe did not. So the divergence was one-way — a
+developer got a green local gate and learnt on push.
+
+Now `verify` takes `_govctl` as a prerequisite, so an absent tool fails
+before the suites rather than after them, and the exit status is
+captured and checked so a govctl that ran and CRASHED is told apart from
+one that ran and disagreed. All three shapes measured: absent, exit 101,
+exit 1.
+
+A PROMISE KEPT BY COINCIDENCE, TWICE.
+
+`MailStore.max_per_queue` is 256 and `state_store.max_messages_per_identity`
+is 256, written independently. The restore path stops at its ceiling with
+a bare `break` while `MailStore.append` drops its oldest WITH a trace
+under a contract that says so — "C-MAILBOX: silent truncation is not
+allowed". The invariant that makes truncating the file harmless is
+`max_messages_per_identity >= max_per_queue`, and nothing stated or
+enforced it. Raise the queue bound alone and every restart silently
+discards the difference, for messages whose senders were told `queued` —
+which the module header calls a lie: "an ack of 'queued' must survive a
+restart, or it was a lie".
+
+`forward_window_ms` is the one federation constant that was NOT derived,
+in a file whose `directory_retention_ms` is derived from `spool_ttl_ms`
+under a comment arguing the general case. A spooled message is retried
+under its `forward_id` for as long as the spool holds it; the receiver
+deduplicates on that id for this window. [[ADR-0017]] makes holding mail
+for an unreachable machine a product requirement, so raising the spool
+TTL for a weekend-long outage is plausible tuning — and doing it alone
+makes the retry arrive `.fresh`, be queued again, and hand the agent the
+same message twice.
+
+Both are now comptime assertions in the shape this codebase already
+uses, and both were canaried: each fails the BUILD with its clause name.
+
+AND ONE CEILING WITH TWO ANSWERS IN ONE FUNCTION. `max_identities` is a
+hard `rejected` for mailboxes and for the spool, and a silent `break` for
+`durable_ids` — so a hub past the bound forgot some durable identities on
+restart and their queued mail became addressed to nothing, while the
+identical overflow one loop away refused the whole file and said so.
+
+A SUITE GREEN ABOUT A PLATFORM IT DOES NOT RUN ON. The idiom
+`getenv("TMPDIR") orelse "/tmp"` followed by `"{s}<name>"` appeared at
+six sites and every copy assumed a trailing slash. macOS `TMPDIR` has
+one; `/tmp` does not. Measured: `env -u TMPDIR zig build test` was
+453/461 — six failures and two crashes, none about the code under test.
+CI is macOS-only where the variable is always set, while `build.zig`
+ships three linux/musl deploy targets. One join now, in `paths`, and all
+three shapes measured green: unset, `/tmp`, `/tmp/`.
+
+Found by the ssot-gov and ssot-zig passes of the 2026-09-10 SSOT/Occam
+round."""
+
+[[content.acceptance_criteria]]
+text = "just verify takes _govctl as a prerequisite and checks govctl's exit status, so an absent or crashing tool fails the gate instead of passing it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a comptime assertion couples state_store's restore ceiling to MailStore.max_per_queue, so the queued-mail promise is enforced rather than coincidental"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "forward_window_ms is derived from spool_ttl_ms with a comptime assertion, so raising the spool TTL cannot reintroduce duplicate delivery"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the durable-identity ceiling answers an overflow the way the two ceilings beside it do, rather than forgetting identities in silence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a file that exceeds the per-identity message ceiling says so rather than truncating without a word"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "paths.tempFile is the one place a scratch path is joined, and the six copies that assumed a trailing slash are gone"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the Zig suite passes with TMPDIR unset, with a trailing slash, and without one"
+status = "done"
+category = "chore"

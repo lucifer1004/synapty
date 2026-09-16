@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SESSION-NAME"
+title = "The Session's Name"
+kind = "normative"
+status = "active"
+since = "0.3.0"
+
+[content]
+text = """
+A session MAY have a human-given name, and the holder is where it lives.
+
+- A client MAY give the holder a NAME for the session — the string a person calls it — on a connection that does not attach (the same kind of connection a status request uses). The holder MUST keep it for its lifetime and MUST record it beside the session's record, so that enumeration lists the name even for a holder that cannot be reached.
+- Status MUST carry the name, and every listing of sessions offered to a person MUST show it beside the session's identifier, where one has been given. A session with no name is shown by its identifier and nothing else — the name is the human's, and MUST NOT be derived from a title, a command or a directory.
+- Renaming replaces the name; the last one given wins. Ending the session ends the name with it ([[RFC-0014:C-END]]).
+- Like the label ([[RFC-0014:C-CLIENT-LABEL]]) this is an optional extension of the status and of the wire's set of frames, and MUST NOT change the protocol version. A holder that does not know the frame closes the connection; the client treats that as "this holder keeps no names".
+
+The name existed already — in the workbench, on the tab, in its snapshot — and nowhere the session itself could be reached from. `synapty sessions` listed identifiers; a person at a shell on the machine could not tell "the deploy one" from the others without opening each. One thing should be called one thing on both sides of the workbench."""

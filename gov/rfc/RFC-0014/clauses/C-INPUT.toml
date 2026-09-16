@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-INPUT"
+title = "The Client's Input Reaches The Child"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST deliver the attached client's input to the child's pseudoterminal, in order and unaltered.
+
+- The holder MUST NOT modify, reorder, filter, or interpret input on its way to the child. In particular it MUST NOT reserve a key sequence for its own commands: detaching and ending are requests a client makes out of band ([[RFC-0014:C-DETACH]]), never characters intercepted from the human's typing.
+- Input received while no client is attached MUST be discarded rather than buffered for later delivery. Keystrokes that arrive minutes after they were typed are not the human's intent.
+- After a client is displaced ([[RFC-0014:C-ONE-CLIENT]]), input from the displaced client MUST NOT reach the child. A partial line from a client that has lost the session would splice into the line the new client is typing."""

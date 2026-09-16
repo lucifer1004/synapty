@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L0-VT-ENGINE"
+title = "L0 — VT Computation Engine"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The VT Computation Engine is the heart of Synapty. It is a zero-dependency C/Zig layer built on libghostty-vt, stripped of all graphics rendering, focused entirely on maintaining terminal state as a high-speed mathematical state machine.
+
+**SIMD-accelerated parsing.** Agents generate high-throughput stdout — code output, log streams, tool invocations. The VT engine uses SIMD (Single Instruction Multiple Data) instructions to parse escape sequences at minimal CPU cost, ensuring that terminal state tracking does not compete with LLM inference for compute resources.
+
+**Kitty keyboard protocol.** Agents that operate modal editors (Vim, Emacs, Helix) require precise keystroke injection including modifier keys (Shift, Ctrl, Alt, Super). The VT engine natively supports the Kitty keyboard protocol, enabling the orchestration layer to synthesize complex key events that agents can use to drive arbitrary terminal applications.
+
+**Security sandbox.** Untrusted agent output is a vector for terminal escape injection. The threat model includes: malicious OSC sequences that exfiltrate data via title-bar side channels, SGR sequences that corrupt rendering state to mislead human operators, and control sequences that manipulate clipboard contents or trigger unintended actions. The VT engine applies an allowlist-based policy at the lowest layer: only recognized, safe escape sequences propagate upward. Unrecognized or dangerous sequences are dropped and logged for audit. The specific allowlist and sanitization policy will be specified in a dedicated normative RFC.
+
+**Grapheme clustering.** The engine correctly handles multi-codepoint grapheme clusters for multilingual text and complex emoji sequences, ensuring that spatial calculations (cursor position, column width) remain correct regardless of the character content agents produce."""

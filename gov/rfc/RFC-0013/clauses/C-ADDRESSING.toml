@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ADDRESSING"
+title = "Requests Name A Host, Later An Agent — Never A Route"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A request names WHAT it wants reached, never HOW to reach it. The caller MUST NOT need to know the relay topology, the intermediate machine, the port, or which connection is reused.
+
+- Stage one addressing is BY HOST: a host known to the workbench, plus a path relative to a declared destination.
+- Later addressing is BY AGENT: `--to agent:<id>`, resolved by the hub, which already routes A2A messages by agent identity ([[RFC-0003]] C-A2A-REDUCTION keeps identity, the envelope shell and the hub's role as the registry of which pane is which agent) and already owns durable agent identity ([[RFC-0008]]). The reduction is cited rather than the protocol it reduced: [[RFC-0002]] is deprecated, and an implementer sent there would build against a contract this corpus retired.
+
+ADDRESSING BY AGENT IS THE POINT, not a convenience. An agent producing an artifact for another agent should not have to learn which machine the recipient is on, what its address is, or which directory it wants — all of which are facts that change under re-homing while the agent identity does not. A file addressed to an agent is the same object A2A messaging already delivers, with a different payload.
+
+THE HUMAN'S GESTURE RESOLVES TO THE SAME ADDRESS SPACE. A drag from a file leaf to any kind that accepts a drop ([[RFC-0015:C-CONTENT]]) names a destination host and a directory; it MUST enter the same service through the same address form as a CLI call, not through a parallel path that happens to work.
+
+THE DESTINATION DIRECTORY FOR A DROP is derived from the receiving leaf: a TERMINAL leaf's is its reported working directory where one is known; a FILE leaf's is the directory it is showing, which it always knows. Those are the two kinds that accept a drop, and each has its own answer rather than one borrowed from the other. It MUST be displayed before the drop commits, and MUST degrade visibly — naming the fallback — where it is unknown. A working directory is reported by the shell and is absent for shells that do not report it and stale across nested sessions; a silently wrong destination is worse than a visibly approximate one."""

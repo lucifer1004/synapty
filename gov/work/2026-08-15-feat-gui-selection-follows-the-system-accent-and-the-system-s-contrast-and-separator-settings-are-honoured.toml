@@ -1,0 +1,82 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-006"
+title = "feat(gui): selection follows the system accent, and the system's contrast and separator settings are honoured"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = ["WI-2026-08-15-005"]
+
+[content]
+description = """
+"从 Apple 设计师角度去衡量并提升 UI。"
+
+The right question is not whether it looks good — it is whether the app PARTICIPATES IN THE SYSTEM'S design system. Three things were measurable and all three came back the same way.
+
+`controlAccentColor` — referenced NOWHERE. `accessibilityDisplayShouldIncreaseContrast` — nowhere. Thirty-one hand-picked colours against six semantic ones.
+
+WHAT HOLDS UP, because a critique that finds only faults is not one: SF Pro and native controls, no bundled fonts, vibrancy on the chrome. A warm paper palette is a legitimate brand choice — Xcode and Logic have their own chrome, and Apple does not ask apps to be colourless.
+
+SELECTION FOLLOWS THE USER'S ACCENT. macOS users choose an accent and every system app tints selection with it; this operator's Mac is on the default blue, so every app on it highlighted blue and this one highlighted teal. That is what makes an app read as ported rather than written here.
+
+Twelve sites moved, chosen by MEANING rather than by colour: the app-wide tint, the segmented control's selected segment, focused field and pane rings, selected card borders, drop targets, the active tag filter, and the checkmarks marking a current theme or font. What stayed teal is what says what a thing IS — status dots, the "Mono" badge, log-kind colours, section icons. A blind replacement would have recoloured the meaning along with the selection.
+
+The foreground on that accent is `alternateSelectedControlTextColor`, not white: the accent can be yellow or graphite, where white text fails.
+
+INCREASE CONTRAST IS HONOURED. Chrome goes opaque under it — that setting asks for edges and tone the eye can separate, and a surface blending the desktop is the opposite. Same class as Reduce Transparency, so it is treated the same way rather than left to the app's own switch.
+
+THE SEPARATOR IS THE SYSTEM'S. `separatorColor` strengthens by itself under Increase Contrast and a chosen grey cannot. Found while doing it: `DS.separator` was ALREADY semantic and `DS.border` was a second, hand-picked token for the same job — one followed the system, the other did not, and a caller had no way to know which they were asking for.
+
+THE LIGHT PALETTE WAS FLAT, and this was measured rather than felt. Scanning the gap between two host cards, the whole light range sat inside nine levels: chrome 246, page 250, card 255. The border came out 7 levels below the page and the shadow contributed ONE. A white rectangle on near-white paper, with neither device rescuing it. The standard used was the app's OWN dark mode, which separates card from page by 13 and reads layered. Light was the outlier. Deepened to chrome 237, page 246, card 255 — a monotonic ladder, which is also how System Settings arranges it."""
+notes = [
+    """
+MEASURED BEFORE AND AFTER, sampling chrome, page and card across appearances:
+
+  light, before   chrome 246   page 250   card 255      four and five levels
+  light, after    chrome 237   page 246   card 255      nine and nine
+  dark            chrome  54   page  39   card  51      unchanged; it was already layered
+
+The accent change was verified by looking: the segmented controls, the UI-size selection, the switch and the default button all render in the system blue, while the status marks and host avatars stay in the product's own colour.
+
+NOT VERIFIED: the Increase Contrast path. Turning it on changes the operator's accessibility settings machine-wide, which is theirs to do — one boolean and a notification, read rather than exercised, exactly as with Reduce Transparency.
+
+The classification is the part worth re-reading before changing any of it. Every accent use had to be sorted into SELECTION or IDENTITY by what it means, not by what colour it happened to be, and the two pickers' checkmarks are selection while the "Mono" badge two lines away is not.""",
+    """
+THE ACCENT PART OF THIS ITEM IS REVERSED BY [[ADR-0011]]. Selection, control tint and selected fills use this application's brand teal again, not `controlAccentColor`.
+
+The argument recorded here — that an app highlighting its own colour on a Mac set to blue reads as ported rather than written here — did not survive contact with the result. What makes an app read as ported is foreign controls, typography, spacing and window chrome, none of which this has. And the decision leaned on a claim about this codebase that was not true: the brand teal was said to be reserved for status dots and badges, when status has always spoken through the semantic colours and the teal was tinting eleven decorative glyphs.
+
+THE REST OF THIS ITEM STANDS. Honouring the system's contrast and transparency settings, and adopting `separatorColor` and the other semantic system colours, were right and are unchanged. Only the accent is taken back.""",
+]
+
+[[content.acceptance_criteria]]
+text = "selection and control state follow the system accent colour"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the brand colour keeps identity — status, badges, log kinds, section icons"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "text on the accent uses the semantic pair, so a yellow or graphite accent still reads"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Increase Contrast turns chrome opaque, like Reduce Transparency"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "separators are the system's, so they strengthen when the human asks for contrast"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the light palette separates chrome, page and card by nine levels instead of four"
+status = "done"
+category = "fixed"

@@ -1,0 +1,24 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-022"
+title = "A window's minimum size does not follow the UI scale until relaunch"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+`window.minSize = NSSize(width: DS.scaled(760), height: DS.scaled(480))` is assigned in two places — `SynaptyApp`'s window setup and a `.onAppear` in ContentView's window lifecycle — and in neither does it re-run when the human changes the UI scale.
+
+So at Extra Large the window can be dragged smaller than its own content needs, which is the situation [[WI-2026-08-15-007]] added the multiplication for: "at Extra Large the sidebar and inspector floors alone take 572 of a fixed 760". The floor is right at launch and wrong until the next one.
+
+FOUND WHILE REMOVING THE SCALE'S TICK ([[WI-2026-08-28-021]]) and recorded rather than folded in: the behaviour is the same before and after that change — the tick re-evaluated view bodies, and these two assignments were never in one. It is a pre-existing gap that the removal made visible.
+
+Also worth settling in passing: the same three lines of window chrome are set in both places."""
+
+[[content.acceptance_criteria]]
+text = "A scale change moves the window's minimum size, with a test that fails if the floor is only computed at launch"
+status = "done"
+category = "fixed"

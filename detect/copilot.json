@@ -1,0 +1,42 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/github-copilot.toml (herdr id 'copilot'), Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "copilot",
+  "rules": [
+    {
+      "id": "selection_blocker_cancel",
+      "state": "waiting",
+      "all": [
+        "esc to cancel"
+      ],
+      "any": [
+        "enter to select",
+        "enter to confirm",
+        "enter to submit",
+        "enter accept"
+      ]
+    },
+    {
+      "id": "selection_blocker_esc_cancel",
+      "state": "waiting",
+      "all": [
+        "esc cancel"
+      ],
+      "any": [
+        "enter to select",
+        "enter to confirm",
+        "enter to submit",
+        "enter accept"
+      ]
+    },
+    {
+      "id": "working_cancel_hint",
+      "state": "working",
+      "any": [
+        "esc to cancel",
+        "esc cancel",
+        "esc again to cancel",
+        "esc interrupt"
+      ]
+    }
+  ]
+}

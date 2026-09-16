@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-006"
+title = "feat(panes): zoom — one pane takes the whole split area, and takes it back"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The verb every multiplexer has and this one lacks: read one pane's output
+at full size without dismantling the layout. tmux `z`, ghostty's
+toggle_split_zoom. Ghostty core also exposes zoom-preservation semantics
+(split-zoom-preserve) worth reading before deciding what unzooms.
+
+Model first: the workspace already knows slots and focus; zoom is a
+per-workspace optional slot id the layout honours, with the tab strip
+carrying the mark. Restoring must be exact — a zoom that changes ratios
+on the way back is a bug."""
+
+[[content.acceptance_criteria]]
+text = "a zoom command (keyboard and pane context menu) shows the focused pane alone across the split area; invoking it again, or any focus/layout change per a stated rule, restores the layout exactly"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a zoomed state is visibly marked on the tab strip so a human knows the other panes are hidden, not gone"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the zoom decision (what unzooms, what does not) is pinned by tests on the workspace model, not the view"
+status = "done"
+category = "chore"

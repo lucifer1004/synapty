@@ -1,0 +1,46 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-16-003"
+title = "The mapping for a hole in a pane is pinned; the path that reaches it is not"
+status = "done"
+created = "2026-09-16"
+started = "2026-09-16"
+completed = "2026-09-16"
+refs = [
+    "RFC-0014:C-RESUME",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+[[progress.Hole]] pins which channel a hole in what a pane can show is announced on, and a unit test names both situations and both answers. What nothing pins is that the CLI ever reaches those two branches.
+
+WHAT WAS REMOVED AND WHY. A case in `test-reconnect-e2e.sh` drove the real thing: it held a client away while the holder's 1 MiB retention window rolled, then read the account. It cost O(1 MiB) of the holder's throughput, and that is a property of whatever machine runs it — a holder feeds the child's bytes through its screen, measured at 59 KB/s for short lines and 170 KB/s for long ones on the machine it was written on. It failed on CI at a twelve-second window, failed again at a hundred and eighty when the fix was to wait for the evidence rather than a duration, and flaked locally under the load of the rest of the suite. A flaky test is worse than none, so it went ([[WI-2026-09-15-003]]).
+
+TWO DETERMINISTIC ROUTES WERE CONSIDERED AND REJECTED, so a next pass does not re-derive them. Restarting the holder under the same name makes the client's position FOREIGN by incarnation, which is O(1) rather than O(1 MiB) — but `no_session` is terminal, so a retry landing in the window between the two holders ends the client outright. Sizing the wait from a volume marker the child writes measures the same physics and buys nothing.
+
+WHAT WOULD ACTUALLY SETTLE IT is a seam: the retention bound is `holder.min_retention_bytes`, a comptime constant, and a smaller one for a test would make the roll cheap and deterministic. Whether that seam is worth its own configurability — a bound that can differ between a test and a shipped holder is a bound two things can disagree about — is the judgement this work has to make."""
+notes = ["""
+A TEST WAS WORTH IT, SO THE SECOND CRITERION IS CANCELLED RATHER THAN DONE — there is no "not worth its cost" to write down.
+
+THE SEAM THE DESCRIPTION NAMED IS NOT NEEDED. `holder.min_retention_bytes` stays a comptime constant. The question was never "how do I roll a real window cheaply"; it was "how do I make a holder answer `unavailable` and then report a gap". The transport is whatever `--` names, and the holder's answers are frames — so the far side is fifty-one bytes in a file and `cat`. No throughput, no bound that a test and a shipped holder could disagree about.
+
+`scripts/test-reconnect-e2e.sh` now cans a welcome (answer 2, unavailable), a gap frame, and an exit, and asserts both holes arrive on the `hole` channel and that nothing arrives on `lost`. It drives the real handshake and the real frame loop, which is the half [[progress.Hole]]'s unit test cannot reach: that test pins the mapping, this pins that the CLI arrives at it. It ran in about three milliseconds.
+
+THE SIZE IS CHECKED BEFORE THE BEHAVIOUR. A `printf` that lost an escape would make the client read one frame and stop, and the assertions would then report a client that never announced the holes — the defect they exist to catch, indistinguishable from a typo in the fixture.
+
+CANARIED, EACH BRANCH ON ITS OWN:
+- dropping the `position_refused` say -> "a position the holder refused was announced to nobody".
+- saying `catch_up_outrun` on `lost` instead -> "a catch-up the child outran was announced to nobody".
+And it caught a real one unprompted on its first run: the binary in zig-out predated the `.hole` kind, and the failure printed the account showing both lines still on `note`."""]
+
+[[content.acceptance_criteria]]
+text = "something drives the CLI into both hole branches and observes what it says, in bounded time on a machine whose speed is not known in advance"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "if no such test is worth its cost, that is written down with the routes already rejected, so the question is closed rather than re-opened every round"
+status = "cancelled"
+category = "chore"

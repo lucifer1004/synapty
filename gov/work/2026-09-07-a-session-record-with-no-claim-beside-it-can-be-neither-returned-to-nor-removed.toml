@@ -1,0 +1,116 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-005"
+title = "A session record with no claim beside it can be neither returned to nor removed"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = [
+    "RFC-0014:C-LIVENESS",
+    "RFC-0014:C-END",
+    "RFC-0014:C-PWD",
+]
+
+[content]
+description = """
+A session's claim has three answers — `held`, `free`, `absent` — and both
+tests built on it asked for a different two:
+
+    startWouldJoin(name) = claimState(name) == .held    // may I return to it
+    ownerGone(name)      = claimState(name) == .free    // may I sweep it
+
+The workbench said the same thing in its own words (`SessionRecord.isLive`
+wants `held`, `live()` swept on `free`). So `absent` satisfied NEITHER: a
+record with no lock beside it could not be returned to and could not be
+removed, for as long as the machine lasted. A state that is neither live
+nor removable is not a state; it is a row a human can only look at.
+
+FOUND ON A REAL MACHINE, not by reading. A holder started on 2026-09-01 —
+before the claim moved out of the record file and into `<name>.lock` — had
+no lock, so it read `absent` and sat in the sidebar for six days holding a
+`/bin/zsh -l` with a four-day-old Claude Code session inside it. The human
+could not open it and could not close it, which is exactly what the two
+tests above produce between them.
+
+THE REASON GIVEN FOR NOT SWEEPING `absent` IS FALSE, and it was written
+down twice — in `holder.writeRecordForTest` and in the workbench's
+`SessionRecord.live()` — as "a session still starting up looks exactly like
+that". `Record.write` creates the lock and CLAIMS it BEFORE it writes the
+record, so a record exists only where a lock did. The Swift test that
+pinned the wrong behaviour carried the disproof in its own doc comment: "the
+holder takes the claim before it writes the record" — which is the premise
+from which the opposite conclusion follows.
+
+TWO ORDERINGS WERE CONFLATED. The socket's is real: a holder binds and
+listens before it writes its record, so a socket with no record beside it
+may be a session being born. That case is already guarded, by `sweepEnded`
+refusing to touch anything it cannot read a record for. The lock's ordering
+is the reverse, and the guard written for the first was applied to the
+second.
+
+AND THE ROW WAS LABELLED WITH A PID. Separately, the listing's sixth column
+is where the session is standing (RFC-0014 C-PWD), and the two unreachable
+shapes wrote a sentence there instead — `pid 38694`, `no path for its
+socket` — because it was the only free space on the line. The workbench
+reads that column as the session's directory and titles the row with its
+last path component, so a dead session appeared as "Studio · pid 38694": a
+process identifier presented as the folder the work was in. That is what
+the human was reading when they reported this."""
+notes = [
+    """
+VERIFIED AGAINST THE STUCK RECORD ITSELF, which is the only reason to
+believe the fix rather than the reasoning. `local-9ece` had a `.json` and a
+`.sock` and no `.lock` on the operator's machine; before the change the
+listing reported it `unreachable` on every run and never removed it, and
+after it one `synapty sessions` swept the record and the socket together
+and the listing came back clean.""",
+    """
+WIDENING `ownerGone` ALSO CLOSED A LATENT C-LIVENESS VIOLATION IN `end`,
+which is worth naming because it was not the target. `runEnd`'s
+socket-unreachable path signals the recorded pid when `!ownerGone`, and
+`absent` used to answer `!gone` — so an unclaimed record's pid was
+signalled on the strength of a determination that could not vouch for it.
+C-LIVENESS permits signalling "only where the determination above says that
+holder is there". It now says `absent` is not there, so nothing is
+signalled, and the process is left as litter that C-END disposes of — which
+is the trade that clause states explicitly.""",
+    """
+THE HOLDER THAT PROMPTED THIS WAS A SIX-DAY-OLD BINARY, and its behaviour
+is not evidence about current code. Asked to end over its socket it killed
+its child and then did not exit; today's `runHold` loop breaks on
+`isEnding()` and returns, which frees the claim and removes the record. It
+was terminated by hand with the human's authorisation, and the record it
+left behind became the fixture this change was verified against.
+WHAT IS STILL WORTH A LOOK, and is not fixed here: `synapty end` prints
+"ended" as soon as the holder ACKS the request, and does not confirm the
+holder went. The human who ran it was told it had ended and then watched
+the row come back. The ack is the holder accepting an obligation, not
+discharging it.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a record whose claim is `absent` is swept, on both sides — the owner is gone for every answer that is not `held`, and a record exists only where a lock did"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = """an unreachable row writes `-` where the session's directory goes, instead of a sentence; `-` is already the word for "would not say" and it is the true answer when nothing answered"""
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a row for a session that did not answer is titled by its NAME, and refuses the directory column outright rather than trusting the far side to send `-` — the machine on the other end is not necessarily this build"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the false reason is removed from all three places that stated it, and replaced with the ordering that is actually real — the socket's, which `sweepEnded` already guards by requiring a record"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a record with no lock is swept, and a socket with no record is not — the two cases the old rule confused, side by side"
+status = "done"
+category = "chore"

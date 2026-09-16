@@ -1,0 +1,58 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/droid.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "droid",
+  "rules": [
+    {
+      "id": "execute_selection_yes",
+      "state": "waiting",
+      "all": [
+        "enter to select",
+        "esc to cancel",
+        "> yes, allow"
+      ],
+      "any": [
+        "↑↓ to navigate",
+        "use ↑↓ to navigate"
+      ]
+    },
+    {
+      "id": "execute_selection_no",
+      "state": "waiting",
+      "all": [
+        "enter to select",
+        "esc to cancel",
+        "> no, cancel"
+      ],
+      "any": [
+        "↑↓ to navigate",
+        "use ↑↓ to navigate"
+      ]
+    },
+    {
+      "id": "selection_menu",
+      "state": "waiting",
+      "region": "bottom(8)",
+      "all": [
+        "enter select",
+        "esc cancel"
+      ],
+      "any": [
+        "↑/↓ navigate",
+        "↑↓ navigate"
+      ]
+    },
+    {
+      "id": "spinner_stop_working",
+      "state": "working",
+      "all": [
+        "esc to stop"
+      ],
+      "lineRegex": "^\\s*[\\u2800-\\u28FF]"
+    },
+    {
+      "id": "stop_hint_working",
+      "state": "working",
+      "contains": "esc to stop"
+    }
+  ]
+}

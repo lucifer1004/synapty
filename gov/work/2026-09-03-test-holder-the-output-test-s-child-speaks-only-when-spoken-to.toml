@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-005"
+title = "test(holder): the output test's child speaks only when spoken to"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+CI run 33692594530 failed one Zig test on the macOS runner: "output from
+the child reaches the attached client" (holder.zig). The child printed
+its line the moment it started and the test client connected afterwards;
+a fresh client is attached at the stream's current position and sees
+earlier output only as a restoration, never as data (RFC-0014 C-RESUME,
+C-RESTORE), so the assertion on DATA frames depended on the connect
+winning the race against /bin/sh. Locally it always won; a 300 ms delay
+before the connect reproduced the runner's failure exactly. The child now
+waits for a keystroke before printing, so the output is caused by the
+attached client and can only arrive as data. Same-run 33692322607 (the
+identical tree minus ci.yml) had passed, which is what a race looks like."""
+
+[[content.acceptance_criteria]]
+text = "the holder output test gates the child's printf on a read and the client sends a CR after attaching; zig build test exits 0 both as written and with a 300 ms delay inserted before the connect (the ordering that failed on the runner)"
+status = "done"
+category = "chore"

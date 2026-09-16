@@ -1,0 +1,103 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-010"
+title = "Where the binary is and what a machine is called: two resolvers already divergent, a remote path with no owner, and fifteen copies of one ternary"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0013:C-CONTROL-PLANE"]
+
+[content]
+description = """
+Three facts, each with more than one home.
+
+WHERE THIS MAC'S BINARY IS. `SynaptyBinary` declares itself "the single
+source of truth for the bundled-vs-dev lookup".
+`TunnelManager.localSynaptyBin()` was a second one — copied knowingly,
+since its own doc cross-referenced the first — and the two had already
+parted:
+
+    SynaptyBinary.resolve()      dev fallback existence-checked; nil when
+                                 neither copy is there, so the caller
+                                 falls back to a bare name on PATH
+    localSynaptyBin()            an absolute `cwd/zig-out/bin/synapty`,
+                                 never checked, returned regardless
+
+Both shapes appear eighty lines apart in one file. The REMOTE pane
+command uses `resolve() ?? "synapty"` and documents why — "A BARE NAME IF
+THERE IS NO OTHER ANSWER … a human with the CLI on PATH gets a working
+pane from a checkout with no bundle." The LOCAL pane command could not
+produce a bare name, so that same human — CLI on PATH, no bundle, cwd
+anywhere but the checkout — got a pane whose command named a file that is
+not there. The third caller, `nameSession`, discards its result, so a
+wrong path there is silent.
+
+WHERE THE FAR SIDE'S BINARY IS. `.synapty/bin/synapty` was written out at
+eight sites across five files with no constant anywhere. `HostBinary`
+writes it — `mkdir -p`, the scp destination, `chmod +x` — and four other
+files read it to run `version`, `name`, `end` and `sessions`. Move the
+install location and those four keep pointing at the old one, each
+failing quietly BY CONSTRUCTION: `nameSession` discards its completion,
+and the other three parse stdout, so an absent binary reads as "no
+sessions" rather than as an error. A human's pane rename would stop
+reaching the far side with nothing anywhere saying why.
+
+WHAT A MACHINE IS CALLED. `HostStore.displayName(of:)` carries this
+comment: "The workbench had ten near-copies of this, disagreeing on
+whether this Mac is capitalised — which is visible when two of them
+appear in the same flow, as the approval sheet and the list of what that
+sheet granted now do. A grant a human withdraws must read exactly as it
+did when they made it, so the two cannot be allowed to drift."
+
+The ternary was still written out at fifteen sites, four of them full
+re-implementations with three different spellings of the local machine.
+And the drift the comment names is LIVE, in the sheet it names:
+`ApprovalSheet` renders "This Mac → deskmac" as its title and, beneath
+it, "this Mac already has a file with this name" — lowercase at the start
+of its own sentence, because the two lines came from two functions.
+
+Both forms are genuinely needed, so the owner now offers both by name:
+`displayName` for the start of a sentence, `displayNameInSentence` for
+the middle, and `inSentence(_ host:)` for the callers that hold a host
+and have no store to ask. Only the LOCAL machine has two forms — a host
+the human named is written the way they wrote it wherever it appears,
+since lowercasing "GPU" mid-sentence would be a different machine.
+
+The first canary of the sheet's sentence did not fire, because nothing
+tested the call site that had the defect. It does now, and the second one
+failed saying "This Mac" is not "this Mac" where the sheet reads "…
+already has a file with this name" after it.
+
+Found by the ssot-swift pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the local pane command resolves its binary through SynaptyBinary, so it can fall back to a bare name on PATH exactly as the remote one does"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager.localSynaptyBin is gone — a second resolver whose doc cross-referenced the first, and which had already parted from it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "HostBinary.remotePath and remoteDir own the far side's install location, and the four readers outside that file go through them"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HostStore offers a sentence-initial and a mid-sentence form of a machine's name, and the rule itself lives in one place"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the approval sheet's title and its explanation name the local machine consistently"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "both name forms are pinned, the remote path's shape is pinned, and the sheet's own call site is pinned and canaried"
+status = "done"
+category = "chore"

@@ -1,0 +1,120 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-011"
+title = "feat(panel): expose — an agent surfaces a live view of its own work"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "RFC-0013",
+    "ADR-0010",
+]
+
+[content]
+description = """
+Stage three. `synapty expose <port>` lets an agent surface something it is running — a dev server, a report, a dashboard — as a view in the human's panel. The workbench adds a forward to the connection it already holds and renders the result.
+
+Measured: `ssh -O forward -L …` against a live ControlMaster returns exit 0 and reaches the remote service without reconnecting; `-O cancel` withdraws it.
+
+THIS IS WHERE AGENT-PRESENTED CONTENT FIRST REACHES THE SCREEN, so the visual quarantine container required by [[RFC-0013]] C-REQUEST-NOT-SEIZE must exist before this ships, not after. It is nearly free now and cannot be retrofitted once content appears to belong where it sits.
+
+TWO HAZARDS, both measured or reasoned rather than assumed. Local ports collide with unrelated software already running on the machine — the first port picked while designing this was refused for exactly that reason, so allocation must probe rather than assume. And every forward is http://127.0.0.1:PORT, so a port reused across hosts makes two hosts one web origin — the second inherits the first's cookies, storage and service workers, inside a tool whose premise is host isolation."""
+notes = [
+    """
+BUILT, AND WHAT IS VERIFIED IS SMALLER THAN WHAT IS BUILT.
+
+VERIFIED END TO END: the CLI reaches the workbench. `synapty expose 8931 --title "…"` from an agent id the workbench can place travelled CLI, hub forward, workbench, and came back with a refusal produced by the view server itself — "this agent is on this Mac, its port is already reachable at 127.0.0.1". That refusal is correct behaviour for a local pane and it proves the whole chain, because only the view server can produce it.
+
+VERIFIED SEPARATELY, earlier: `ssh -O forward -L …` against a live ControlMaster returns exit 0 and reaches the remote service through it, and `-O cancel` withdraws it. That is the mechanism the service drives.
+
+NOT VERIFIED: the two joined. An agent in a pane ON A REMOTE HOST exposing a port, and the page rendering. That needs a remote session, which needs a click, and this environment has no accessibility permission to perform one — the same gap as the drag in [[WI-2026-08-15-009]]. Attempting it a second time also found the masters already torn down, because restarting the application closes them and reconnecting is itself a click.
+
+A PROBE LEFT ON THE OPERATOR'S HOST, and how it was removed, because the trap is one this project has hit before: `pkill -f "http.server 8931"` matched its own command string and reported success while the process lived. Killed by pid instead; confirmed zero matching processes and the log file gone.
+
+REFUSALS THAT ARE DELIBERATE, not gaps: an agent on this Mac is told its port needs no forward rather than having one opened from the machine to itself; and an agent may withdraw only its OWN view, because one agent hiding another's is exactly what a poisoned one would do.""",
+    """
+DISCOVERY ADDED, AND IT FOUND A BUG IN ITSELF WITHIN A MINUTE OF MEETING A REAL HOST.
+
+The fallback path is for processes that know nothing about this application — a dev server started by hand, a dashboard that predates the agent. It reads what the host is listening on and offers the ports; an agent's exposure arrives with a name, while this can only report a number, and the interface says so by keeping them apart.
+
+FOUR ADDRESS SHAPES, and the obvious rule handles three:
+
+    127.0.0.1:8931    ss, IPv4       port after the last colon
+    [::1]:8931        ss, IPv6       port after the last colon
+    127.0.0.1.8931    netstat, IPv4  port after the last dot
+    ::1.18789         netstat, IPv6  port after the last DOT, in a field full of colons
+
+"Split on a colon if the field has one, otherwise a dot" drops the fourth, reading `::1.18789` as the unparseable `1.18789` — silently, so a macOS host would have reported nothing listening and looked quiet rather than mis-parsed. Ten offline tests passed on the three easy shapes. Running the command against a real macOS host produced the fourth in its first four lines.
+
+Fixed by trying the dot first and falling back to the colon, which lands every shape: a Linux field's last dot leaves `1:8931`, not a number, so the colon rule takes it. Verified against real output from both a Linux and a macOS host.
+
+PRIVILEGED PORTS ARE NOT OFFERED. sshd above all — offering to view port 22 would be offering to point a web view at the connection carrying the request.
+
+A HUMAN-CHOSEN PORT IS STILL FRAMED, and attributed to "you" rather than to an agent. The page is a remote one this application does not vouch for either way, so the container stays; what changes is that it must not claim an agent asked.""",
+    '''
+THE RENDER WAS NEVER VERIFIED, and verifying it found two defects.
+
+Three things had been verified separately and none of them was the page: the forward mechanism, the netstat parse, and the CLI-to-workbench hop via a refusal. The web view had never put a pixel on screen, because it only does so after an agent on a remote host runs `synapty expose` — a click this environment cannot perform. A launch argument closes that, driving the real service rather than fabricating an exposure, the same reason `--enrol-sheet` exists. Cockpit on a live host now renders inside the attribution frame: CSS, images and form controls.
+
+A PORT WAS BEING RENDERED AS A QUANTITY. The list read "remote 9,090". `Text("… \(anInt)")` resolves to the LocalizedStringKey initialiser, which groups the digits. Searching for the same shape found a host on a non-default port rendering `user@host:2,222` in its card and its hover text.
+
+AN EXPOSURE OUTLIVED THE PROCESS THAT KNEW ABOUT IT. Quit the application and the loopback port was still serving the remote host's admin UI; curl returned 200 with nothing running. ControlPersist=yes means the master survives the app, so the forward does too, and `exposures` in memory was its only record — a capability nobody could enumerate, which is exactly what TransferAuthority refuses to let a grant become. `withdrawAll` had zero callers.
+
+Fixed at both ends. Mortality: withdraw on quit and on disconnect. Enumerability: the Forwarding page now shows live exposures beside the standing rules, attributed and withdrawable. The two models stay apart — one is configuration the human wrote and a group can inherit, the other is an event that must not become configuration — but they produce the same artifact, a listening port into the fleet, and that page is where a human goes to ask what those are. Answering for one author was worse than not answering, because a partial answer to that question reads as a complete one. Same shape as the Activity tab in WI-2026-08-15-010.
+
+WHY NO TEST CAUGHT IT: reaching anything past a successful expose required a live ControlMaster, so withdrawal, enumeration and mortality had no coverage at all. The ssh control command is now injectable and the three are tested.
+
+STILL OPEN: the panel's width ceiling does not survive a web view — a page wants far more room than 640, and the login form that just rendered is something the human types into, which the panel's own admission rule says its occupant is not. Recorded as the next decision rather than resolved by raising the ceiling.''',
+    """
+THE PLANE WORKS FROM A REMOTE HOST, AND MOST OF WHAT STOOD BETWEEN WAS UNWIRED RATHER THAN WRONG.
+
+Verified end to end from remotehost, through its own hub and the peer link: expose returns a url whose path reaches the real service (GET /system → 200), present lands an attributed artifact in the panel, put returns exit 3 while a human is asked and delivers on approval, ask returns the chosen option. That join is what had been recorded as unverified since WI-2026-08-15-009, and it turned out to be broken rather than merely untested.
+
+THE SHAPE OF NEARLY EVERY DEFECT. Of the faults found in one sitting, most were not mistakes in logic — they were a last hop nobody connected, in code whose comments explained thoroughly why it was needed:
+
+- `withdrawAll` had zero callers, so a forward outlived the process that opened it.
+- `closeAllMasters` says in its own comment that it is called on teardown. It was not, so every ControlMaster outlived the app.
+- Peer tool requests were withheld from the workbench by a rule written for wake and exec, which meant the whole presentation plane was unavailable from every remote machine.
+- `AgentInbox` is the documented destination for every agent transfer and its `~` had never been resolved, so it had never delivered a byte.
+- `PeerSummary.missing` was computed on every call and rendered nowhere; `AgentInfo.unknownExplanation` carried a written sentence no view displayed. RFC-0010 C-DIAGNOSABILITY exists because a version number was on the wire and nothing read it — the same failure, twice more, one step further along.
+- `cancel` did not know about a state added an hour earlier, so the sheet's own Cancel button left a transfer waiting forever.
+
+A GOOD COMMENT MAKES UNFINISHED WORK LOOK FINISHED. Every one of these reads as done on inspection; each is missing only its caller. Reviewing the reasoning is not reviewing the wiring, and only running the thing on a real machine told them apart.
+
+A SCAN FOUND THE REST, AND TWO OF THEM WERE TRAPS. 664 functions, nine with no mention outside their own declaration once framework callbacks were excluded. Six were deleted. `checkTunnel` was the synchronous version of a check WI-2026-08-08-010 had already moved off the main thread — the obvious-looking name was a way to get a fixed freeze back. `FileEndpoint.joining` was superseded by `destinationLeg`, which now carries the conflict policy, so a destination built the old way would have restored silent overwrite through a side door. A dead function's danger is proportional to how many times the code beside it has been fixed.
+
+WHAT OFFLINE TESTS AGREED WITH. Nine tests drove a real NSPasteboard for a payload the drag never actually places there; a test asserted a state nothing produced; twelve agreed with the codec about a `~` that sshd rejects. Each was green while the feature did not work at all.""",
+    "CLOSED BY [[WI-2026-08-16-001]]. Both items this record left open have since been settled and the resolutions live there, not here: the join was verified end to end from a pane on a real remote host — and found broken rather than merely untested — and the panel's width ceiling now follows the window, with a distinct expand that covers the terminal rather than crushing it. Recorded so a reader of these notes is not left holding two questions that were answered a day later somewhere else.",
+]
+
+[[content.acceptance_criteria]]
+text = "synapty expose adds a forward to the existing connection without reconnecting, and withdrawing it closes the local port"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "local port assignment probes for availability and survives a port held by unrelated software"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "web content from different hosts cannot share cookies, storage or service workers, by per-host data isolation and by not reusing a port across hosts"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "agent-presented content renders inside an attributed container and never in chrome that could be mistaken for the application's own"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "an exposed view is queued and attributed, and does not take focus from a pane being typed in"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the web view has no free address bar; it reaches services on the selected host, discoverable from the ports that host is listening on"
+status = "done"
+category = "added"

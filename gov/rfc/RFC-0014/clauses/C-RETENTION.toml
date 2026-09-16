@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RETENTION"
+title = "Bounded, Discoverable Retention"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST bound what it retains, and the bounds MUST be discoverable by a client before it relies on them.
+
+- Retained output for resumption MUST be bounded, and the bound MUST be stated in bytes.
+- The holder MUST retain at least one mebibyte of output for resumption. A holder that retains a token amount satisfies every other requirement here while making resumption fail in every real case.
+- The screen model's scrollback MUST be bounded, and the bound MUST be stated in lines.
+- The holder's memory MUST NOT grow without limit, attached or not.
+
+The holder runs on a machine whose memory belongs to somebody else, and a bound nobody can read is a loss the human discovers rather than plans for."""

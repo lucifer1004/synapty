@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-MOTIVATION"
+title = "Motivation"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The rise of agentic AI has created a new class of terminal user: autonomous programs that read, write, and interact with shell environments at machine speed. Existing tools fail this workload in three ways:
+
+**Terminal multiplexers are session containers, not orchestrators.** tmux, zellij, and screen multiplex PTY byte streams but have no concept of agent identity, inter-agent messaging, or structured state inspection. When a human operator runs 20 concurrent agents, these tools offer no mechanism to know which agent needs attention, which is blocked, or which has completed its task.
+
+**Agent frameworks ignore the terminal.** CrewAI, AutoGen, LangGraph, and similar orchestrators model agent communication as API calls between language model invocations. They treat the terminal as an opaque I/O channel — stdout is scraped as flat text, losing all spatial and semantic structure. This forces agents to operate blind to the rich two-dimensional state that terminal applications present.
+
+**No unified data and control plane exists.** Agents that need to collaborate must either share files on disk, pass messages through external services, or rely on the orchestrating framework to shuttle data. There is no standard for an agent running in one PTY to directly address and communicate with an agent running in another PTY, whether on the same machine or across an SSH boundary.
+
+Synapty fills this gap by building an agent-aware orchestration layer directly on top of a production-grade VT state machine, unifying terminal rendering, agent communication, and human supervision into a single system."""

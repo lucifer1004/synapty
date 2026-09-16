@@ -1,0 +1,102 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-001"
+title = "Three failures the workbench could not see: a setup that failed, a session that went quiet, and a dry run that connected"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "ADR-0020",
+]
+
+[content]
+description = """
+Three defects from the debt sweep, all of the same family: something went
+wrong and nothing could tell.
+
+A SETUP THAT RAN AND FAILED WAS RECORDED AS A CONNECTED HOST. `runSetup`
+tested `output.error == nil && !output.timedOut`, and `Output.error` is
+documented as a LAUNCH failure — the process could not start. Neither field
+is set by a non-zero exit. Measured: a host that refuses key authentication
+exits 1, a forwarding rule the binary will not accept exits 2. Both landed
+in the success branch, so the host went `.connected`, forwards that were
+never made were recorded, every pending pane callback fired against a host
+with nothing deployed on it, and the host was stamped to the top of the
+recently-used list. `parsePeerPort` found no `PEER_PORT`, so cross-machine
+A2A was silently absent.
+
+And the whole failure branch beneath — the `address already in use`
+recovery, `.failed(lastLine)`, and the sentence that tells a human "this
+host asks for a password, and Synapty can only use SSH keys" — could be
+reached only by a binary that would not launch. `wantsPassword` has one
+production caller and it was inside it.
+
+`SETUP_OK` had NO READER in the app at all, while `synapty host-setup
+--help` documents its stdout as read by the workbench and that marker as
+the last line of a run that got that far. It is read now, which makes the
+contract true rather than aspirational.
+
+A SESSION THAT WENT QUIET LOOKED HEALTHY FOREVER. `reveal()` hands the pane
+back when a dial has said nothing for the silence deadline — correct — and
+also called `stop()`, cancelling the account reader. Nothing restarts it:
+`Center.begin` runs at pane creation, restore and an explicit re-dial, and
+its `follows` guard requires a live reader anyway. So every `lost`,
+`paused` and `end` that client wrote afterwards went to a file nothing was
+reading, and `link(ofLeaf:)` answered `.live` for the rest of that pane's
+life — no scrim, no notice, no mark in the sidebar — against [[RFC-0015]]
+C-FAILURE, for exactly the panes whose dial was slowest.
+
+The code had already fixed this once on the other path: `paint` used to
+close the channel too, until a transport died mid-session and the client's
+`lost` arrived at a reader that had stopped. Only `end` has earned a stop,
+because only `end` means nothing further will happen.
+
+Bounded: `accountEnd()` reads the file directly, so the close decision was
+never wrong. A display defect, not a data-loss one.
+
+AND A DRY RUN CONNECTED. `host-setup --print` promises to say what would
+run and touch nothing. It printed the master invocation and carried
+straight on into the probe — a real ssh whose first act on the far side is
+`mkdir -p`, and whose success would have carried the run into `rm -f`,
+`scp`, `chmod +x` and the script that kills the host's running hub by pid.
+It also appended to the account of a real connection. `ensureMaster`
+guarded both; `runSetup` never read the flag."""
+notes = [
+    "ALL THREE ARE 'THE FAILURE BRANCH CANNOT FIRE', WHICH IS WHY NONE OF THEM LOOKED LIKE A BUG. Each has a carefully written piece of code for the bad case — a password message, a scrim and a sidebar mark, a dry-run guard — and in each the condition that reaches it was wrong rather than missing. Code written for a case that cannot occur reads exactly like code that works.",
+    "THE SETUP ONE HAD A SECOND TELL NOBODY FOLLOWED. `synapty host-setup --help` states that the workbench reads its stdout and that `SETUP_OK` is the last line of a run that got that far. A documented contract with no reader is a claim about the system that the system does not make, and it sat one grep away from the defect the whole time.",
+    "AND `reveal()` REPEATED A MISTAKE THE FILE HAD ALREADY CORRECTED. `absorb`'s paint branch carries a comment explaining why the channel must stay open: a transport dies mid-session and the client's `lost` arrives at a reader that has stopped. That is the same sentence, about the same reader, twenty lines from the silence path that still did it.",
+    "MEASURED RATHER THAN ARGUED, IN ALL THREE. The setup statuses were run against a stub host (1 for refused auth, 2 for a bad forwarding rule); the deaf reader was shown by starting a SECOND reader on the same file, which reported `gone` at once while the first said `live`; and the dry run's ssh was caught in a trace, sending the probe script whose next step would have been `rm -f`.",
+]
+
+[[content.acceptance_criteria]]
+text = "A host-setup run is a success only when it launched, did not time out, exited zero AND printed SETUP_OK — so a failed setup reaches the branch written to explain it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Giving a pane back keeps the account reader running; only an end stops it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "host-setup --print says what it would do and spawns nothing, and writes no account"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The measured failure statuses (1 for refused auth, 2 for a bad forwarding rule) are not successes, and neither is an exit zero that never reached the marker"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A pane handed back after silence still hears the lost and the end that follow"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A dry run leaves an empty trace and an empty account, and still prints how it would open the connection and ask the host what it has"
+status = "done"
+category = "chore"

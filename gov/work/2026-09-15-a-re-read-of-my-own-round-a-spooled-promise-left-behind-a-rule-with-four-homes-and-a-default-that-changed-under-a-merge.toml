@@ -1,0 +1,62 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-15-001"
+title = "A re-read of my own round: a spooled promise left behind, a rule with four homes, and a default that changed under a merge"
+status = "done"
+created = "2026-09-15"
+started = "2026-09-15"
+completed = "2026-09-15"
+refs = [
+    "RFC-0009:C-DELIVERY",
+    "RFC-0008:C-TRUST",
+    "RFC-0014:C-RESTORE",
+]
+
+[content]
+description = """
+An SSOT and Occam re-read of the work of the last few days, asked for because two of the heaviest findings of the second round were regressions I had introduced the day before. Four things, and one of them I made DURING this re-read.
+
+THE FIX BEFORE THIS ONE MISSED THE OTHER HALF. `spooled` is defined as the hub holding the message and forwarding it later, and the durability round corrected the path inside `mailboxDeliver`. There are TWO ways a message enters the spool, and the other one — the path an ack-silence takes — still answered `spooled` with nothing held. `spoolAfterSilence` returned `void` and had three silent ways out: the directory entry gone, the push failing, the persist failing. A test twenty lines away already stated the obligation in as many words: "a `spooled` answer has to mean durable, or it is a promise the hub cannot keep." Its refusal says something the other path's cannot — this message ALREADY WENT OUT once, so whether the peer received it is unknown, and claiming "nothing was queued" would claim more than the hub can see.
+
+A RULE WITH A NAME THAT PROMISED ONE HOME AND HAD FOUR. `speakerOf` was a pure wrapper over `boundIdDupe`, so the file had two spellings for "who is this connection" — and the refusal it was named for was written out at each of the four callers. It refuses on their behalf now, with one sentence, because the situation is one situation.
+
+A DEFAULT THAT CHANGED UNDER A MERGE, AND THE E2E CAUGHT IT. The CLI's stop flag and the holder's were the same idea in two spellings, with the reasoning that earns it copied into both — so a third would be written whichever way its author read first. Unifying them silently flipped the CLI's initial state: the CLI's type defaulted to TRUE (running from construction) and the holder's to false. Every client loop exited before its first read, and `test-holder-e2e.sh` failed on the first run with "first client saw no answer". The type has no default now — the two users start from opposite states, and a declaration that must say which cannot be got wrong that way twice.
+
+AND THE GEOMETRY FIX WAS INCOMPLETE. Unifying two of the copies of 80x24, I argued the holder's `ClientEntry` default was "a different question". It is not a different question, it is DEAD: that struct is built in exactly one place and that place always supplies the size from the hello. The defaults are gone, `run --hold`'s pty sizing joins the other two, and the constant is named for what it is rather than for one of its callers.
+
+WHAT WAS CHECKED AND LEFT ALONE, so the next pass does not redo it: the two `dropLast` methods behave identically and leave an empty entry the map reuses; `--hub none` cannot collide with a real value because the format requires a colon; `bindRefused` is one-use and earns it by forcing exhaustiveness over the outcome enum; the popover's `hubProblem` agrees with the strip's `hubTint` about which states are failures; and `HostBlockView.testOutcome` borrowing `TunnelManager.HostCommandOutcome` is reuse of a vocabulary, not a view reaching for a service.
+
+AND ONE NARROWING RE-EXAMINED RATHER THAN ASSUMED. `validName` now refuses non-ASCII, and the worry was that it also gated the human-given session NAME, which RFC-0014 C-SESSION-NAME exists to allow. Measured: `validName` is reached only from `canonical`, which builds the three PATHS from the identifier, and a session named `部署会话 ✓` still lists correctly.
+
+THREE COMMENTS STATED AN OBLIGATION DIRECTLY ABOVE A DISCARDED ANSWER — the identity set and its merged mail, delivered mail not coming back, and a refusal reader named for delivery. Each now says what it does and does not promise, because a comment contradicted by the line under it is worse than no comment."""
+
+[[content.acceptance_criteria]]
+text = "spoolAfterSilence says when it could not hold the message, and handleDm answers spooled only when something is held — the other of the two ways a message enters the spool, which the fix before this one missed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the identity a frame acts with is refused in ONE place instead of four copies of the same orelse, which is what the helper's name already claimed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one atomic flag type serves the holder's two and the CLI's three, with the reasoning that earns it in one place instead of copied into both"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the assumed terminal geometry has one name and one home, and ClientEntry's unreachable defaults are gone rather than kept in step"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a spooled answer with no directory entry left is refused, and the e2e measures the recipient's mailbox rather than trusting the refusal's own words"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "three comments that stated an obligation directly above a discarded answer now say why it is discarded, and deliveryFailureOf says it answers more than delivery"
+status = "done"
+category = "chore"

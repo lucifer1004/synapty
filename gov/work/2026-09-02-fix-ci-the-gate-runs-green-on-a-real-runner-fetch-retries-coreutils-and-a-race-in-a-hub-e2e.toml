@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-038"
+title = "fix(ci): the gate runs green on a real runner — fetch retries, coreutils, and a race in a hub e2e"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-03"
+
+[content]
+description = """
+The first pushes of the converged gate to the real runner, 2026-09-02.
+Three runs, three findings the clean local workspace could not have
+produced: zig's HTTP client dropped a GitHub tarball connection while
+fetching ghostty's transitive dependencies; the macOS image has no GNU
+timeout, which the e2e scripts require; and a hub e2e sent a dm from one
+connection before the recipient's registration on another had been
+processed, a race a fast machine never loses. Two of the fixes were
+committed without a work item while iterating on the runner; this one
+records all three."""
+
+[[content.acceptance_criteria]]
+text = "ci.yml fetches Zig dependencies in a retried step before building and installs coreutils; the wake-candidate e2e waits for both registrations to be announced to the subscriber before the dm is sent"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: CI run 33653867374 on the published commit 8c7a78fd is green on both jobs (test 41m24s, governance 19s) after five red runs that each found one thing: a dropped tarball fetch, no GNU timeout, a registration race in a hub e2e, holder test bounds too tight for the runner, an unsigned Debug build, and a transfer test whose slot fillers finished before the test began"
+status = "done"
+category = "chore"

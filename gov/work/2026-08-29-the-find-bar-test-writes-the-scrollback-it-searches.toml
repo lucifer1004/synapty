@@ -1,0 +1,25 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-006"
+title = "The find-bar test writes the scrollback it searches"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+`testTheFindBarCountsWhatGhosttyFound` searched for "login", on the
+reasoning that a login shell greets with "Last login: …" and so the needle
+is there without the test arranging anything. On this machine the shell in
+the test container does not greet, so the bar honestly reported "none" and
+the suite went red about a find bar that was working.
+
+A test that asserts against a scrollback it did not write is asserting
+about the machine. It now echoes its own needle first."""
+
+[[content.acceptance_criteria]]
+text = "the test echoes a needle into the terminal before searching for it"
+status = "done"
+category = "fixed"

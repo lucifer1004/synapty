@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-014"
+title = "feat(gui): settings expansion — Terminal/Scrolling/Clipboard/Network"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "Settings expands to four panes — Terminal (font family/fallbacks/size, background opacity, cursor style), Scrolling (scrollback limit), Clipboard (copy-on-select, OSC52 read/write allow/deny/ask), Network (hub/tunnel ports) — with the ghostty config fragment regenerated on change."
+
+[[content.acceptance_criteria]]
+text = "terminal settings — font family/fallbacks/size, background opacity, cursor style"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "scrollback limit setting"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "clipboard settings — copy-on-select, OSC52 read/write allow/deny/ask"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hub and tunnel port settings"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ghostty config fragment regenerated on settings change"
+status = "done"
+category = "added"

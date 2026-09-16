@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-002"
+title = "feat(terminal): the core's dropped signals — shell integration, pointer shape, secure input, finished commands, progress, live chrome, cell snapping, renderer health, quick look"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+An audit of ghostty's action vocabulary against the embedder: 79 actions,
+15 handled, 90 API functions, 42 called. Most of the rest are window and
+tab management this application does itself. These were simply dropped:
+
+- shell-integration was never injected: ghostty detects the shell from
+  basename(arg0) and every pane's arg0 is our wrapper, so it saw `synapty`
+  and gave up. Naming the shell in the fragment restores OSC 133 prompt
+  marks, jump_to_prompt, COMMAND_FINISHED, and OSC 7 from local shells.
+- MOUSE_SHAPE / MOUSE_VISIBILITY: the pointer never changed over text or a
+  link.
+- SECURE_INPUT: password prompts did not enable Secure Keyboard Entry.
+- COMMAND_FINISHED: exit code and duration, routed to attention marks and
+  the notification module by a tested rule.
+- PROGRESS_REPORT (OSC 9;4): a hairline under the tab label.
+- COLOR_CHANGE (OSC 11) on the focused pane: ChromeTint follows live.
+- CELL_SIZE: split dividers snap to the cell grid.
+- RENDERER_HEALTH: an unhealthy renderer posts a notification.
+- set_occlusion: the core is told what our display-id pause already knew.
+- needs_confirm_quit: closing a NON-durable pane with a live process asks.
+- read_selection: ⌘F with a selection searches for it.
+- quicklook_word: Force Touch shows the definition of the word."""
+
+[[content.acceptance_criteria]]
+text = "fragment names shell-integration from $SHELL when ghostty has integration for it; unknown shells leave detect alone (tested)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "pointer becomes an I-beam over text and a hand over links; secure keyboard entry follows password prompts"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a command that ran ≥10s in a pane the human is not watching rings that pane's bell — attention badge in-app, system notification when the app is inactive; exit code is shown nowhere and decides nothing; progress reports draw a hairline under the tab"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "focused pane's OSC 11 background retints the chrome live and a theme reload clears it (tested); dividers snap to cells (tested); unhealthy renderer posts; occlusion is told to the core"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "closing a non-durable pane with a running process asks first; cmd-F with a selection pre-fills it; force touch defines the word"
+status = "done"
+category = "added"

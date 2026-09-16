@@ -1,0 +1,86 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PEER-IDENTITY"
+title = "A Machine Names Itself"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A machine's peer id belongs to that machine. Other parties learn it; they
+do not assign it.
+
+Requirements:
+
+- A hub MINTS its peer id ONCE and persists it. Thereafter that id is
+  authoritative for as long as the hub's state survives, and every other
+  party — including the workbench that provisioned it — accepts what the
+  hub reports rather than proposing a value.
+- The id has the form `<label>-<suffix>`, where `label` is a
+  human-readable short name (the machine's hostname, or a name the human
+  set ON that machine) and `suffix` is derived from a persisted random
+  value minted at the same time. This is deliberately the same shape as
+  [[RFC-0008]] C-IDENTITY's durable agent ids, and for the same reason: a
+  purely human-readable name is not unique (two laptops are routinely both
+  called "macbook-pro" and would collide on their first meeting), while a
+  purely generated one is unusable in an interface.
+  ONE PART OF THAT KINSHIP DOES NOT CARRY, AND SAYING SO MATTERS:
+  RFC-0008 derives its fragment from an EXTERNALLY durable value (a
+  harness session id), so a hub that loses everything re-derives the SAME
+  id. This suffix is random and persisted, so losing it produces a
+  DIFFERENT one. The shape is shared; the durability property the shape
+  carries there is not, which is exactly why the next requirement exists.
+- THE LABEL AND THE IDENTITY ARE DIFFERENT THINGS. Changing what a human
+  calls a machine MUST NOT change its peer id — the id is what directory
+  entries, spooled messages and qualified fallback ids are keyed on, and
+  a rename that silently re-keys them would strand every one of them.
+  [[RFC-0008]] learned this with pane ids in task-centre artifacts; the same
+  mistake at machine scope is worse, because it strands other machines'
+  state and not just this one's.
+- VALIDATION. A peer id MUST be lowercase, bounded at 64 characters, and
+  drawn from letters, digits, `-`, `_` and `.`. `@` is EXCLUDED BY NAME:
+  [[RFC-0009]] C-IDENTITY-SCOPE qualifies a fallback agent id as
+  `local-<4 hex>@<peer-id>` and the receiving hub splits on `@` to strip
+  it, so a peer id containing one makes that split ambiguous and the hub
+  either fails to strip or trips its own reject-my-own-identity rule —
+  a silent misrouting defect reachable from a legal hostname. A peer id
+  MUST NOT begin with an identity prefix RFC-0008 reserves (`local-`),
+  for the same reason: the qualified form puts both namespaces in one
+  lexical space, and a machine whose hostname is `local` would mint an id
+  that is simultaneously a well-formed peer id and a well-formed fallback
+  agent id. A label that cannot satisfy this is disciplined into one, not
+  rejected — a human should not have to rename their laptop to federate.
+- IDENTITY PERSISTS SEPARATELY FROM MUTABLE STATE. The minted id MUST be
+  stored so that it survives operations that discard the hub's working
+  state — a hub started without durable state still keeps its name. This
+  is the cheap half of the state-loss problem and it removes the common
+  cause.
+- WHEN AN ENDPOINT PRESENTS A NEW ID, THE OLD ONE IS GONE. A rebuilt
+  machine (restored backup, fresh container, wiped config) legitimately
+  mints a new id, and its peers then hold directory entries, spooled mail
+  and qualified fallback ids keyed on the old one. A hub that completes a
+  handshake with a peer id DIFFERENT from the one it last saw at that
+  endpoint MUST immediately expire everything keyed on the old id rather
+  than letting it ride out the tombstone retention. Without this, the old
+  tombstoned entry and the new live entry both advertise the same durable
+  agent ids — durable ids are globally meaningful and do not change with
+  the machine — and RFC-0009 C-DIRECTORY's conflict rule then makes every
+  agent on that machine unroutable for up to the retention window, with
+  no configuration error behind it and nothing a human can do about it.
+  THE ENDPOINT IS THE CONTINUITY, not the id: "same place, new name"
+  means the machine was rebuilt, and that is knowable.
+- RE-MINTING IS AVAILABLE AND IS THE ONLY RESOLUTION FOR A CLONE. Two
+  machines can hold one id when a disk image is copied or a backup
+  restored onto different hardware. Renaming cannot fix it, because the
+  label and the id are deliberately independent. A hub MUST therefore
+  offer an explicit re-mint on the machine that owns the name, and
+  C-COLLISION's refusal MUST point at it.
+- PROVISIONING MAY SUGGEST, NEVER OVERRIDE. A tool that starts a hub on a
+  machine MAY supply the initial label for the mint. If a hub already
+  exists, the supplied value is IGNORED and the existing id returned; the
+  provisioning tool MUST NOT advise restarting the hub to adopt a new
+  name, because another workbench may be using it and that advice severs
+  their link. Renaming is an explicit act performed on the machine that
+  owns the name, not a side effect of someone connecting to it."""

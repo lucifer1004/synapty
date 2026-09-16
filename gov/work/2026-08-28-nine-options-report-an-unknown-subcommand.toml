@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-014"
+title = "Nine options report an unknown subcommand"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`synapty ask q --option a … --option i` (nine) returns `ParseError.UnknownSubcommand`, and `src/cli.zig` renders that as "error: unknown subcommand" — about an invocation whose subcommand is fine.
+
+The bound itself is right and documented (`AskArgs.max_options = 8`, "a question with a dozen choices is not one a badge can present — it is a form, which this primitive is deliberately not"). What is wrong is what the caller is told when they cross it, and the caller here is an agent parsing a message to decide what to do next.
+
+Found while fixing [[WI-2026-08-28-005]], the empty end of the same set, and recorded rather than folded in: it is a different defect — an answer that does not mean what it says — in the same three lines."""
+
+[[content.acceptance_criteria]]
+text = "Crossing the option bound says so, with a test that fails if the message names the subcommand instead"
+status = "done"
+category = "fixed"

@@ -1,0 +1,85 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-010"
+title = "The workbench kept its own copy of the hub's capability list, and it went stale the hour a capability was added"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0010:C-CAPABILITIES",
+    "RFC-0010:C-DIAGNOSABILITY",
+]
+depends_on = ["WI-2026-09-10-007"]
+
+[content]
+description = """
+[[WI-2026-09-10-007]] added `pending-wake` to
+`federation.local_capabilities`. `TunnelManager.knownCapabilities` stayed
+`["presence_relay"]`. The two lists were independent literals in two
+languages, so adding the capability on one side was a complete change
+that left the other side describing a build that no longer existed —
+within the hour, by the same hand.
+
+WHAT THE HUMAN SAW. `knownCapabilities` is the list a peer's declaration
+is subtracted from to make `PeerSummary.missing`, which the hub-status
+popover renders as "that machine's build does not provide … — anything
+relying on it is unavailable there, not broken." A peer on a build
+predating `pending-wake` therefore appeared in that popover as missing
+NOTHING, while the tooltip on that same peer's agents said "this
+machine's build does not report unread mail". Two answers to one
+question — and the silent one came from the surface built specifically
+to satisfy [[RFC-0010]] C-DIAGNOSABILITY.
+
+WHAT THE TEST SAID. `testEmptyMeansItDeclaredEverythingWeUse` asserted
+`XCTAssertFalse(knownCapabilities.isEmpty)`. That is true of any array
+anyone ever writes there, including the stale one. It is the same
+shape this round has been finding all day: an assertion that agrees with
+the failure it is named after.
+
+THE FIX IS NOT A SECOND EDIT, IT IS ONE FEWER LIST. `hub_info` now
+carries `capabilities` — what this build provides, from the enum that
+implements it — and the workbench reads the list off the hub instead of
+holding one. A capability added in Zig now reaches the popover with no
+Swift change at all, because there is no Swift copy to forget.
+
+EMPTY IS NOT "MISSING NOTHING". While the hub has not answered,
+`knownCapabilities` is empty and no absence is named about any peer:
+subtracting from an empty list would answer "missing nothing" about
+every peer in the fleet, which is a claim rather than the absence of
+one — the same distinction `PeerSummary.missing` already draws between
+nil and empty for an unlinked peer.
+
+Both halves are pinned and both pins were canaried: the Zig test walks
+`local_capabilities` and requires each wire spelling in the `hub_info`
+payload (it caught a deliberately wrong spelling), and the Swift test
+requires that an unanswered hub names no absence and that an answered
+one names `pending-wake` for a peer that declared only `presence_relay`.
+
+Found by the ssot-crossing pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "hub_info carries this build's capability list, so the workbench can ask instead of keeping a copy"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager.knownCapabilities is filled from the hub rather than declared, so a capability added in Zig cannot go unnamed in the popover"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an unanswered hub names no absence, rather than reporting every peer as missing nothing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a Zig test requires every local_capabilities entry, in its wire spelling, to appear in the hub_info payload"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the Swift test asserts what the list DOES rather than that it is non-empty, which was true of any array"
+status = "done"
+category = "chore"

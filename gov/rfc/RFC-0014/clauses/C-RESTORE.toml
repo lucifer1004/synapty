@@ -1,0 +1,27 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESTORE"
+title = "What A Cold Attach Receives"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A client that attaches without a usable position MUST be given a RESTORATION: a description of the session's current screen sufficient to render it.
+
+The restoration MUST carry, at minimum:
+
+- the text of the active screen;
+- which screen it describes, so a client can tell an alternate-screen session from a primary-screen one rather than inferring it;
+- the dimensions the description is in;
+- the cursor position, its visibility, and its shape;
+- the character attributes and colours of the described cells;
+- the terminal modes and scrolling region in force.
+
+A restoration MUST NOT carry less. This minimum is fixed by the protocol version ([[RFC-0014:C-VERSION]]); a holder MAY carry more and MUST then declare what it carries, so a client can tell an attribute that was absent from the session from one its holder does not describe.
+
+- The restoration MUST be delivered before any output produced after the attach, and MUST be distinguishable from that output.
+- An attach that sets dimensions MUST apply them before the restoration is produced, so the description a client receives is in the geometry it asked for.
+- The restoration MUST NOT be presented as the session's full history, and a client MUST NOT represent a restored session's scrollback as continuous with what was on screen before the client restarted."""

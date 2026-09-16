@@ -1,0 +1,29 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-023"
+title = "Every --help answered with the top-level usage, including the one that suggested it"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`synapty send --help` printed the list of subcommands and then "try 'synapty <subcommand> --help' for subcommand options" — which is what the caller had just done. A closed loop, at the exact moment someone is trying to learn the invocation.
+
+CAUSE: every `--help`, at every depth, raises the same `ParseError.HelpRequested` — forty sites — and `cli.zig` had one handler for it, printing the top-level usage.
+
+AND THE HELP TEXT ALREADY EXISTED. Seventeen parse functions carry zig-clap parameter descriptions — `--grace-secs <u32>  Seconds after parent death before exiting, allowing a relaunch to reclaim (default: 30).` — written and thrown away, because `clap.help` and `clap.usage` were never called. Thirteen flag descriptions for `hub` alone.
+
+ALSO: the top-level list is read by four different kinds of caller — an agent in a pane, the workbench, a harness, and a human wiring this up once ([[ADR-0004]]: one binary) — and twenty-nine names in a row answers none of them."""
+
+[[content.acceptance_criteria]]
+text = "A subcommand's --help describes that subcommand, from the same text its flags parse from"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The top level groups its verbs by who types them, with a line each"
+status = "done"
+category = "fixed"

@@ -1,0 +1,78 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-004"
+title = "A host that keeps no session can say whether its link dropped or its shell ended"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "RFC-0014:C-OPT-OUT",
+    "RFC-0014:C-EXIT-SIGNAL",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+[[WI-2026-09-09-001]] closed by declaring this gap unclosable: on a host
+that keeps no session between connections ([[RFC-0014]] C-OPT-OUT) the
+transport IS the pane's child, so a dropped link and a human typing `exit`
+arrive as the same event — and the exit code that was supposed to separate
+them is always zero, because libghostty spawns every pane through
+`/usr/bin/login`. Both halves of that are true. The conclusion was one
+signal short.
+
+ssh(1), on this machine: "ssh exits with the exit status of the remote
+command or with 255 if an error occurred." So ssh knows which of the two
+happened, and it says so — 255 for its own failures (a link that dropped, a
+host that stopped answering, a connection it could not make) and the remote
+shell's own status otherwise. What was missing was not a signal but a
+WITNESS: `connect.sh` is standing right there when ssh exits, and could not
+look because it `exec`ed, replacing the one process that could have.
+
+Not exec'ing on that branch costs one shell waiting and buys the
+distinction. A durable host keeps the `exec` it had: the client in front of
+ssh writes its own `end`, and it is the thing that knows whether the
+session was displaced, gone, or ended.
+
+The account channel needed nothing new — `connect.sh` already writes to it
+(the `live` line that stops the workbench showing progress in front of a
+working terminal is written on this very branch). It writes an `end` now
+too, and `LinkState.severed` is what the workbench reads it as: the pane
+stays, and the sentence says what happened rather than "nothing said why"."""
+notes = [
+    "THE GAP WAS NOT UNCLOSABLE; THE WITNESS HAD BEEN EXECED AWAY. Writing [[WI-2026-09-09-001]] I reasoned from the two facts in front of me — the death is the same event, the exit code is always zero — and stopped there, recording the gap as needing a signal that does not exist. The signal existed, was documented in ssh(1) on this machine, and was already crossing the process that writes the account. What I had actually established was that the code libghostty reports is useless, which is a narrower claim than the one I wrote down.",
+    "`set -e` ATE THE FIRST VERSION. `handover` ran the transport and read `$?` on the next line, which under this script's `set -euo pipefail` never executes for any non-zero status — that is, for every case worth reporting. The end-to-end test caught it because it drives the real script rather than an eval'd slice of it; the existing seam (`sed` a line range, `eval` it) could not have, because `handover` falls outside the range.",
+    "THE TEST SEAM IS EVIDENCE ABOUT THE SCRIPT, NOT ABOUT THE TEST. `test-connect-launch.sh` reaches its subject by extracting two line ranges and eval'ing them, and its own comments record that the first range silently truncated once when a conditional was added above it. This work added a third thing worth testing that no range covers. That is one of the observations behind the question of whether this file should still be shell at all.",
+]
+
+[[content.acceptance_criteria]]
+text = "A non-durable connection reports what became of it, so a dropped link keeps its pane instead of closing like an ordinary exit"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "AccountEnd.linkSevered and LinkState.severed, read from the account the connection already writes"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "connect.sh execs only where a client in front of ssh will answer for the connection; otherwise it waits and reports"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "ssh exiting 255 is reported as a severed link and 0 as a child that exited, driven through the real script with a stubbed ssh"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A durable host's script still says nothing, leaving the answer to the client that owns it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A severed pane stays, is marked in the sidebar, offers closing and a fresh connection, and names its cause without claiming nothing said why"
+status = "done"
+category = "chore"

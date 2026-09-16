@@ -1,0 +1,43 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-009"
+title = "fix(hub): a partial durable-state restore was silent and the log overstated it; plus the e2e blind spot that let a forged origin through"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+Two findings I had SEEN in the earlier sweeps and moved past on a snap judgement, re-examined and fixed. Both judgements were wrong.
+
+A PARTIAL RESTORE WAS SILENT, AND THE LOG OVERSTATED IT. restoreFromDisk dropped a mailbox message with `catch continue` and a durable id the same way. I had glanced at both and written them off as "fine (skips)". They are not: every message in that snapshot is one a sender was already TOLD was queued or spooled. C-DELIVERY's position is that the system never reports work it did not do, and this breaks the promise after the fact, across a restart, where nobody is watching. Losing a durable id is worse in a quieter way — mail to that identity stops answering `queued` and starts answering `unknown`, which reads to the sender as a typo.
+
+Sharper still, in the same five lines: the success log printed `snapshot.durable_ids.len` — the count in the FILE — as the number of identities restored, regardless of how many actually went in. A restore that lost half its identities reported complete success. Both counts are now the achieved ones, and any loss is a separate error-level line naming what was lost and why it matters.
+
+THE FEDERATION E2E SUITE WAS BLIND TO ENVELOPE CONTENT. Every existing cross-hub test forwards an opaque stub — `{"msg":"across"}` and friends — so the relay path was well covered for ROUTING and completely uncovered for ATTRIBUTION. Those are different questions, and the gap is exactly why WI-2026-08-13-007's missing origin check survived: nothing in the suite could have caught it. The gap surfaced only because adding the check turned three of those tests red for a reason unrelated to the bug.
+
+New e2e forwards a REAL envelope over a REAL relay link and asserts the source survives the crossing, then has alpha's hub relay a frame naming one of beta's OWN agents as sender — routing-wise impeccable, since the target really does live on beta, so only the origin rule can refuse it. Verified to fail with the check disabled, which is the only thing that makes it a test rather than decoration.
+
+ALSO RE-CHECKED AND FOUND CLEAN: the "escaping closures without weak self" count from the first sweep was a bad grep. Refined, it is five sites, and all five are correct — two capture no self at all, three are nested inside an outer closure that already declared [weak self] and guard properly. The earlier "low value, moving on" happened to reach the right answer without doing the work, which is not the same as being right."""
+
+[[content.acceptance_criteria]]
+text = "a dropped message or identity during restore is counted and reported at error level"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the restore log reports ACHIEVED counts, not the snapshot's"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an e2e forwards a real envelope over a real relay and asserts the source survives"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "an e2e asserts a forged origin is refused end to end, and fails when the check is disabled"
+status = "done"
+category = "chore"

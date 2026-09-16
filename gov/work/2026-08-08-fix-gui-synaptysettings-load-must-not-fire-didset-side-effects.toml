@@ -1,0 +1,25 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-011"
+title = "fix(gui): SynaptySettings.load() must not fire didSet side effects"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P1: SynaptySettings.load() assigns every stored property (hubPort/tunnelPort/fontFallbackFamilies/theme names/appearance/font...) inside init, firing every didSet observer: ~14 JSON encodes + atomic writes, ~11 ghostty fragment rewrites, ~11 .synaptySettingsChanged notifications, and an applyAppearance() mid-init mutating NSApp.appearance before windows exist. Redundant disk writes + notification/reload storms at every launch."
+
+notes = [
+    "2026-08-08: SynaptySettings now suppresses ALL didSet side effects during init/load with an isLoading guard (14 observers): a launch went from ~14 JSON writes + ~11 fragment rewrites + ~11 notifications + mid-init NSApp appearance mutation to ZERO side effects during load; the persisted appearance is applied exactly once after load completes.",
+]
+[[content.acceptance_criteria]]
+text = "load() mutates state with no persistence/notification/apply side effects (isLoading guard)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the persisted appearance is still applied exactly once after load() completes"
+status = "done"
+category = "fixed"

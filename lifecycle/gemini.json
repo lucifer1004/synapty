@@ -1,0 +1,9 @@
+{
+  "_comment": "gemini --resume <uuid> per gemini-cli session-management docs (verified 2026-08-11).",
+  "tool": "gemini",
+  "resumeArgv": [
+    "gemini",
+    "--resume",
+    "{resume_ref}"
+  ]
+}

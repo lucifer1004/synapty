@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-003"
+title = "fix(gui): the host grid marked every card for a deploy gap nobody had asked about"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+
+[content]
+description = """
+"host block 上现在也很脏。"
+
+Every one of the fourteen host cards wore an orange `key.slash` glyph, directly after the name.
+
+WHAT IT MEANT: this host is not set up for one-click agent deploy. WHAT IT DID NOT MEAN: anything about opening a terminal on it, which is what the human actually does from that page. A host with no key path configured in Synapty is the ORDINARY setup for anyone using ssh-agent or `~/.ssh/config` — all fourteen of this operator's hosts — and it connects perfectly well. So the mark was on for the normal case, which is the same failure as a version handshake that compares a constant with itself: a signal that cannot come out any other way carries nothing, and it spends the credibility of the marks that do.
+
+The grid now marks only what BLOCKS THE HUMAN'S OWN USE — a `terminalGap`, such as a record naming an SSH key this Mac does not have, where ssh will not silently substitute another. `HostReadiness` still computes the deploy gap and `describe` still speaks it for assistive technology; it just stops decorating a card at rest.
+
+FOUND ALONGSIDE: `canDeploy` and `deployGap` have NO consumer anywhere in the codebase. This mark was the only surface they ever reached, so the gap is neither enforced where deploying happens nor useful where it was drawn. It should be said at deploy time, and that is where it belongs when that flow lands.
+
+A TEST PINNED THE OLD PREMISE and was rewritten rather than deleted. It required a deploy-only gap to carry a warning glyph, reasoning that two severities should be distinguishable. The severities were right; the premise — that this state should be marked at all — was not. The replacement records why, so nobody restores the old rule on the old reasoning."""
+notes = ["""
+VERIFIED BY LOOKING: fourteen orange glyphs before, none after, with the host names no longer sharing their row with a permanent warning.
+
+NOT ADDRESSED, and visible in the same inventory: the label row can still carry up to FOUR status glyphs at once — unsaved, peer link, readiness, sync conflict — each in its own tint, all equally loud and all adjacent to the name, plus a dot on the avatar and a test result beside it. Every one was added for a real reason and together they have no hierarchy. That is a composition question for a state that almost never occurs, and it is deliberately left for a separate decision rather than folded into a fix for something else."""]
+
+[[content.acceptance_criteria]]
+text = "a host that opens fine wears no warning for an action nobody has taken"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a host whose named key is absent on this Mac is still marked, as a failure"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the deploy gap is still computed and still spoken, just not drawn"
+status = "done"
+category = "chore"

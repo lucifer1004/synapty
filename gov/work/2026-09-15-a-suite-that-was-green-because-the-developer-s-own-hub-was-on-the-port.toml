@@ -1,0 +1,96 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-15-003"
+title = "A suite that was green because the developer's own hub was on the port"
+status = "done"
+created = "2026-09-15"
+started = "2026-09-15"
+completed = "2026-09-15"
+refs = ["RFC-0014:C-OPT-OUT"]
+
+[content]
+description = """
+The first CI run after publishing failed on `test-reconnect-e2e.sh` with "the holder did not come up", while `just verify` had been green here on every run for days.
+
+WHY IT WAS GREEN HERE. `run --hold` dials a hub before the holder binds anything, and with nothing listening it retries for EIGHT SECONDS before giving up. The case waits two and then asks `sessions`. So it passed wherever something happened to be on the resolved port — and on this machine that is the operator's own workbench hub, sitting on 9000. Measured: `nc -z 127.0.0.1 9000` succeeds here, and pointing SYNAPTY_HUB_PORT at a closed port reproduces the CI failure exactly.
+
+NONE OF THE THREE CASES IS ABOUT A HUB. They are a transport dying and being recovered from in the same pty, a client pausing and coming back when told, and a successful reconnect resetting the budget. The dial was pure latency they had to sit through, and the only reason it ever mattered is that it moved the answer to a question nobody was asking.
+
+`--hub none` IS THE RIGHT TOOL AND IT ALREADY EXISTED. It was added days ago for a product reason — a pane on a machine whose hub was refused must hold its session and register with nobody ([[WI-2026-09-12-002]]) — and it removes the dial entirely rather than shortening it.
+
+AND THE FIX IS CHECKED AGAINST THE CONDITION THAT FOUND IT. Every shell suite now runs with SYNAPTY_HUB_PORT pointed at a closed port, which is what CI has: seven suites, no failures. Doing that for `just verify` as a whole is not the right check — two Zig unit tests read the real variable because they are ABOUT its resolution order, and setting it breaks them for a reason that is not a defect."""
+notes = [
+    """
+AND THE SECOND CI RUN FOUND THE SAME CLASS OF DEFECT IN THE CASE I HAD WRITTEN.
+
+With the hub dependency gone, the suite failed on CI again — this time on the stale-position case, whose account showed attach / live / lost repeating: the client reconnected and was told its position was STILL RETAINED, every time. The window never rolled.
+
+That case cut the transport for a fixed TWELVE SECONDS, a number sized from a rate measured on the machine it was written on: 170 KB/s, because a holder feeds the child's bytes through its screen. A loaded CI runner is slower, twelve seconds rolled nothing, and it passed here and failed there — the same sentence as the hub dependency above, with me as the author.
+
+THE FIX IS TO WAIT FOR THE EVIDENCE. The cutting and the waiting are now one loop with one exit: keep the client away, and stop when the account SAYS the position could not be honoured. The deadline became a bound on failure rather than a guess at success.
+
+VERIFIED UNDER THE CONDITION THAT BREAKS IT: six busy workers and nothing on the resolved hub port. The suite took 98 seconds instead of 40 and passed — it waited longer rather than giving up, which is the whole of what the change buys.""",
+    """
+AND THE THIRD ATTEMPT WAS TO STOP BETTING.
+
+Waiting for the evidence rather than for a duration was better and still not right: under the load of the rest of the suite the window sometimes did not roll inside a hundred and eighty seconds either, and the case flaked here too. Every version of it paid O(1 MiB) of the holder's throughput, and that is a property of whatever machine runs it.
+
+Two deterministic routes were considered and rejected with reasons. A holder restarted under the same name makes the client's position FOREIGN by incarnation, which is O(1) — but `no_session` is terminal, so a retry landing in the window between the two holders ends the client outright, which is a race of its own. Sizing the window from a volume marker the child writes measures the same physics and buys nothing.
+
+WHAT THE CASE WAS ACTUALLY ASSERTING IS A MAPPING: which channel a hole in what the pane can show is announced on. That is now `progress.Hole` — two situations, one rule, with a test that names both and runs in no time. A flaky test is worse than no test, because it teaches the reader that red means "run it again"; this trades one for something that cannot flake and says more.
+
+WHAT IS NO LONGER COVERED, SAID PLAINLY: that the CLI reaches those branches at all. The mapping is pinned; the path to it is not. Driving it needs the retention window to roll, which is the thing that cannot be done in bounded time on an unknown machine.""",
+    """
+AND THE THIRD CI RUN FOUND THE SAME DEPENDENCY IN A PLACE THE FIRST SWEEP DID NOT LOOK.
+
+The Zig and e2e step passed — both earlier fixes held — and the Swift step failed on `ConfigPathsCrossingTests`, which starts a real holder through the binary and had no `--hub` either. The first sweep covered `scripts/` and stopped there.
+
+MEASURED DIRECTLY: `run --hold --detach` with nothing on the resolved port exits 1 with "the session did not come up" after five seconds, writing no record.
+
+AND THE TEST REPORTED THE SYMPTOM RATHER THAN THE REASON. It asserted `XCTAssertNil(out.error)` — a LAUNCH failure, which a process that starts and then exits 1 does not set — so it passed that line and failed later with "the holder wrote no record", while the binary had already said exactly what was wrong on stderr. The same launch-check-for-a-status confusion as [[WI-2026-09-10-001]], at a site that fix did not reach. With the exit status asserted, the canary now reads: "the holder did not start: synapty run --hold --detach: the session did not come up".
+
+VERIFYING THIS NEEDED CARE. `xcodebuild` does not pass the invoking shell's environment to the test host, so an earlier "verified under the CI condition" run was worthless — the variable never reached the child. The canary had to put the dead port into the test's own environment dictionary to be meaningful.
+
+SWEPT EVERYWHERE THIS TIME, not just where CI happened to stop: every invocation of the binary's `run` across scripts, Tests, UITests, the justfile and the workflow now carries a hub decision — either a real port it started itself or `none`.""",
+    """
+FOURTH CI RUN: A USE-AFTER-RETURN IN THE TEST HARNESS, AND THIS ONE IS NOT A BET AT ALL.
+
+`cli.commands.test.a daemon that answers is heard` failed with `timed_out`. `FakeDaemon.start` spawned its serving thread with `&server` — a LOCAL that the same function returns BY VALUE. The frame is popped the moment `start` returns, and the copy the caller holds is somewhere else entirely, so the thread called `accept` through a pointer into dead stack.
+
+MEASURED: the thread was handed 0x16fa0c8c0, a slot inside `start`'s frame, while the caller's copy sits at 0x16fa0caf0 — 560 bytes apart. It works exactly as long as nothing reuses those sixteen bytes, which is why it is green here and times out there.
+
+THE TEST ABOVE IT ALREADY RECORDED THE SYMPTOM. Its comment says a failed round trip "crashed the runner instead of failing the test — which is what it did on CI while passing here", and the fix made it fail cleanly. That treated the reporting and left the cause; this is the cause.
+
+`accept` wants nothing but the listener, so the thread takes the descriptor by value. That ends the lifetime question instead of answering it.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the three held sessions test-reconnect-e2e.sh starts are given --hub none, so the cases stop waiting eight seconds for a hub none of them is about"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "every shell suite passes with nothing listening on the resolved hub port, which is the condition CI runs in and this machine does not"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the stale-position case waits for the account to say the position could not be honoured, instead of cutting for a window sized from one machine's measured throughput"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the channel a hole in what a pane can show is announced on is a value with a test (progress.Hole), and the shell case that pinned it by rolling a 1 MiB window is gone — it was a bet on the machine's throughput and lost twice on CI"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the crossing test that starts a real holder is given --hub none too, and judges the start by its exit status rather than by whether the process launched"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the fake daemon's thread is handed the listener descriptor by value, not a pointer into a stack frame its own function returns"
+status = "done"
+category = "fixed"

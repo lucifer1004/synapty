@@ -1,0 +1,35 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-AUTHORIZATION"
+title = "Capability Is Scoped, Human-Granted, And Mortal"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+Brokered capability MUST be scoped, human-granted, recorded, and mortal. These four together are the entire justification for preferring the broker to a direct trust; any one of them missing collapses the argument.
+
+- SCOPED. An agent-initiated write MUST be confined to a destination the receiving side declares. It MUST NOT be able to name an arbitrary path on the destination host.
+- HUMAN-GRANTED. Authorization to move data between a given pair of hosts MUST be an explicit human act, distinct from adding a host, connecting to one, or an agent asking. It has the same shape as machine enrolment, and exists for the same reason.
+- RECORDED. Every transfer MUST be recorded with its initiator — which human gesture or which agent id — its source, its destination and its size. The existing activity stream is event-typed and is the correct carrier.
+- MORTAL. The capability MUST NOT survive the workbench process. This is the property with no equivalent in a key on a server, and it is what makes the broker a genuinely better answer rather than a differently-shaped one.
+- WITHDRAWABLE. Every standing grant MUST be enumerable to the human who made it, and MUST be revocable one at a time without quitting. A withdrawal MUST take effect on work the grant has ALREADY ADMITTED and not merely on the next request: the grant is consulted once, when an agent asks, so a rule binding only future asks would leave a transfer the human just refused waiting its turn to run. It need not reach bytes already crossing — a copy in flight is a subprocess with no handle to call back — and the surface offering the withdrawal MUST say which of the two it is doing rather than let "withdraw" be read as "stop".
+
+  THIS WAS THE FIFTH PROPERTY AND IT WAS MISSING WHILE BEING RELIED ON. C-BROKER's argument for preferring the relay to a key in authorized_keys is that the ability "can be scoped, gated, recorded and withdrawn (C-AUTHORIZATION), where a key in authorized_keys is account-wide, permanent and silently retained" — and this clause listed four properties, none of them withdrawal. MORTAL is not it: mortal means the grant dies when the process does, which makes quitting the application the only way to take one back, and "quit everything you are doing" is the same answer a key on a server gives. The distinction the broker is sold on needs the human to be able to change their mind about ONE route while continuing to work.
+
+A HUMAN'S OWN DRAG IS ALREADY AN EXPLICIT ACT and does not need a second confirmation; the authorization requirement binds AGENT-INITIATED transfers. The distinction is the initiator, not the mechanism, and the service MUST know which it is serving.
+
+NOTHING IS REPLACED UNLESS SOMEONE SAYS SO. A delivery whose name is already taken at the destination MUST NOT overwrite silently. Of the three possible outcomes a refusal is visible and a rename is visible, and only replacement destroys something while leaving no record that it existed — which makes it the one outcome nobody can review.
+
+- AN AGENT MUST NEVER REPLACE. It is not present to be asked, and what it would destroy belongs to somebody else: the agent inbox is ONE directory shared by every agent on a machine, so two agents each delivering `report.html` collide by default. The collision MUST be resolved by taking the next free name.
+- A HUMAN MAY BE ASKED, because they are there. Their transfer waits rather than landing under a name they did not choose, and waiting is not failing — the file already at the destination MUST be untouched while the question stands.
+- Replacement MUST be reachable only by a human answering in front of the file it applies to, and the safe answer MUST be the default: a policy that has to be set to avoid destruction is one that destroys by omission.
+
+MORTALITY BINDS THE CONNECTION, NOT ONLY THE GRANT. Every capability the workbench opens to serve this plane — a port forward added to a multiplexed connection, and the connection itself — MUST NOT outlive the process that opened it. A POOL MAKES THIS AN ACCOUNTING REQUIREMENT RATHER THAN A HABIT. C-BROKER lets a host hold as many connections as observed load calls for, so there is no fixed set of names to close at exit; a connection that is opened without being entered in the pool is one nothing will ever close. Opening MUST therefore be inseparable from recording, AND CLOSING MUST BE INSEPARABLE FROM UNRECORDING. The first rule alone forbids under-recording, which leaves a connection unreaped; it says nothing about over-recording, and over-recording is what a durable record produces. A record outlives the process that wrote it, and a connection's name is derived from the host's rather than minted fresh — so a record from a dead run and a connection from a live one are reunited across a process boundary without either being the same thing. Every mismatch that would have cost one process's lifetime costs forever instead.
+
+A RECORD MUST NOT DECIDE WHERE A CHANNEL GOES UNLESS IT STILL NAMES A CONNECTION THIS HOST HOLDS. Verified against the live membership, or carrying the identity of the run that wrote it; a read that merely FORGETS something may go unverified, and the two MUST be distinguishable at the call site, because a reader who cannot tell them apart will reach for whichever is shorter.
+
+WHERE THE RECORDS LIVE IS PART OF THE CONTRACT, not an implementation detail, because they are a durable artifact on the human's own machine that outlives every process this specification describes. Two properties follow and are stated because both are already true and neither is obvious: a record whose name embeds a human-editable label is orphaned when the human edits it, and a record set that distinguishes members from their metadata by a filename convention has a schema — so it MUST be one an implementation can state, rather than one only its own code knows. `ControlPersist` means nothing reaps these for us, so a workbench that exits without closing them leaves authenticated connections and open loopback ports on the human's machine with nothing watching, which is precisely the state a grant on a server was rejected for."""

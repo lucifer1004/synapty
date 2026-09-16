@@ -1,0 +1,31 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ADDRESS-CONFLATION"
+title = "Motivation — The Address Was Never the Agent"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The conflation is already producing casualties, not hypothetical ones:
+
+- The task center is PERSISTENT (GitHub-issues model, [[RFC-0003]]), but
+  it records pane ids. The two agents who dogfooded A2A collaboration on
+  hub issue #2 — local-2c69 and local-4194 — left claims and findings
+  that NO agent can ever reclaim: those ids died with their panes within
+  hours, while the issue lives on.
+- A DM addressed to a pane id has no forwarding address. The mailbox
+  lives in the pane daemon's process today, so pane death destroys both
+  the address and the undelivered mail.
+- [[RFC-0006]] resume re-attaches a harness session in a fresh pane with
+  a fresh id: presence works, but every collaboration artifact points at
+  the previous life.
+
+The distinction that matters: a NEW session in the same project is
+correctly a NEW agent — identity SHOULD change. Only resume/continue of
+the same harness session preserves the context that makes "same agent"
+true. The harness session identity is therefore the right derivation
+root, and the hook-event channel already delivers it deterministically
+at registration time (SessionStart carries the real session id)."""

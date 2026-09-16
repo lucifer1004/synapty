@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-011"
+title = "Two menu paths printed to humans name a menu the commands are not in"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+The non-keyboard path each command advertises is a string in the key table, and the menu it names is built independently. For the two split commands they have drifted: the table says "View ▸ Split Right" / "View ▸ Split Down" and the items are in the File menu.
+
+The string is printed to the human verbatim, and in the moment they need it right: the Keys pane shows it under a command whose chord is cleared, and the confirmation toast says "Split Right has no shortcut — reach it at View ▸ Split Right". [[RFC-0016]] C-UNBOUND is what puts it there.
+
+Correcting the strings fixes today; removing the second owner fixes the class."""
+
+[[content.acceptance_criteria]]
+text = "The path a command advertises names where the command actually is, with a test that fails when the menu and the table disagree"
+status = "done"
+category = "fixed"

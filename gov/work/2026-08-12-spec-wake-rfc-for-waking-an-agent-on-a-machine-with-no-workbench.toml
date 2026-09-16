@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-011"
+title = "spec(wake): RFC for waking an agent on a machine with no workbench"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = [
+    "RFC-0005",
+    "RFC-0009",
+]
+
+[content]
+description = """
+THE ONE PLACE THE CROSS-MACHINE STORY DOES NOT CLOSE. Mail reaches a detached remote agent and the agent never notices. The remote hub mints the [[RFC-0005]] wake candidate correctly; there is no workbench on that machine to gate and inject it, so it stays pending forever. Delivery succeeds and coordination does not — which is the difference between messaging and the thing the README promises.
+
+This needs a SPEC before code because the hard part is authority, not mechanism. RFC-0005 C-AUTHORITY makes wake a per-pane human act, and C-WAKE-LOCALITY (RFC-0009) says only the mailbox holder mints candidates and a workbench-less hub simply keeps them pending — which is the current, deliberate behaviour. Changing it asks: on a machine with no human present, WHO authorises typing into an agent's terminal, and how is that authorisation expressed, revoked and made visible? Answering "the deploy already implied it" is the kind of reasoning that turns a per-pane act into an ambient permission.
+
+The mechanism is available and worth recording so the spec is not written in the abstract: remote agents run under tmux by construction (scripts/connect.sh), so `tmux send-keys -t synapty-<agent-id>` is an injection primitive that exists precisely on the machines where the workbench does not. Note what that does NOT give: the passive detector reads a ghostty surface, so the C-STATE-GATE evidence that makes injection safe locally has no equivalent there. A headless wake either finds different evidence or accepts a weaker gate and says so.
+
+`synapty run` is not a route: it uses std.process.spawn and holds no PTY master, so it cannot write into its child's terminal.
+
+Scope explicitly includes deciding NOT to do this. "A detached agent processes mail when a human next attaches" is a defensible answer if the alternative is an unattended process typing into terminals under an authority nobody granted in the moment."""
+notes = ["""
+SPEC DELIVERED 2026-08-13 as [[RFC-0011]] (normative), and it AUTHORISES NO INJECTION. The WI said deciding not to build this was in scope; the outcome is narrower and more useful than either yes or no — the authority half is settled and the evidence half is explicitly unresolved, with injection blocked until C-HEADLESS-GATE is amended with a model that holds.
+
+Independent review returned MAJOR ISSUES with eight criticals, all accepted. Two were damage I had done to ACCEPTED clauses and are repaired:
+
+(1) My amendment to RFC-0005 C-AUTHORITY asserted that what crosses the wire is "the RECORD that it happened, never a means of performing it". That is invented reassurance in the corpus of record. A delegation frame IS a hub message that arms wake; the hosting hub cannot verify a human is behind it and RFC-0009 C-BOUNDARIES forbids it from claiming it can — and worse, C-BOUNDARIES states that a peer must not be granted a capability withheld from a local one, while RFC-0005 withholds arming from EVERY local process. The amendment now states the real guarantee: workbench-trust plus link authentication, weaker than the local by-construction unforgeability.
+
+(2) I amended RFC-0009 C-WAKE-LOCALITY by PREPENDING an exception and leaving its contradicting bullets standing — "A HUB WITH NO WORKBENCH CANNOT WAKE" and "implementations MUST NOT invent a substitute path". That is the exact failure mode RFC-0009's own review taught, committed inside the clause I was amending. Repaired in place.
+
+The sharpest technical finding, which I had backwards: classification from a tmux capture does not degrade safely. RFC-0004 manifests match over the read region PLUS the OSC title with FIRST MATCH WINS, and a capture has no title channel — so losing an input can fall through to a rule matching `done` for an agent that is working, opening the gate on a live turn where nobody is watching. Also: a capture reads a scrollable viewport, which C-PASSIVE-DETECTION forbids depending on by name; manifest regions are geometry-calibrated against the local reader; and RFC-0004 C-CONFORMANCE (written the previous day, by me) declares C-PASSIVE-DETECTION VACUOUS on exactly this machine.
+
+Corrected in the permissive direction too: I wrote that a headless gate "may have only the screen". False — RFC-0009 C-PRESENCE puts presence ownership on the hosting hub and `synapty notify` reaches it over loopback, so the merged-status veto IS available and must be used.
+
+Also fixed: an unbounded "MUST EXPIRE" (now a finite ceiling, SHOULD 24h, because an interface offering "never" would have conformed); revocation cancelling pending candidates while expiry did not, which was both inconsistent and a trapdoor under C-WAKE-TRIGGER's edge semantics for long-lived detached agents that never re-register; "observable" with no carrier, now riding the attributes C-PRESENCE already fixed; "same prominence" replaced with the same affordance vocabulary; hub-restart behaviour decided rather than left open; and C-EXPIRY's rationale replaced with the argument that actually holds — a local armed pane can only be injected into while a workbench is running, which is when a human is present, and a delegated grant fires when nobody is.
+
+PRECONDITION NOW ON THE RECORD: a delegation must not be honoured until the submission-boundary impersonation defence exists, which the hub architecture decisions already list as required before remote mode ships.
+
+The corrected text has NOT been re-reviewed."""]
+
+[[content.acceptance_criteria]]
+text = "an RFC clause set answering who authorises headless wake, how that authority is granted and revoked, and where it is visible — or a recorded decision NOT to support it, with the consequence for cross-machine coordination stated plainly"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the gating question is answered explicitly — what evidence replaces the passive detector's screen read on a machine with no workbench, or what weaker gate is accepted and why"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005 C-AUTHORITY and C-WAKE-TRIGGER and RFC-0009 C-WAKE-LOCALITY are amended in the same change rather than contradicted, since all three currently assume a workbench mints and injects"
+status = "done"
+category = "added"

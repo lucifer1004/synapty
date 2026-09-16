@@ -1,0 +1,99 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0017"
+title = "The happy path ended: what V1 deferred and what productisation took back"
+status = "accepted"
+date = "2026-08-28"
+refs = [
+    "ADR-0001",
+    "RFC-0009",
+    "RFC-0010",
+    "RFC-0014",
+    "ADR-0008",
+]
+
+[content]
+context = """
+[[ADR-0001]] fixed V1's scope on 2026-03-26 and its deferral list has been quoted ever since. Most of what it decided held: a native macOS application, libghostty panes, a host sidebar, one binary that is also the agent's CLI. What did not hold is the POSTURE — "V1 is happy-path only — no retry queues, encrypted handshakes, or complex failure tolerance" — and five of the specific deferrals underneath it.
+
+WHAT THE PROJECT SHIPPED AGAINST ITS OWN DEFERRAL LIST:
+
+- "Failure tolerance: No retry queues, reconnection logic, or session persistence across crashes. V2." — [[RFC-0009]] C-DELIVERY holds mail for an unreachable peer and forwards it when the link returns; the hub's state is durable, so queued mail survives a restart; [[RFC-0014]] is session durability across a workbench crash, with a holder that outlives the process that started it.
+- "Group hierarchy with inheritance and jump chains is deferred to V2." — host groups with inherited credentials, ports and ProxyJump have been in the host store since the host store gained groups.
+- "Agent discovery/query: no capability-based query routing. V2." — [[RFC-0010]] is peer identity and capability negotiation.
+- "Embedded Hub — the A2A message router runs in-process within the GUI application. No separate Hub process to start or manage." — retracted twice over, by [[ADR-0007]] and then [[ADR-0008]]: one hub per machine, a standalone service, hubs federate.
+- "MCP Stdio Server ... gives agents native tool access without skills text" — MCP is one harness entry point among several. What agents are actually taught is the CLI and the skills that document it.
+
+WHAT MAKES THIS AN ADR AND NOT A TIDY-UP. A stale deferral list is not inert: it is quoted as authority. On 2026-08-26 a working store-and-forward was cut out of an RFC on the strength of "failure tolerance is deferred", and the correction had to be written into CLAUDE.md as a paragraph telling readers that the accepted ADR is history and a note in a different file is current.
+
+That paragraph is the evidence. A project that has to warn its readers away from an accepted decision has a decision it should have superseded."""
+decision = """
+[[ADR-0001]] IS SUPERSEDED, and with it the deferral list as an authority. Nothing may be cut back, refused or postponed on the grounds that "V1 defers it".
+
+WHAT ANSWERS A SCOPE QUESTION NOW IS THE RFC THAT OWNS THE OBLIGATION. A normative clause at `impl` is a commitment this project has made and implemented; the deferral list was a prediction made before any of them existed. Where the two disagree the clause wins, and where no clause speaks the question is OPEN — not deferred.
+
+THE POSTURE IS PRODUCTISATION. Concretely, and these are the three the happy-path posture used to excuse:
+
+- A queue holds mail for a machine that is not reachable, and gives it up when the machine returns.
+- An answer means what it says. `queued`, `forwarded` and `refused` are different words because they are different outcomes, and a caller must be able to act on which one it got.
+- Behaviour survives a restart — of the workbench, of the hub, and of the machine an agent's session is on.
+
+WHAT IS STILL OUT, and stays out because it was never a matter of maturity: encryption and encrypted handshakes. The SSH channel the workbench establishes IS the trust boundary. That is the one line of [[ADR-0001]]'s constraints which carries forward unchanged, and it is a scope decision rather than a deferral.
+
+WHAT THIS ADR DOES NOT DO. It does not re-decide the shape of the product. The native macOS application, libghostty panes, the Termius-style host sidebar, one binary serving as hub, wrapper and CLI ([[ADR-0004]]) — all of that is [[ADR-0001]]'s and still holds. Superseding an ADR retires its authority, not its history, and the parts that held are the reason it is still worth reading."""
+consequences = """
+GOOD:
+
+- The compensating paragraph in CLAUDE.md can go. A warning that an accepted decision is not to be trusted is a patch on a document, kept in a different file, that every reader has to find before the document misleads them. Its removal is the point of this ADR, not a side effect.
+- A reader — human or agent — who reaches [[ADR-0001]] now meets `superseded` in its metadata before its prose, which is the mechanism the corpus already has for exactly this and which nobody had used here.
+- The five contradicted deferrals stop being quotable. The one that had already cost something — store-and-forward, cut on 2026-08-26 — cannot be cut again by the same argument.
+
+BAD, and worth stating plainly:
+
+- [[ADR-0001]] is referenced by ten other governance files. Those references remain correct: they cite it for what it decided about the product's shape, which still holds. A reader following one of them lands on a superseded document and has to notice that the parts they came for are not the parts that expired. This ADR is what tells them which is which, and it can only do that if they read it.
+- Superseding is not editing. [[ADR-0001]]'s text still says "V1 is happy-path only". Someone quoting it out of context can still be wrong; what changes is that the corpus now says so in the one place a tool will show them.
+
+NEUTRAL:
+
+- No code changes. This is a statement about which document has authority, and the code has been on this side of it for months — which is how the contradiction was found."""
+
+[[content.alternatives]]
+text = "Supersede ADR-0001 with a decision that says what changed and why"
+status = "accepted"
+pros = [
+    "An ADR is a decision at a date; a later decision is another ADR. This is the mechanism the corpus already has, and the one nobody had reached for here",
+    "The parts of ADR-0001 that held — the product's shape — stay readable and stay correctly cited by ten other files",
+    "The superseded status is metadata a tool shows before the prose, so a reader meets the warning without having to find it in another file",
+]
+cons = [
+    "A reader following one of those ten references lands on a superseded document and must work out which half expired",
+    "ADR-0001's text still reads 'V1 is happy-path only'; superseding retires its authority, not its sentences",
+]
+
+[[content.alternatives]]
+text = "Edit ADR-0001 in place — strike the five contradicted deferrals"
+status = "rejected"
+pros = ["The false sentences would simply be gone, so nobody could quote them"]
+cons = [
+    "It erases that the project believed something and changed its mind, which is the part worth keeping — the deferral list was a reasonable prediction in March and the reason it failed is the interesting record",
+    "govctl treats an accepted ADR as a historical record; editing one to match the present is the habit that makes a corpus untrustworthy, because no reader can then tell what was decided WHEN",
+]
+
+[[content.alternatives]]
+text = "Leave ADR-0001 alone and keep the compensating paragraph in CLAUDE.md"
+status = "rejected"
+pros = ["Costs nothing and nothing breaks today"]
+cons = [
+    "It has already failed once: on 2026-08-26 a working store-and-forward was cut from an RFC on the deferral list's authority, and the paragraph exists because of it",
+    "It puts the correction in a file that is not the corpus, so the way a reader actually arrives — govctl adr show ADR-0001 — shows none of it",
+]
+
+[[content.alternatives]]
+text = "Deprecate ADR-0001 with no successor"
+status = "rejected"
+pros = ["Removes the authority without anyone having to write a successor"]
+cons = [
+    "Orphans ten correct citations: they cite ADR-0001 for the product shape, which did not expire",
+    "Records that a decision stopped being true and not what replaced it, which is the question the next reader will have",
+]

@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-001"
+title = "A directory truncated by this hub's own memory bound is reported to the sender as a typo"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+refs = ["RFC-0009"]
+
+[content]
+description = """
+`Directory.max_per_peer` (1024) refuses an advertisement at the bound and the only consequence is a `log.warn` (src/hub/handlers.zig, the `at_capacity` arm). A later send to that identity finds no entry and answers `unknown` — which [[RFC-0009]] C-DELIVERY defines as "no peer advertises it and this hub does not host it". A peer DID advertise it; this hub declined to record it. So the hub reports its own truncation as a name the human typed wrong, and none of C-DELIVERY's six answers fits what actually happened.
+
+THE BOUND IS NOT REQUIRED BY ANY CLAUSE. C-DIRECTORY carried a per-peer cap before the 2026-08-26 cut and carries none now; the code's citation of it was stale and has been corrected to say the bound is this implementation's own choice. It is kept because a peer advertising without limit would otherwise exhaust this hub — a property worth having whether or not a document asks for it.
+
+WHY THE OBVIOUS REPAIR IS NOT AVAILABLE. `indeterminate` was the answer this state had, and it was removed deliberately: tombstoning means a name on a sleeping machine still has an entry, so "there is no longer a gap for it to cover" (recorded in the code at the `unknown` return). The cap REOPENS exactly that gap — an identity with no entry, on a peer that is perfectly reachable — which is the one case the removal's argument did not cover. C-DELIVERY says "THE LIST IS THE SET", so a seventh answer is a corpus change and not an implementation choice.
+
+THREE WAYS OUT, and the first is not obviously wrong: drop the bound and rely on the peer being someone the human chose to link with; or keep it and mint an event at the refusal so the truncation outlives the process (C-EVENT-LOCALITY names nine kinds and would need a tenth, so this is an amendment); or keep it and give C-DELIVERY an answer for "this hub's view of that peer is incomplete", which is the honest thing to tell a sender and the largest change.
+
+FOUND BY the audit of WI-2026-08-25-001's criteria, while establishing that the criterion asking for `indeterminate` was a fossil of the pre-cut document. The criterion was struck; this is the real residual underneath it."""
+notes = ["""
+RESOLVED BY REMOVING THE STATE RATHER THAN NAMING IT. The three ways out I recorded were: drop the bound; keep it and mint an event; or give C-DELIVERY a seventh answer. None was taken, and the reason is worth writing down.
+
+DROPPING THE BOUND WAS OUT once I looked at what it protects. [[RFC-0009]] C-BOUNDARIES concedes that a relay link is authenticated by nothing a hub can check — it arrives on the same loopback listener as every submission — so a local process can become a peer, and the bound is the only thing between that and unbounded directory growth. "No clause requires it" is not "it is not doing anything".
+
+A SEVENTH ANSWER WAS ALSO OUT, and for a stronger reason than the closed list. `indeterminate` was removed deliberately once tombstoning closed the gap it covered — a name on a sleeping machine still has an entry — and re-introducing it for the cap would be re-opening a decision on the strength of a state this hub creates for itself.
+
+SO THE STATE GOES. At the bound the LINK is refused, with `directory_overflow` on the frame and in this hub's own event log. There is then no capped-out identity to answer wrongly about: what the hub did learn is TOMBSTONED by the teardown rather than discarded, so mail for those identities is still spooled where it belongs, and an identity it never learnt is answered `unknown` truthfully, because that peer advertises nothing at all now.
+
+BOTH PATHS OWED IT. The per-identity `add` logged and dropped; the full-set `replace` swallowed the same outcome with `catch continue`. Two sites, one rule — the shape four review rounds have been finding — so `directoryReplace` reports the overflow up to the caller holding the connection rather than deciding alone. Both mutation-checked.
+
+AND A SECOND DEFECT CAME OUT ON THE WAY, found by reading C-COLLISION to see whether the reason set was closed. It names three codes and says "FOUR CONDITIONS, THREE CODES"; the hub was sending a fourth, `malformed_hello`, which no clause named. That is precisely the failure the bullet exists to prevent — an implementer needed a string and invented one — and the project distinguishes it deliberately: a hello with no version range is not an old peer whose range fails to intersect, it is a frame this protocol does not define. Named now, alongside `directory_overflow`. RFC-0010 is at 0.4.0 and RFC-0009 at 0.6.0."""]
+
+[[content.acceptance_criteria]]
+text = "A send whose target this hub declined to record answers something true about what happened, and a test fails if it answers the same word as a name nobody ever advertised"
+status = "done"
+category = "fixed"

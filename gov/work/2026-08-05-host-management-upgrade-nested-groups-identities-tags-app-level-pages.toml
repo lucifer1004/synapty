@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-008"
+title = "Host management upgrade: nested groups, identities, tags, app-level pages"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "Host management upgrade: nested groups (HostGroup with inherited defaults), reusable Identities (username+key), tags with search, group settings sheet, effective credential resolution; app-level Hosts page (not popover) with group tree + host list + Identity CRUD."
+
+[[content.acceptance_criteria]]
+text = "nested groups with inherited defaults"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "identities, tags, search, group settings"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "app-level Hosts page, migration-safe storage"
+status = "done"
+category = "added"

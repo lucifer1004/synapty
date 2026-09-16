@@ -1,0 +1,60 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EXEC-SCOPE"
+title = "Executable Scope — Only Panes Born for It"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Execution primitives operate ONLY on exec panes — panes created through
+this API.
+
+Requirements:
+
+- An exec pane is created by an agent's request, runs a plain shell, is
+  owned by the requesting agent's registration (id + generation), and is
+  visibly marked in the UI as machine-operated, including which agent
+  owns it.
+- run/wait-output/read/close MUST be refused for any pane that is not an
+  exec pane owned by the requesting agent: never a human-opened pane,
+  never another agent's exec pane, never any agent-bearing harness pane.
+  Ownership is checked per request against the live registration — an
+  agent whose generation ended ([[RFC-0004]]) loses access; its orphaned
+  exec panes remain visible to the human with their machine-operated
+  marker until closed.
+- The workbench MUST verify the exec pane's foreground process before
+  each run under C-PRIMITIVES' foreground rule (spawned shell, or the
+  same agent's own previous run with the follow-up flag — the herdr
+  foreground-process discipline): anything the human started always
+  refuses, and the refusal is surfaced.
+- Exec panes are ordinary panes to the human: visible, focusable,
+  scrollable, closable. Human input into an exec pane is allowed (it is
+  their machine) — machinery adapts to the human, never the reverse.
+
+FEDERATION QUALIFIER ([[RFC-0009]] C-DELIVERY): where this
+clause says "the workbench", read "the workbench attached to the hub
+that hosts the pane". A hub MUST refuse an exec request for a pane it
+does not host rather than relaying it toward the machine that does, and
+a hub with no workbench attached — the normal case for a server hosting
+detached agents — refuses exec entirely rather than queueing it, answering
+  `no_workbench` — named HERE, since the clause that used to name it was
+  deprecated with the rest of cross-hub workbench routing, and a refusal
+  an implementer must invent a string for is one two of them spell
+  differently for a
+workbench that may attach later.
+
+WHICH HUB HOSTS A PANE is decided by the SURFACE, not by the shell. A
+pane opened against a deployed host (C-PRIMITIVES' optional `host`) is a
+local ghostty surface running an SSH session: the workbench holding that
+surface is the only one that can type into it, so the pane is hosted by
+that workbench's hub even though the commands run elsewhere. `host`
+therefore survives federation unchanged, and C-EXEC-AUTHORITY's "all
+registered agents and all deployed hosts at once" remains literally
+true — the arming switch's blast radius did not change, because such a
+pane never stopped being local. The rule this qualifier adds is narrower
+than it may read: what a hub refuses is an exec request naming a pane
+owned by a DIFFERENT workbench, not one whose shell happens to be
+remote."""

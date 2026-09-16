@@ -1,0 +1,58 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-AUTHORITY"
+title = "Authority — Per-Pane Opt-In, Visibly Armed"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Today exactly two parties can spend an agent's turn (and the tokens and
+side effects that come with it): the human at the keyboard, and the harness
+itself. Wake extends that set to "any peer that can DM the agent". That is
+an authority change, and it belongs to the human.
+
+Requirements:
+
+- Wake MUST be opt-in per pane (or per agent registration), and the default
+  MUST be off. Arming wake is the human's act in the workbench UI; no hub
+  message, CLI call, or configuration fetched from traffic may arm it.
+  EXTENDED BY [[RFC-0011]] C-DELEGATION for agents on machines with no
+  workbench, and the extension is WEAKER THAN THIS CLAUSE, not equivalent
+  to it. A delegation frame arriving over a peer link IS a hub message
+  that arms wake; the hosting hub cannot verify a human performed the act
+  behind it, and [[RFC-0009]] C-BOUNDARIES forbids it from claiming it
+  can. What the delegation buys is that no configuration, deploy flag or
+  local process can arm — the act still originates with a human in a
+  workbench — but the guarantee is workbench-trust and NOTHING
+  BESIDE IT, NOT the by-construction unforgeability this clause has
+  locally. THERE IS NO LINK AUTHENTICATION TO ADD, which an earlier form
+  of this sentence claimed while citing [[RFC-0009]] C-BOUNDARIES for the
+  opposite half of the same thought: a peer id is self-reported on the
+  same footing as an agent id, and no document may rest a security
+  argument on peer authentication. A flag on the remote machine remains forbidden regardless.
+- An armed pane MUST be visibly marked in the GUI (status bar / tab
+  affordance) for as long as it is armed — the human must be able to see
+  at a glance which panes can be started by peers. For an agent with no
+  pane in any GUI the mark moves to the merged multi-hub view
+  ([[RFC-0011]] C-VISIBILITY), which also records the honest limit that
+  clause carries: while no workbench is running there is no surface to
+  see it on.
+- Disarming MUST take effect immediately and cancel any pending wake
+  candidates for that pane.
+- The state gate (C-STATE-GATE), fixed template (C-TEMPLATE), and
+  acknowledgement discipline (C-WAKE-ACK) are NOT substitutes for this
+  opt-in; they bound the blast radius after the human has delegated, they
+  do not replace the delegation.
+
+Persistence (folded at finalize): the per-pane ARMED bit persists with
+the session snapshot — it is the human's standing choice for that pane,
+same authority class as the layout itself. THAT REASONING DOES NOT CARRY
+to an unattended machine, and [[RFC-0011]] C-EXPIRY says why: it holds
+here because the human sees the pane every time they open the workbench,
+and a delegation on a machine nobody is watching has no such moment. Such
+a delegation expires; this bit does not. Pending wake candidates do
+NOT persist ([[RFC-0006]] C-RESUME-RESTORE: nothing from the previous
+life carries over)."""

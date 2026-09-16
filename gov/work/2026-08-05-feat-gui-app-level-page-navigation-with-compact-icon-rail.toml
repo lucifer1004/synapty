@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-013"
+title = "feat(gui): app-level page navigation with compact icon rail"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "The management surfaces (hosts, tasks, activity, hub, settings) move out of popovers/toolbar into full app-level pages switched from the sidebar, with a compact icon-only rail: no section headers and no duplicate labels."
+
+[[content.acceptance_criteria]]
+text = "terminal/hosts/tasks/activity/hub/settings are full app-level pages switched from the sidebar"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "icon-only compact rail without section headers or duplicate labels"
+status = "done"
+category = "added"

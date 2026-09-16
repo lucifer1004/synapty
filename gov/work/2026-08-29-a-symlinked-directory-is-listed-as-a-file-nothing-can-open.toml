@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-002"
+title = "A symlinked directory is listed as a file nothing can open"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+The file pane could not enter a symlinked directory on a remote host: it showed as a plain file.
+
+`SSH_FXP_READDIR` reports each entry as `lstat` does, so a symlink arrives with type `S_IFLNK` and nothing about what it points at. `SFTPWire.Attributes.isDirectory` read that type and answered no, so the row was drawn as a file and clicking it did nothing.
+
+`isSymlink` was already decoded and had NO caller anywhere in the project — the codec knew the entry was a link and nothing asked.
+
+TWO SMALLER FAULTS UNDER THE SAME STONE:
+
+- `SSH_FXP_ATTRS` (105) was in the packet-type table with no branch in the decoder, so any reply carrying attributes came back as `.other(105)`. The resolution could not have worked even if something had asked for it.
+- LOCALLY, a BROKEN link vanished from the listing entirely. `fileExists(atPath:isDirectory:)` answers about the TARGET, and the listing dropped every entry it answered no for — hiding the one file in a directory a human most needs to see. (A working local link was already fine: `fileExists` follows.)
+
+RESOLVED PER LINK, NOT PER ENTRY. A listing asks `SSH_FXP_STAT` — the kind that follows a link, unlike LSTAT — once for each symlink it found, and not at all for a directory that holds none, which is most of them."""
+
+[[content.acceptance_criteria]]
+text = "A link to a directory can be entered, on a remote host and locally, with a test that fails if the entry keeps the link's own type"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A broken link is still listed rather than dropped"
+status = "done"
+category = "fixed"

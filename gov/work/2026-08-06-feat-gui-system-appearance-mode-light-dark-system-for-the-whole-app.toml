@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-06-004"
+title = "feat(gui): system appearance mode — light/dark/system for the whole app"
+status = "done"
+created = "2026-08-06"
+started = "2026-08-06"
+completed = "2026-08-06"
+
+[content]
+description = "The app always follows the macOS system appearance. Add a Settings → Appearance choice (System/Light/Dark) that forces NSApp.appearance for the whole UI (sidebar, settings, panes — the DS dynamic colors follow automatically) and forwards the resulting color scheme to ghostty (ghostty_app_set_color_scheme) so terminal colors and light/dark theme conditionals follow. System mode also re-forwards OS appearance changes while running."
+
+[[content.acceptance_criteria]]
+text = "Settings → Appearance pane with System/Light/Dark segmented choice"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "NSApp.appearance applied at launch and live on change (whole UI follows)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "ghostty color scheme forwarded (app + live, incl. OS changes in System mode)"
+status = "done"
+category = "added"

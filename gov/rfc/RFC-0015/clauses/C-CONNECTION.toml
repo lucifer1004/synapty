@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONNECTION"
+title = "A Connection Is a Shared Resource"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A connection is a live link to one host, owned by the workbench rather than by any workspace, and shared by every leaf that runs on that host.
+
+- A connection MUST hold the host record it was opened from, its dial state (`connecting`, `connected`, or `failed` with a reason), and the transport resources — the control socket and any tunnels.
+- THERE MUST BE AT MOST ONE CONNECTION OBJECT PER HOST at a time. Leaves in different slots, and in different workspaces, that run on the same host MUST share it. The reason is in this model and not beneath it: the object holds the dial state every leaf on that host reads and the reference count that decides when the link is released ([[RFC-0015:C-RELEASE]]), so a second object for the same host would give two answers to "is this machine connected" and let one leaf's teardown strand another's.
+
+  HOW MANY TCP CONNECTIONS CARRY IT IS NOT THIS CLAUSE'S QUESTION and MUST NOT be inferred from this rule. [[RFC-0013]] C-BROKER answers it, and the answer is a pool whose size follows observed load. This sentence used to justify the rule by "a single ControlMaster per host carries every subsequent call", which was true when written and stopped being true without this clause being reopened — a model rule resting on a transport fact is a rule that goes stale somewhere else.
+- A connection MUST be addressable by a stable identifier for the lifetime of the link, and that identifier is what leaves store ([[RFC-0015:C-LEAF-BINDING]]).
+- A CONNECTION MUST NOT HOLD AN AGENT IDENTITY. Every leaf runs its own child under its own agent id — a fresh one is minted per spawn — so a connection carrying "the" agent id would name one of its leaves arbitrarily. The prior model did exactly this: the container kept the id it was dialled with, and ending it left every other leaf's agent detached and unaddressable. Agent ids live on the leaf ([[RFC-0015:C-LEAF-BINDING]]).
+- A connection MUST NOT own layout. It has no tree, no slots, and no focus; it does not know which leaves reference it beyond the count it needs for [[RFC-0015:C-RELEASE]].
+- The local machine MUST be modelled the same way. "Local" is a connection like any other — always available, never dialled, never released — so that no consumer needs a separate code path to ask a local leaf which machine it is on. The absence of a host is a property of the connection, not a null to be checked at every call site."""

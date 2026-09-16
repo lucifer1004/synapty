@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-009"
+title = "fix(hub): a second workbench terminated the hub another one was using instead of reusing it"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "ADR-0008",
+    "WI-2026-08-14-006",
+]
+
+[content]
+description = """
+THE QUESTION: should a second app instance reuse this machine's hub, or start its own?
+
+REUSE, ALWAYS — and not as a preference. Four independent reasons, each sufficient on its own:
+
+- ONE IDENTITY PER MACHINE. [[RFC-0010]] has the machine mint `<label>-<4hex>`, and peers key their directory entries and spooled mail on that name. Two hubs either share the identity file — two routers answering to one name, mail delivered to whichever won the race — or mint a second, and the machine then presents itself to the fleet as two machines.
+- ONE DISCOVERY ENTRY. `machine/hub.json` names one port. A second hub either clobbers it, sending every bare `synapty` CLI to the wrong router, or does not publish and is unreachable by any bare CLI at all.
+- A2A ROUTING WOULD SILENTLY HALVE. An agent registered with one hub is invisible to an agent on the other, on the same machine. That is the failure this product exists to prevent.
+- ONE DURABLE STATE FILE. `hub-state.json`, two writers.
+
+And it would LOOK fine: the port ladder puts the second hub on 9001, everything starts cleanly, and the breakage surfaces only as "agent X cannot see agent Y". The worst failure shape available.
+
+[[ADR-0008]]'s adoption handshake already exists for exactly this. What was broken is the TAKEOVER branch.
+
+The rule was: build matches → adopt; build differs and the hub was workbench-spawned → takeOver, which SIGTERMs. Takeover is right for a STALE hub — one whose workbench has exited, the reclaim ADR-0008 wants. It is wrong for a LIVE second instance, where it pulls A2A out from under an app that is still running and using it. [[WI-2026-08-14-006]] closed this for XCTest hosts by keeping them out of hub management entirely and named the general case as still open; this is that case.
+
+The missing fact was whether the hub currently has a live supervisor. The hub already tracked it — `Supervision.supervisors`, incremented by subscribers — and `hub_info` did not report it. Asking does not disturb the answer: a supervisor is a SUBSCRIBER, and a hub_info query is one-shot and never subscribes.
+
+The rule is now: build matches → adopt, whether or not another workbench is on it, because sharing is the point. Build differs with no live supervisor → takeOver, the reclaim case. Build differs with a live supervisor → conflict, naming the build that is using it, because terminating another app's router is not this workbench's call however wrong that build looks from here.
+
+NOT ADDRESSED, and worth its own look: two instances also share `machine/session.json`, so the second one to quit writes the window layout both of them will restore."""
+notes = ["""
+VERIFICATION. Two tests, falsified before being believed: removing the live-supervisor guard turns `testDoesNotTakeOverAHubAnotherWorkbenchIsUsing` red, and the same-build case asserts a second instance adopts rather than replacing. 389 Swift tests pass.
+
+The end-to-end case — two real app instances, one adopting the other's hub — is NOT covered here. Running a second instance on this machine is the hazard itself, and doing it against the operator's live workbench to prove a point would risk the thing the change protects."""]
+
+[[content.acceptance_criteria]]
+text = "a hub with a live supervisor is never terminated by a second workbench"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a hub whose workbench has exited is still reclaimed, as before"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hub_info reports its live supervisor count"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a second instance of the same build adopts rather than replacing or duplicating"
+status = "done"
+category = "chore"

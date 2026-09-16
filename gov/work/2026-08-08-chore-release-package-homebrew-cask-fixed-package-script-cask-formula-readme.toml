@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-088"
+title = "chore(release): package + Homebrew Cask — fixed package script, cask formula, README"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Release packaging for the GitHub Release + Homebrew Cask path (no Apple account):
+- just package: locate the Release app from BOTH DerivedData locations (default and .build/DerivedData), keep the DMG, also produce a Synapty-<version>.zip and print its sha256 (needed by the cask)
+- cask/synapty.rb: Homebrew cask formula pointing at the GitHub Release asset (version placeholder + sha256 placeholder); README documents `brew install --cask <raw-url>` and the manual xattr path
+- README.md: overview, install (cask / manual), build (submodule + GhosttyKit + app), license note"""
+
+[[content.acceptance_criteria]]
+text = "just package finds the app from either DerivedData location and emits zip + sha256"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "cask/synapty.rb formula present with version/sha256 placeholders"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "README with install (cask/manual) and build instructions"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

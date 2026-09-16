@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-036"
+title = "fix(cli,ci): recv --wait waits again, and the gate is run where it will run"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The third re-audit of 2026-09-02. One high regression from the previous
+round: the ten-second deadline that stopped a wedged pane daemon from
+hanging hook-event ([[WI-2026-09-02-033]]) also killed `recv --wait`, whose
+whole purpose is to hear nothing for as long as it takes — measured: it
+died at 10.01 s, printed that the daemon did not answer, then said
+SYNAPTY_SOCK was not set and exited 2. Two CI blockers that a single run on
+a clean runner would have found: the justfile still resolved xcodegen at
+parse time, so the governance job on ubuntu died before it began; and
+`just test` ran the e2e scripts against zig-out/bin/synapty without building
+it, which only worked where an old binary happened to exist. The ci.yml
+header claimed the gate was what verify runs while unshipped and the
+federation e2e were not in it — the second time a CI claim outran the
+change, so this WI ends with the gate run in a clean checkout and the
+result recorded here. Lows swept alongside: the --through banner printed on
+every reconnect, expose's losing forward released its port before the
+cancel returned, the federation e2e used fixed ports, the deploy CLI module
+did not link libc, a stale comment in cli.zig."""
+
+[[content.acceptance_criteria]]
+text = "recv --wait waits without a deadline (IpcClient.recvWithin accepts -1) while every other IPC reply keeps the ten-second bound; a shell e2e sends the mail more than ten seconds after recv --wait starts and the wait returns it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "xcodegen and govctl are both resolved when a recipe needs them, never at parse; just test builds the binary before the e2e scripts; ci.yml runs the federation e2e and unshipped so its header is true"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: run 2026-09-02 in a clean jj workspace (no zig-out, ghostty submodule present as CI checks it out): XCODEGEN=/nonexistent GOVCTL=/nonexistent just --list parses; XCODEGEN=/nonexistent just gov-check and gov-lint pass and just xcgen refuses by name; just test builds then passes every suite and e2e script (the late-mail wait held 11 s); just lint-sh and the federation e2e pass; just unshipped FAILED on three methods only tests called (leafDidLearnAttestedPwd, closeFocusedLeaf, MasterPool.belongs) — production now calls the first, the other two moved into the tests, and it passes. ghosttykit and test-swift were not run in the workspace (the xcframework build is the same on both sides and the Swift suite passed in the main tree)"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the --through banner prints once per attach, not per reconnect; expose's losing forward keeps its port until the cancel returns; the federation e2e picks free ports; deploy_cli_mod links libc; cli.zig's help comment no longer cites a wait exit path that is not there"
+status = "done"
+category = "chore"

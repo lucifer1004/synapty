@@ -1,0 +1,104 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-003"
+title = "Three surfaces still describe the machine Synapty stopped being: a dead port control, a reassuring line where the bad news goes, and a dozen comments naming what was deleted"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "ADR-0020",
+    "RFC-0010:C-DIAGNOSABILITY",
+]
+
+[content]
+description = """
+Three shapes of the same defect: a description of the system that stopped
+being true and nothing failed when it did.
+
+A DEAD CONTROL WITH LIVE PROSE. Settings → Ports carried a "Tunnel port"
+box whose help said "Applied on the next tunnel connection". Its value
+reached `SynaptySettings.tunnelPort`, was copied into
+`TunnelManager.tunnelPort` at launch and on every change — and was read
+by nothing. Every tunnel port in the app comes from `peerPort(for:)`,
+which allocates one per host from 9200, deliberately: the comment above
+it says a single global port is only safe for a REVERSE forward, and the
+reverse tunnel is gone. So the box was the last surviving organ of a
+retired topology, and it told the human it worked. Removed rather than
+wired up — wiring it up would contradict the per-host rule that replaced
+it. The section keeps its help, corrected, because someone looking for a
+port setting is exactly who needs to read that ports are automatic.
+
+A REASSURING SENTENCE WHERE THE BAD NEWS GOES. `peerForward` answered
+`hub_port.len == 0` — the case where no hub could be started on the far
+host, so there is no peer link and no cross-machine A2A — by printing
+"ControlMaster already established (reusing)." to stdout. A sentence
+about a different subject, in the affirmative, at the exact point in the
+setup transcript where the operator needed the warning to stand out.
+`ensureHub` had already printed the real warning just above; this
+followed it with a success line. Now it returns silently, and the
+account step for "opening the link between the two hubs" is recorded
+only when there is a link to open.
+
+TWELVE COMMENTS AND TWO CLAUSES NAMING WHAT WAS DELETED. `connect.sh`
+and `setup-host.sh` went in [[ADR-0020]]; tmux went in [[ADR-0012]]; the reverse
+tunnel went in [[ADR-0008]]. What remained: user-visible `--help` text
+explaining that `diag` exists "so `connect.sh` and `setup-host.sh` do not
+carry a second implementation"; `SyncPreflight` justifying its whole
+existence with "Synapty spawns arbitrary child processes, SSHes out and
+drives tmux"; `HostReadiness` listing "a ControlMaster and a reverse
+tunnel" among what the workbench holds; two comments explaining a
+positional argument layout that no longer exists; and two references to
+functions that do not — `paneWouldLoseAProcess` (never existed under
+that name) and `unregisterAgent` (it is `teardownAgent`).
+
+[[RFC-0003]] C-CLI-TOOLS said "Remote devices need no installation step: the
+deployed binary speaks the same protocol over the reverse tunnel" — a
+sentence that contradicts itself in its own clause and describes a
+transport that was retired.
+
+[[RFC-0011]] C-HEADLESS-GATE said, in the present tense, "`connect.sh`
+launches `synapty run --hold --detach`". That clause carries a
+requirement that an amendment "MUST RE-DERIVE THE INVENTORY AGAINST WHAT
+IS THEN ON THE MACHINE", and observes that it "has now been wrong twice
+in the same way". It was wrong a third time, in the same way, and now
+says so.
+
+Found by the drift-hunter and clause-auditor passes of the 2026-09-10
+debt sweep."""
+
+[[content.acceptance_criteria]]
+text = "the dead Tunnel port control is removed from Settings, along with SynaptySettings.tunnelPort, TunnelManager.tunnelPort and both ContentView wirings; the Ports section says what is actually true"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "peerForward no longer reports a reused ControlMaster when what it found was no remote hub, and does not record a step for a link it is not opening"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "synapty diag --help no longer explains itself by reference to two deleted shell scripts"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "SyncPreflight, HostReadiness, TunnelManager and SubprocessRunner describe the holder, the forward peer link and named options rather than tmux, a reverse tunnel and a positional layout"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "two comments naming functions that do not exist now name teardownAgent and describe the reading directly"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0003]] C-CLI-TOOLS states that a remote device is installed onto and that cross-machine traffic rides the forward peer link"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0011]] C-HEADLESS-GATE names the dial rather than connect.sh, and records that its inventory has now gone stale three times in the same way"
+status = "done"
+category = "chore"

@@ -1,0 +1,39 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0012"
+title = "Diagnostics: severity, destinations, and live level control"
+version = "0.1.1"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-14"
+updated = "2026-08-25"
+refs = [
+    "RFC-0009",
+    "RFC-0010",
+]
+signature = "53efedd140c1ca9dae82d205b873a9b570826fe09931fc0f26dc0fdb6aa2c8f3"
+
+[[sections]]
+title = "Summary"
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-SEVERITY.toml",
+    "clauses/C-TWO-CHANNELS.toml",
+    "clauses/C-DESTINATIONS.toml",
+    "clauses/C-LEVEL-CONTROL.toml",
+]
+
+[[changelog]]
+version = "0.1.1"
+date = "2026-08-25"
+notes = "C-LEVEL-CONTROL cites the connection kind rather than a scope RFC-0009 does not have"
+changed = ["the reason a control frame is not relay traffic is that it belongs to the observer kind, which RFC-0009 C-BOUNDARIES enumerates it in"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-14"
+notes = "Initial draft"

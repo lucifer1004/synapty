@@ -1,0 +1,75 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-007"
+title = "fix(gui): a 6pt white seam nobody designed, hairlines at twice the system weight, and a window minimum that ignored the UI size"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "WI-2026-08-15-002",
+    "WI-2026-08-15-006",
+]
+
+[content]
+description = """
+Craft-level defects, all found by measuring pixels at native resolution rather than by looking at a downscaled capture.
+
+A 6pt WHITE SEAM RAN THE FULL HEIGHT OF THE WINDOW. `DSDragDivider` — the strip you grab to resize the sidebar — filled itself with `Color.clear`, so it showed the raw window background: rgb(255) between a sidebar at 237 and a page at 246. A line the width of a scrollbar, brighter than either surface it separated, in every screenshot taken today and belonging to no design decision. It now wears the chrome's own tone, and the boundary is the Divider beside it, where it was always meant to be.
+
+Found by accident, which is worth recording: a scan meant to measure a card border returned the same four-value pattern at two different heights, and a pattern that repeats down the window is a vertical structure, not a card. The measurement I thought I was taking was in empty space.
+
+HAIRLINES WERE TWICE THE SYSTEM WEIGHT. `lineWidth: 1` is one POINT — two physical pixels on Retina, where every AppKit separator is one. Measured on a card edge at native resolution: 2px where the system draws 1. It matters more now that the colour is `separatorColor`, which is tuned for a single-pixel line and reads heavy at double the width. Card borders are `1 / displayScale`, read from the ENVIRONMENT so a window dragged onto a non-Retina display redraws at that display's hairline rather than the one it launched on.
+
+A selected edge deliberately stays a full point: it is a mark, not a separator, and a hairline in the accent colour reads as an artefact.
+
+THE WINDOW MINIMUM IGNORED THE UI SIZE. `minSize` was the constant 760×480 — the same missing multiplication that truncated the host addresses ([[WI-2026-08-15-002]]). At Extra Large the sidebar and inspector floors alone claim 572 of that 760, leaving less for the terminal than the chrome around it."""
+notes = [
+    """
+MEASURED AT NATIVE RESOLUTION, which is the only way any of this was visible. The captures used all day are downscaled by half, so a one-pixel hairline and a six-point seam both land inside a single sample.
+
+  seam, before   sidebar 237 | 255 255 255 (6pt) | 230 | page 246
+  seam, after    sidebar 237 | 240 239 236 (6pt) | 230 | page 246
+
+STILL OPEN, and deliberately not started here because it is not a craft touch-up. The app has 25 `.buttonStyle(.plain)` call sites and two `.focusable()`. Plain buttons draw no focus ring, so under Full Keyboard Access there is almost nothing to see and almost nothing to reach — a real accessibility gap, and a much larger piece of work than anything in this work item. This operator's Mac has Full Keyboard Access off, so it costs them nothing today; it would fail a review.""",
+    """
+A SYSTEMATIC SCAN FOLLOWED, profiling each surface into colour runs rather than hunting one artefact at a time. Four more defects, all of the same family: a region nobody painted, or a thing painted at the wrong layer.
+
+THE WHITE BLOCK ABOVE THE TABS was `PaneTabBar` on `DS.surface` — the CARD white, 255. Its original reason was sound ("on the page colour a lone tab read as a chip floating in a void", [[WI-2026-08-09-010]]); the layer it needed was chrome, not the card. Painted full width it laid a 255 band across the top of the terminal page and, because a chrome background reaches past the safe area, up through the title-bar strip. As chrome it joins the sidebar's band and the top of the window is one surface.
+
+THE TITLE-BAR STRIP CHANGED COLOUR BY PAGE. Chrome on the terminal, where the tab bar reaches it; page colour on Hosts, where nothing did. `DSPageHeader` is the top row of every management page — the tab bar's counterpart — so it carries the same chrome, and the strip is now 237 on both.
+
+THE RIGHT-HAND GRAB STRIP WAS ON THE WRONG SIDE OF ITS LINE. Both dividers put the 6pt strip outside the line, but outside means the sidebar on the left and the TERMINAL on the right — a band of chrome sitting inside the content. The line comes first on that side now, and each strip belongs to the panel it resizes.
+
+EVERY SEPARATOR WAS 2px. SwiftUI's `Divider` draws one point; AppKit's separators are one pixel. `DSHairline` takes its thickness from the display scale, and all 50 uses moved to it.
+
+MEASURED, before and after:
+
+  terminal page   band 0..149  255,255,255  →  237,236,234
+  hosts page      band 0..155  246,245,242  →  237,236,234
+  boundaries      [content][strip 6pt][line 2px][panel]  →  [content][line 1px][strip 6pt][panel]
+  separators      2px  →  1px
+
+AND A HALF-APPLIED FIX FROM [[WI-2026-08-15-004]], found while reading the same file: the sidebar drag still wrote `@AppStorage` on every frame and never committed on release — the panel half had landed and the sidebar half had not, while the work item claimed both. Completed. Worth correcting the record there too: the operator reported the drag tracking again after the COORDINATE-SPACE fix alone, so per-frame writes were not the cause they were described as sharing.""",
+]
+
+[[content.acceptance_criteria]]
+text = "no white seam between the sidebar and the content"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hairlines are one physical pixel, and follow the display the window is on"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a selected edge stays a full point, because it is a mark rather than a separator"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the window minimum scales with the UI size"
+status = "done"
+category = "fixed"

@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-077"
+title = "refactor(gui): uniform single-line sidebar session rows"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: sidebar session rows have inconsistent heights — a Local session is a single short row while remote sessions grow to 2-3 lines plus an agent sub-row. Suggestion: everything should fit on one line.
+
+Fix: SessionRow becomes a single line: status dot + label + agent icon (attention-colored when needed) + drift warning icon + spacer + remote address (small mono) + tabs/splits count + duration; failure shows the error message inline (truncated). Inline rename (edit mode) may temporarily expand. AgentSubRow is removed."""
+
+[[content.acceptance_criteria]]
+text = "every session row renders as ONE line (uniform height; edit mode may expand)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "agent shown as an icon (attention state via color/pulse), not a sub-row"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "address/count/duration compact into the line; failure message inline truncated"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "AgentSubRow removed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

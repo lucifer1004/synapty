@@ -1,0 +1,93 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-31-001"
+title = "The blind areas: build surface, shell, inline tests, repo"
+status = "done"
+created = "2026-08-31"
+started = "2026-08-31"
+completed = "2026-08-31"
+
+[content]
+description = """
+The previous Occam round could see only `src/**.zig` outside its test
+blocks, `Sources/**.swift` and `Tests/*.swift`. Its own critic named what it
+had missed, and this is that ground: the build and automation surface, the
+shell scripts, the 388 Zig inline test blocks, `UITests/`, the governance
+corpus and the repository itself.
+
+TWO WHOLE SCRIPTS NOTHING RAN. `deploy.sh`'s only caller was a Swift file
+that no longer exists, every capability it had is duplicated verbatim in
+`setup-host.sh`, and its closing `exec ssh -R … --hub 127.0.0.1:TUNNEL_PORT`
+is the pre-[[ADR-0008]] reverse-tunnel architecture that `connect.sh`
+explicitly retired — so running it today would point an agent at a hub that
+is not there. `synapty-chat-worker.sh` polls `synapty recv` and pipes each
+message through `codex exec`; nothing in the repository mentions it.
+
+A GUARD TEST THAT READ SOURCE TEXT, which is forbidden here outright — and
+it was the only thing holding [[ADR-0008]] decision 6. Its own comment made
+the right argument: "the hub never reads the Keychain" is durable only if it
+cannot COMPILE a Keychain call. But it was not true: `build.zig` handed the
+hub module the `github` import, so the call would have compiled and only a
+grep for the string stood in the way. The module is withheld now, so a real
+credential read is a build error and the grep is redundant. What the grep
+also caught and the compiler does not is a DORMANT import, which reads
+nothing.
+
+SIX ZIG TESTS THAT COULD NOT FAIL. Two re-implemented the channel-vs-DM
+routing branch inside the test body and asserted on their own local; two
+hand-rolled a line-splitting buffer and asserted on the simulation, named
+for `hubReaderThread` and calling none of it; one built a struct literal and
+asserted the fields it had just assigned; one titled "RoutingTable register
+and lookup" never called `register`, while the sibling test three hundred
+lines below covers both properly.
+
+A BUILD STEP THAT PRODUCED NOTHING. `zig build cli` depends on the compile
+and not on the install artifact, so it wrote to the cache and never to
+`zig-out/bin/`, which is where every consumer reads. `zig build` already
+installs the one executable there.
+
+AND THE USUAL STALE PROSE, this time in the places nobody reads twice: the
+`build` recipe's doc named two targets [[ADR-0004]] merged away four months
+ago, `just --list` printed it; a `package` summary stranded above
+`test-swift`; a comment in `project.yml` asserting the binary must live in
+`Contents/MacOS/` directly above the comment explaining why it must not; a
+paragraph in `connect.sh` saying stamps are seconds immediately above the
+one saying they are milliseconds and why; a doubled column legend; a
+`kill -0 $$` that cannot fail; a CI step re-running the five deploy targets
+`just package` already depends on."""
+
+[[content.acceptance_criteria]]
+text = "scripts/deploy.sh and scripts/synapty-chat-worker.sh are gone; nothing invoked either and one would connect an agent to a hub that no longer exists"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the hub module no longer imports github, so a credential read in the hub is a build error rather than a grep away"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the source-text guard test it replaced is removed, with what it caught and the compiler does not written down"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "six Zig tests that assert on their own simulation, their own literal, or a function they never call"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the cli build step and recipe, which wrote to the cache and never to zig-out/bin"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "stale or self-contradicting prose in justfile, project.yml, connect.sh, the holder e2e and the release workflow"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "two docs for toolchains this project left, four .gitignore rules matching nothing, and a malformed wiki-link repaired through govctl"
+status = "done"
+category = "chore"

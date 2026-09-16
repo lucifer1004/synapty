@@ -1,0 +1,29 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-003"
+title = "A status-bar count that opens nothing, and one that opens the wrong thing"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+The status bar has four zones that count something. Two of them did not take the human to the thing they counted.
+
+TRANSFERS. "3 files" was a label with a tooltip and NO WAY IN — not a button at all. Meanwhile [[TransferStrip]] already existed at the foot of the host panel with everything wanted: file name, destination, a determinate bar where a size is known and an indeterminate one where it is not, and a cancel. Its own doc states the obligation this leaves unmet: "ALSO SHOWN OUTSIDE THE PANEL, because this row cannot be the only place: the panel can be switched to another view or closed entirely while a file is still moving, and a transfer nobody can see is one nobody can cancel" ([[RFC-0013]] C-CONTROL-PLANE). The status bar was that other place and was never built.
+
+HUB AGENTS. The chip reads "Hub: N agents" — a count, and therefore an invitation — and opened a popover that shows PROBLEMS and never mentions an agent. The popover's own comment sent the reader to the sidebar, which does not answer it either: the sidebar shows WORKSPACES, and under Elsewhere only the remote agents no pane here is showing. Nothing in the workbench answered "who are the six".
+
+THE RULE THAT WAS MISSING, and it had been applied to exactly one zone: A STATUS-BAR COUNT MUST OPEN WHAT IT COUNTS. [[WI-2026-08-28-009]] established it for the globe badge, where the count and the destination were about different machines. It was never stated for the bar as a whole."""
+
+[[content.acceptance_criteria]]
+text = "The transfers count opens the transfers, with their progress and a way to cancel"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The hub's agent count opens a list of those agents, and says which machine each is on"
+status = "done"
+category = "fixed"

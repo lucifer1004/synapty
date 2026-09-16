@@ -1,0 +1,47 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DM"
+title = "Direct Messages"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Direct messages (DM) enable 1-to-1 communication between any two registered agents.
+
+### Sending a DM
+
+An agent sends a DM by setting `type: "dm"` and `target` to the recipient's agent ID:
+
+```json
+{
+  "type": "dm",
+  "id": "msg-001",
+  "source": "local-abc1",
+  "target": "dev-server-ghi3",
+  "payload": { "text": "Can you review the auth changes I pushed?" }
+}
+```
+
+### DM Payload
+
+| Field  | Type   | Required | Description |
+|--------|--------|----------|-------------|
+| `text` | string | YES      | Message content (plain text or markdown) |
+
+### Hub Behavior
+
+1. The Hub MUST look up the target in the routing table.
+2. If the target is **connected**, the Hub MUST push the envelope to the target's TCP stream and append the message to the global log.
+3. If the target is **not connected** (registered previously but session ended), the Hub MUST send a `response` with `ok: false` and `error: "agent not connected"`, and still append to the global log.
+4. If the target has **never registered**, the Hub MUST send a `response` with `ok: false` and `error: "unknown agent"`.
+
+### Implicit Membership
+
+DMs require no prior setup. Any registered agent MAY send a DM to any other connected agent.
+
+**Rationale:** Mirroring real IM systems, DMs are implicit — you can message anyone you know the ID of. The Hub is a stateless router: it delivers to connected agents or returns an error. No messages are queued at the Hub level. The recipient's daemon buffers messages until the agent program calls `recv`.
+
+*Since: v0.1.0*"""

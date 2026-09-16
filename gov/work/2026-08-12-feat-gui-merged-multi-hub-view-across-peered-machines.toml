@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-007"
+title = "feat(gui): merged multi-hub view across peered machines"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["ADR-0008"]
+depends_on = ["WI-2026-08-12-006"]
+
+[content]
+description = "[[ADR-0008]] STAGE 5: the workbench observes every hub it can reach and presents one coherent view — agents, presence, and events across machines — without pretending to a global ordering that does not exist. Event logs are per-machine by decision (ADR-0008 point 7), so the merged view must be explicit about provenance: which machine an event came from, and that ordering is only total within a machine."
+notes = ["""
+IMPLEMENTED 2026-08-12. AgentInfo gained `machine` and `reachable`; AgentMonitor keeps a per-machine agent list and subscribes to each peer hub DIRECTLY (not only to the local one) because RFC-0009 C-DIRECTORY carries identity/hosting-peer/reachability across a relay link and nothing else — the local hub can say a remote agent exists but not what tool it runs or when its status changed. Fallback ids are qualified at the workbench's ingest boundary for the same reason the hub qualifies at the relay boundary: unqualified, a remote `local-ab12` would silently overwrite a local one in the merged map. Peer events do NOT reach the local raw tap (wake/resume/exec act on panes this workbench owns; C-WAKE-LOCALITY).
+
+Honest degradation: a dropped peer link marks that machine's agents unreachable with status `unknown` and KEEPS them listed. Two things are deliberately not done — dropping them (reads as "those agents ended") and freezing their last status (a stale status looks identical to a fresh one). forgetPeer, which does remove rows, is reserved for the human removing the host.
+
+Ordering: the merged list is ordered by identity and carries no temporal meaning, stated in the UI whenever more than one machine is present, and pinned by a test that fails if anyone sorts by generation — a plausible-looking change that would synthesise a global timeline out of two unrelated sequence spaces.
+
+TWO DEFECTS I HAD INTRODUCED IN WI-2026-08-12-008, both surfaced by the operator asking whether the hub could merge with the ControlMaster:
+(1) tunnelPort was a single global setting used for every host. Correct for the old REVERSE tunnel (bound on the remote side, every machine has its own 9000) and wrong the moment the direction flipped to a FORWARD bound here — the second host's -L fails outright under ExitOnForwardFailure and that host silently never peers. Now per-host, probed for a free number, based at 9200 to stay clear of the hub's own 9000+1..9 ladder.
+(2) ControlPersist=300 meant the peer link died five minutes after the last interactive session, so cross-machine A2A stopped for no reason a human could see. Hit live. The master now carries the peer link, so its lifetime is "as long as this host is peered": ControlPersist=yes plus an explicit teardown on disconnect (which also releases the port assignment). Reusing a master no longer assumes it carries the forward either — `ssh -O forward` adds one to a live master, and if that cannot be established PEER_PORT is withheld rather than advertising a port nothing listens on.
+
+Live-verified against remotehost: subscription snapshot read from the remote hub through the SSH forward, and hub_info on the reused-master forward returned peer_id "remotehost" (confirming the host-label path end to end)."""]
+
+[[content.acceptance_criteria]]
+text = "the workbench subscribes to its local hub and to each reachable peer hub, presenting a unified agent list and presence view with per-machine provenance visible"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an unreachable machine degrades honestly — its agents are shown as unreachable rather than absent or stale-but-plausible, matching the project's rule that missing evidence is never presented as evidence of absence"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the merged event view states its ordering guarantee — total within a machine, unordered across machines — rather than implying a global timeline"
+status = "done"
+category = "chore"

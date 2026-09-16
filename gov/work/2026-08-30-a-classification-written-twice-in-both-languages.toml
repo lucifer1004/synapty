@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-003"
+title = "A classification written twice, in both languages"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Asked whether the sweep in [[WI-2026-08-30-002]] had found everything. It
+had not, and the honest answer was that it could not have: that pass
+covered Swift only, and only rules written as one named expression. This
+one widened the method twice — literals with no owner within a language,
+and the same named-rule search run against the Zig sources.
+
+THE FIND, and it is the same defect in both languages. Where each
+configuration file lives is a classification: shared between a person's
+Macs, or evidence about one machine. Both sides stated it twice — once as
+a named entry per file, and again as a hand-written list "for the guard
+test and for migration". A file could therefore be classified and
+unguarded at the same time, and one was: the per-record stores were absent
+from the Swift list while being the whole point of the shared half, so the
+guard verified the classification of everything except the data about to
+be synced. That is recorded in a comment beside the list it is still
+written in.
+
+Both lists are derived now — Zig's from the declarations in the file,
+Swift's from an enumeration whose cases both switches must answer for. An
+entry cannot be added without being classified and guarded.
+
+THE FILE NAMES WERE A THIRD COPY. `settings.json`, `ghostty.conf` and
+`keys.json` were typed out again in the settings store, the keymap store
+and the sync engine, each of which has its own reason to name a file and
+none of which owns what it is called.
+
+WHAT THE ZIG PASS FOUND was one instance, `isOurs` re-testing what
+`isLegacy` names, and nothing else — the CLI's discipline here is better
+than the workbench's was.
+
+WHAT NEITHER PASS CAN FIND is a rule spread over several lines or
+expressed structurally rather than as an expression. The copy-and-paste
+defect of [[WI-2026-08-30-001]] was one of those and neither detector
+would have surfaced it. This is not a proof that none remain."""
+
+[[content.acceptance_criteria]]
+text = "paths.all is derived from the declarations, so an entry cannot be classified and unguarded at once"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ConfigPaths.Entry is one enumeration; the named accessors and the guard's list both come from it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the settings store, the keymap store and the sync engine take file names from the classification"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "isOurs asks isLegacy rather than repeating it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "every classified entry is in the list the guard reads, no two entries name one path, and the halves that were argued for are pinned"
+status = "done"
+category = "chore"

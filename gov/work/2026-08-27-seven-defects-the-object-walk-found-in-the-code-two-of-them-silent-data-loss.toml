@@ -1,0 +1,120 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-27-001"
+title = "Seven defects the object walk found in the code, two of them silent data loss"
+status = "done"
+created = "2026-08-27"
+started = "2026-08-27"
+completed = "2026-08-27"
+refs = [
+    "RFC-0009",
+    "RFC-0006",
+]
+
+[content]
+description = """
+A corpus review organised by DOCUMENT cleared these. A second pass organised by SHARED OBJECT found them, because each is a disagreement between a clause and the only code that implements it — a join, and a document reader has no reason to open the other side.
+
+Every one below was re-verified at the named file and line before being written down here. Ordered by what they cost, not by where they live.
+
+1. THE HUB DELIVERS ANOTHER MACHINE'S MAIL INTO THE WRONG AGENT'S MAILBOX AND ANSWERS `delivered`. `src/hub/handlers.zig:1526` strips the qualifier — `const target = federation.splitQualifier(envelope.target).base;` — and never compares the discarded `.peer` against this hub's own id. A relayed frame addressed to `local-1a2b@peerC` arriving at peerB becomes `local-1a2b`, matches THIS hub's pane, is appended to that mailbox, and is acknowledged as success. Fallback ids are four hex digits per machine, so the collision is routine by construction; it is the case [[RFC-0009]] C-IDENTITY-SCOPE exists for, and that clause already states the rule the code does not implement: a target qualifier naming a third peer MUST be refused. The sender is told it arrived, the intended recipient never sees it, and nothing records either.
+
+2. OUT-OF-PANE `synapty send` REPORTS SUCCESS FOR EVERY FAILURE. `src/cli/commands.zig:203-216`: the direct-TCP fallback writes the envelope, never reads the socket, prints "sent to X" and exits 0. The hub has already answered — `unknown` for a typo, `conflicted` for a contested identity — and nobody reads it. Every scripted send from outside a pane silently succeeds on a name that does not exist. The in-pane path was fixed; this one was not opened.
+
+3. A `spooled` PROMISE MADE ON A LIVE LINK IS NEVER KEPT. `flushSpoolTo` has exactly two callers — `src/hub/handlers.zig:1351` and `src/hub/peer.zig:150` — and both run at link ESTABLISHMENT. [[RFC-0009]] C-DELIVERY invented `spooled` for a peer that is reachable and merely slow to acknowledge; that message waits for a reconnect a healthy peer never provides, and dies at its TTL. The clause calls `spooled` "a promise, and losing it makes the answer a lie".
+
+4. A BROKEN `spooled` PROMISE IS INVISIBLE TO EVERY EVENT CONSUMER. The per-peer cap drop writes `log.err` (`src/hub/registry.zig:1416-1420`) and mints nothing, while the TTL drop mints `spool_expired` (`:1760`). Two ways to lose a message, one of them observable.
+
+5. A GREEN SWIFT TEST GUARDS A WIRE SHAPE NO HUB EMITS. `Sources/Services/AgentMonitor.swift:579` reads `obj["reachable"]`; the hub emits `peer_reachable`, and `src/hub/handlers.zig` asserts the old spelling is gone. `Tests/AgentMonitorTests.swift:318` feeds a hand-authored row no hub sends, so the test passes on a shape that does not exist. Behaviourally inert today because those rows are filtered before display — but it is a false green over a rename, and the rename's claim that nothing in Sources read the old name is wrong about this line.
+
+6. EVERY REMOTE PANE'S FALLBACK ID CROSSES THE RELAY UNQUALIFIED. `Sources/Services/TunnelManager.swift:501` mints `<host.label>-<4 hex>`, and `federation.needsQualification` (`src/hub/federation.zig:106`) tests `startsWith("local-")`, which that form does not match. [[RFC-0009]] C-IDENTITY-SCOPE's "a hub MUST NOT advertise an unqualified fallback id to a peer" is violated on every remote pane. Related, same file: `TunnelManager.swift:754` derives a peer id as the bare label while the hub mints `<label>-<suffix>`, so `adoptExistingPeers` can never match and never assigns a port.
+
+7. THE RESUME BUTTON SPLICES INTO HALF-COMPOSED INPUT. `Sources/Services/AgentLifecycle.swift:151-162` types immediately, where `WakeCoordinator` and `ExecController` both consult a recency window first. Typing `make bui` and clicking yields `make buiclaude --resume <id>`, and [[RFC-0006]] C-RESUME-RESTORE's one-attempt rule spends the offer on the way out.
+
+WHY THIS LIST EXISTS AS ONE WORK ITEM: items 1 through 4 are the properties this project explicitly stopped deferring — a queue that holds mail for an unreachable machine, and an answer that means what it says. Items 5 and 6 are renames that reached one side of a wire. Item 7 is a missing guard two neighbouring call sites already have."""
+notes = [
+    """
+ITEMS 1 AND 2 ARE FIXED, each with a test that fails without the fix.
+
+1. THE THIRD-PEER TARGET QUALIFIER. `handleRelayForward` split the qualifier and dropped the half that says WHOSE it is. It now refuses when the qualifier names anyone but this hub, which is the rule [[RFC-0009]] C-IDENTITY-SCOPE already stated and the code did not carry: "A TARGET QUALIFIER NAMING A THIRD PEER MUST BE REFUSED: non-transitivity forbids forwarding it and the qualifier is not ours to strip."
+
+Refused rather than dropped, because a third-peer qualifier will never become deliverable here and a sender that retries is a sender nobody told. Placed BEFORE the dedupe table, so a frame this hub will never accept does not spend an entry a frame it might accept needs. Two tests: one that a third-peer target does not land in our pane of the same base name, and one that a qualifier naming US is still stripped and delivered — so the refusal cannot be satisfied by refusing everything qualified. The first fails on the old code with "expected 0, found 1".
+
+THE REFUSAL STRING IS `target_refused`, symmetric with the `origin_refused` beside it, and NEITHER IS NAMED IN THE CORPUS. That is a real gap and it is not fixed here: the RFCs were sealed at impl an hour ago, so naming it is an amendment and a version bump rather than a fix. Recorded so it is a deliberate decision later rather than an oversight.
+
+2. THE UNREAD ANSWER. The out-of-pane send wrote its envelope and never read the socket. The two answer-parsers were split so the same eyes read the hub's envelope whether it arrives wrapped in the daemon's IPC reply or raw off a socket, and the fallback path now correlates the response by request id and exits on what it says. Silence exits non-zero too, per C-DELIVERY's "silence is unknown outcome, never success" — the bound is ten seconds because a cross-machine send waits five for a peer's acknowledgement before it can answer at all.
+
+`scripts/test-send-answer-e2e.sh` drives the real binary against a real hub, because the defect IS an exit code and `runSend` ends in `std.process.exit`. Both halves are asserted: an unregistered name fails and names the status, a registered one succeeds and reports `delivered`. Mutation-checked — with the fix removed it fails as `exited 0, saying: sent to nobody-here-0000: hello`, which is the defect verbatim. The first attempt at that check was INVALID and is recorded as such: the mutation did not compile, so the test ran against a stale binary and passed.
+
+Zig suite green, 996 Swift tests green, both existing shell e2e scripts green.""",
+    """
+ITEMS 3 AND 4 ARE FIXED. Item 3 has a test that fails without it; item 4's wiring does not, and the reason is recorded below rather than papered over.
+
+3. THE UNRETRIED SPOOL. `flushSpoolTo` ran at link establishment and nowhere else, so of the two states `spooled` covers — the link is down, or it is up and the peer did not answer inside the bound — only the first was ever retried. A message held because a HEALTHY peer went quiet waited for a reconnect that peer had no reason to make, and died at its TTL.
+
+The retry now runs on the clock federation's expiry already runs on: `federationSweep`, every thirty seconds, for every peer whose link is up. BEFORE the expiry in the same pass, or a message that could have gone now is dropped by a TTL it would never have reached. `flushSpoolTo` gained a `-Locked` twin because the sweep already holds `presence_mutex`, and the peer keys are collected before forwarding rather than iterated while writing to a peer's connection.
+
+Test: spool a message on a link that never went down, sweep, and the spool is empty and the peer's outbound grew. Fails on the old code with "expected 0, found 1".
+
+4. THE INVISIBLE EVICTION, AND A SECOND PLACE IT WAS WORSE. A held message dropped to make room minted no event — a `log.err` and nothing else, read on a hub running for somebody else's machine by nobody. `spool_evicted` is a new kind beside `spool_expired`, deliberately not folded into it: one says a machine never came back, the other says this hub broke a promise under pressure while the machine was fine, and reporting the second as the first sends the human after the peer.
+
+WRITING THE TEST FOUND THAT THE PUSH RESULT WAS DISCARDED ENTIRELY ON THE NEWER PATH. There are two places a message enters the spool. `mailboxDeliver` logged the drop; `spoolAfterSilence` — the path an ack-silence takes, which is the same path item 3 is about — wrote `_ = self.spool.push(...)` and never looked. Both report now.
+
+THE WIRING IS NOT COVERED BY A ZIG TEST, AND THIS IS THE HONEST REASON. [[RFC-0012]] C-SEVERITY names this case verbatim — "`err` — a PROMISE WAS BROKEN ... Dropping queued mail belongs here" — so the log line must stay at `err`. Zig's test runner fails any test that emits one, `log_err_count` is private to the runner, and `std.testing.log_level` cannot exclude `err` because `err` is the lowest level there is. The choice was between downgrading a severity the specification names, and saying that a path is uncovered. The severity stands. `federation.zig:884` covers the layer below — `Spool.push` reporting `dropped_oldest` past the cap — and the wiring from that answer to the event is unexercised.
+
+RFC-0009 IS AMENDED AND BUMPED TO 0.3.0. C-EVENT-LOCALITY named seven kinds and now names eight, and its "promises it breaks" sentence distinguishes the two ways a held message is lost. This is the first amendment to go through the seal since the corpus was sealed, and it went the way the seal is meant to make it go: edit, then an authorized bump, then re-advance.""",
+    """
+ITEMS 5 AND 7 ARE FIXED. ITEM 6 IS NOT, AND THE DIAGNOSIS IN THE DESCRIPTION IS WRONG IN A WAY THAT MATTERS.
+
+5. THE RENAME THAT REACHED ONE SIDE. `AgentMonitor.applySnapshot` read `obj["reachable"]`; the hub emits `peer_reachable` and has since a rename that reached every other reader. So the hosting peer's reachability — the one fact that side cannot compute for itself — was never taken off the wire. The test guarding it hand-authored a row in the abandoned spelling, so it was green about a shape no hub sends. Corrected the test first: with the real spelling it fails "Optional(true) is not equal to Optional(false)". Then the reader.
+
+7. THE RESUME THAT SPLICED INTO A HALF-TYPED LINE. `resumeNow` argued, correctly, that WHETHER a pane may be resumed is settled by the offer's existence rather than by a check. It does not follow that the MOMENT is safe: the offer says the agent is gone, and says nothing about whether the human has half a command on the line. `make bui` plus a click gave `make buiclaude --resume <id>`, and C-RESUME-RESTORE's one attempt was spent on the way out.
+
+`ResumeGate` is a pure function in the shape [[WakeGate]] already established, and it takes its window FROM WakeGate rather than restating it — two paths typing into one pane with two ideas of "recently" is how one of them becomes wrong without anyone editing it. A refusal holds the offer rather than spending it: "one attempt per act of the human's" counts attempts, and declining to make one is not making one. Four tests, including that a pane the human never typed into is not treated as busy — reading an absent timestamp as "just now" would refuse every offer the feature exists to make.
+
+6. THE FALLBACK ID. What the description says — that `needsQualification` is too narrow — is the wrong end of it, and fixing that end would have been wrong.
+
+[[RFC-0008]] C-IDENTITY RESERVES the prefix: "The fallback namespace prefix (`local-`) is RESERVED", and "the pane wrapper id (`local-XXXX`) is the agent id". Three implementations agree with the clause — the hub's `needsQualification`, the hub's strip, and the workbench's own `AgentMonitor.qualifiedID` all key on `local-`. `localCommand` mints `local-<4hex>` correctly. It is `connectCommand` that mints `<host.label>-<4hex>` for a REMOTE pane, a third namespace the corpus does not describe, and `run.zig:187` registers it verbatim.
+
+AND THE OBVIOUS FIX INTRODUCES A COLLISION, which is why this is not a few lines. The label prefix is doing real work: the workbench keys `paneSockets`, `ConnectProgress` and the leaf-to-agent map by agent id ACROSS ALL HOSTS, while `local-XXXX` is only unique within one machine. Minting `local-<4hex>` for remote panes would let a pane on one host and a pane on another collide in the workbench's own tables. The real question is what the fallback namespace should be when ONE workbench mints ids for MANY machines, and the corpus answers it only for the one-machine case.
+
+THE SECOND HALF IS ALSO REAL AND ALSO NOT A RENAME. `TunnelManager.peerID(for:)` returns the bare lowercased label, citing RFC-0009 C-BOUNDARIES — a rule [[RFC-0010]] C-PEER-IDENTITY superseded by giving the machine minting authority, and the hub accordingly mints `<label>-<4hex>` and persists it. Seven call sites derive rather than learn, and one of them already has the shape of the answer (`reported ?? Self.peerID(for: label)`). The fix is "learn it from the hub, do not derive it", across those seven.
+
+Both halves need a decision before code, and the first needs an RFC amendment. They are moved out of this work item rather than left as a false "few lines".""",
+]
+
+[[content.acceptance_criteria]]
+text = "A relayed frame whose target qualifier names a third peer is refused, not stripped into this hub's own pane of the same base name — and one naming this hub is still stripped and delivered"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Out-of-pane `synapty send` reads the hub's answer and exits on what it says; silence exits non-zero too, so exit 0 means the message arrived"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A message spooled because a healthy peer went quiet is retried on the clock, not left for a reconnect that peer has no reason to make"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A held message evicted to make room mints `spool_evicted`, on both push sites — the newer one discarded the push result entirely"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The presence row's reachability is read under the name the hub sends, and the test that guards it feeds a row a hub would actually send"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A resume is held rather than typed while the human is mid-command, and holding it does not spend the one attempt"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "What was not fixed is recorded with the diagnosis that replaced the wrong one, in WI-2026-08-27-002 rather than as a stale line here"
+status = "done"
+category = "chore"

@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-012"
+title = "An issue number is rendered as a quantity"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = '''
+`Text("#\(task.number)")` resolves to the `LocalizedStringKey` initialiser, which group-separates the integer, so GitHub issue 1234 renders as "#1,234" — a number that does not exist, cannot be pasted into GitHub's search and cannot be typed after `gh issue view`.
+
+THIS PROJECT HAS DIAGNOSED AND FIXED THE IDENTICAL CONSTRUCTION TWICE, and the neighbouring code already avoids it: `portText` and `endpoint` build their strings first for exactly this reason. Every repository past its thousandth issue shows it on every row of the Tasks page.'''
+
+[[content.acceptance_criteria]]
+text = "An identifier is rendered as an identifier, with a test that fails if a four-digit issue number acquires a separator"
+status = "done"
+category = "fixed"

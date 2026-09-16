@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-054"
+title = "fix(gui): Hub page hierarchy — bridge demoted below hub status"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Audit follow-up (UI/UX hierarchy round): the Hub page gives its most prominent visual weight (accent-filled card at the top) to the GitHub Bridge — a secondary integration — while the page's actual subject (Hub running state, Start/Stop/Restart controls, connected agents) sits below it.
+
+Fix: demote the GitHub Bridge to a standard (non-highlighted) section placed after the hub status/controls/agents block; the hub state becomes the page's first visual weight. Keep the bridge's Connect/Change/Disconnect actions and repo details unchanged."""
+
+[[content.acceptance_criteria]]
+text = "the GitHub Bridge renders as a standard section below hub status/controls/agents (no accent-filled card at top)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "hub running state is the first visual weight of the page"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "bridge Connect/Change/Disconnect behavior unchanged"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

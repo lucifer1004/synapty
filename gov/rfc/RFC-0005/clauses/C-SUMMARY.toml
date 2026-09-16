@@ -1,0 +1,26 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This RFC closes the loop [[RFC-0004]] left open: presence tells the human when an
+agent needs attention, but nothing tells an AGENT when a peer's message needs
+attention. A DM parked in the hub mailbox stays unread until the recipient
+happens to poll — a blocking `synapty recv --wait` occupies an existing turn
+but cannot create a new one.
+
+The Agent Wake Protocol lets the workbench convert a message-arrival edge
+into a new harness turn by typing a fixed, content-free wake line into the
+recipient's terminal pane — the same input path a human would use. Presence
+([[RFC-0004]]) becomes the actuation gate: injection happens only into a pane
+whose agent is provably idle or done, is armed per-pane by the human, and is
+verified after the fact by watching for the agent's working edge.
+
+The message body never rides the injection: the woken agent reads its
+mailbox with `synapty recv` like always. Wake is a doorbell, not a delivery."""

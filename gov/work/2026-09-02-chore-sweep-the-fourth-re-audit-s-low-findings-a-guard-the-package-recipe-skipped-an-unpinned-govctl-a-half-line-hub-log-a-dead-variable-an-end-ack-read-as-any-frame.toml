@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-037"
+title = "chore(sweep): the fourth re-audit's low findings — a guard the package recipe skipped, an unpinned govctl, a half-line hub log, a dead variable, an end ack read as any frame"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The fourth re-audit of 2026-09-02 found no high or medium items; this is
+its low list. `just package` still called xcodegen bare, past the guard
+[[WI-2026-09-02-036]] had just built; CI compiled whatever govctl crates.io
+served that morning; the hub's log console split a line that arrived in
+two reads; connect.sh kept a variable nothing read, ToolBridge a local
+nothing used; and requestEnd took any frame back as acceptance. Not done
+here, and said so: a total timeout on the Zig e2e (needs coreutils'
+timeout on the macOS runner) and the CLI's three small duplications the
+audit did not locate."""
+
+[[content.acceptance_criteria]]
+text = "just package depends on the xcodegen guard and calls the resolved tool; CI installs govctl 0.19.1 --locked and caches the binary by version; HubManager carries a partial log line to the next read; requestEnd accepts only a status frame as the ack"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connect.sh's unread TUNNEL_PORT and ToolBridge's unused local are gone"
+status = "done"
+category = "chore"

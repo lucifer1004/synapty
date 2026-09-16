@@ -1,0 +1,207 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-008"
+title = "One binding table, and a panel the human rebinds it in"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-19"
+completed = "2026-08-23"
+refs = [
+    "RFC-0016",
+    "RFC-0015",
+    "ADR-0015",
+]
+
+[content]
+description = """
+[[RFC-0016]] requires one binding table; this workbench has three, and they do not agree by construction.
+
+WHERE A CHORD IS WRITTEN TODAY:
+
+- `Sources/App/SynaptyCommands.swift` — 20 `.keyboardShortcut` modifiers on menu items.
+- `Sources/Features/Terminal/TerminalSurface.swift` — a `switch` on `charactersIgnoringModifiers` inside `GhosttyNSView.performKeyEquivalent`, 14 cases.
+- `Sources/App/SynaptyApp.swift` — two `NSEvent.addLocalMonitorForEvents` blocks (the quick-connect palette, and the ⌘⌥N / ⌘⌃N tier jumps).
+
+⌘D, ⌘T, ⌘W, ⌘], ⌘[, ⌘1–9, ⌘F, ⌘=, ⌘0 and ⌘- are each written TWICE — once as a menu key equivalent and once as a case in the terminal view. Which one runs depends on whether a terminal holds first responder, a fact with no pixel on screen.
+
+WHAT MADE THIS URGENT rather than merely untidy: ⌘K yielded to a focused terminal so that ghostty's `clear_screen` could keep the chord, and when the sidebar stopped competing for focus the terminal became the permanent first responder — so the palette's own shortcut stopped working in the one place the human spends their time. The immediate fix (⌘K to the palette everywhere, clear to ⌘⇧K) is in [[WI-2026-08-19-005]] and is a default, not a remedy: a chord another application has registered system-wide never reaches this process at all, and no default can be chosen that is safe from that. Only rebinding can.
+
+WHAT THIS DELIVERS: the table, the dispatcher that reads it, the three call sites collapsed onto it, persistence of overrides, and a Keys page in the appearance panel that records a chord.
+
+THE HUMAN HAS DECIDED TWO THINGS, and they are not open here: the table covers terminal-domain commands as well as the workbench's own, dispatched as ghostty actions, with ghostty's own binding set emptied, and the editing surface is a record-a-chord panel rather than a text configuration file.
+
+THE NON-KEYBOARD PATH IS PART OF THE WORK, not an afterthought: [[RFC-0016]] C-UNBOUND requires every command in the table to be reachable without the keyboard, and the tier jumps (⌘⌥1–9, ⌘⌃1–9) have no menu item today. Either they gain one or they do not go in the table."""
+notes = [
+    """THE MECHANISM FOR AN EMPTY ENGINE BINDING SET EXISTS, checked before the obligation was written into [[RFC-0016]] C-TERMINAL rather than after. ghostty's config parser answers `keybind = clear` by emptying its binding set outright (`ghostty/src/config/Config.zig:7265` — "all keybinds cleared", set and tables reset). `GhosttyApp.loadSynaptyConfig` already loads a Synapty-managed fragment AFTER `ghostty_config_load_default_files`, so a `keybind = clear` line in that fragment overrides both ghostty's shipped defaults and the human's own `~/.config/ghostty/config` — which is precisely the displacement C-TERMINAL requires the workbench's documentation to state. `reloadConfig` rebuilds through the same path, so the emptying survives a live settings change.""",
+    '''
+THE COMMAND INVENTORY, taken from the three sites so the table is built from what exists rather than from memory.
+
+WITH A MENU ITEM ALREADY (the non-keyboard path [[RFC-0016]] C-UNBOUND requires is in place): New Session ⌘N · New Tab ⌘T · Split Right ⌘D · Split Down ⇧⌘D · Close Split ⌘W · Next/Previous Split ⌘] ⌘[ · Next/Previous Tab ⇧⌘] ⇧⌘[ · Session 1–9 ⌘1–9 · Go to page 1–6 ⇧⌘1–6 · Quick Connect ⌘K · Keyboard Shortcuts ⇧⌘/ · Toggle Sidebar ⌃⌘S · Font bigger/smaller/reset ⌘= ⌘- ⌘0 · Find ⌘F · Toggle Settings Panel ⌘⌥P · Show Hidden Files ⇧⌘. · Arrange presets (menu-only, no chord — already the shape C-UNBOUND permits).
+
+HOLDING A CHORD WITH NO NON-KEYBOARD PATH — each must gain one or stay out of the table: terminal Copy ⌘C and Paste ⌘V (the standard Edit menu's items are the PLATFORM's text-field verbs, which [[RFC-0016]] C-TABLE puts OUT; the terminal's own copy is a table command and has no surface of its own) · Clear Screen ⇧⌘K · Tab switching ⌘⌥1–9 · Pane focus ⌘⌃1–9 · Split via ⌘\ (an alias for Split Right, which is one command with two chords — C-TABLE permits at most ONE, so the alias goes or the command splits in two).
+
+ALREADY WRITTEN TWICE, and therefore the first candidates for the collapse: ⌘D, ⌘T, ⌘W, ⌘], ⌘[, ⌘1–9, ⌘F, ⌘=, ⌘0, ⌘- each appear as a menu key equivalent AND as a case in `GhosttyNSView.performKeyEquivalent`.''',
+    """
+DECISIONS LEFT TO THE IMPLEMENTATION, raised in review and deliberately not settled in [[RFC-0016]] — recorded so they are made rather than discovered.
+
+THE EDIT MENU IS WHERE THIS GETS ARCHITECTURAL. On macOS the thing that makes ⌘C reach a text field's `copy:` IS a menu item's key equivalent. If the shared Copy item installs the table's chord for TERMINAL copy after a rebind to ⌘⇧C, text-field ⌘C dies — which [[RFC-0016]] C-TABLE's OUT list forbids. The contract is satisfiable, because DISPLAYING a chord and INSTALLING it as a key equivalent are separable, and a second item carrying the platform verb is also available. Decide before laying out the menu layer, not after. The consequence to accept knowingly: with terminal-copy cleared, the shared item shows no chord while ⌘C still copies in a text field.
+
+ESCAPE CANNOT CANCEL RECORDING as [[RFC-0016]] C-REBIND is literally written — bare Escape is not a chord, so it is rejected and the surface goes on listening. Every macOS recorder cancels on Escape. The rule is unambiguous rather than wrong; if the panel wants Escape to cancel, the clause needs an amendment rather than a local exception.
+
+PRESSING THE CHORD OF A COMMAND WITH NO OBJECT: C-DISPATCH requires unavailability to be visible "wherever the command is SHOWN", and a keypress is not a place it is shown. Whether the press also gives feedback is open; pick one and be consistent.""",
+    """
+A LOCAL EVENT MONITOR RETURNING nil DOES NOT STOP A SwiftUI `Commands` KEY EQUIVALENT, found in use and not by review. The monitor resolved ⌘K, ran the command and consumed the event; fourteen milliseconds later the menu item's own equivalent fired and ran it again. On a toggle that is open-then-shut in one press: the palette appears not to notice it is already open, and the full-window scrim flashing reads as the whole screen blinking.
+
+IT VIOLATED NO CLAUSE, which is why six review rounds did not catch it. [[RFC-0016]] C-TABLE forbids anything outside the table changing WHICH command a chord reaches — and both mechanisms read the table and reached the same command. The missing obligation was about HOW MANY TIMES, and C-DISPATCH now carries it. The drop is keyed to the ORIGINATING EVENT (timestamp and key code) rather than to a time window, because a window wide enough to catch the echo also swallows a human pressing the same chord twice, which is exactly how the defect was reproduced.""",
+]
+
+[[content.acceptance_criteria]]
+text = "Every chord the WORKBENCH answers to is resolved from one table — no menu item, monitor or key-equivalent handler tests for one of its own. The only chords kept from the table are the refusal list (⌘Q, ⌘H, ⌘M); the text-field editing verbs keep working by DISPATCH, reaching the responder chain in rows 2 and 4, not by being protected"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A keystroke is resolved by the four ordered rows of C-DISPATCH — verified at each row, including that a chord naming nothing reaches a LIVE terminal as key input in row 3, is the recording itself in row 1, and reaches the responder chain in rows 2 and 4"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A keystroke with no ⌘, ⌃ or ⌥ is rejected at the recorder with the reason, and the recorder goes on listening"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The human can rebind and clear any command from a Keys page, and the change takes effect without a relaunch"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = 'An override is stored by command identifier, separately from the defaults; "none" is a stored VALUE, so a cleared chord is still cleared after a relaunch'
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Recording a chord another command holds TAKES it, names the command that lost it at that moment, and leaves that command visibly unbound — never a warning that can be saved past"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A command holding no chord stays in the table, stays listed, and stays reachable without the keyboard"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The shortcuts sheet, and every menu item or control that INVOKES a command in the table, show the EFFECTIVE chord read from the table"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Terminal-domain commands (clear, copy, paste, find, font size) are in the same table and dispatch as ghostty actions against the terminal the focus is in or belongs to"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The workbench's documentation states that its table displaces ghostty's keybind configuration entirely — a keybind written into that file has no effect"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The engine's binding set is empty — a keybind written into ghostty's config does nothing, and a chord the table does not name arrives at the shell as input"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = 'An override that names an unknown command, is neither a chord nor "none", or fails C-CHORD is discarded at LOAD — while a COLLIDING one is applied and displaces, exactly as a recording would; what was discarded or displaced is visible where bindings are shown'
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "No surface describes a chord as available, free, working or verified, and a chord that never arrives is not reported as an error or a conflict"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "A workbench command acting on the layout brings the layout into view first, and a command whose object does not exist is shown unavailable rather than doing nothing silently"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The find bar belongs to the terminal leaf it was opened from — DEFERRED to WI-2026-08-20-001, which found the bar is rendered nowhere at all; until then row 2 is unreachable and row 4 is the honest answer RFC-0016 C-DISPATCH names"
+status = "cancelled"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A chord on the published closed list (⌘Q, ⌘H, ⌘M) is refused at the recorder and discarded from storage; no SHIPPED default is on that list, and no two shipped defaults share a chord — both checkable by inspecting the table alone"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Displacement writes BOTH sides to the store, so the table the human left is the table that comes back"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Matching uses the unshifted character and an EQUALITY on modifiers — ⌘K is not matched by ⌘⇧K — and the named non-character keys (escape, tab, return, delete, arrows, home/end/page, function keys) can be bound"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The default is recoverable for one command and for the whole table, and recovering it REMOVES the override rather than storing the default as one"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Bindings that differ from their default are marked as such where bindings are shown"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Loading the table writes nothing to the store — a relaunch after a displacement followed by a rebind leaves both commands where the human left them, on that launch and every one after"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Recovering one command's default leaves a command it displaced still holding nothing; whole-table recovery restores both"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A default that MOVED between builds onto a chord an override already holds displaces cleanly at load, and two hand-written overrides contending for one chord resolve deterministically — the case the identifier ordering exists for"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A command displaced AT LOAD gets its default back on its own once the override that displaced it goes; one displaced BY A RECORDING does not, and recovering a default whose chord another override holds is shown unavailable, naming the holder"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The effective table is rebuilt from defaults + overrides after every store change, not only at launch — clearing an override that was displacing another command hands that command its binding back on THIS run, not the next one"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Help text naming a table command shows its effective chord — docs/keyboard.md names commands and the panel rather than printing chords, which is the same obligation met by not making the claim"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The override store lives in shared/ and follows the human between machines; a merge resolves collisions by the same take rule in the same order and writes `none` to the loser on both sides, never leaving a conflict in the file"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "One keystroke runs a command at most once — pressing a toggle's chord toggles it once, however many mechanisms the platform offers the event to"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Escape leaves the recorder with nothing changed, and is therefore not itself recordable there"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An indexed family (Workspace/Tab/Pane 1–9) is rebound as a whole by its modifier; its nine members are shown but not separately rebindable or clearable"
+status = "done"
+category = "added"

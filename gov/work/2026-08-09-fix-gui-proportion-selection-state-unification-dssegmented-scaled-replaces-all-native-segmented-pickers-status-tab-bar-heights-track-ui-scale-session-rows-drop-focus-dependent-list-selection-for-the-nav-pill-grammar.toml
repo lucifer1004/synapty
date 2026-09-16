@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-009"
+title = "fix(gui): proportion + selection-state unification — DSSegmented (scaled) replaces all native segmented pickers; status/tab bar heights track UI scale; session rows drop focus-dependent List selection for the nav-pill grammar"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Root cause of the persistent 'rough' feel (screenshot audit 2026-08-09): TWO proportion systems coexist — DS-scaled custom chrome grows with uiFontScale (XL=1.3x) while native controls (segmented Pickers, fixed bar heights) stay at system size, so every mixed row reads as glued-together apps. Plus THREE selection languages: nav rows use the custom gray pill, session rows use List selection that flips system-blue/gray with keyboard focus (two audit screenshots show the same row in different colors), segmented uses accent fill. Fix: DSSegmented (scaled, accent-fill selected, text + icon variants) replaces all 8 native segmented usages; DS.Layout statusBarHeight/tabBarHeight become DS.scaled; sessions List drops the selection binding and SessionRow renders the same DS.selection pill as NavListRow (stable, focus-independent)."
+
+[[content.acceptance_criteria]]
+text = "DSSegmented component in DesignSystem — scaled fonts/paddings, accent-fill selected segment, text and icon variants, help tooltips"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "all 8 native segmented Pickers replaced (Tasks tab+filter, Settings pane, Hosts pane+view toggle, appearance mode, UI size, cursor style); zero pickerStyle(.segmented) remains in Sources"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "DS.Layout.statusBarHeight and tabBarHeight track DS.uiFontScale"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "session rows show a stable DS.selection pill for the active session (no focus-dependent system-blue List highlight); hover/rename/close behavior unchanged"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build green, full suite green; screenshot verification at XL — mixed control rows show ONE proportion system"
+status = "done"
+category = "chore"

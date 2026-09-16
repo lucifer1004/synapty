@@ -1,0 +1,18 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-026"
+title = "fix(gui): FontCatalog cached and loaded off the main actor"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P2: FontCatalog.load() instantiates an NSFont for every installed family (several hundred) synchronously on the main actor, and runs again every time Settings or the right panel opens — TerminalSettingsPanel is even instantiated twice in ContentView (docked + floating), so page flips re-run the enumeration and reset panel state."
+notes = ["FontCatalog caches the enumeration once (NSLock-guarded) and warms up on a utility queue at applicationDidFinishLaunching — opening Settings or the panel never re-enumerates or hitches."]
+
+[[content.acceptance_criteria]]
+text = "font catalog is loaded once per launch (cached) and enumerated off the main actor"
+status = "done"
+category = "fixed"

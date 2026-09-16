@@ -1,0 +1,1 @@
+ghostty/include/ghostty.h

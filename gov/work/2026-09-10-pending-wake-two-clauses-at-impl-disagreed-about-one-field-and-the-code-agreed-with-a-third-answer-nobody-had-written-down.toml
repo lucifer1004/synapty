@@ -1,0 +1,109 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-007"
+title = "pending_wake: two clauses at impl disagreed about one field, and the code agreed with a third answer nobody had written down"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0011:C-DEFAULT",
+    "RFC-0004:C-SUBSCRIPTION",
+    "RFC-0010:C-CAPABILITIES",
+]
+
+[content]
+description = """
+[[RFC-0011]] C-DEFAULT, normative and at `impl`: "A PENDING CANDIDATE
+MUST BE VISIBLE ON A NAMED CARRIER, not merely 'observable' ... It rides
+the row [[RFC-0004]] C-SUBSCRIPTION owns and enumerates: the
+`list_agents` response and that snapshot carry `pending_wake` beside
+`status` and `peer_reachable`." Unconditional.
+
+[[RFC-0004]] C-SUBSCRIPTION, normative and at `impl`, enumerating that
+same row: "`pending_wake` ([[RFC-0011]] C-DEFAULT, and it reaches the
+wire when that feature does)". A deferral, inside the clause that owns
+the list, on the field the other clause requires.
+
+`buildAgentsArray` emitted neither. Three answers, no two the same.
+
+WHY THE FIELD IS THE ONLY CARRIER. [[RFC-0005]] C-WAKE-TRIGGER records
+wake ATTEMPTS as hub events. On a hub with no workbench a candidate is
+never attempted, so it produces no event — and that is the NORMAL case
+for a server hosting detached agents, which is the case this RFC exists
+for. C-DEFAULT is explicit that the outcome ("a detached agent reads its
+mail when a human next looks") is acceptable and must not be treated as
+a defect; it is acceptable only because a human can see it happening,
+and nothing let them.
+
+WHAT WAS BUILT:
+
+- `pending-wake` is a declared capability, spelled with the hyphen
+  [[RFC-0010]] C-CAPABILITIES fixes as the convention. `presence_relay`
+  is that clause's named exception, so `@tagName` cannot produce both
+  spellings and the two directions are written out and round-tripped in
+  a test.
+- A LOCAL row always carries `pending_wake`: this hub knows, and there
+  is no third answer for an identity it hosts.
+- A RELAYED row carries it only where the hosting peer declared the
+  capability. Otherwise the field is OMITTED and
+  `pending_wake_unknown_cause` says which absence it is, in the
+  vocabulary C-DIAGNOSABILITY owns. A contested identity reports
+  neither, for the reason the status beside it already gives.
+- A PENDING EDGE IS ITS OWN EDGE. Mail arriving does not move an agent's
+  status, so relaying the flag only on presence changes would leave a
+  peer's row saying "nothing waiting" for as long as the agent held
+  still — which for a `waiting` agent may be forever. `wakeCandidate`
+  and `wakeCancel` relay it themselves.
+- A fresh link no longer skips an identity whose only fact is that it
+  has unread mail. `relayPresenceAllTo` skipped every agent at
+  `unknown`, which is exactly a detached agent nobody has heard from.
+- The workbench decodes it as `Bool?` with no `??` anywhere near it, and
+  shows it: `pendingWakePhrase` reaches the agent status bar and the
+  host sidebar beside `unknownExplanation`. A field decoded into a
+  struct nobody reads would be the same defect one layer along.
+
+AND THE GOVERNANCE MOVED TOO. C-SUBSCRIPTION drops the deferral, names
+`pending_wake_unknown_cause`, and states why the field is unconditional
+on a local row and conditional on a relayed one."""
+
+[[content.acceptance_criteria]]
+text = "pending-wake is a declared capability, hyphen-spelled per [[RFC-0010]] C-CAPABILITIES, with both directions round-tripped"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a local row always carries pending_wake, read from the hub's own outstanding-candidate map"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a relayed row carries it only where the peer declared it, and otherwise omits it and attributes the absence"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a pending edge relays on its own, so a peer's row does not say nothing-waiting until the agent's status happens to move"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "relayPresenceAllTo no longer skips an identity whose only fact is that it has unread mail"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the workbench decodes pending_wake as an optional and shows pendingWakePhrase wherever it shows unknownExplanation"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0004]] C-SUBSCRIPTION drops the deferral, names pending_wake_unknown_cause, and states the local/relayed asymmetry"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the row is pinned for present-true, present-false, capability-absent and peer-declared, on both sides of the language boundary"
+status = "done"
+category = "chore"

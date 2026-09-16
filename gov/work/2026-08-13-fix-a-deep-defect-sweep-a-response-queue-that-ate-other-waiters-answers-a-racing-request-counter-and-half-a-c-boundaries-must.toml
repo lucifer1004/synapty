@@ -1,0 +1,64 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-007"
+title = "fix: a deep defect sweep — a response queue that ate other waiters' answers, a racing request counter, and half a C-BOUNDARIES MUST"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+A whole-codebase defect sweep, not scoped to recent changes. Seven fixes, each with a test that fails without it.
+
+1. THE RESPONSE QUEUE ATE OTHER WAITERS' ANSWERS (src/run.zig). waitForHubResponse walked from the head of pending_responses discarding everything that did not match its own id, on the reasoning that a non-matching response must be stale from a request that already timed out. That held while one request was in flight, and WI-2026-08-10-001 ended it by giving every IPC connection its own thread — its own comment names the pair that now runs concurrently, a parked `recv --wait` alongside the harness's `notify` at turn end. From then on the rule was destroying LIVE answers: the waiter whose response was eaten spun its full timeout and reported "hub timeout" for a request the hub had answered correctly. No race needed. Fixed by taking only the matching entry and bounding the queue by age instead.
+
+2. THE REQUEST COUNTER RACED (src/run.zig). nextRequestId did a plain read-modify-write on a field shared by every IPC connection thread. Two panes could be handed the same id, and responses are matched on id alone — so one agent receives another's answer, which for `recv` is another pane's mail. The test reproduced a real collision (63 unique ids out of 64) before the fix. Now @atomicRmw.
+
+3. HALF OF A C-BOUNDARIES MUST WAS MISSING (src/hub/handlers.zig, src/hub/registry.zig, src/hub/federation.zig). The clause states one requirement with two halves — a hub rejects relayed traffic whose claimed origin identity is one it hosts locally, OR one another peer has advertised. Only the second was implemented. The advertise half let a peer put a phantom directory entry over an agent standing right here, reporting a status that was not the agent's. The FORWARD half was an impersonation vector: nothing checked the source of a relayed frame, so a peer could inject mail naming a local agent as the sender and the recipient would read it as coming from the pane beside it. Delivery itself was already local-first, so no mail was ever misrouted TO a peer — that half was correct throughout. New `local_conflict` outcome rather than reusing `conflict`, because the remedies differ, and a shared hostsLocallyLocked predicate extracted from mailboxDeliver — where being inline is how the second caller came to not exist.
+
+4. TWO COUPLED DURATIONS WITH NOTHING COUPLING THEM (src/hub/federation.zig). C-DIRECTORY requires tombstone retention to be no shorter than the spool TTL, or a spooled message outlives the entry naming where to send it. That requirement lived in a comment while the values were independent literals in two init functions. They agreed, and nothing made them agree. Now derived from one constant with a comptime assertion, plus a test on the instances.
+
+5. THE WAIT VOCABULARY WAS SPELLED TWICE (src/cli/parse.zig). parse.zig hardcoded the four valid states while runWait did `Status.fromString(until) orelse unreachable` on the strength of it. Adding a state to RFC-0004's enum without touching parse.zig turned a rejected argument into a panic. Now validated against the enum, with `unknown` excluded deliberately.
+
+6. A TEST COULD DROP ITS STORAGE ISOLATION (Tests/HostModelTests.swift). isolatedRoot() replaced HostStore.storageOverride and every caller undid it with `= nil`, dropping the tempDir the class had installed — so the next test in the file ran with no override and read the developer's real ~/.config/synapty. Order-dependent, therefore invisible until the order changed; it surfaced as a confusing assertion in an unrelated test. Nothing was written (the save() assert held), but this is the exact class of miss that once replaced a real host list. Per-test roots now NEST inside the class isolation, and tearDown fails the test that dropped it rather than the one that suffers it.
+
+7. SessionSnapshotTests HAD NO CLASS ISOLATION AT ALL, and SessionStore.save had no write guard. One test installed an override and reset it to nil, so every other test in the file ran against the real machine-scoped session.json. None happened to write — discipline holding rather than a mechanism. Both added.
+
+Also recorded: per-record host storage returns RECORD-ID order, not insertion order, and that is now stated as a contract. A set-union merge has no canonical order, so promising insertion order would promise what the sync layer cannot keep; display order belongs to the view layer, which already sorts explicitly."""
+
+[[content.acceptance_criteria]]
+text = "waitForHubResponse takes only its own response and bounds the queue by age"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "nextRequestId is atomic; 64 concurrent callers get 64 distinct ids"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a peer cannot advertise or forward-as an identity this hub hosts locally"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "spool TTL and tombstone retention derive from one constant, with a comptime assertion"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "wait --until is validated against the Status enum rather than a second word list"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "per-test storage roots nest inside class isolation, and teardown catches a dropped override"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SessionSnapshotTests is isolated and SessionStore.save carries the same write guard as HostStore"
+status = "done"
+category = "fixed"

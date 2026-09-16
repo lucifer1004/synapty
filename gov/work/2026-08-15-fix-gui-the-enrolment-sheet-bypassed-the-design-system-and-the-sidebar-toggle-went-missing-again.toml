@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-001"
+title = "fix(gui): the enrolment sheet bypassed the design system, and the sidebar toggle went missing again"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "WI-2026-08-14-015",
+    "WI-2026-08-14-001",
+]
+
+[content]
+description = """
+"又开始变丑了。细节信息堆叠,缺少层次和设计感。"
+
+THE SHEET BYPASSED THE DESIGN SYSTEM. It was a hand-rolled VStack of raw Text: a title, then two long grey paragraphs stacked against each other, then a button. Nothing wrong with any one line and no hierarchy anywhere — which is exactly what "detail piling up" describes. The components it should have used already existed: `DSSheetHeader`, `DSEmptyState`, `DSSectionLabel`, `DS.surface`. Rebuilt on them, so it now reads header / content / footer like every other sheet in the app.
+
+Three decisions inside that, each with a reason rather than a taste:
+
+- THE MECHANISM SENTENCE MOVED TO THE FOOTER. What a human wants to know before pressing Authorize is that nothing secret moves, and that reassurance belongs beside the button rather than stacked under the heading competing with it. Once something has happened the result replaces it, because the explanation is no longer the most useful thing in that row.
+- THE TWO EMPTY STATES GOT DIFFERENT ICONS AND DIFFERENT COPY. "No other Mac yet" is the ordinary wait for a second machine; "this Mac has not published its key" means nothing here can work. They mean opposite things and had been sharing one sentence.
+- EACH STATE SIZES ITSELF. A single fixed height gave the empty state the room it needs and left a dead gap under a one-row list.
+
+AND THE SIDEBAR TOGGLE DISAPPEARED — a regression from [[WI-2026-08-14-015]]'s own fix. That review moved the install from `applicationDidFinishLaunching`, where the SwiftUI window often does not exist yet, to an `onAppear` reading `NSApp.keyWindow`, where the window frequently is not key yet. One unreliable moment traded for another; the installed build happened to win the race and the next few Debug launches did not.
+
+Neither moment is the answer. A view knows its own window as soon as it has one, so `WindowAccessor` hands it over from `viewDidMoveToWindow` and the accessory is installed there. That does not depend on timing at all."""
+notes = ["""
+VERIFIED BY LOOKING, which is the only way any of this could have been caught — the suite has nothing to say about whether a sheet reads as designed.
+
+The toggle: three consecutive launches of the same build, screenshot each time, present in all three. Before the fix it was absent in the Debug launches that followed the review.
+
+The sheet: both states captured. The populated one needed a second machine's key, which does not exist yet, so a `.pub` was written into the shared directory for the screenshot and removed immediately. Checked first that it could not escape: `noteLocalChange` for that path is called only by `MachineKey.publish()`, and only ever for the LOCAL peer id, so a file appearing there by other means is invisible to sync.
+
+ALSO ADDED: `--enrol-sheet`, because this sheet was reachable only by a mouse click and therefore could not be screenshotted at all. Getting that argument to work took three tries, and the middle one is worth recording — the screenshots showed no sheet because `open` had merely activated the already-running INSTALLED app instead of launching the Debug build. The code was fine; I was looking at a different process. `pkill -x` then `open -n`, and confirm which binary is running before believing a capture."""]
+
+[[content.acceptance_criteria]]
+text = "the enrolment sheet uses the app's own sheet, empty-state and section components"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the two empty states say which one they are"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the sheet hugs a short list instead of leaving a fixed gap"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the sidebar toggle appears on every launch, not when a race is won"
+status = "done"
+category = "fixed"

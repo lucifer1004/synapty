@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-018"
+title = "feat(github): stamp agent attribution on task-center posts (RFC-0003 1.1.0 attribution clause)"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0003",
+    "RFC-0008",
+]
+
+[content]
+description = """User-observed gap (2026-08-11): GitHub task-center posts (task create/comment) carry NO agent identity — every issue and comment shows as the PAT owner, so a thread with three agents working reads as one undifferentiated human. RFC-0003 1.1.0 already carries the normative sentence ("Task attribution uses the durable agent id when one is bound") — this WI implements it. Locus: HUB-SIDE stamping in the tool_request handlers (handleTaskComment/handleTaskCreate and any claim/update path that writes prose), NOT agent-side — the hub resolves the requesting connection's bound identity (durable id when bound, pane fallback otherwise), so agents cannot sign as each other; an agent-composed signature would be forgeable prose. Format: append a single-line visible footer to the body (e.g. em-dash rule + "🤖 `claude-deadbeef` · via Synapty") plus a hidden HTML comment marker (`<!-- synapty-agent: claude-deadbeef -->`) for machine parsing — the marker lets the GUI task board and `synapty task list` attribute/filter comments later without scraping the human-facing text. Scope decisions to settle during implementation: (1) human-class identities (tool=human, bare pane ids, GUI/TaskMonitor-originated requests) are NOT stamped — the PAT owner already IS the human; stamp only registered non-human agents. (2) Durable id preferred; a non-durable registered agent (no resume_ref) stamps its pane id honestly. (3) Existing posts are not retrofitted (V1 happy path)."""
+notes = ["Implemented hub-side as designed: stampAttribution resolves the sending connection's bound identity + registered tool; human-class (tool=human, '-', unregistered, anonymous one-shots) pass through; agents get visible footer + hidden synapty-agent marker. task.create with an absent body becomes footer-only for agents (attribution alone is signal). Live GitHub verification deferred to the next real agent task-comment (the stamp will show on the issue thread)."]
+
+[[content.acceptance_criteria]]
+text = "hub-side stampAttribution helper — visible one-line footer + hidden synapty-agent HTML marker appended to task create/comment bodies; identity resolved from the requesting connection's bound id at request time (durable when bound); human-class requests pass through unstamped; unit tests cover stamped/unstamped/durable/pane-fallback"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "every prose-writing task path carries the stamp — comment and create are the only two (claim/update mutate labels/assignment only, no prose); the GitHub HTTP call cannot run under tests, so verification = unit test of stampAttribution + both call sites route through it (reviewable one-liners)"
+status = "done"
+category = "added"

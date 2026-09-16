@@ -1,0 +1,42 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HUB-ROLE"
+title = "Hub Role — Connection Registry and Event Aggregator"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The embedded hub is re-purposed:
+
+1. Connection registry — agents register/unregister as today; the routing
+   table maps agent id -> pane/connection for supervision purposes.
+2. Issue-state aggregator — AMENDED by [[RFC-0009]] C-NON-GOALS: the
+   authenticated GitHub calls are made by the WORKBENCH, which holds the
+   Keychain credential; the hub caches and serves the resulting issue-state
+   view of the hub repo (per-project task counts, per-agent assignments) and
+   pushes updates to the GUI status bar. The request-driven, no-poll-tax
+   economics of C-EVENTS are unaffected — a hub that holds no secret can be
+   relocated to a server, which is the property this amendment buys.
+3. Terminal-event bridge endpoint — (V1.5) OSC sequences emitted by agents in
+   panes are translated by the bridge into GitHub actions (update issue,
+   comment). This reuses RFC-0001's OSC bridging direction, with the platform
+   as the target instead of a message bus.
+
+A REQUEST THAT DOES WORK REACHES EXACTLY ONE WORKBENCH. Events fan out —
+every workbench should see what happened — and a request must not, because
+each workbench that receives one performs it. More than one may be attached:
+a laptop peered with a desktop is the ordinary shape, not an edge case. So
+the hub MUST select a single workbench for a request and hold that request's
+outcome to that one; a workbench that does not answer is a failure to report,
+never a reason to ask a second. This governs the credential calls named in
+point 2 and the execution requests of [[RFC-0007]] alike — anything the hub
+hands onward to be DONE rather than to be SEEN.
+
+Fanning a request out was measured, not imagined: two workbenches on one hub
+wrote every comment twice, and the duplicate receipt the hub already discarded
+hid the duplicate write rather than preventing it.
+
+The hub no longer forwards agent-to-agent messages as a first-class feature."""

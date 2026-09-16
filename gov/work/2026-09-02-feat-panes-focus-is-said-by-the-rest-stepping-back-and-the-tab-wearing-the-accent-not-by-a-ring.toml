@@ -1,0 +1,65 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-003"
+title = "feat(panes): focus is said by the rest stepping back and the tab wearing the accent, not by a ring"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Zihua: "有多个 slot 时目前加的外描框不好看，有更好的 UI 设计吗？"
+
+THE RING WAS THE WRONG KIND OF ANSWER. With more than one slot the focused
+pane wore a 2pt accent stroke, radius 2, on its outer edge. Measured in a
+three-column layout: the right and bottom edges fell outside the window and
+under the status bar, so the "ring" read as a green line on the left and
+top; the left edge sat beside the 4pt divider as a two-tone seam; a rounded
+hairline floated over a square, edge-to-edge Metal grid; and the attention
+ring used the identical geometry with only the hue changed. Above all it
+decorated the one surface the human is reading.
+
+What replaces it, agreed with Zihua ("A+B, B 改为活跃 pane 额外调色"):
+
+A. THE PANES NOT IN FOCUS STEP BACK — a wash of the terminal theme's own
+background over every visible pane except the focused one. The terminal
+idiom (ghostty's own frontend, iTerm2, kitty), reusing the scrim route the
+lost-link wash already proved over the Metal surface. Deliberately light
+(0.12, against ghostty's 0.3): this is an agent workbench and the other
+panes are being watched, not parked. The wash color follows the theme via
+ChromeTint, which already reads `background =`; black over a light theme
+would be a gray smear.
+
+B. THE FOCUSED SLOT'S ACTIVE TAB WEARS THE ACCENT — soft accent fill and
+accent text on the pill the app already uses for "selected", so focus
+speaks the selection grammar the sidebar taught rather than a new shape.
+Chosen over dimming the other slots' tab text (two dims stack into
+"everything else is gray") and over a top color bar (decorating the
+focused thing again). Shown with one slot too: "the tab with the
+keyboard" does not become true when the window splits.
+
+The attention ring goes with the focus ring. A pane awaiting attention is
+exempt from the wash — the one thing that must not recede — and its tab
+already carries the pulsing warning dot."""
+
+[[content.acceptance_criteria]]
+text = "PaneFocusPresentation is pinned — no wash with one slot, never the focused pane, never a pane awaiting attention; the accent tab is the focused slot's active tab and no other"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "with two or more slots, every visible pane but the focused one sits under a light wash of the terminal theme's own background, and the focused pane wears nothing"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the focused slot's active tab is drawn on the soft accent pill with accent text, in one slot as in several; other slots' active tabs keep the neutral pill"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the focus ring and the attention ring are gone; a pane awaiting attention is not washed and keeps its tab mark"
+status = "done"
+category = "fixed"

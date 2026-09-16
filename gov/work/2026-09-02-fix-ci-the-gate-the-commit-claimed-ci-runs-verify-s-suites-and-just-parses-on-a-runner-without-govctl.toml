@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-031"
+title = "fix(ci): the gate the commit claimed — CI runs verify's suites, and just parses on a runner without govctl"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The commit for [[WI-2026-09-02-018]] says "CI runs just test, the
+federation e2e, shellcheck, and a governance job" and its diff does not
+touch ci.yml: the edit failed and the failure went unread, so the local
+gates converged while the enforced one stood still — the shape this
+project's governance warns about, and worse than not doing it because a
+reader believes the gate exists. Found by the 2026-09-02 re-audit. Two
+more CI faults: the justfile's parse-time require("govctl") fails every
+`just` call on a runner without it, and ci.yml runs xcodegen bare while
+project.yml now takes MARKETING_VERSION from the environment
+([[WI-2026-09-02-028]]), so a CI build carries an empty version."""
+
+[[content.acceptance_criteria]]
+text = "ci.yml runs just test (zig tests plus every e2e script), just test-swift, just lint-sh, and a governance job that installs govctl and runs just gov-check; xcodegen runs through just xcgen so the version is set"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the justfile resolves govctl at use, not at parse — a runner without it can still build and test — and the gov recipes name the missing tool"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[WI-2026-09-02-018]]'s record states that its CI criterion was not delivered by its commit and is delivered here"
+status = "done"
+category = "chore"

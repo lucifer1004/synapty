@@ -1,0 +1,154 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0001"
+title = "V1 Scope — Happy-Path Agent Workbench"
+status = "superseded"
+date = "2026-03-26"
+superseded_by = "ADR-0017"
+refs = ["RFC-0001"]
+
+[content]
+context = """
+[[RFC-0001]] defines a five-layer vision for Synapty as the ultimate agent workbench. We need to define V1 scope: the minimum deliverable that makes Synapty functional for real multi-agent workflows while not blocking extension to V2 and beyond.
+
+This ADR was originally drafted around a CLI-first scope (no GUI rendering, no libghostty) and subsequently revised to a native GUI scope after studying the cmux and ghostty-web reference projects, which demonstrated that Swift + Zig + GhosttyKit integration is proven and that libghostty's headless VT API is well-defined.
+
+### Problem Statement
+
+A user has Claude Code running locally and Codex running on a remote machine. Today, these agents cannot communicate with each other. The user has no unified view of what each agent is doing and no efficient way to supervise both simultaneously.
+
+The concrete user flow is:
+1. Open Synapty (a native GUI application)
+2. Open a terminal pane, run Claude Code locally
+3. Click a preconfigured remote host to SSH in and launch Codex
+4. Claude Code and Codex can now talk to each other via A2A messaging
+5. The user sees both sessions live in GPU-rendered terminal panes and can intervene
+
+V1 must solve this end-to-end scenario with a native GUI experience — not a TUI, not a web dashboard, but a real graphical application with full terminal emulation in each pane.
+
+### Constraints
+
+- [[RFC-0001:C-NON-GOALS]] prohibits Synapty from becoming an LLM runtime, IDE, or agent implementation framework.
+- Pure Zig for the core engine and daemon. The GUI app uses Swift + Zig (following the cmux/Ghostty pattern for macOS).
+- V1 is happy-path only — no retry queues, encrypted handshakes, or complex failure tolerance.
+- libghostty (via GhosttyKit xcframework) is required for terminal pane rendering — Synapty is a graphical terminal multiplexer, and compositing multiple terminal sessions requires a VT state machine per pane. Note: this is the rendering surface API (proven by cmux), not the headless VT engine C API (libghostty-vt) used by ghostty-web.
+- Existing agents (Claude Code, Codex) are unmodified — integration happens via CLI tools and agent skills/plugins.
+- Host management follows the Termius pattern: preconfigure remote hosts (address, credentials) in the GUI, then one-click deploy agents.
+
+### Scope options evaluated
+
+Four scoping strategies were evaluated: minimal CLI-only router, TUI-based workbench, native GUI workbench with libghostty, and full-stack with all five [[RFC-0001]] layers."""
+decision = """
+We will **build V1 as a native macOS GUI application — a graphical terminal multiplexer with built-in A2A routing, Termius-style host management, and libghostty-powered terminal panes**. Agent integration uses **MCP (Model Context Protocol)** as the universal interface standard.
+
+V1 delivers seven components:
+
+1. **Native GUI Application** — A macOS application using libghostty via GhosttyKit xcframework for GPU-accelerated (Metal) terminal rendering. Each agent runs in its own terminal pane with full VT emulation. The app follows the cmux/Ghostty pattern: Swift UI layer + Zig core engine, linked via C API bridging header.
+
+2. **Host Management Sidebar** — Termius-inspired preconfigured host management. V1 scope is a flat host list: each entry stores label, address, port, and credentials (username + SSH key). One click on a host card SSHs in, deploys the daemon, and opens a terminal pane. Group hierarchy with inheritance and jump chains is deferred to V2.
+
+3. **Embedded Hub** — The A2A message router runs in-process within the GUI application. No separate Hub process to start or manage. The routing table maps agent IDs to panes/connections. Messages between local panes route in-memory; messages to remote agents route via SSH tunnel.
+
+4. **`synapty run` Wrapper** — The primary agent integration point. `synapty run --id <agent-id> -- <command>` wraps any agent process with: persistent Hub connection (register on start, unregister on exit), unix socket IPC server (`SYNAPTY_SOCK`), environment variable injection (`SYNAPTY_AGENT_ID`, `SYNAPTY_SOCK`), and PTY passthrough for the child process. For GUI panes, the app runs `synapty run --id <id> -- <shell>` as the surface command. For remote hosts, the same binary is deployed via scp.
+
+5. **MCP Stdio Server** — `synapty mcp-serve` is an MCP server (JSON-RPC 2.0 over stdio) that exposes three tools: `synapty_send` (send A2A message to another agent), `synapty_recv` (receive pending messages), `synapty_agents` (list registered agents). Agent platforms (Claude Code, Codex CLI, Gemini CLI) spawn this server automatically via their standard MCP configuration. This gives agents native tool access without skills text, CLI overhead, or context window waste.
+
+6. **CLI Subcommands** — `synapty send/recv/agents` remain as standalone commands for manual use and backward compatibility. When `SYNAPTY_SOCK` is set (inside a `synapty run` session), they use the efficient IPC path to the parent process. When not set, they fall back to direct Hub TCP connections.
+
+7. **Agent Status Bar** — A persistent UI element showing: registered agents with connection status indicators, A2A message count/activity, and notification badges when an agent signals for human attention.
+
+### What V1 explicitly defers
+
+- **L2 (full orchestration cockpit):** V1 has basic status bar and notifications. The full vertical command cockpit with notification rings, priority routing, and global hotkey focus cycling is V2.
+- **L3 (terminal introspection):** No 2D DOM export to agents. libghostty is used internally for rendering, but terminal state is not exposed to agents via the A2A protocol yet. V2.
+- **OSC bus as agent communication:** V1 detects OSC sequences for status display but does not use them as an A2A messaging channel. MCP is the agent integration surface. V2 will bridge OSC to A2A.
+- **WebSocket framing:** V1 uses raw TCP with JSON envelopes between daemon and Hub. WebSocket upgrade is V2.
+- **Agent discovery/query:** V1 supports `synapty agents` to list, but no capability-based query routing. V2.
+- **Failure tolerance:** No retry queues, reconnection logic, or session persistence across crashes. V2.
+- **Encryption/authentication:** Hub trusts all local connections; SSH provides remote security. Mutual authentication is V2.
+- **Cross-platform:** V1 is macOS only (Metal rendering via libghostty). Linux/Windows is V2.
+- **Host groups and jump chains:** V1 uses a flat host list. Termius-style group hierarchy with inherited credentials and multi-hop chains is V2.
+
+### V2 extension path (not blocked by V1 decisions)
+
+- The A2A envelope format is the same whether carried over raw TCP, WebSocket, or SSH tunnel — V2 transport upgrades require no protocol change.
+- libghostty is already integrated for rendering. Exposing terminal state to agents (L3 introspection) requires the headless VT API (libghostty-vt, as demonstrated by ghostty-web), which is additive.
+- The MCP server coexists with future OSC-based signaling — adding OSC-to-A2A bridging gives agents a second communication path without removing MCP.
+- The `synapty run` wrapper is the natural foundation for V2's daemon-per-session model with persistent headless routing and millisecond reconnect.
+- The flat host list naturally extends to groups with inheritance.
+- The embedded Hub can be extracted to a standalone process or federated across machines without protocol changes."""
+consequences = """
+### Positive
+
+- **End-to-end functional from V1.** A user opens Synapty, clicks a preconfigured host, and their remote agent is deployed and connected. No manual SSH, no separate processes to manage.
+- **Real terminal emulation.** Every agent pane is a full GPU-rendered terminal via libghostty. Users see exactly what agents see — no lossy text capture or log streaming.
+- **Zero agent modification.** MCP integration means agents get native tool access (synapty_send/recv/agents) automatically via platform config. No skills text, no CLI wrappers, no context window waste.
+- **Universal agent platform support.** Claude Code, Codex CLI, and Gemini CLI all support MCP natively. One MCP server implementation serves all three platforms.
+- **GUI from day one.** Human supervision is the native experience, not a bolt-on. The host sidebar and status bar provide immediate visibility.
+- **Clean V2 path.** libghostty is already in the stack for rendering. MCP coexists with future OSC-based signaling. The `synapty run` wrapper is the foundation for V2's daemon-per-session model.
+- **Termius-style host management.** Preconfigured hosts eliminate repetitive SSH setup and make remote agent deployment frictionless.
+
+### Negative
+
+- **Significant V1 scope.** Seven components spanning Swift, Zig, and libghostty create integration risk across three toolchain boundaries (Xcode, Zig build, xcframework linking). (Mitigation: leverage cmux as a proven reference; scope host management to flat list; defer L2/L3/groups to V2.)
+- **macOS only in V1.** libghostty's GPU rendering uses Metal, which is macOS-specific. (Mitigation: libghostty supports Vulkan/OpenGL; cross-platform is a V2 deliverable.)
+- **Swift + Zig build complexity.** The GUI layer requires Swift (Xcode project) while the core engine is Zig. (Mitigation: cmux proves this pattern works; the build pipeline is well-understood.)
+- **libghostty is a substantial dependency.** Building GhosttyKit from source requires the Ghostty submodule. (Mitigation: pre-build and cache the xcframework in CI.)
+- **MCP adds a protocol layer.** The agent-facing interface uses MCP (JSON-RPC 2.0) while the A2A Hub uses a custom JSON envelope protocol. Two protocols to maintain. (Mitigation: MCP is a thin translation layer over the IPC; the complexity is bounded to src/mcp.zig.)
+
+### Neutral
+
+- The A2A protocol remains pure JSON envelope over TCP — not MCP. MCP is used only for the agent-facing tool interface. This distinction is intentional: A2A is the inter-agent routing protocol; MCP is the agent-platform integration standard.
+- The `synapty run` wrapper merges the roles of the original CLI register command and the daemon process spawner into a single unified component.
+- The CLI-based integration path (`synapty send/recv/agents`) remains as a backward-compatible and manual-use interface alongside MCP.
+- V1 is macOS-first by pragmatic choice, not by architectural constraint. The Zig core and A2A protocol are platform-independent."""
+
+[[content.alternatives]]
+text = "Minimal CLI-only router: Build only the Hub and CLI with no GUI, no SSH management, and no daemon. Agents connect directly to the Hub over raw TCP."
+status = "rejected"
+pros = [
+    "Smallest scope, fastest to ship",
+    "Focuses engineering effort on protocol correctness",
+]
+cons = [
+    "No human supervision — operators must manually check each agent session",
+    "Remote agents require user to manually set up SSH tunnels",
+    "Does not deliver on the [[RFC-0001]] vision of human experience as a core pillar",
+]
+rejection_reason = "Fails the core scenario: a user supervising Claude Code + Codex needs visibility and managed connectivity, not just a message pipe."
+
+[[content.alternatives]]
+text = "TUI-based workbench: Build the GUI as a terminal UI (like htop/lazygit) using raw ANSI escape sequences. No libghostty, no native window."
+status = "rejected"
+pros = [
+    "Zero dependencies, pure Zig, single binary",
+    "Works over SSH",
+    "Fastest to ship",
+]
+cons = [
+    "Cannot embed real terminal panes — agent sessions need separate windows",
+    "Limited visual fidelity",
+    "Identity conflict: terminal workbench inside a terminal",
+]
+rejection_reason = "A terminal multiplexer that cannot host terminal sessions in its own panes is not a multiplexer. Compositing multiple VT streams requires a VT state machine per pane, which means libghostty. A TUI cannot provide this."
+
+[[content.alternatives]]
+text = "Full-stack with all five [[RFC-0001]] layers: Ship V1 with libghostty rendering, OSC bus, terminal introspection (2D DOM export), full vertical cockpit, and capability-based agent discovery."
+status = "rejected"
+pros = [
+    "Delivers complete [[RFC-0001]] vision in one release",
+    "Agents get spatial perception and OSC communication from day one",
+]
+cons = [
+    "Massive scope — five architectural layers, each substantial",
+    "Terminal introspection API design requires iteration",
+    "High risk of V1 shipping late or incomplete",
+]
+rejection_reason = "Scope compression. V1 must prove core value (agents talking, human seeing both) before investing in advanced introspection. Native GUI with libghostty is the enabling foundation; L2/L3 layer on additively in V2."
+
+[[content.alternatives]]
+text = "Native GUI workbench: a native macOS GUI application with libghostty (Metal-rendered terminal panes), Termius-style host management, and an embedded A2A hub. This is the chosen V1 scope."
+status = "accepted"
+pros = ["Delivers the human-experience pillar of [[RFC-0001]]: real terminal panes, visual supervision, and one-click agent management"]
+cons = ["Largest V1 scope — native GUI + libghostty integration + embedded hub"]

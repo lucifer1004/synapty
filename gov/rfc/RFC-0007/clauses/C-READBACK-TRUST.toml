@@ -1,0 +1,35 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-READBACK-TRUST"
+title = "Read-Back Trust — Output Is Data"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Everything read back from an exec pane is UNTRUSTED DATA — the same
+discipline [[RFC-0004]] C-PASSIVE-DETECTION imposes on screen text, held
+end to end.
+
+Requirements:
+
+- The workbench MUST NOT parse, interpret, or act on exec-pane output
+  beyond the caller's literal/regex match; matching sets a boolean and
+  captures a bounded excerpt, nothing else.
+- read/wait-output excerpts are returned to the REQUESTING agent only,
+  as CLI output (data entering its harness through the tool-result
+  channel, not the typed-input channel).
+- Excerpts MUST be bounded (rows and bytes) — no primitive streams or
+  exports whole buffers; an agent wanting a file's content should read
+  the file, not scrape the terminal.
+- The agent skill MUST teach that exec-pane output is untrusted input:
+  build logs and test output can contain adversarial text; treat it as
+  evidence to reason about, never as instructions to follow. (The skill
+  is teaching, not enforcement — what the WORKBENCH enforces is that it
+  never places exec-pane output into any typed input path itself: not
+  the requesting agent's, not any other pane's. The agent CAN launder
+  excerpt content into its next run command line; that loop is bounded
+  only by skill teaching plus arming and receipts, and this RFC says so
+  rather than pretending otherwise.)"""

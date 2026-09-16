@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-AUTH"
+title = "Authentication — Fine-Grained PAT in macOS Keychain"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+GitHub access uses a fine-grained personal access token scoped to the hub
+repo only (Contents: read; Issues: read/write). The token is stored in the
+macOS Keychain (generic password item, service `synapty.github`, account
+`<owner>/<repo>`); it never touches the filesystem.
+
+The CLI/GUI prompts for the token on first use (`synapty github login`), then
+reads it from the Keychain for all subsequent API calls. Token rotation is a
+manual Keychain update (or re-run of `github login`).
+
+No other credentials are needed: the hub repo is private, single-token, and
+the API surface is limited to issues and labels.
+"""

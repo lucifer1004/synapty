@@ -1,0 +1,39 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-OWNERSHIP"
+title = "State Ownership — Who May Assert What"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Presence signals come from exactly three classes, with fixed writer sets:
+
+- Explicit — two writers. (a) The agent itself via `synapty notify`,
+  restricted to `working`, `waiting`, `done`; an agent MUST NOT report
+  `idle` or `unknown` — it cannot observe the human, and if it can speak
+  at all it is not unknown. (b) The workbench (GUI), which owns the
+  `done → idle` transition: it fires when the human focuses the agent's
+  pane while the app is frontmost — the human-gaze evidence the attention
+  pipeline already uses. Only the workbench can observe the human; no
+  other party may assert "seen". Focus does NOT clear `waiting` — looking
+  at a blocked agent does not unblock it; `waiting` ends only when a newer
+  signal reports the agent active again.
+- Passive — the screen detector (C-PASSIVE-DETECTION), restricted to
+  proposing `working`, `waiting`, `done`. It MUST NOT propose `idle` (a
+  screen pattern is not gaze evidence) or `unknown` (no-match is inert,
+  C-PRECEDENCE rule 5).
+- Lifecycle — pane/process lifecycle: when the pane's child process exits
+  or the agent's registration is removed, status resets to `unknown`.
+  These are observations of the pane, not screen-pattern matches.
+
+The hub NEVER invents states. It stores the merged status (C-PRECEDENCE),
+preserves it across SAME-GENERATION re-registration (an agent
+re-registering with no state keeps its prior status — shipped behavior,
+now normative; [[RFC-0008]] scoping: a re-home or identity upgrade starts
+a fresh generation and does NOT carry status), and applies the
+lifecycle reset above. While the hub is embedded, workbench and detector
+signals are in-process calls; a dedicated wire action MAY be added when
+the hub is extracted ([[RFC-0001]]) without changing these semantics."""

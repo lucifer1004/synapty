@@ -1,0 +1,17 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-TERMINAL-TYPE"
+title = "The Terminal The Child Is Told It Has"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST advertise to the child a terminal type it can itself interpret, and MUST make that type discoverable.
+
+- The holder MUST NOT advertise capabilities its own screen model does not implement.
+- The advertised type MUST NOT change across a detach and reattach of the same session.
+
+A child emits sequences for the terminal it believes it is talking to. If the holder advertises more than it can interpret, the difference appears as a screen that is subtly wrong after a reattach and correct at every other moment, which is the least attributable defect this mechanism can produce."""

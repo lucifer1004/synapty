@@ -1,0 +1,60 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0018"
+title = "The interface speaks English, and only English, for now"
+status = "accepted"
+date = "2026-09-02"
+refs = ["RFC-0016"]
+
+[content]
+context = """
+Every user-facing string in the workbench is written in English in the source: there is no `String(localized:)`, no `.strings` or `.xcstrings` catalogue, and no locale switch. The CLI, the skills that teach agents the CLI, the hub's error strings and the governance corpus are English too.
+
+An external review of 2026-09-02 flagged this as a decision to record rather than a defect: zero localization is fine if deliberate, and invisible as a decision if nothing says so. It was deliberate — the first user is the author, the agents are prompted in English, and the product is unreleased, so there is nobody yet to be compatible with — but nothing in the corpus said it, and the next reader could take the absence for an oversight and start wrapping strings.
+
+The cost of localising is not the wrapping; it is the SENTENCES. This codebase's interface copy is written as prose with a point of view — a refusal names which rule it failed, an account of a displacement names the command that lost — and the same sentence in a second language is a second thing that can drift from the first. That cost should be paid when there is a second audience, not ahead of one."""
+decision = """
+THE INTERFACE IS ENGLISH-ONLY, ON PURPOSE, UNTIL THERE IS A SECOND AUDIENCE. No string is to be wrapped for localisation, no catalogue is to be started, and no review may count an unlocalised string as a finding while this decision stands.
+
+WHAT "A SECOND AUDIENCE" MEANS: a release to people who did not build the product, or a decision to ship in a market where English copy would be a barrier. Either supersedes this ADR; neither exists yet.
+
+WHAT STAYS TRUE REGARDLESS: user-facing copy is written as sentences, not as keys, because the sentence is the design ([[RFC-0016]] C-DISPATCH's function is an example: an account MUST name what was displaced). A future catalogue translates those sentences; it does not replace them with identifiers."""
+consequences = """
+GOOD:
+
+- The absence of localisation is now a recorded decision with a stated expiry condition, so a reviewer or a new contributor finds the reason instead of inferring an omission.
+- No half-measure — a catalogue with one language in it — has to be maintained through the stretch of the project where the copy changes most.
+
+BAD:
+
+- When the second audience arrives, every string is touched at once rather than as it was written. That is a known bill, and it is smaller than the cost of translating copy that is still being rewritten weekly.
+- Agents prompted in other languages read English refusals and accounts. They are models; they read English. A human beside them who does not is the second audience this ADR waits for.
+
+NEUTRAL:
+
+- No code changes. This records what the code already does."""
+
+[[content.alternatives]]
+text = "Stay English-only and say so, with a stated condition for revisiting"
+status = "accepted"
+pros = [
+    "Nothing to maintain until there is someone to maintain it for",
+    "The decision is on the record, so its absence cannot be read as an oversight",
+]
+cons = ["Every string is touched at once when the condition is met"]
+
+[[content.alternatives]]
+text = "Start a string catalogue now with English as its only language"
+status = "rejected"
+pros = ["The bill is paid incrementally"]
+cons = [
+    "A catalogue of one language is a second copy of every sentence, kept in step by hand, during the period the copy changes most",
+    "It turns prose the reader was meant to read in the source into keys, which is the opposite of how this codebase writes its interface",
+]
+
+[[content.alternatives]]
+text = "Localise now, into the languages the author reads"
+status = "rejected"
+pros = ["Proves the machinery works"]
+cons = ["There is no user who needs it; the work would be exercised by nobody and would drift unnoticed"]

@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-059"
+title = "feat(gui): tag filtering menu for hosts (Termius parity)"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius parity (groups round): tags are a second organization axis — Termius offers a Tags menu where multiple tags can be selected and hosts are filtered to those having ALL selected tags. We only show/search tags.
+
+Fix: a Tags menu button in the Hosts search row lists every tag in use (multi-select); selected tags combine (AND) with the current group filter and search text; a Clear resets; selected tags render as removable chips."""
+
+[[content.acceptance_criteria]]
+text = "a Tags menu lists all in-use tags with multi-select"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "selected tags AND-combine with the group filter and search text"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Clear resets the tag filter; selected tags show as removable chips"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

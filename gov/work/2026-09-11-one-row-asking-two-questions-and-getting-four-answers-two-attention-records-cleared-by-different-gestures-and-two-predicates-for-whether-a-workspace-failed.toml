@@ -1,0 +1,94 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-008"
+title = "One row asking two questions and getting four answers: two attention records cleared by different gestures, and two predicates for whether a workspace failed"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0015:C-FAILURE"]
+
+[content]
+description = """
+The same sidebar row held both.
+
+TWO RECORDS FOR "THIS AGENT WANTS THE HUMAN". `LeafFacts.needsAttention`
+is keyed by leaf; `AgentMonitor.needsAttention` was a `Set<String>` keyed
+by agent. `ContentView` wrote both in lockstep and `HostSidebar` ORed
+them back together — one row asking one question and getting two answers.
+
+They diverged on CLEARING. Every way of looking at a pane cleared the
+leaf's record: `focusLeaf` (the pane tab), `revealLeaf` (the go-to-pane
+palette), `clearLeafAttention`. Only two things cleared the agent's: a
+status change back to `working`/`idle`, and a click on the sidebar row
+itself.
+
+So: open a waiting agent's pane from the palette and read it. The leaf's
+mark clears, the agent's does not, `HostSidebar` evaluates
+`false || true`, and the row keeps its warning dot and amber glyph on a
+pane the human is looking at — until the agent's status happens to move.
+`focusLeaf` gets away with it by firing `onAgentGaze`, which round-trips
+a status change that clears both; `revealLeaf` fires no gaze, so the
+palette path had no reconciliation at all.
+
+The agent's record held nothing the leaf's did not: every write to it was
+guarded by a leaf already existing. So it is gone, and the sidebar's
+agent glyph derives from the leaf — `leafShowing(agent:)` then
+`isAwaitingAttention`. The row's own `||` loses its right operand
+outright, because `workspaceNeedsAttention` already covers every pane in
+the workspace, the agent's included.
+
+Two of this project's own headers condemn exactly this shape:
+`WorkspaceStatus` — "Three unlabelled dots is not three channels, it is
+one channel used badly" — and `AppNotifications` — "two badges make 'is
+anything waiting on me' a question with two answers".
+
+AND TWO PREDICATES FOR "IS THIS WORKSPACE FAILED". The dot spelled out
+`hasFailedConnection(session) || workspaceLinkNeedsMark(session, now:)`
+while the sentence beside it and the screen-reader line both asked
+`failureReason`, which already answers for both halves.
+
+They have already diverged once, and `WorkspaceStatus` records it:
+widening the mark to include a pane's own link without widening the
+reason left "a workspace whose only trouble was a dropped pane link wore
+a red dot with no reason anywhere and said nothing at all to a screen
+reader". That fix restored the premise and left the shape that produced
+it.
+
+One `failure` binding now, read by all three. `hasFailedConnection` had
+one production caller and no behaviour of its own — it is `firstFailure
+!= nil` — so it goes, and its two test assertions moved to the predicate
+the row actually reads. The row also stops walking the workspace four
+times per body to answer one question.
+
+Canaried by making the pane-link half stop reporting a reason: the
+existing C-FAILURE test fails saying the row is marked and must say why.
+
+Found by the occam-swift and ssot-swift passes of the 2026-09-10
+SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "there is one attention record, on the leaf, and the sidebar's agent glyph derives from it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "revealing a pane from the go-to-pane palette clears the mark the row draws, which it did not before"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the row's failed dot, its reason text and its screen-reader line all read one failureReason binding"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "hasFailedConnection is gone — one caller, no behaviour of its own, and the second expression for a fact that had already diverged once"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "revealing a leaf is pinned against both readers, and the collapsed failure predicate is canaried against the C-FAILURE test"
+status = "done"
+category = "chore"

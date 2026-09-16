@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DESTINATIONS"
+title = "A Line Nobody Can Reach Was Not Written"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Where a line goes is part of writing it. A diagnostic that cannot be reached did not happen, and the machines that most need one are the ones nobody can attach to.
+
+THE FAILURE THIS CLAUSE EXISTS TO FORBID, because it shipped: a hub started for a remote machine had its stdout and stderr redirected to /dev/null. Detaching from a terminal that is going away was correct; discarding was not. Every line those hubs emitted — a peer refusing a link, a boundary violation refused, a durable state that only partly restored — was destroyed at the source, and they are precisely the hubs with no human present and no GUI to ask.
+
+Requirements:
+
+- A COMPONENT MUST NOT DISCARD ITS OWN DIAGNOSTICS. Detaching from an inherited terminal is required; the destination that replaces it MUST be readable afterwards.
+- ON A PLATFORM WITH SYSTEM-WIDE LOGGING, A COMPONENT MUST USE IT. On macOS that is the unified log, which is the only destination that interleaves this system's lines with the SSH, sandbox and network lines they usually need to be read against. A process writing only to a private file forces every reader to correlate two timelines by hand.
+- A COMPONENT WITHOUT A SYSTEM LOG — a hub on Linux — MUST write to a durable file under machine-scoped configuration, bounded in size, and that file MUST be readable through the transport the operator already has rather than through a new one. SSH is how a file on another machine is read; a log stream over the A2A protocol would give that protocol a reader it should not have, and would blur [[RFC-0009]] C-EVENT-LOCALITY's rule that event logs are per-machine and peer events are never replayed.
+- LOGS ARE MACHINE-SCOPED. A log is evidence about the machine that wrote it, and replicating one would present one machine's failures as another's."""

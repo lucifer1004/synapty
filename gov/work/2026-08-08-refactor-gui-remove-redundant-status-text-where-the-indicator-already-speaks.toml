@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-074"
+title = "refactor(gui): remove redundant status text where the indicator already speaks"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Hierarchy cleanup: the host block shows a status dot AND a separate "Not Connected"-style text line — the dot already carries the state, the text is redundant. Same pattern in the sidebar session row ("connecting" text next to the pulsing dot).
+
+Fix: delete the status text line from HostBlockView (dot + tunnel state only) and the "connecting" text from SessionRow; keep genuine label+dot badge combos on one line (Hub status row, bridge status, etc.) and dynamic info (durations, errors, agent counts)."""
+
+[[content.acceptance_criteria]]
+text = "host blocks show state via the dot only (no separate status text line)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "sidebar session rows drop the connecting text (pulsing dot carries it)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one-line dot+label badges (Hub status, bridge) and dynamic info (duration, error, counts) unchanged"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

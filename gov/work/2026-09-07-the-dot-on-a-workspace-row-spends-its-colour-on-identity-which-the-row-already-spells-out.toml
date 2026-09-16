@@ -1,0 +1,119 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-003"
+title = "The dot on a workspace row spends its colour on identity, which the row already spells out"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "RFC-0015:C-LEAF-BINDING",
+]
+
+[content]
+description = """
+The dot at the left of every workspace row was coloured by
+`HostTint.color(for: hosts(ofWorkspace:).first.label)` — a hue hashed from
+a machine's name. It cost the human nothing to look at and told them
+nothing they did not already have, and it did so in the one place where
+every workspace sits side by side.
+
+IT IS A LEFTOVER FROM A CLEANUP THAT ALREADY HAPPENED.
+[[WI-2026-08-17-026]] took the ADDRESS off this row, because a workspace
+may hold panes on three machines and a container has no single one to name
+— [[RFC-0015]] C-LEAF-BINDING puts every "which machine is this?" question
+on the leaf. The comment recording that decision sits directly above the
+colour that was still computing the same answer from the same
+`hosts(...).first`, one rework later. The forbidden question survived in a
+different channel.
+
+AND IT WAS CROWDING OUT THE ONE THING THE DOT COULD SAY. `DS.danger` and
+`DS.warning` are meant to be the only saturated colours with a meaning —
+`HostTint`'s own header says its hues are fixed at a low saturation so
+that "none reads as a warning". But three hundred and sixty of them beside
+a red dot means the red is not distinctive: it is just another colour in a
+rainbow. Meanwhile a failure ALREADY writes its reason in red on the right
+of the row, so the dot's red was the third telling of one fact.
+
+THREE DOTS, NOT THREE CHANNELS. The row drew a status dot at the left, a
+pulsing amber one after the label when a pane awaited input, and another
+after the agent icon when the agent did. None of them was labelled.
+
+HOSTTINT IS RIGHT WHERE IT LIVES ELSEWHERE and is untouched: a pane tab
+has no room for a machine's name and is on exactly one machine
+([[PaneTabBar]]), and a host avatar IS a host ([[HostBlockView]]). This
+row was its only consumer colouring something that is not a single
+machine.
+
+THE ORDER OF PRECEDENCE IS THE PART THAT NEEDED DECIDING, and it is not
+the obvious one — attention outranks failure. Broken is worse than
+waiting, but the two facts do not have the same number of channels: the
+failure keeps its red reason on the right, and attention has nothing else
+once the second dot is gone. Giving the dot to failure would show the
+break twice and lose the wait entirely."""
+notes = [
+    """
+A GAP FOUND WHILE WRITING THE SPOKEN FORM, and it predates this change:
+the archive glyph carries `accessibilityLabel("Archived")` and NOTHING HAS
+EVER READ IT OUT. The row is an `accessibilityElement(children: .ignore)`,
+which discards every label inside it, so the only channel is the row's own
+description — and that never said "archived". Fixed here rather than left,
+because this change is what put a state machine in front of the question
+"which of these does the row say out loud", and answering it correctly for
+two states and wrongly for a third would have been a decision.""",
+    """
+THIS DOT SCALES WITH THE UI SIZE WHERE THE APP'S OTHERS DO NOT, and the
+divergence is deliberate rather than overlooked. `DSStatusDot` takes raw
+points and every other call site passes an unscaled literal. Here the dot
+shares a slot with the archive glyph, which is `DS.Icon.control` and
+therefore scaled, so the slot must scale — and a fixed dot in a growing
+slot is a speck at 150%. Whether the tab and avatar dots should scale too
+is a separate question and is not answered here.""",
+    """
+THE PIXELS ARE NOT VERIFIED, and this is the change in this session where
+that matters most, because it is entirely a change to what the eye sees.
+The precedence, the pulse, the sizes and the spoken form have tests; what
+they cannot settle is whether a 5-point quiet dot reads as a rail or as
+dirt, and whether one amber dot in a column is findable without the
+machine colours around it. That wants a screen.""",
+    """
+A CORRECTION TO WI-2026-09-03-013's NOTE, recorded here because a wrong
+recorded lesson is worse than none. That note says `just test-swift`
+cannot run against a locked screen. It ran here repeatedly, green, 1447
+tests, with `CGSSessionScreenIsLocked` true throughout — so the lock alone
+does not block it and whatever blocked it that day was something else that
+coincided. What holds unchanged is `just test-ui`: UI automation genuinely
+needs an unlocked screen.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the row's dot says STATE and not identity — amber pulsing when something in here is waiting on the human, red when a connection in here broke, a small dim dot when neither"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "one dot per row. The pulsing dot after the label and the one after the agent icon are gone; the agent glyph keeps its amber tint, because that says WHICH agent wants you"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "attention outranks failure in the dot, because the failure keeps its reason in red on the right and attention has no other channel"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the leading slot is fixed-width, so a quiet row, an alerting one and an archived one all start their label in the same column — the archive glyph is wider than a dot and rows used to step"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the precedence, the pulse, the sizes and the spoken form are a value with tests, not branches inside a view nothing can instantiate"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HostTint is untouched and still colours pane tabs and host avatars, where the thing being coloured really is one machine"
+status = "done"
+category = "chore"

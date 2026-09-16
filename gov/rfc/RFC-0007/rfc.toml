@@ -1,0 +1,55 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0007"
+title = "Agent-Initiated Pane Execution — run, wait-output, read-back"
+version = "0.2.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-11"
+updated = "2026-08-27"
+refs = [
+    "RFC-0001",
+    "RFC-0003",
+    "RFC-0004",
+    "RFC-0005",
+]
+signature = "d307b96534d4bb4f9c4ef73ddc895f6815c43e266e9e15b3c927d2e434040727"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-EXEC-SCOPE.toml",
+    "clauses/C-EXEC-AUTHORITY.toml",
+    "clauses/C-PRIMITIVES.toml",
+    "clauses/C-READBACK-TRUST.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[sections]]
+title = "Motivation"
+clauses = [
+    "clauses/C-RELATION.toml",
+    "clauses/C-SCRATCH-EXECUTOR.toml",
+]
+
+[[sections]]
+title = "Prior Art"
+clauses = ["clauses/C-PRIOR-ART.toml"]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-27"
+notes = "The seal was broken twice: a refusal name that lost its owner, and an amendment announcement that had landed"
+changed = ["C-EXEC-SCOPE deferred the machine-readable refusal `no_workbench` to RFC-0009 C-WORKBENCH-ROUTING, which was deprecated along with the rest of cross-hub workbench routing. The name is defined HERE now, because a refusal an implementer has to invent a string for is one two of them spell differently. The federation qualifier cites C-DELIVERY in its place."]
+fixed = ["C-PRIMITIVES announced that finalizing this RFC would amend RFC-0004 C-EVENT-LOG's event-kind set. That set is extensible by later normative RFCs and already names this one, so the four exec kinds are defined here and carried there — a record of what the receiving clause reads, rather than a promise about a change."]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-11"
+notes = "Initial draft"

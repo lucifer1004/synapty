@@ -1,0 +1,38 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LAYOUT"
+title = "One Layout Type"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The layout has one container species, and a tab is not one of them. This clause states what a well-formed layout IS; the operations follow from it.
+
+## The structure
+
+- A workspace holds EITHER NO TREE OR ONE TREE. No tree is the state [[RFC-0015:C-EMPTY]] describes, and it is a legal value rather than an absence to be avoided — a workspace that lost its last pane is in it.
+- A NODE is either a SLOT or a SPLIT. There is no third kind of node, and in particular no tab: a tab is not a type, it is what a slot with more than one pane SHOWS.
+- A SPLIT has exactly two children, a direction, and a ratio. It carries nothing else — no connection, no agent, no content.
+- A SLOT holds a non-empty ordered stack of panes, and names exactly one of them as IN FRONT. Both facts are the slot's own: the order is what the tab bar draws, and which is in front is what the pane area shows.
+- A PANE appears in exactly one slot of exactly one tree. It carries its content kind and its connection ([[RFC-0015:C-CONTENT]]), and it is the atom every operation moves.
+- A WORKSPACE NAMES ONE FOCUSED PANE where it has a tree, and that pane MUST be in that tree. A workspace with no tree focuses nothing. FOCUS IS PER WORKSPACE AND FRONT IS PER SLOT; they are different facts, and a workspace with three slots has one focused pane and three panes in front.
+
+## What the operations may not break
+
+Every operation — splitting, stacking, moving between slots, moving between workspaces, closing — MUST leave the structure above well-formed, and MUST preserve these:
+
+- A PANE KEEPS ITS IDENTITY through every one of them. Surfaces and children are keyed by it, so an operation that minted a new identity would close the human's shell and open another in its place.
+- A SLOT NEVER BECOMES EMPTY AND IS NEVER LEFT EMPTY. Removing a slot's last pane removes the slot; a split left with one child is replaced by that child; a tree whose last slot is removed becomes NO TREE. That last step is what makes the empty workspace representable rather than a state the tree cannot reach.
+- FRONT AND FOCUS SURVIVE OR ARE REPLACED, NEVER LEFT DANGLING. A slot that loses the pane in front names another; a workspace that loses its focused pane focuses another in the same tree, or nothing if the tree is gone.
+- AND THEY ARE DETERMINED ON THE RECEIVING SIDE TOO, which the rules above do not say and which every operation that places a pane requires. A pane placed into a slot BECOMES the pane in front of it, because the human just put it there and a placement they cannot see is one they will repeat. A pane placed into a workspace by a deliberate act BECOMES that workspace's focused pane; a split focuses the DUPLICATE for the same reason. A pane that arrives in a workspace the human is not looking at MUST NOT change which workspace is active — placing something elsewhere is not a request to go there — but it still becomes front of its slot and focused within its own workspace, so that following it later lands on it.
+- BOTH FACTS ARE DURABLE ([[RFC-0015:C-PERSIST]]), so leaving either undetermined after an operation leaves a persisted value undefined rather than merely a display unsettled.
+
+## What the operations mean
+
+- EVERY SLOT DRAWS ITS TAB BAR, INCLUDING ONE HOLDING A SINGLE PANE, because the tab is the handle the pane is dragged by. An earlier draft said a slot showing one pane shows no bar; that was written for the pixels it saved and took the handle with them, leaving the commonest arrangement there is as the one that could not be dragged anywhere. A workbench MAY draw a single pane's bar more quietly than a stack's, but MUST NOT withhold it.
+- TWO PANES IN ONE SLOT IS AN ARRANGEMENT, NOT A CONVERSION. This is what a docking gesture needs and what a tab-bar-of-split-trees cannot express: "drop this pane onto that one" appends to a stack, one operation on one type, rather than turning a split leaf into a tab that lives a level up.
+- SPLITTING IS COPYING THE PANE and cutting its slot in two. It is not a terminal-emulator operation: the tree belongs to the workbench, and a split produces a duplicate of the pane the human is in, placed in the slot it creates. A split that opened a blank pane at some default was a NEW pane wearing the gesture's name.
+- WHETHER A PANE CAN BE COPIED DEPENDS ON WHETHER IT HAS A CHILD PROCESS, which is the only axis on which copying can fail — not on its kind. A pane WITHOUT one is copied as the value it is, carrying its durable state ([[RFC-0015:C-CONTENT]]): a file leaf opens on the same directory, a browser leaf on the same address. A pane WITH one cannot be forked, so it is REOPENED: a fresh child on the same connection, in the same working directory, under an agent id of its own. Where the directory can only be reached by the far side, the workbench MUST carry it there rather than let the copy open somewhere else."""

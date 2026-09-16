@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty's collaboration model is re-centered: instead of direct agent-to-agent
+dialogue (RFC-0002's IM-style DM/group chat), a single private GitHub repository
+serves as the shared collaboration center. GitHub Issues carry the task state
+(event/state/artifact model), labels group issues into per-project workstreams,
+and agents interact with the center through MCP tools. Synapty contributes
+concentrated observation (terminal panes + status bar), a thin bridge between
+terminal events and platform objects, and the human intervention point.
+
+Dialogue is demoted to an optional debugging aid; it is no longer the primary
+collaboration mechanism.
+"""

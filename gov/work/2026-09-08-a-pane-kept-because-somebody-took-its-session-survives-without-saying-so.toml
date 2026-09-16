@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-002"
+title = "A pane kept because somebody took its session survives without saying so"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = ["RFC-0014:C-ONE-CLIENT"]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL SWIFT REVIEW, as the residue of a fix it had
+prescribed. [[WI-2026-09-07-011]] moved the close decision behind one
+`keepsPaneNow` reading the account from disk, which stopped a displaced or
+gone pane being destroyed by a race. What it did not carry across was the
+RECORDING that the old path did alongside its answer:
+
+    if connectProgress...accountEndsDisplaced() == true {
+        facts[leafID, default: .init()].takenByAnother = true   // <- this
+        return
+    }
+
+`surface(of:)` reads that flag to draw the surface that says somebody took
+this session. Setting it lived on ONE of the two paths into the decision,
+so a pane kept by `leafChildExited` — the path that fires first, and the
+only one that fires at all when libghostty takes the branch that does not
+call close ([[WI-2026-09-07-009]]) — survived as a pane with a dead process
+and no explanation on it.
+
+AND IT BREAKS A PROMISE MADE TO SOMEBODY ELSE. The displacement dialog
+tells the human taking a seat that the person losing it "will be told who
+took it, and they can take it back the same way". That promise is kept by
+this flag.
+
+TWO CALLERS EACH REMEMBERING TO WRITE IT IS HOW ONE OF THEM FORGETS. The
+answer and the record are one act now, inside the decision."""
+notes = ["""
+VERIFIED RED, AND WIDER THAN EXPECTED. Removing the one line fails four
+tests, three of them pre-existing `DisplacedClientTests` that had been
+passing through the old path. That is the useful part of the result: the
+consolidation is what keeps them green, so the two paths can no longer
+answer differently, and the new case pins the one they could not reach —
+the decision taken before the account poll has run."""]
+
+[[content.acceptance_criteria]]
+text = "the decision that keeps a displaced pane also records WHY it was kept, so the pane can draw the surface that says so"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the recording lives inside the decision rather than beside each caller of it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a pane kept because its session was taken reports the taken surface, asserted on the path that fires before the poll has run"
+status = "done"
+category = "chore"

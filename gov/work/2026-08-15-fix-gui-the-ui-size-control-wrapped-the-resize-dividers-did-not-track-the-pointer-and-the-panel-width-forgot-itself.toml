@@ -1,0 +1,53 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-004"
+title = "fix(gui): the UI-size control wrapped, the resize dividers did not track the pointer, and the panel width forgot itself"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = ["WI-2026-08-15-002"]
+
+[content]
+description = """
+Three complaints from one look at the settings panel, and each turned out to be a different kind of defect.
+
+THE UI-SIZE CONTROL WRAPPED. Four spelled-out sizes could not fit the panel: "Standard" broke across two lines as "Standar/d" and "Extra Large" took two. No width setting fixes that for every language. The control now draws one letter at each size it offers — what macOS itself uses for text size. It needs no translation, cannot wrap, and answers "what does this do" without being read, because the control demonstrates the thing it sets. The names stay as the tooltip and the spoken label, so nothing is lost for anyone who needs the word.
+
+ON A SHARED BASELINE, not centred. Type sits on a baseline; centred, four sizes read as four separate objects that happen to differ, and bottom-aligned they read as one letter at several sizes — which is the thing being chosen. "A" has no descender, so a common bottom edge is a common baseline.
+
+THE DIVIDERS DID NOT TRACK THE POINTER. Two causes, and both were real. `DragGesture` defaults to the LOCAL coordinate space, and this divider MOVES as the pane it sizes grows — so the translation was measured against a ruler that moved with the answer, and the drag lagged and then jumped when it caught up. Measured globally now. And the width being dragged was `@AppStorage`, so every frame of the drag wrote UserDefaults synchronously and posted a defaults-change notification that the resize then had to keep up with; the drag now moves a `@State` and commits once, on release.
+
+THE PANEL WIDTH FORGOT ITSELF. It was `@State`, so a panel the human had widened returned to 300 on the next launch — the one window dimension that did not persist, while the sidebar's did. Now stored.
+
+Text segments also gained a line limit: a label that does not fit must compress, never break mid-word, because "Standar/d" reads as a bug rather than as a space problem."""
+notes = ["""
+VERIFIED BY LOOKING for the control and the baseline; the two drag fixes were confirmed by the operator, who reported the resize now tracks.
+
+The wrap belonged to the same family as [[WI-2026-08-15-002]] — text scaled and its container did not — but widening the panel would only have moved the threshold. The control had to stop depending on the length of four words."""]
+
+[[content.acceptance_criteria]]
+text = "the UI-size control shows the sizes it sets, and cannot wrap in any language"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the sizes share a baseline, so they read as one letter at four sizes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a resize divider follows the pointer, measured against a ruler that does not move with it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dragging a pane writes its width once, on release, not on every frame"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the settings panel width survives a relaunch, like the sidebar's"
+status = "done"
+category = "fixed"

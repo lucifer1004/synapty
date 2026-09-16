@@ -1,0 +1,36 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L4-A2A"
+title = "L4 — A2A Control Plane"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The A2A (Agent-to-Agent) Control Plane provides the structured messaging fabric that enables agents to discover and communicate with each other independent of the terminal data plane.
+
+**A hub per machine, peered.** Every machine that hosts agents runs a hub, and an agent always connects to the hub on its OWN machine over loopback — there is no hub to select and local A2A never depends on the network. Each hub keeps a routing table for the identities it hosts and learns its peers' over relay links between hubs, which carry cross-machine traffic. A message is delivered locally when it is local, forwarded to the hosting peer when it is not, and held when that peer cannot be reached. [[RFC-0009]] specifies that peer protocol and owns it.
+
+THIS REPLACED A CENTRAL HUB, and the record is kept rather than overwritten because the reasoning still explains the shape. This clause described one Hub process that every agent connected to, remote ones through an SSH reverse tunnel. The trouble with it was locality: agents on a server depended on the laptop being reachable, so a closed lid took down A2A between two processes sitting next to each other. Putting a hub on every machine that hosts agents dissolves the selection question rather than answering it.
+
+**JSON routing envelope.** All control-plane messages use a uniform JSON envelope carrying: message type, unique request ID, source agent, target agent, and an opaque payload. The Hub routes on the envelope header without deserializing the payload, enabling zero-copy forwarding for application-layer messages.
+
+**Agent discovery.** Upon registration, agents advertise their capabilities (e.g., "code-generation", "test-execution", "code-review"). Other agents can query the Hub for agents matching a capability set, enabling dynamic task delegation without hardcoded agent addresses.
+
+**Provider-agnostic.** The control plane is agnostic to what powers each agent. Claude Code, Codex CLI, Gemini, custom scripts, or any process that speaks the A2A envelope protocol can participate as a first-class agent. Synapty orchestrates the communication; the agents bring their own intelligence.
+
+**Location transparency, and where it stops.** An agent addresses another
+by identity and never by machine: the same envelope, the same call, and
+no deployment knowledge in the application. What is NOT identical is the
+path or the answer. A message to an identity on another machine crosses a
+relay link, and [[RFC-0009]] C-DELIVERY gives it answers a local send
+cannot produce — forwarded, held, refused, or claimed by two peers at
+once. A pane identity is also spelled differently once it leaves its own
+machine, since a name unique on one host is not unique across a fleet
+([[RFC-0009]] C-IDENTITY-SCOPE).
+
+SAYING SO IS THE POINT. Transparency that hid those answers would be a
+promise the system cannot keep: the sender would be told "sent" for a
+message held on disk against a machine that is asleep."""

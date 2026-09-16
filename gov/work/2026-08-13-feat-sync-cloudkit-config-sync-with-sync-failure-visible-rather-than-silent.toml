@@ -1,0 +1,68 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-005"
+title = "feat(sync): CloudKit config sync, with sync failure visible rather than silent"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-14"
+refs = [
+    "RFC-0010",
+    "ADR-0009",
+]
+depends_on = [
+    "WI-2026-08-13-002",
+    "WI-2026-08-13-003",
+    "WI-2026-08-13-004",
+]
+
+[content]
+description = """
+Sync the fleet-wide configuration — hosts, groups, identities, the GitHub hub-repo setting, appearance preferences — across the human's Macs via CloudKit (CKSyncEngine).
+
+WHY CLOUDKIT AND NOT NSUbiquitousKeyValueStore, recorded because the first answer was the other one and the reasoning changed: KVS was chosen on data volume (a fleet is tens of hosts, far inside a 1MB/1024-key budget) and that is the wrong deciding variable. KVS fails SILENTLY when iCloud is off, the account is signed out, or quota is exhausted — and a silent sync failure is indistinguishable from a working app until someone switches machines and finds their data months stale. That is the same defect shape this project spent [[RFC-0010]] C-DIAGNOSABILITY removing from federation, and choosing it here would be re-creating a bug we just deleted. KVS also has no conflict information at all, so two machines editing the SAME host silently lose one edit. CloudKit types its failures and returns the original, server and client records on conflict. CKSyncEngine removes most of the machinery that used to make CloudKit the expensive answer.
+
+DEPENDS ON: WI-2026-08-13-002 (iCloud entitlements need the paid programme), WI-2026-08-13-003 (identity and runtime state must be outside the sync domain before anything syncs a directory), WI-2026-08-13-004 (per-record storage is what makes field-level merge meaningful).
+
+A RELEASE TRAP TO PLAN FOR, not discover: CloudKit schema must be promoted from development to production. Development works, the shipped build cannot find the record types. It belongs in the release checklist, not in someone's memory.
+
+OPEN DECISION, deliberately not settled here: whether the GitHub PAT syncs via iCloud Keychain. Doing so puts the credential on every Mac signed into that Apple ID, which is coherent with [[RFC-0003]] as amended — the credential executes at the workbench, and two workbenches with it need no relay — but it is a widening and must be an explicit choice rather than a side effect of turning sync on. Note it does not buy openable-out-of-the-box: hosts store SSH key PATHS and not material, so a synced host on a Mac without that key is incomplete regardless, and must say so rather than fail at connect time."""
+notes = [
+    "VERIFIED ON TWO MACHINES, 2026-08-14. Mac 1 uploaded 22 records (22 base files for 22 files in the shared domain — the base store is only written when the server ACCEPTS a send, so its contents are the receipt). Mac 2 installed the notarized DMG and had the same hosts immediately, with no export, import or manual step. Three defects sat between 'it compiles' and 'it uploads', none reachable by a unit test: entitlements silently stripped by CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO, an accountChange handler that treated the initial event as a sign-out and stopped the engine 25ms after starting it, and a custom zone that has to be asked for. Each reported itself clearly enough to find the next, which is what the diagnostic work was for.",
+    """
+FOLLOW-UP FOUND AFTER CLOSING, recorded rather than quietly patched. Criterion 1 was ticked on a verification that only proved STARTUP convergence: nothing called noteLocalChange, so the engine saw only what was on disk when it started and an edit made after launch sat locally until the next relaunch. Two Macs still appeared to converge, and no test could have noticed — a test that restarts the app between writing and reading cannot tell the two apart. Fixed with save() and the three delete paths notifying the engine, plus a test on the WIRING; a record that failed to persist is deliberately not offered, since sending a version this Mac could not write would push a half-truth to every other machine.
+
+SECOND CLASS OF THE SAME SHAPE, raised by the operator: shared settings name LOCAL resources. ghostty.conf carries font-family and was already syncing. Where Termius ships its own font and has nothing to be missing, Synapty uses installed fonts — better, and it means a synced setting can name one that is absent, after which ghostty substitutes silently. Syncing anyway and SAYING SO is the chosen trade: both Macs having the font is the common case, and making everyone configure twice to defend against the uncommon one is worse. SettingsReadiness reports it where the human would go to fix it.""",
+    "LIVE CONVERGENCE CONFIRMED 2026-08-14 across two Macs, after three defects that all reported themselves clearly enough to find the next: entitlements stripped by CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO, an accountChange handler that stopped the engine 25ms after starting it, a custom zone that has to be asked for — and then the one that mattered most, every save being an INSERT because a fresh CKRecord carries no change tag, so the container could be seeded once and never updated while the UI truthfully reported itself as syncing.",
+]
+
+[[content.acceptance_criteria]]
+text = "fleet-wide configuration converges across a human's Macs without manual export or import"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a machine's identity and runtime state are never synced, and a test proves the sync domain cannot reach them"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "SYNC FAILURE IS VISIBLE AND TYPED — not signed in, quota exhausted, network unavailable and schema missing are distinguishable to the human, and a sync that is not running never renders as one that is"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a concurrent edit to the same host is merged or surfaced, never silently resolved by discarding one side"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a host states what it cannot do ON THIS MACHINE, separately for the human's terminal and for the workbench's own deploy path, before either is attempted — not as a failure afterwards ([[ADR-0009]])"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "CloudKit schema promotion to production is part of the release procedure and verified against a shipped build, not a development one"
+status = "done"
+category = "chore"

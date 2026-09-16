@@ -1,0 +1,27 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SET-ASIDE"
+title = "What Closing a Pane Means"
+kind = "normative"
+status = "superseded"
+superseded_by = "RFC-0015:C-PANE-ARCHIVE"
+since = "0.4.0"
+
+[content]
+text = """
+Closing a pane SETS IT ASIDE. It leaves the layout, what runs in it keeps running, and it stays reachable.
+
+[[RFC-0014:C-DETACH]] requires every conforming implementation to answer what closing a pane means, and says both obvious answers are harmful when chosen silently — treating it as a detach leaks a holder each time a human tidies their window, and treating it as an end kills an agent that was working. This is that answer, and it is neither: the leak is what a LIST closes, not what a kill closes.
+
+NOT "HIDDEN", DELIBERATELY. [[RFC-0015:C-ARCHIVE]] uses that word for the failure it forbids — a workspace "archived" while its links stay open "has been hidden, and the resources the human meant to reclaim are still spent". A pane set aside releases what it held on the ordinary terms below, so naming it after that failure would make one word mean a thing and its opposite.
+
+- WHAT IS SET ASIDE IS A PANE WITH SOMETHING RUNNING IN IT — a terminal leaf, which [[RFC-0015:C-CONTENT]] makes the only kind that runs a child. A file, services or browser leaf holds nothing that outlives the closing, so setting one aside would fill the list with rows that cost nothing to make again, and a list mostly of those is one a human stops reading. Those kinds close.
+- A TERMINAL LEAF WHOSE CHILD HAS ALREADY EXITED closes too. There is nothing left to return to, and a row offering to return to it would be the dead record this clause's list exists to keep out.
+- CLOSING A PANE MUST NOT END WHAT RUNS IN IT. The client detaches ([[RFC-0014:C-DETACH]]) and the holder keeps the child. ONE ANSWER FOR EVERY MACHINE: a pane on this Mac and a pane on a host are closed by the same gesture and MUST mean the same thing by it. Two answers decided by which machine a pane is on is the shape this clause exists to remove, and it is not visible from the gesture.
+- ITS CONNECTION REFERENCE GOES WITH IT and [[RFC-0015:C-RELEASE]] decides the rest. That clause already names this case as the churn its grace period exists to absorb — "retrying a command, replacing a shell" — so closing a pane MUST NOT release immediately, unlike archiving, which is a decision the human has stated.
+- A PANE SET ASIDE MUST REMAIN LISTED, in one place, with the machine it is on, the agent running in it if one is, and when it was set aside. A session that is alive and named nowhere is the leak; being listed is what makes it not one. The list MUST be reachable without knowing a session exists — a human tidying their window does not remember what they closed.
+- RETURNING ONE MUST PUT IT BACK, in the workspace it was closed from, attached to the same child. Where that workspace is gone, it MUST be returnable somewhere rather than lost with it.
+- RESTORE MUST NOT ATTACH ONE. A workbench that reconnected every set-aside pane at launch would spend, at the moment a human is waiting for a window, the cost of work they had already put out of sight. They come back listed, not connected.
+- ENDING ONE MUST BE AVAILABLE FROM THAT LIST, AND MUST BE A DISTINCT ACT. [[RFC-0014:C-DETACH]] requires leaving and ending to be distinct and requires the interface to make clear which act a gesture performs before it performs it; closing a pane is now unambiguously the first, so the list is where the second lives.
+- A PANE SET ASIDE MUST SURVIVE A RESTART, which means it is durable state of its workspace and [[RFC-0015:C-PERSIST]] carries it. A set-aside pane that vanished when the workbench quit would be the same leak with a longer fuse: the holder outlives the process, and nothing would name it."""

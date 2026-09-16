@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-07-002"
+title = "feat(gui): collapsible right settings panel with live terminal preview"
+status = "done"
+created = "2026-08-07"
+started = "2026-08-07"
+completed = "2026-08-07"
+
+[content]
+description = "Terminal-affecting settings (Appearance, light/dark themes, font family/size, background opacity, cursor style) are buried in the Settings page. Add a collapsible right-hand panel — default closed, toggled by a terminal-page header button or Cmd+Option+P, state persisted — that docks on the Terminal page (terminal shrinks) and floats on other pages, binding the same SynaptySettings so every change applies live through the existing reload chain. Opacity slider debounced (~100ms) to avoid reload storms while dragging."
+
+[[content.acceptance_criteria]]
+text = "right panel with Appearance/Theme/Font/Background/Cursor controls, default closed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "toggle via terminal header button and Cmd+Option+P; visibility persisted"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "docks on Terminal page, floats on other pages; terminal surfaces stay alive"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "opacity slider debounced; all changes apply live"
+status = "done"
+category = "added"

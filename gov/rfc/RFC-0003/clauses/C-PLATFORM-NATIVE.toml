@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PLATFORM-NATIVE"
+title = "Issue Platforms Are the Existing Standard"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+GitHub Issues / GitLab / JIRA already provide all three collaboration pillars
+natively: task state (status, assignee, labels), event history (comments,
+transitions), and artifacts (code lives in the same repo; review happens in
+PRs). Humans already work on these platforms, so agents and humans share one
+task view with zero extra infrastructure.
+
+Agent platforms already integrate with these systems (reading/creating issues,
+opening PRs). A distributed workflow therefore needs no bespoke message bus:
+agent A completes a task and closes an issue; agent B picks up the next issue.
+The loop runs on the platform. Synapty's job is to make this loop visible and
+actionable from the terminal, not to replace the platform.
+"""

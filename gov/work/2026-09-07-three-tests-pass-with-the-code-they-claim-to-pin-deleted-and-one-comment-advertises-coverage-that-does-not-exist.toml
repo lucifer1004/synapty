@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-010"
+title = "Three tests pass with the code they claim to pin deleted, and one comment advertises coverage that does not exist"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL TEST AUDIT, which deleted three source guards at
+once and re-ran the tests that claim to pin them: 49 tests, 0 failures.
+
+THE WORST ONE IS A WRONG-REASON PASS.
+`testAMacHostNamesTheProcessAndItsPidIsNotAPort` asserts, in its own
+message, that "16527 and 33407 are pids, and neither is listening" — i.e.
+that `isAddress` inside `port(from:)` is what stops a `process:pid` column
+being read as a port. It is not. `port(in:)` returns on the FIRST field
+that parses, and in all three captured rows the address column precedes
+the `process:pid` one, so `Termius:16527` is never examined. With the
+guard deleted the test stayed green. The guard IS load-bearing — in
+`netstatOwner` — and nothing reached it from `port(from:)`.
+
+TWO GROUP-SEPARATION TESTS PIN A HAZARD THAT IS NOT ON THEIR PATH.
+`LinkState.sentence` and `PortDiscovery.Listener.detail` return plain
+`String`s, and `String` interpolation never group-separates; the hazard is
+`Text`'s LocalizedStringKey initialiser, which these values never reach —
+`ServicesView.row(_:)` passes `Text(String)`. Removing the `String(...)`
+conversions the tests claim to pin left them green.
+
+AND A COMMENT NOW ADVERTISES COVERAGE THAT DOES NOT EXIST.
+`IdentifierRenderingTests`' header was edited that day to say
+"`PortDiscovery.Listener.portText` states the rule; this is the test for
+it". That file renders `TaskRow` and has never rendered a listener row.
+The original comment existed to make exactly this point — "a helper that
+returns the right string proves nothing if the view stops calling it" —
+and the edit turned it into the thing it warns about.
+
+ALSO VACUOUS: `testTheRejoinNoticeAndTheStripAgreeAboutTheHeight`, against
+a property literally defined as `{ PaneStrip.height }`."""
+notes = ["""
+WHAT THE AUDIT DID THAT THE AUTHOR DID NOT: it deleted the code and re-ran
+the tests. Several of these were written the same day with the claim that
+they pinned the defect, and the claim was never checked in the direction
+that could falsify it. The lesson is cheap to apply and was not applied:
+a test written to pin a fix should be run against the unfixed code once,
+and a test that cannot be is decoration whatever its name says."""]
+
+[[content.acceptance_criteria]]
+text = "the address guard is asked directly, with the real `process:pid` columns that would defeat it — the capture-driven case never reached it and does not pretend to"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the two group-separation tests say what they actually are — a statement of the intended SHAPE of those lines and a tripwire for an edit that inlines them into a `Text` literal — rather than claiming to pin a formatter they never meet"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the comment that advertised listener coverage in a file that renders only TaskRow is corrected, and says what happened"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an assertion against a property defined as the thing it is compared to is removed rather than kept for the count"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the repaired guard case is verified RED with the guard deleted — four failures — and green with it"
+status = "done"
+category = "chore"

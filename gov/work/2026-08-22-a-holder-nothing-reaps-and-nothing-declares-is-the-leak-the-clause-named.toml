@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-22-001"
+title = "A session that cannot be found is the leak; a session ended on a timer is the worse one"
+status = "done"
+created = "2026-08-22"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+[[RFC-0014]] C-END required a reap threshold and, one sentence later, permitted a policy of never. Both could not be followed, and the implementation followed neither: `Holder.reapLoop` was a `waitpid` on the child — the Unix sense of the word, and the only way a holder learns what its child died of ([[RFC-0014]] C-EXIT-SIGNAL) — while nothing anywhere considered how long a holder had been unattended. The name collision is why the absence looked like a presence.
+
+WHAT THE ANSWER TURNED OUT TO BE. Not a threshold. An agent's window is closed by the human, and elapsed time measures the wrong thing: any threshold ends an agent that is working and keeps a shell that is idle, on a schedule nobody set. tmux and zellij have no such timer and that is not an omission. What the mechanism owes instead is that no session can hide from the human who has to decide.
+
+IT COULD HIDE. Reachability rested entirely on `/tmp/synapty-hold-<uid>-<name>.sock`, and enumeration WAS that directory — so the list and the naming shared one point of failure. `/tmp` is not ours: the system sweeps it and any user can empty it. A swept socket left the holder and its child running with nothing able to name them, list them, or end them.
+
+THE SHAPE THAT REMOVES IT. A session is a record and the process is what is currently reading it — the design the agent harnesses already use, inverted here. A record in this machine's own state directory carries the two facts nothing else can answer once the process is gone: its pid and when it started. Enumeration reads records; the kernel answers whether the process is there (`kill(pid, 0)`, needing no cooperation and no enumeration API); the socket answers the detail. A holder that is running and unreachable is then a row a human can see, and one they can end, because ending travels by signal where attaching travels by socket."""
+
+[[content.acceptance_criteria]]
+text = "Nothing ends a session but the human — no threshold, and no clock of any kind in the mechanism"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "What ends sessions, or that nothing does, is declared where a client reads it rather than discovered by waiting"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A session is listed from a record this machine owns, so a listing does not depend on a directory the operating system may sweep"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A holder that is running and unreachable is listed as such, and is distinguishable from one that is gone"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A session that cannot be attached can still be ended, by the process its record names"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Enumeration reports whether anybody has ever attached and how long nobody has — the two facts a human decides on (RFC-0014 C-END)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The loop that waits on the child is named for that, so a missing policy cannot look like a present one"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The Zig test suite runs at all — an errno this module already calls ordinary was reported as unexpected, and the resulting stack dump corrupted the test runner's protocol stream"
+status = "done"
+category = "fixed"

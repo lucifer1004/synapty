@@ -1,0 +1,70 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-001"
+title = "One variable, two destinations: the workbench expanded a tilde config root and the CLI silently used the operator's real config"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0010:C-DIAGNOSABILITY"]
+
+[content]
+description = """
+`SYNAPTY_CONFIG_ROOT` exists so a dev launch or a UI test writes
+somewhere other than the config the operator actually uses. Both sides
+read it and they did not accept the same values.
+
+- `ConfigPaths.resolveRoot` used `expandingTildeInPath`, then required a
+  leading `/`.
+- `paths.root` tested `raw[0] == '/'` and expanded nothing; anything else
+  fell through to `$HOME/.config/synapty`.
+
+So `SYNAPTY_CONFIG_ROOT=~/scratch` pointed the workbench at the scratch
+root and every `synapty` process it started at the operator's REAL
+config. One variable, two destinations, and the dangerous half silent.
+
+Measured before the change:
+
+    SYNAPTY_CONFIG_ROOT='~/probe' HOME=/tmp/tildeprobe synapty identify
+      -> /tmp/tildeprobe/.config/synapty/...
+
+THE COMMENT ON THE ZIG SIDE CLAIMED THE OPPOSITE. "ABSOLUTE OR IGNORED,
+for the reason the Swift side gives" — it cites the Swift rule and does
+not implement it. And the hazard is the one `paths.zig` records two
+functions below: "a test pointed at a scratch root started panes whose
+session records landed in the REAL directory, where they outlived the
+test and accumulated."
+
+WHAT CHANGED. Both sides now expand a leading `~/` and a bare `~`
+against `$HOME`, and both refuse everything else that is not absolute.
+`expandingTildeInPath` also resolves `~someone` through the password
+database, which the CLI would need a `getpwnam` to match and no launch
+has ever wanted — so the Swift side stopped using it and does the same
+two forms explicitly. The accepted set is now identical rather than
+nearly identical.
+
+PINNED WHERE IT CAN BE SEEN. `ConfigPathsCrossingTests` is this
+project's one real cross-language test: it drives the built binary and
+asks Swift the same question. Two cases join it — a tilde root must send
+both sides to the same directory, and a relative root must be refused by
+both. Canaried by reverting the Zig half alone: the Swift test fails,
+which is the property that was missing, since each side's existing guard
+only ever asked about its own tree.
+
+Found by the ssot-crossing pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the CLI expands a leading ~/ and a bare ~ against HOME, so a tilde config root reaches the same directory the workbench uses"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the workbench stops using expandingTildeInPath, which also resolves ~someone, so the two sides accept exactly the same set"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "ConfigPathsCrossingTests drives the binary under a tilde root and under a relative one, and requires both sides to agree"
+status = "done"
+category = "chore"

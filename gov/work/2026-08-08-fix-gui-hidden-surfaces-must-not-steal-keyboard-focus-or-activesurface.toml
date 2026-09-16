@@ -1,0 +1,25 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-007"
+title = "fix(gui): hidden surfaces must not steal keyboard focus or activeSurface"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review finding HIGH-1 (ghostty interop): TerminalSurface.viewDidMoveToWindow (TerminalSurface.swift:66-88) unconditionally sets activeSurface, calls ghostty_surface_set_focus(true) and makeFirstResponder for every surface that attaches to a window — including hidden panes materialized by background session connections. The hidden surface steals keyboard focus, ghostty focus, and the global activeSurface that menu/font actions, find-bar search, and clipboard callbacks target."
+
+notes = [
+    "2026-08-08: GhosttyNSView now knows isVisiblePane/isFocusedLeaf (fed by TerminalView from AllPanesSplitView). viewDidMoveToWindow and becomeFirstResponder only take focus/activeSurface/ghostty focus when the leaf is the visible focused leaf; hidden background panes refuse first responder and redirect to GhosttyApp.activeView. TerminalView.updateNSView moves keyboard focus on pane/session/split activation transitions. 94/94 Swift tests green.",
+]
+[[content.acceptance_criteria]]
+text = "a surface only becomes first responder / activeSurface / ghostty-focused when it belongs to the visible active pane"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "when a hidden surface would become first responder, focus is redirected back to the visible active surface"
+status = "done"
+category = "fixed"

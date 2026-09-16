@@ -1,0 +1,96 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-011"
+title = "An Occam round: what earned nothing, including what I had just written"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+A removal round, run with the verification pointing the other way: three
+agents per candidate trying to SAVE it, and only what none of them could
+save was cut. Forty-two candidates survived that; twelve were rejected on
+inspection or applied differently, and the rest came out.
+
+WHAT CAME OUT. Eight dead declarations reachable by nothing —
+`answersHubInfo` (a near-verbatim copy of the function above it),
+`startInBackground` (the GUI stopped embedding a hub two ADRs ago),
+`state_path_override` (never read, and its comment promised tests a safety
+the code did not provide), a dead host picker in the appearance panel whose
+own neighbour comment explained why it should not exist, `placeholderWorkspace`,
+`messageCount`, six DesignSystem tokens, and an unused error set with a
+zero-caller wrapper.
+
+Four parameters no caller ever varied, each of which was a decision pretending
+to be configurable: `trashAvailable` (always true in the shipped app),
+`stackPane`'s index, a titlebar height, and a hub port default that no longer
+agreed with anything. `trashAvailable` took a test with it — one asserting a
+state the production path cannot produce, which existed only because the
+parameter did.
+
+Two pairs of overloads differing only in a defaulted argument, and a
+`migrateOne` parameter that could never differ from a field of its own
+argument.
+
+AND MY OWN WORK FROM THE SAME DAY. `KeyDispatcher.perform` was a wrapper I
+had added hours earlier in front of a `@discardableResult` function, so it
+added a name and nothing else. Four doc comments were left stranded on the
+wrong declaration by moves I made, describing things that were no longer
+there. One sentence I wrote in `SSHPolicy` was already false by the end of
+the same commit. And six comments narrated the development process — "the
+review's CRITICAL finding", "this whole review round", "it stayed broken for
+two hours" — which is history, and the rule here is that history goes in the
+work item and a comment says why the code has its shape.
+
+WHAT WAS REJECTED, and this is the part worth keeping. Ten
+`TerminalCoordinator` methods were reported as rename-only shims with one
+caller each; they are protocol conformance members, which is exactly the
+trap the sweep was warned about and three savers still missed. Removing them
+would have broken the conformance. `toolRoundtripAs` was called a
+zero-caller wrapper and has four callers. `ConfigPaths.githubConfig` is
+genuinely unused and stays: it is one line completing a symmetric set, and
+removing one member of a set is not a simplification."""
+notes = ["""
+Left for the human rather than decided here: five tracked
+`.claude/handoffs/*.md` session files, and `devenv.lock`/`devenv.nix`/
+`devenv.yaml`, which CLAUDE.md deliberately keeps as historical references
+now that Nix is gone from the machine. Removing files an instruction file
+says are kept is not a tidy-up.
+
+The sweep could not see four families, named by its own critic: the build
+and automation surface, `UITests/`, the 388 Zig inline test blocks, and the
+governance corpus. The two build-surface items it did check by hand were
+both real and are fixed here."""]
+
+[[content.acceptance_criteria]]
+text = "eight declarations nothing reaches are gone, including a hub entry point the GUI stopped using two ADRs ago"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "four parameters no caller varied become the constants they were, and the test that only one of them justified goes with it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "two overload pairs and a parameter that could never differ collapse into defaults"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "four doc comments stranded on the wrong declaration by this week's moves, and one sentence that was false when written"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "comments that restate the line under them, and six that narrate the development process rather than the reason"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the justfile said gov-lint was not part of verify while verify runs it, and offered a dev recipe that cannot run"
+status = "done"
+category = "fixed"

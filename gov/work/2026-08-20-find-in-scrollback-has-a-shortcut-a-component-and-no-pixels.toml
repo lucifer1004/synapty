@@ -1,0 +1,56 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-20-001"
+title = "Find in scrollback has a shortcut, a component and no pixels"
+status = "done"
+created = "2026-08-20"
+started = "2026-08-20"
+completed = "2026-08-23"
+refs = [
+    "RFC-0016",
+    "RFC-0015",
+]
+
+[content]
+description = """
+`FindBarView` exists, is complete, and is instantiated NOWHERE. Found while trying to satisfy [[WI-2026-08-19-008]]'s criterion that the find bar belong to a terminal leaf — the criterion assumed a surface that is not on screen at all.
+
+THE CHAIN IS WHOLE EXCEPT FOR ITS LAST LINK: ⌘F is a `terminal` command that dispatches ghostty's `start_search`; ghostty answers by posting `.synaptyFind`; `ContentView` sets `showFindBar = true`; and `showFindBar` is read by nothing. `grep -rn "showFindBar" Sources/` returns its declaration, its binding, and the line that sets it — no reader. So find-in-scrollback is unreachable in the product while appearing, from every list and menu, to be a feature.
+
+TWO THINGS ARE OWED HERE, and the second is why this is not merely "render the view":
+
+- THE BAR MUST BE DRAWN, and its text must drive ghostty's `search:<needle>` as `FindBarView` already expects.
+- IT MUST BELONG TO THE LEAF IT WAS OPENED FROM. Today `showFindBar` and `findText` are two `@State` values on `ContentView` — one bar for the whole window, whatever pane the human was in — and `.synaptyFind` sets the flag regardless of the focused pane's kind, so a file leaf can open a find bar belonging to no terminal. [[RFC-0016]] C-DISPATCH's second row is defined over "a text-entry surface BELONGING TO A TERMINAL LEAF", and a bar owned by the window satisfies no such predicate: it falls to row 4, where a `terminal` command reaches no terminal. The clause says so explicitly and calls row 4 the honest answer where ownership has not been established — this work item is what establishes it.
+
+UNTIL THEN ROW 2 IS UNREACHABLE, which is correct rather than broken: there is no fact saying which terminal a window-owned field would mean."""
+notes = ["""
+FOUR THINGS FOUGHT THIS, and two of them were the tools rather than the product.
+
+THE TERMINAL TAKES THE KEYBOARD BACK. `TerminalView` makes itself first responder whenever it believes it is the focused leaf, and a SwiftUI `@FocusState` does not outrank AppKit — so the bar opened, took SwiftUI focus, and every letter of the search went to the shell. A leaf whose own find bar is up no longer claims to be the focused leaf.
+
+A GEOMETRY READER AROUND THE BAR COST IT KEYBOARD FOCUS ENTIRELY. Wrapped in `overlayPreferenceValue { GeometryReader { … } }` the field never took focus and the window handed the keyboard to the sidebar's button — visible in the accessibility tree, invisible everywhere else. Rebuilt in the shape the ⌘K palette has (a plain overlay, offset from a frame published in a named coordinate space) it takes focus immediately.
+
+GHOSTTY REPORTS A MATCH COUNT ONLY ONCE THE SEARCH SESSION IS OPEN. `search:<needle>` sets the terms; `start_search` is what says a search is under way, and until it was sent the field worked, the matches highlighted and the count stayed empty. Sending it also created a loop — the engine answers `start_search` with an action, our handler posts the same notification that opened the bar — closed by asking "was it shut?" rather than trusting `beginFinding`, which answers "is this a terminal".
+
+AND `staticTexts.containing(predicate)` NEVER MATCHES A STATIC TEXT. It selects elements whose DESCENDANTS match, and a static text has none — so the count assertion could not pass whatever the bar displayed, and two rounds of product changes were made against a test that was always going to fail. `matching(predicate)` is the API. NSLog does not reach xcodebuild's output under a UI test runner either; the probe that found the truth wrote to a file."""]
+
+[[content.acceptance_criteria]]
+text = "⌘F opens a find bar that is actually on screen, and typing in it drives ghostty's search"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The bar belongs to the terminal leaf it was opened from — two leaves have two bars, and closing the leaf closes its bar"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "⌘F pressed where the focused leaf is not a terminal opens nothing, rather than a bar belonging to no terminal"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Row 2 of RFC-0016 C-DISPATCH becomes reachable: a terminal command pressed in a leaf's own find field acts on THAT leaf's terminal, and copy/paste still yield to the field"
+status = "done"
+category = "added"

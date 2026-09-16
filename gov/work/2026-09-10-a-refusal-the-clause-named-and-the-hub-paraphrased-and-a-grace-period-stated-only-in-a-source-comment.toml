@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-005"
+title = "A refusal the clause named and the hub paraphrased, and a grace period stated only in a source comment"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0007:C-EXEC-SCOPE",
+    "RFC-0015:C-RELEASE",
+]
+
+[content]
+description = """
+Two obligations at `impl` that the implementation did not meet, both in
+the same shape: the clause names something specific, the code answers
+with something near it.
+
+THE REFUSAL. [[RFC-0007]] C-EXEC-SCOPE says a hub with no workbench
+attached "refuses exec entirely rather than queueing it, answering
+`no_workbench`", and spells out why it names the string itself: "a
+refusal an implementer must invent a string for is one two of them spell
+differently". There were exactly two of them — `handleExecRequest` and
+the tool-request handler — and both invented `no workbench available`.
+
+The clause's reasoning is the reason it matters rather than a style
+point. A hub with no workbench is the NORMAL case for a server hosting
+detached agents, so "there is nobody here to run this" is the one
+refusal an agent has to tell apart from "your request was malformed",
+and every other refusal in that file is free prose. Both sites now read
+one constant, and the three assertions and comments that quoted the
+paraphrase now quote the word.
+
+THE GRACE PERIOD. [[RFC-0015]] C-RELEASE requires that the value "MUST be
+stated where an operator can read it", and gives a range of ten seconds
+to two minutes. `ConnectionRegistry.grace` is 30 — in range, and stated
+in a source comment, which is not a place an operator reads. Settings →
+Network now prints it, and prints the value itself rather than a second
+copy of the number, so the statement cannot drift from the behaviour.
+
+Found by the clause-auditor pass of the 2026-09-10 debt sweep."""
+
+[[content.acceptance_criteria]]
+text = "the hub answers no_workbench, the word [[RFC-0007]] C-EXEC-SCOPE names, from one constant both call sites read"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ConnectionRegistry.defaultGrace is the single value, and Settings prints it so an operator can read what [[RFC-0015]] C-RELEASE requires to be readable"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the hub and e2e assertions require the named word rather than the paraphrase"
+status = "done"
+category = "chore"

@@ -1,0 +1,61 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/kimi.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "kimi",
+  "rules": [
+    {
+      "id": "current_approval_panel",
+      "state": "waiting",
+      "all": [
+        "↵ confirm",
+        " choose"
+      ],
+      "any": [
+        "run this command?",
+        "write this file?",
+        "apply these edits?",
+        "stop this task?",
+        "ready to build with this plan?"
+      ],
+      "regex": "(?i)approve|reject|revise"
+    },
+    {
+      "id": "question_panel",
+      "state": "waiting",
+      "all": [
+        "↑↓ select",
+        "esc cancel"
+      ],
+      "lineRegex": "^\\s*question\\s*$",
+      "regex": "(?i)↵ (choose|toggle|save)"
+    },
+    {
+      "id": "legacy_approval_panel",
+      "state": "waiting",
+      "all": [
+        "requesting approval",
+        "reject"
+      ],
+      "any": [
+        "approve once",
+        "approve for this session"
+      ],
+      "regex": "(?i)1/2/3/4 choose|↵ confirm"
+    },
+    {
+      "id": "background_agent_working",
+      "state": "working",
+      "region": "bottom(3)",
+      "lineRegex": "(?i)\\bkimi[-\\w.]*\\s+thinking\\b.*\\[[1-9][0-9]*\\s+agents?\\s+running\\]"
+    },
+    {
+      "id": "moon_spinner_working",
+      "state": "working",
+      "lineRegex": "^\\s*(🌕|🌖|🌗|🌘|🌑|🌒|🌓|🌔)\\s*$"
+    },
+    {
+      "id": "braille_spinner_working",
+      "state": "working",
+      "lineRegex": "(?i)^\\s*[\\u2800-\\u28FF]+\\s*(thinking\\.\\.\\.|working\\.\\.\\.|using )"
+    }
+  ]
+}

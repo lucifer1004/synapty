@@ -1,0 +1,82 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-020"
+title = "Controls that reported success when they had failed, and a live pane labelled dead"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "RFC-0010:C-DIAGNOSABILITY",
+    "RFC-0014:C-RETENTION",
+]
+
+[content]
+description = """
+Found by the second whole-repo audit round. Four surfaces answering a human with something that was not true.
+
+THREE OF THEM ARE ONE DEFECT AT TWO SITES. `SubprocessRunner.Output.error` is documented as a LAUNCH failure — the process could not start — and `exitCode` exists precisely because a command whose failure is carried by its status cannot be judged from its output. [[WI-2026-09-10-001]] corrected `setupSucceeded` and did not reach Test Connection or the GitHub sheet. Measured here: `/usr/bin/ssh` refused by a host launches perfectly well, sets neither field, and exits 255.
+
+The worst reading is Test Connection's, because it is the control a human presses to decide whether to trust the warning beside it. A host synced from another Mac whose key did not travel — the case `HostReadiness` exists for — got a green tick.
+
+Four other sites were checked and are NOT defects: `probeOS`, `GithubBridgeController.refresh` and `TaskMonitor.runCLI` are each guarded by a parse that a failed run's empty stdout cannot pass, and `MasterPool`'s round-trip measurement documents a measurement showing the status is no use there.
+
+THE PANE THAT WAS LABELLED DEAD WHILE IT STREAMED. `lost` means one thing on both sides: the transport died and another attempt follows. The client said it for two events that are neither — a position the holder could not honour, and a catch-up the child outran. `ConnectProgress.lostSince` is cleared only by `paint` and `live`, and after a gap neither ever comes, so the pane wore "Link lost — reconnecting" for the rest of the attach and took the sidebar mark at sixty seconds. `note` is the channel that already existed for what the far side said.
+
+THE HUB'S FAILURE HAD A REASON AND NEITHER SURFACE READ IT. `.failed(String)` is reachable with four distinct reasons; a `default:` arm in the popover and a collapsed `case .stopped, .failed` on the strip turned all four into "the hub is not running", under a Start button that for one of them cannot ever work. The same defect as [[WI-2026-09-11-011]], at the state next to the one that fixed.
+
+STILL OPEN, AND NAMED RATHER THAN QUIETLY DROPPED: a `note` on a pane that has already painted is recorded and not displayed — `latest` is read only by the dialling placeholder. So the human is no longer told something false, and is not yet told the true thing. Writing it into the session's own screen is what [[WI-2026-08-29-004]] forbids. No clause speaks to a notice on a revealed pane.
+
+MEASURED IN PASSING: a holder feeds everything the child writes through its screen, and a line feed scrolls it. 200k short lines moved 59 KB/s; one 4000-byte line per write moved 170 KB/s. The e2e case is sized from that rather than from a guess, and its first version failed because one second of absence does not roll a 1 MiB window."""
+
+[[content.acceptance_criteria]]
+text = "Test Connection judges a probe by its exit status, not by whether ssh launched — a host answering 'Permission denied (publickey)', 'Host key verification failed', an unresolvable name or a refused connection shows a cross, and the cross carries what ssh said"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a failed probe's empty stdout is no longer parsed into the host record as a detected OS"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the GitHub connect sheet judges the login by its exit status, so a bad or under-scoped PAT keeps the sheet open with the CLI's own sentence instead of dismissing it, firing onConnected and discarding the token"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a reconnect the holder cannot continue, and a catch-up the child outran, are said on the note channel rather than lost — so a pane that is streaming is not labelled 'Link lost — reconnecting' for the rest of its attach"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HubStatus.failed renders its reason on both the strip and the popover, and the popover no longer answers .starting with a red dot and a Start button"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the popover offers Start only where starting can work — a bundle with no hub binary is told that reinstalling is the remedy"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "SubprocessRunnerTests measures that a refused ssh sets neither error nor timedOut, then pins both exit-status judgements against the four refusal shapes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "test-reconnect-e2e.sh holds a client away while the holder's retention window rolls, and asserts the repaint is announced as a note and never as a lost link"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "HubRefusalWordingTests covers .failed carrying its reason on both surfaces, .starting not being painted as a failure, and Start being withheld where it must fail"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the chip tooltip no longer promises logs the popover deliberately does not contain"
+status = "done"
+category = "chore"

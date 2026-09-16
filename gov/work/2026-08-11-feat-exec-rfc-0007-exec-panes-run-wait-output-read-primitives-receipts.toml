@@ -1,0 +1,54 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-015"
+title = "feat(exec): RFC-0007 — exec panes, run/wait-output/read primitives, receipts"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0007",
+    "RFC-0005",
+    "RFC-0004",
+]
+depends_on = ["WI-2026-08-11-012"]
+
+[content]
+description = "RFC-0007 implementation. Protocol+hub: exec_pane_opened/exec_command_ran/exec_wait_completed/exec_pane_closed receipt events (kind-set extension per RFC-0004 C-EVENT-LOG); ownership by id+generation. CLI: synapty exec open/run/wait-output/read/close with the closed terminal-outcome set (matched/timed-out/target-gone/ownership-lost/disarmed, stable exit codes). GUI: exec pane class (machine-operated marker, owner attribution), per-workspace-session arming default OFF with visible affordance and immediate disarm (Enter suppression + abort receipt), C0/C1 rejection at injection, splice guard, foreground rule w/ follow-up flag, snapshot-first wait, bounded panes + run rate. Independent of the identity substrate except receipts carry durable ids when bound — schedule after WI-2026-08-11-012 for id consistency."
+notes = [
+    "DEFERRED to last in the batch (operator decision 2026-08-11): the biggest remaining WI — needs a new agent->workbench command-routing subsystem plus GUI pane execution, and its core cannot be live-verified while the display is locked. Sequenced after WI-016/019/018/011 (all fully completable + verifiable now). Left active; implementation resumes at the end of the batch near a relaunch.",
+    "Live smoke (2026-08-11 ~21:25, embedded-hub build): full routing vertical verified on the DISARMED default path — registered agent sends exec_request(open) -> hub EventLog.broadcast reaches the ExecController via its subscription (HubEventClient now forwards exec_request control frames, not just events — fixed mid-smoke) -> gate refuses (armed==false) -> exec_pane_opened receipt lands on the event log with detail 'exec disarmed' -> exec_response{outcome:refused} routes back to the agent. This exercises every hop except the actual pane creation + command injection, which is gated behind the human's exec-arm toggle in the hub popover (C-EXEC-AUTHORITY: arming grants arbitrary shell execution, deliberately a GUI-only human act — I cannot click it without accessibility). ARMED happy-path smoke (open real pane -> run -> wait-output DONE-marker -> read -> close) awaits the user flipping 'Agent exec panes' on, exactly as WI-013 wake awaited the per-pane arm. Implementation + tests complete; RFC-0007 is code-complete and disarmed-path-verified.",
+    "ARMED live smoke PASSED (2026-08-11 ~23:00, operator armed the GUI switch): open -> real exec pane (machine-operated marker, exec:<owner> label) -> run executes visibly -> wait-output MATCHED the completion marker -> read returned the bounded excerpt -> C0/C1 violation REFUSED at the workbench -> close. All receipts on the event log carrying the command line itself (auditability) including the refusal. Cleanup verified: the test owner identity (honestly named 'exec-smoke', never impersonating claude) unregistered on disconnect. The armed path found FOUR defects the disarmed smoke structurally could not reach, all fixed: (1) exec_read rejected by the hub receipt handler so excerpts never routed back; (2) open receipted success before the pane's shell spawned, so run typed into a void while every receipt reported success; (3) read/wait used the detector's BOTTOM-anchored window, reading pure blank space above a fresh shell's top-of-screen output — command visibly ran, read returned empty; (4) session snapshot persisted exec panes, so a machine scratch pane came back after restart as an unowned ordinary shell tab stripped of its marker. Defects 2-4 shared one failure mode worth naming: the protocol reported success for work that never happened.",
+    "Design confirmation (operator, 2026-08-11): the per-session re-arm requirement is correct — same authority class as Claude Code's dangerous-skip / codex's YOLO. Folded into RFC-0007 C-EXEC-AUTHORITY as an explicit normative requirement, because the spec previously left it inferable-only ('per-workspace-session switch') while the ADJACENT RFC-0005 wake bit DOES persist with the session snapshot — a future reader could reasonably have 'fixed' the asymmetry the wrong way. The clause now states the asymmetry and its reason: wake's blast radius is one fixed content-free line, exec's is any command the agent composes.",
+]
+
+[[content.acceptance_criteria]]
+text = "RFC-0007:C-PRIMITIVES receipts — exec_pane_opened/exec_command_ran/exec_wait_completed/exec_pane_closed on the RFC-0004 event log carrying owner id+generation + pane handle + detail (command line / wait outcome+pattern); kinds extend C-EVENT-LOG under its extensibility rule"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "agent->workbench routing — exec_request envelope (open/run/wait-output/read/close) forwarded by the hub to the workbench control endpoint, exec_response routed back to the requesting agent by id; CLI 'synapty exec <verb>' surface with the closed terminal-outcome set and stable exit codes (matched=0/timed-out/target-gone/ownership-lost/disarmed/refused)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0007:C-EXEC-SCOPE — exec panes are single-owner by id+generation, machine-operated marker in the UI; run/wait/read/close refused for non-exec panes, other agents' exec panes, and generation-ended owners (orphans stay visible for the human to close); foreground rule (spawned shell OR same-agent follow-up flag; human-started process always refuses)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0007:C-EXEC-AUTHORITY — ONE per-session exec-arm switch, default OFF, visible affordance; gate covers open/run/wait-output (read/close stay available disarmed); disarm is immediate (pending Enter suppressed w/ abort receipt, in-flight waits end 'disarmed', further gated calls refused); bounded concurrent exec panes per agent"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0007:C-PRIMITIVES run — single printable line, CR/LF/C0/C1 rejected at the WORKBENCH (not just CLI); text + separate Enter after settle (RFC-0005 mechanics reused); ~3s human-typing splice guard. wait-output: mandatory timeout, CURRENT snapshot searched first, one in-flight wait per pane, bounded excerpt; mid-wait close/generation-end terminates promptly. read: bounded final-N-rows excerpt, NOT receipted"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "pure logic (ownership id+gen, outcome set, C0/C1 validation, bounds, arm/disarm) unit-tested Swift-side (11 tests); hub receipt + routing wire-tested zig-side (2 e2es); suites green; DISARMED-path live smoke PASSED (exec_request -> gate refused -> receipt on log + response routed back); armed happy-path live smoke needs the human's GUI arm act (C-EXEC-AUTHORITY, no API) + an agent driving synapty exec"
+status = "done"
+category = "chore"

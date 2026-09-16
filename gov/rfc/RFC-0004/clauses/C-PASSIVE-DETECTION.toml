@@ -1,0 +1,44 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PASSIVE-DETECTION"
+title = "Passive Detection — Manifest Rules over the VT Screen"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The workbench classifies each terminal pane's status by reading the VT
+screen, driven by per-tool rule manifests.
+
+Requirements:
+
+- Detection MUST read the final rows of the active screen (the live grid),
+  never the user-scrolled viewport: the human scrolling back MUST NOT
+  change classification. (In the V1 implementation this is the Swift layer
+  calling `ghostty_surface_read_text` over a bottom-rows selection; the
+  mechanism is implementation detail, the screen-not-viewport rule is not.)
+- Rules are declarative manifests, one per agent tool (claude, codex,
+  gemini, ...): ordered patterns (literal or regex) over the read region
+  plus the OSC title, each mapping to a proposed state from the passive
+  set — `working` / `waiting` / `done` per C-OWNERSHIP. First match wins;
+  no match emits nothing (C-PRECEDENCE rule 5).
+- Detection SHOULD reflect an on-screen state change within 2 seconds
+  under normal load, so `waiting` keeps its "attention NOW" meaning when
+  served by the passive path.
+- Manifests SHOULD be loadable without rebuilding the app, so supporting a
+  new CLI's prompt format is a data change. Format, location, and reload
+  mechanics are owned by the implementing ADR/WI, not this RFC.
+- Classification applies to panes with a registered agent (manifest chosen
+  by the registered tool). Unregistered panes MAY be classified
+  heuristically for pane-local UI, but MUST NOT create hub registrations:
+  registration remains the agent's explicit act ([[RFC-0003]]
+  C-CLI-TOOLS).
+- Screen content is untrusted data. A pattern match sets a status enum and
+  nothing else; screen text MUST NOT be forwarded as instructions, parsed
+  into commands, or echoed into other agents' inputs by the detector.
+
+This clause is the entirety of what V1 adopts from [[RFC-0001]]'s L3
+introspection layer. 2D DOM export to agents, OSC-to-A2A bridging, and
+process-tree heuristics stay deferred."""

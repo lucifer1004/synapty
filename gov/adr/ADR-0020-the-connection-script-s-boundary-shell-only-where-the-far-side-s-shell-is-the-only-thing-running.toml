@@ -1,0 +1,181 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0020"
+title = "The connection script's boundary: shell only where the far side's shell is the only thing running"
+status = "accepted"
+date = "2026-09-09"
+refs = [
+    "RFC-0014:C-OPT-OUT",
+    "RFC-0015:C-DIAL",
+]
+
+[content]
+context = """
+`scripts/connect.sh` is 396 lines and is what every remote pane runs. It
+was never decided to be shell: no ADR owns it, and the nearest one
+([[ADR-0004]], the single binary) argues the opposite direction — hub,
+agent and CLI were merged precisely so there would be one thing to build,
+ship and reason about.
+
+The file does two jobs that happen to sit in one place.
+
+THE REMOTE HALF (roughly lines 100–262, ~158 lines) builds the string that
+runs ON THE FAR SIDE: `REMOTE_PREAMBLE` fixing TERM, `REMOTE_ENSURE`
+starting a hub and reading its port, `REMOTE_CD`, `REMOTE_RUN`. This runs
+before the remote synapty binary has been located — it is the bootstrap
+that locates it — under whatever POSIX sh that machine has. It cannot be
+anything but shell text.
+
+THE LOCAL HALF is everything else, and it runs on this Mac, where the
+synapty binary is already on disk: ssh flag assembly, forwarding rules,
+ControlMaster probing, the socket-file and pid-file dance a migration
+depends on, and now reading ssh's exit status and writing an `end` line to
+the connection's account.
+
+FOUR SIGNS THE LOCAL HALF IS PAST WHAT SHELL SHOULD CARRY:
+
+1. `now_ms()` shells out to PERL for milliseconds, because macOS ships
+   bash 3.2 (no `EPOCHREALTIME`) and BSD `date` has no `%N`. `setup-host.sh`
+   carries a second copy of the same function. `sys.nowMillis` has answered
+   this since the beginning.
+
+2. `signal()` is the FOURTH implementation of the account line format.
+   `progress.zig`'s own header states the problem: "Four processes write
+   this format — the CLI, connect.sh, the holder and this — and none can
+   import another". Three of the four are the same binary. Only this one is
+   not, and the only reason is that it is shell.
+
+3. The tests cannot reach the code. `test-connect-launch.sh` extracts TWO
+   line ranges with `sed` and `eval`s them, and its own comments record
+   that the first range silently truncated once when a conditional was
+   added above it — the test then failed on an unbound variable rather than
+   on the thing it was written to catch. The newest logic in the file — the
+   reading of ssh's exit status — falls outside every range and has no seam
+   at all.
+
+4. The language keeps taking bites. `${FORWARD_ARGS[@]+"${FORWARD_ARGS[@]}"}`
+   exists for bash 3.2 under `set -u`. `handover`'s first version read `$?`
+   on the line after the transport, which under `set -e` never runs for a
+   non-zero status — that is, for every case it was written to report.
+
+This is not a claim that the file is bad. It is a claim that it now holds
+domain logic (classify an exit status, write a protocol line, choose a
+connection from a pool) in a language chosen for gluing two processes
+together."""
+decision = """
+SHELL IS USED ONLY WHERE THE FAR SIDE'S SHELL IS THE ONLY THING RUNNING.
+
+That is the whole rule, and it draws the line by itself. Everything that
+executes on the remote host before its synapty binary has been located is
+shell, because there is nothing else there to run. Everything that executes
+on this Mac is the binary, because the binary is already here.
+
+Concretely: the local half of `connect.sh` becomes a `synapty connect`
+subcommand — flag assembly, forwarding rules, ControlMaster probing, the
+socket-file and pid-file records, the account, and the reading of ssh's
+exit status. The pane's command becomes that subcommand instead of
+`bash connect.sh …`. `REMOTE_PREAMBLE`, `REMOTE_ENSURE`, `REMOTE_CD` and
+`REMOTE_RUN` stay shell and become a payload that Zig constructs and quotes
+in one place.
+
+TWO THINGS THIS DECISION DOES NOT SAY.
+
+It does not say the shell is at fault. Every behaviour in that file was
+arrived at by measurement and each one is right; what changed is that
+domain logic accumulated in a file chosen for gluing two processes
+together, and no document owned the question of where that logic belongs.
+
+It does not license a rewrite. The move is mechanical and behaviour-
+preserving, piece by piece, each piece keeping its tests green as it
+crosses. `handover`'s classification of ssh's exit status, being the newest
+and smallest, is the natural first one.
+
+SEQUENCED, NOT DONE AT ONCE. The account layer first — `now_ms` and
+`signal`, which removes the perl dependency and the fourth copy of the line
+format and touches nothing about how ssh is invoked. Then the exit-status
+classification. Then flags, forwards and ControlMaster. `setup-host.sh` has
+the same two halves and the same duplicated `now_ms`, and follows the same
+rule; it is out of scope here only for sequencing."""
+consequences = '''
+THE RISK IS THE PATH, NOT THE LANGUAGE. `connect.sh` is what every remote
+pane runs, and a mistake in moving it does not degrade a feature — it stops
+panes opening. This is why the decision insists on a sequenced,
+behaviour-preserving move rather than a rewrite, and why each piece has to
+land with its tests green before the next one starts.
+
+A BROKEN BUILD GETS MORE EXPENSIVE. Today a pane's command is a script the
+system's bash runs; afterwards it is a binary this project builds. A
+`zig build` that fails currently leaves the app able to open panes on hosts
+whose masters are already up; afterwards it does not. Accepted: the same
+binary is already required on both ends for a durable session, so this
+widens an existing dependency rather than creating one.
+
+INSPECTABILITY HAS TO BE REPLACED, NOT ASSUMED. A human debugging a
+connection on a strange host can currently read `connect.sh` and run it by
+hand. `synapty connect` must be able to print the exact ssh invocation and
+the exact remote string it would use, without making the connection. That
+is a requirement of this decision, not a nicety.
+
+THE QUOTING PROBLEM MOVES; IT DOES NOT GO. The remote half is still text
+assembled for a shell this side cannot see, and the file's existing comment
+about `printf %q` being a bashism that arrives as a literal remains true of
+whatever builds it. What changes is that it is assembled in one place, by
+something that can have a tested quoting function, instead of inline with
+`sed "s/'/'\\''/g"`.
+
+AND THE TESTS CHANGE SHAPE. `test-connect-launch.sh` exists to assert the
+constructed commands, and most of what it asserts becomes unit-testable.
+The end-to-end case that drives the real script with a stubbed ssh is the
+part worth keeping, because what it tests is the handover itself.'''
+
+[[content.alternatives]]
+text = "The local half becomes a synapty subcommand; the remote half stays shell, constructed and quoted once by it"
+status = "accepted"
+pros = [
+    "The account stops having a fourth writer: signal() becomes progress.zig, and the format has one implementation instead of a cross-process convention three of whose four writers are the same binary",
+    "The perl dependency for milliseconds goes, here and in setup-host.sh, because sys.nowMillis is right there",
+    "Tests reach the code directly. Classifying ssh's exit status, assembling flags and choosing a connection become functions with unit tests, instead of line ranges sed'd out of a file and eval'd",
+    "The remote string is built by something with a real quoting function, which is where the nesting actually bites — three shells deep, with a comment in the file explaining why printf %q cannot be used",
+    "Follows [[ADR-0004]]'s reasoning rather than sitting beside it: one thing to build and ship, and this is the last piece of the connection path outside it",
+]
+cons = [
+    "It is the most load-bearing path in the product. Every behaviour already tuned there — ControlMaster reuse, the -t/-T choice, socket-file migration, ExitOnForwardFailure, the fast path for a host already connected — has to move and be re-verified one by one",
+    """A pane's command becomes "synapty connect ...", so a broken build now breaks opening a pane rather than only the parts of the app that call the binary. The script degrades more gracefully than a binary that will not launch""",
+    "A human debugging a connection can currently read and run connect.sh by hand. That goes, and what replaces it has to be as inspectable — the constructed remote string should still be printable",
+    "The remote half still has to be built as text, so the quoting problem is moved into Zig rather than removed",
+]
+
+[[content.alternatives]]
+text = "Leave it in shell and pay the costs deliberately"
+status = "rejected"
+pros = [
+    "Costs nothing now, and the file works: every behaviour in it was arrived at by measurement and is covered, however awkwardly, by tests that pass",
+    "The script is inspectable and runnable by hand, which is worth something on the path most likely to need debugging on a strange host",
+]
+cons = [
+    "The four signs above are not static. Each piece of domain logic added to this file arrives with a new eval'd line range or none at all, and the most recent one — reading ssh's exit status — has none",
+    "It leaves a format with four implementations, one of which cannot import the others, on the channel that decides whether a pane closes",
+]
+
+[[content.alternatives]]
+text = "Rewrite the whole thing, remote half included, in Zig"
+status = "rejected"
+pros = ["One language, no quoting boundary in the middle of the file"]
+cons = [
+    "IT CANNOT BE DONE. The remote half runs before the remote binary is located; it is the bootstrap that locates it. There is nothing to run Zig with on the far side at that moment",
+    "Rejected on impossibility rather than on cost",
+]
+
+[[content.alternatives]]
+text = "Keep it in shell but make it testable: expose every piece through functions the test can source"
+status = "rejected"
+pros = [
+    "Much smaller change than moving the boundary, and it fixes the sharpest complaint — that a third of the file has no test seam at all",
+    "Keeps the script inspectable and hand-runnable",
+]
+cons = [
+    "It does not touch the perl dependency, the fourth copy of the line format, or the bash 3.2 workarounds; those are the costs of the language, not of the file's shape",
+    "Sourcing a script written to be exec'd means the file grows a second contract — which functions may be called in isolation, and with what globals set — that nothing enforces and every future edit can break silently",
+    "It makes the current arrangement more comfortable, which makes moving the boundary later less likely rather than more",
+]

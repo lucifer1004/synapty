@@ -1,0 +1,63 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-012"
+title = "feat(sessions): the attach handshake carries who is attaching, and the holder carries the human's name for the session"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Zihua asked whether a session attached outside the GUI can be marked as
+synapty-managed, and whether a renamed pane keeps its name across a
+close. The second is yes, but only inside the GUI: the name lives in the
+workspace snapshot, and `synapty sessions` lists ids. The first has two
+halves, and both are protocol gaps.
+
+WHAT EXISTS. Inside a session the identity is already there: the holder
+gives the child SYNAPTY_AGENT_ID and SYNAPTY_SOCK, and every CLI verb
+that must run inside a pane checks them. `synapty attach` on a tty prints
+one line on attach naming the session and the detach key
+([[RFC-0014]] C-DETACH). What no side has is WHO: the hello frame is
+version plus dimensions, the welcome is a fixed 26-byte header, and a
+displaced client is told only that it was displaced ([[RFC-0014]]
+C-ONE-CLIENT asks the holder to answer whether a client is attached,
+not which). The workbench's set-aside row can say "taken", not "taken by
+the CLI on deskmac".
+
+TWO ADDITIONS TO ONE HANDSHAKE, hence one WI: (1) the client presents a
+label — kind (gui/cli/relay), host, pid — which the holder keeps for the
+attached client and reports in status, in the displaced notice, and in
+`synapty sessions`; (2) the holder keeps a human-given session name as
+metadata, written by the GUI on rename, shown by `synapty sessions` and
+in the attach banner, so a session is called the same thing inside and
+outside the workbench. Both are [[RFC-0014]] revisions first
+(C-ONE-CLIENT, C-HOLDER or a new clause), implementation second. The
+protocol version bump follows the RFC's own C-VERSION rule."""
+
+[[content.acceptance_criteria]]
+text = "renaming a pane in the GUI writes the name to the holder, and the attach banner shows it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "handshake encoding and decoding of the label and name are pinned in holder tests, including a client that presents none"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0014]] gains normative clauses for a client label in the attach handshake and a holder-held session name, with the version rule applied"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a displaced client is told who displaced it (kind, host, pid) and the pane's displaced notice and the GUI's before-displacing question say so"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "synapty sessions lists each session's human name and, when attached, who is attached"
+status = "done"
+category = "added"

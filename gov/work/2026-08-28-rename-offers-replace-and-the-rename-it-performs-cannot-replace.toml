@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-008"
+title = "Rename offers Replace and the rename it performs cannot replace"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+The file-leaf rename offers "Replace" and the rename it performs cannot replace. `FileManager.moveItem` throws when the destination exists; the remote path sends a bare SFTP v3 rename, which is an error when newpath exists.
+
+So a human is asked `"notes.md" already exists on this Mac. Replace it?` with the message "The existing … copy moves to the Trash.", presses Replace, and gets a failure — having been told what would happen to a file that is still there.
+
+The disposal the sheet promises is the fix: locally trash the destination then move; remotely delete then rename, or use `posix-rename@openssh.com` where the server offers it."""
+
+[[content.acceptance_criteria]]
+text = "Replace does what the sheet says it does, locally and remotely, with a test that fails if the rename is attempted over an existing destination"
+status = "done"
+category = "fixed"

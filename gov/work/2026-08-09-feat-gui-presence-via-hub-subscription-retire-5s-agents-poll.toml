@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-025"
+title = "feat(gui): presence via hub subscription — retire 5s agents poll"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-10"
+completed = "2026-08-10"
+refs = ["RFC-0004"]
+depends_on = ["WI-2026-08-09-024"]
+
+[content]
+description = "Move the GUI's presence pipeline from the 5s synapty-agents subprocess poll to the RFC-0004 hub event subscription over one persistent connection. Map the five-state vocabulary into the attention pipeline and emit the workbench done→idle transition on focus."
+
+[[content.acceptance_criteria]]
+text = "persistent subscription connection in Swift; AgentMonitor becomes event-driven (snapshot + pushed events), 5s poll removed [C-SUBSCRIPTION]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "five-state mapping in GUI — waiting/done drive attention, working/idle/unknown do not; unrecognized wire values render as unknown [C-VOCABULARY]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "workbench emits done→idle on pane focus while frontmost (hub applies conditional acceptance) [C-OWNERSHIP]"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Swift tests for event handling incl. reconnect-resubscribe; suite green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "live E2E — notify from a pane updates GUI badge without any poll timer firing"
+status = "done"
+category = "chore"

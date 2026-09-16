@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DETACH"
+title = "Leaving Is Not Ending"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+For a durable session, a client MUST be able to leave without ending it, and to end it explicitly. The two MUST be distinct acts.
+
+- Detaching MUST leave the child running and the holder in place.
+- Ending MUST terminate the child and the holder ([[RFC-0014:C-END]]).
+- Losing a connection MUST have the effect of detaching, never of ending. A session on a host where durability is off has no holder and ends with its connection ([[RFC-0014:C-OPT-OUT]]); that is not an exception to this rule but a session outside its scope.
+- The interface a human uses MUST make clear which act a given gesture performs before it is performed, for any gesture that ends a session.
+
+Every conforming implementation must answer what closing a pane means, and both available answers are harmful when chosen silently: treating it as a detach leaks a holder each time a human tidies their window, and treating it as an end kills an agent that was working."""

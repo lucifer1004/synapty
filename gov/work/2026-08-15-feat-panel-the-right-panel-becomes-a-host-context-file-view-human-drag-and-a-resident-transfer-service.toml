@@ -1,0 +1,93 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-009"
+title = "feat(panel): the right panel becomes a host context — file view, human drag, and a resident transfer service"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "RFC-0013",
+    "ADR-0010",
+]
+
+[content]
+description = """
+Stage one of the presentation plane. The right panel stops being "the settings panel" and becomes a HOST CONTEXT: a host selector as its subject, with views of that host beneath it. The first view is files.
+
+A human can drag a file from the panel onto a terminal pane. Where the source host and the destination session's host differ, this TRANSFERS through the workbench; where they are the same, it pastes the path. Finder onto the panel uploads; the panel onto Finder downloads.
+
+WHAT THIS STAGE EXISTS TO GET RIGHT is not the file browser. It is that the TRANSFER SERVICE IS RESIDENT — owned like TunnelManager is, outliving any view, with the panel as one of its callers. Every later stage adds a caller to that service. Writing transfer logic into the panel would be cheaper here and would have to be torn out at stage two.
+
+The leaf-typed same-host browser considered earlier is deliberately NOT built: with a host selector the panel can already show the current host, and adding a kind to SplitNode.LeafData would touch 187 leaf references across 13 files for a marginal gain."""
+notes = [
+    """
+Stage one is built and the offline suite is green (440 tests, 3 live-host tests opt-in). Three criteria are NOT fully met and are not being ticked:
+
+RECORDING IS HALF DONE. Every transfer is logged with its initiator, source, destination and size, but to the os_log channel rather than to the in-app activity stream. The existing stream is polled from the hub and replaced wholesale on each poll, so a locally-originated row would be erased by the next tick. The durable, human-visible audit belongs with the authorization model in stage four; putting a second, differently-shaped store in now would be building the thing twice.
+
+THE DRAG ITSELF IS UNVERIFIED BY HAND. The rule, the endpoint plumbing, the pasteboard payload and the destination preview are covered by tests and the app builds and runs, but no actual drag from the panel onto a terminal has been performed — that needs a pointer, and this environment has no accessibility permission to drive one. Both the transfer branch and the paste-path branch are therefore verified only up to the point where AppKit hands over the drop.
+
+WHAT A LIVE RUN ALREADY EARNED, for whoever doubts the opt-in test is worth it: SFTP has no tilde. Twelve offline tests agreed with the codec about REALPATH("~"), which real sshd rejects outright.""",
+    """
+Four defects found by looking at the running app rather than by any test — worth recording because they are all of the same kind, state that is only wrong once something real is on screen.
+
+A home directory is mostly dotfiles, so the browser opened on sixty hidden entries and nothing the human owns. A separator under every row read as a ledger. Clicking a folder twice quickly asked for ./folder/folder, because the tap advanced the current path while the listing was still in flight and the second tap derived from the advanced value. And the panel jumped back on release at any UI size but 100%, because the drag clamped against scaled bounds while the store clamped the same number against unscaled ones — the reachable range and the keepable range were different ranges.
+
+The last two are the interesting pair: both are one piece of state living in two coordinate systems at once, which is the same shape as the key-path bug in [[WI-2026-08-15-008]].""",
+    """
+An acceptance criterion in this item was WRONG and has been replaced. "Panel width is remembered per view" encoded a design mistake: it took a fact about CONTENT — a file list wants more room than a column of controls — and applied it to FURNITURE. Every tab switch then re-clamped the panel to what the incoming view wanted, so the edge jumped and the content area reflowed.
+
+Width belongs to the panel. Every inspector on this platform behaves that way, and the reason is that a panel is a fixed piece of the window the human positioned once. A view that does not want the full width constrains its own column and leaves the rest as margin.
+
+Worth recording because the tests were green throughout: three of them asserted the per-view behaviour faithfully, which is what a test does when the requirement rather than the code is at fault.""",
+    """
+CLOSED. The two items left open when stage one first landed are both addressed, and one acceptance criterion was rewritten rather than ticked as written.
+
+THE RECORD IS NOW WHERE A HUMAN LOOKS. Transfers were logged to os_log only, which answers a debugger's question and not the person present. They now merge into the Activity tab beside the hub's tool-request feed, sorted by time, carrying initiator, both machines and size. Two sources, one reader: an agent's call reaches the hub and is recorded there for free, while a human's drag never touches the hub and had nowhere else it could appear. A record that omits half the transfers cannot answer "where did this file come from". Finished rows are kept, bounded at 100, because for a drag they ARE the record.
+
+THE DRAG IS TESTED UP TO APPKIT'S DOOR. A pointer is still not available here, but the surface that was unverified has shrunk to the part least likely to be wrong. Nine tests now drive a real NSPasteboard: the private payload survives a round trip carrying its machine, a Finder file URL arrives as a local endpoint, a non-file board is declined, and the coordinator applies the rule against the destination leaf's actual session — transfer across machines into the reported directory, paste within one, and the preview text for each including the named fallback when no working directory was reported. What remains unproven is only whether AppKit hands the pasteboard to performDragOperation.
+
+A CRITERION WAS SUPERSEDED BY ITS OWN FOLLOW-UP. "Transfers reuse the EXISTING ControlMaster" was written before the starvation measurement; after [[WI-2026-08-15-010]] split the lanes, transfers reuse the BULK master and must never touch the interactive one. Ticking it as written would have recorded a property the code deliberately no longer has, so it was rewritten to say what is now true and what the reuse is for.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the panel takes a host as its subject with a view beneath it; switching the active session does not change what the panel shows"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "transfers are owned by a resident service; a transfer in flight survives the panel being switched to another view or closed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a drop whose source host differs from the destination session's host transfers, a drop within one host pastes the path, and the two are distinguishable while dragging"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the resolved destination path is shown before the drop commits, and names its fallback when the working directory is unknown"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "every transfer is recorded in the activity stream with its initiator, source, destination and size"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "transfer progress is visible from outside the panel, since the panel may be closed while a transfer runs"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the panel keeps one width whatever view is showing, so switching views never moves its edge; a view that wants less room caps its own content"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "transfers ride a ControlMaster without re-authenticating, including for hosts reached by password, and never the one carrying interactive panes"
+status = "done"
+category = "added"

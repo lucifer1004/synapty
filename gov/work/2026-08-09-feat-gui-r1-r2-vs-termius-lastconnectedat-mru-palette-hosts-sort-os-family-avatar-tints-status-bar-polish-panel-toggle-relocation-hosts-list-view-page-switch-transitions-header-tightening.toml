@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-006"
+title = "feat(gui): R1+R2 vs Termius — lastConnectedAt/MRU (palette + hosts sort), OS-family avatar tints, status bar polish + panel-toggle relocation, hosts list view, page-switch transitions, header tightening"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Closes the R1+R2 gap set from the Termius comparison round. R1: HostEntry.lastConnectedAt (Codable-tolerant) set by TunnelManager on the .connected transition via HostStore.markConnected; one recency comparator (HostStore.byRecency: recent first, never-connected last alphabetically) drives BOTH the Cmd+K palette ordering (empty query = MRU list; filtered results recency-sorted) and a Hosts-page sort control (Recent/Name, persisted). Avatar tints gain OS-family classes for scanability without trademark art (linux family = warm orange, windows = blue, macos = graphite; unknown keeps the per-host hash hue). ContextStatusBar aligned to the current language (xl gutters, quieter chips) and absorbs the Appearance-panel toggle as a labeled icon button (the floating titlebar-band toggle is deleted). Card press states are consciously DROPPED: gesture composition on .draggable blocks is a known crash class (WI-2026-08-08-076). R2: Hosts grid/list view toggle (persisted; shared HostAvatar component; list = card rows with dividers, same tap/double-click/drag/hover-action semantics), 150ms opacity page-switch transition (Reduce Motion honored; terminal dock stays instant — WI-2026-08-07-006 perf gate), DSPageHeader vertical padding tightened."
+
+[[content.acceptance_criteria]]
+text = "lastConnectedAt field + markConnected on tunnel connect; byRecency comparator (tests: ordering, nil-last, codable tolerance)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "palette lists MRU on empty query and recency-sorts filtered rows; Hosts page Sort control (Recent/Name, persisted)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "OS-family avatar tints (linux/windows/macos) with hash-hue fallback (parser test for family mapping)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "status bar polish + Appearance toggle relocated into it; floating titlebar toggle removed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Hosts grid/list toggle with full behavior parity in list rows (connect/edit/drag/menu)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "150ms page-switch fade (Reduce Motion off switch), header padding tightened"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "build + suite green; screenshots (list view, sorted grid, status bar)"
+status = "done"
+category = "chore"

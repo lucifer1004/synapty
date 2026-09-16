@@ -1,0 +1,79 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-005"
+title = "A start guard that never learned the fourth claim state, and it guards the operation that destroys things"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = [
+    "RFC-0014:C-START",
+    "RFC-0014:C-LIVENESS",
+]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL ZIG REVIEW AND REPRODUCED, and it is the worst
+defect of the day because it was introduced by a fix.
+
+[[WI-2026-09-07-008]] added a fourth claim state, `unknown`, for the
+question that could not be asked — an EACCES, an EMFILE, an unresolvable
+state directory — and taught `Record.ownerGone` that it is not evidence of
+death. It did not teach `startWouldJoin`, which stayed
+`claimState(name) == .held`. So `unknown` fell silently into "proceed", and
+`startWouldJoin` guards the operation that DESTROYS something.
+
+WHAT AN ADMITTED START DOES. `Holder.init` unlinks the socket path and
+binds its own before anything claims the name; the claim is not attempted
+until `Record.write`, some seventy lines later, after the pty child and
+three threads. So a start let through by mistake takes a live session's
+socket and only afterwards discovers it cannot have the name. The original
+holder stays alive, on its pty, with its child — and is permanently
+unreachable, because every client reaching that path now finds the
+impostor. `synapty sessions` shows one healthy row describing the
+impostor, so nothing tells the human a session was stranded. The file
+already named this damage in `claimState`'s own comment.
+
+THE ASYMMETRY RUNS OPPOSITE TO `ownerGone`'S, which is why one answer to
+the new state was not enough. For `ownerGone`, `unknown` must not read as
+"gone": sweeping a live session's record loses a session. For
+`startWouldJoin`, `unknown` must read as "would join": refusing a start is
+recoverable in one command, and unlinking a live session's socket is not
+recoverable at all. Adding a state to an enum is a question asked of every
+reader of it, and this was answered for one."""
+notes = [
+    """
+REPRODUCED BOTH WAYS. `chmod 000` on the lock is what makes `unknown`
+reachable, and the reviewer's run showed the socket's inode changing under
+a live holder, two holders under one name, and the original stranded and
+alive. Against the fix: the second start is refused ("session already
+held"), the inode is unchanged, and one holder remains.""",
+    """
+THE STRUCTURAL FIX IS NOT DONE, AND IS NAMED HERE RATHER THAN LEFT TO BE
+DISCOVERED. This closes the reachable path; it does not close the class.
+`Holder.init` destroys before it claims, so ANY future mistake in the guard
+— a fifth state, a refactor, a caller that asks a different question —
+strands a live session again. The claim should be taken before the unlink:
+split `Record.write` into taking the lock and describing the session, claim
+in `init` ahead of `sys.unlink`, and keep the record body where it is (it
+is written late on purpose, "so a record never names a session that failed
+to start", and that reason is untouched by moving the claim).
+
+IT IS NOT ATTEMPTED HERE ON PURPOSE. Reordering holder startup is the most
+safety-critical sequence in this file, and today has already produced three
+fixes that themselves needed fixing. Doing it at the end of a long session,
+with the machine's gate results visibly noisy from concurrent work, is how
+the next stranded session gets made. It wants its own change and its own
+verification.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a start is refused where the claim could not be asked, not only where it is held — the two mistakes are not equal, and the recoverable one is the one to make"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the refusal's comment enumerated three states of a four-state enum; it names all four and says which way the asymmetry runs and why it is not `ownerGone`'s"
+status = "done"
+category = "chore"

@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-010"
+title = "fix(gui): micro-consistency pass — DSSectionLabel count badges + preserveCase for data labels, status-bar project badge microcopy, mono diet on durations, Settings column width parity, group-card avatar language, status/tab bar chrome anchoring"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Second batch of the roughness audit (2026-08-09): text-system and rhythm cleanups. DSSectionLabel glues counts to labels ('HOSTS 11', 'LOGS 1') and uppercases user data ('OPERATOR.EXAMPLE.COM' in the Forwarding tab) — counts become separated capsule badges, and a preserveCase variant carries data-derived labels (forwarding host sections, task project groups). Status-bar project badge microcopy ('test 1✓') becomes symbol-prefixed counts. Sidebar session duration drops mono + awkward '< 1m'. Settings content column aligns to the 760 grid used by Tasks/Forwarding. Group cards adopt the same leading-avatar language as host cards (tile size parity). Status bar gains zone separators; pane tab strip gets a surface band to anchor the floating tab chip."
+
+[[content.acceptance_criteria]]
+text = "DSSectionLabel renders count as a separated capsule badge; preserveCase variant used for forwarding host sections and task project groups (no case transform on user data)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "status-bar project badges use symbol-prefixed counts (doing/todo/done) instead of bare '1✓'; sidebar duration uses caption font and compact copy"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings content column widened to the shared DS.scaled(760) grid; group cards use the host-avatar tile language (size parity)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "status bar zone separators between session info / project badges / service cluster / appearance toggle; pane tab strip anchored with a surface band"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build green, suite green; screenshot verification at XL for sidebar, status bar, hosts cards, forwarding labels, Settings column"
+status = "done"
+category = "chore"

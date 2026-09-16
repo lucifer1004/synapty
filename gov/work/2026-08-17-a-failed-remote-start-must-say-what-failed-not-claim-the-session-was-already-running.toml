@@ -1,0 +1,44 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-015"
+title = "A failed remote start must say what failed, not claim the session was already running"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+A pane failed to reconnect and said this, in this order:
+
+  synapty: returning to the session already running here
+  synapty attach --relay: no session named remotehost-1d99
+  Process exited.
+
+The two sentences contradict each other, and neither is the reason. The connect script runs the start with its output discarded and treats ANY non-zero exit as the reattach path:
+
+  ... run --hold --detach ... >/dev/null 2>&1 && printf 'started a session' || printf 'returning to the session already running here'
+
+ONE OF THOSE FAILURES IS EXPECTED AND THE REST ARE NOT. A start against a name already held exits 3 and is the ordinary reattach path — that is the case the sentence was written for. Everything else is a start that did not happen: exit 1 covers "the session did not come up" (the detaching parent waits five seconds for the child to hold the name and then gives up) and a failed init, which names the hub it could not reach. All of them are reported as though the session were fine, and the human is then shown a second, contradicting line from the attach and a dead pane.
+
+WHAT THIS COSTS is the diagnosis. The failure above cannot be explained after the fact, because the only process that knew the reason wrote it to /dev/null. A start that fails on a slow host, a host with no hub, or a name held by a holder that is dying all read identically.
+
+THE FIVE-SECOND WAIT IS A SUSPECT, not a conclusion: `waitUntilHeld(agent_id, 5000)` in the detach path means a host slow enough to take longer than five seconds to bring the session up reports failure while the session is still coming up. Whether that is what happened here is exactly what the discarded message would have said."""
+notes = ["2026-08-17: Confirmed live on remotehost. A start pointed at a hub that is not there now says 'could not start a session on this host (exit 1): synapty run --hold --detach: the session did not come up'; the same failure previously read 'returning to the session already running here'."]
+
+[[content.acceptance_criteria]]
+text = "A remote start that fails for any reason other than the name being held reports that reason to the human, verbatim, with its exit code"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Only exit 3 — the name is already held — is described as returning to a session that is already running"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test drives the launch script's start-failure branches and asserts what each one says"
+status = "done"
+category = "chore"

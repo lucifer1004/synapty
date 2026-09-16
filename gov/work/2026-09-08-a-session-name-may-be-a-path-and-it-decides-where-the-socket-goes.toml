@@ -1,0 +1,77 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-008"
+title = "A session name may be a path, and it decides where the socket goes"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = [
+    "RFC-0014:C-ENTITLEMENT",
+    "RFC-0014:C-SESSION-NAME",
+]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL ZIG REVIEW and reproduced, then found to be worse
+than reported.
+
+`nameOf` derives a session's name from its socket path with
+`std.fs.path.basename`, and `socketPath` builds `{dir}/{name}.sock`. The
+round trip only closes for a name with no separator in it, and NOTHING
+VALIDATED `--id` — there was no check on it anywhere in the tree.
+
+The reviewer's case, `--id a/b`, splits the session in two:
+
+    sessions/a/b.sock    the socket, under the name the human gave
+    sessions/b.lock      the claim, under the basename
+    sessions/b.json      the record, under the basename
+
+So the guard is consulted about `a/b` and the claim is taken for `b`; a
+session named `a/b` occupies the name `b`, blocking a real one; and the
+listing resolves `b` to a socket that is not there and shows a live
+session as unreachable under a name nobody used.
+
+AND IT ESCAPES THE DIRECTORY. `--id ../../escaped` put the socket TWO
+directories above the sessions directory and outside it altogether —
+outside the 0700 that [[RFC-0014]] C-ENTITLEMENT requires of it:
+"Enumeration … only its owner may enter it". A longer chain reaches
+anywhere the user can write. Verified on a scratch config root: the socket
+landed at the root while the lock and record stayed in `sessions/`.
+
+THE BASENAME LOGIC IS OLDER THAN TODAY AND IS MINE. What changed today is
+that it decides WHICH LOCK IS CLAIMED ([[WI-2026-09-08-006]]), which made a
+lossy derivation load-bearing for the thing the claim was just made
+authoritative about.
+
+REFUSED RATHER THAN SANITISED. A name quietly rewritten is a session the
+human cannot find under the name they gave it, and two names that sanitise
+alike would collide in silence."""
+notes = ["""
+THE STRUCTURAL FIX CAUGHT IT FIRST, WHICH IS THE POINT OF IT. With the
+claim taken before the socket is unlinked, the `a/b` case refused the start
+instead of destroying anything — the guard had been consulted about one
+name and the claim taken for another, and the damage that would once have
+followed did not. Defence in depth doing exactly what it is for, and no
+substitute for the name being a name."""]
+
+[[content.acceptance_criteria]]
+text = "a session name may not be empty, contain a slash or a NUL or a control character, be `.` or `..`, or exceed a bound — so it cannot carry a destination"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the socket, the lock and the record are gated the same way, because all three are the same string interpolated into the same directory"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a name that cannot be a name says so, instead of arriving as `session already held` — which was the right outcome for the wrong reason"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the traversal, the separator, the control characters and the bound are pinned, and the names this project mints still pass"
+status = "done"
+category = "chore"

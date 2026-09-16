@@ -1,0 +1,31 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRIOR-ART"
+title = "Prior Art — herdr's pane run"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+herdr (Apache-2.0, studied 2026-08-11 from a local checkout) ships this
+capability as core workflow and calibrated these choices:
+
+- 'pane run' submits command text and Enter atomically, honoring the
+  pane's live input modes; 'pane wait-output --match/--regex --timeout'
+  searches the CURRENT snapshot first (pre-existing output can satisfy a
+  wait — adopted in wait-output semantics); 'pane read
+  --source recent-unwrapped --lines N' returns bounded excerpts.
+- herdr allows these primitives on ANY pane, including panes it did not
+  create, and trusts skill-level discipline ("Do not close workspaces,
+  tabs, panes, or sessions you did not create unless the user explicitly
+  asked"). Synapty narrows the target set structurally instead
+  (C-EXEC-SCOPE): the discipline herdr asks of its agents, this RFC
+  enforces in the workbench. Same capability, mechanized guardrails.
+- herdr's server validates the foreground process before agent-directed
+  input; adopted per-run in C-EXEC-SCOPE.
+- herdr has no per-command event receipts; Synapty adds them
+  (C-PRIMITIVES) because the hub event log ([[RFC-0004]]) already gives
+  every other machine action an audit trail, and execution should not be
+  the exception."""

@@ -1,0 +1,68 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-13-002"
+title = "A promise word given for a promise the hub could not keep"
+status = "done"
+created = "2026-09-13"
+started = "2026-09-13"
+completed = "2026-09-13"
+refs = [
+    "RFC-0008:C-MAILBOX",
+    "RFC-0009:C-DELIVERY",
+    "RFC-0015:C-FAILURE",
+    "RFC-0012:C-LEVEL-CONTROL",
+]
+
+[content]
+description = """
+The failure-paths axis of the second audit round, which returned nothing twice — the agent died to API timeouts both times — so this was done directly, and measured.
+
+THE ORDER WAS RIGHT AND THE ANSWER WAS DISCARDED. `delivered` is defined as "hosted locally; queued in the local mailbox", and the code that gives it says why the sequence matters: "persist BEFORE the caller acks: queued has to mean durable, or the ack is a promise the hub cannot keep across a restart." `persistLocked` returned `void`. Measured with a state path whose parent is a regular file: every write logged "mail is NOT durable" and every send was answered `delivered`.
+
+THE ANSWER IS A FAILURE, NOT A SEVENTH WORD, and the spool push two hundred lines above had already settled that — "failing to hold the copy is this hub failing, and none of C-DELIVERY's six says that". So the send is refused with a sentence, and the message is taken back out of the mailbox: a queue still holding a message its sender was told did not arrive is a message delivered twice the moment they retry. The wake candidate goes with it — an empty→non-empty edge that was rolled back is not an edge.
+
+FOUND BY NEEDING A SECOND HUB. The e2e for the above starts one with an explicit `--port`, and it refused with `AddressInUse` against a port it was never given: `SYNAPTY_HUB_PORT` was applied over the flag. The comment three lines up states the principle it was breaking — "an explicit request must never be silently redirected to another port by the ladder" — and `--port` is an explicit request. Under `--strict-port` it then enforced strictness on the operator's behalf about a number they had not chosen. The cause was one type: `port: u16 = 9000` collapsed "not given" into the default, leaving the one place that has to tell them apart with no way to.
+
+AND THE REFUSAL LOST ITS WORDS ON THE WAY OUT. The CLI reads a refusal from `payload.data.reason`, which is where a DELIVERY verdict carries the peer's own code. Everything else the hub refuses carries its reason at `payload.error` — a missing target, a recipient that went away mid-send, and now an unwritable state file — and all of them reached a human as "the hub did not accept it". That is RFC-0015 C-FAILURE on a reason the hub had already written down.
+
+WHAT COULD NOT BE TESTED IN PROCESS, AND WHY IT IS A SHELL TEST. Zig's test runner counts every `err` log and fails the run on a non-zero count, so no in-process test can take a path that logs one — which is every failure path worth the name. The Zig unit test for this was written, passed, and was removed for that reason; the behaviour is pinned in `test-send-answer-e2e.sh`, whose header already says the defect it exists for is an exit code.
+
+OBSERVED AND NOT ACTED ON, rather than left unmentioned:
+- `state_store.writeFile` writes to a temp file and renames, with no fsync. Against a process kill that is enough — the data is in the page cache and the rename is atomic. Against power loss the rename can land durable while the bytes do not, and the file that results is rejected whole rather than half-restored, which is the honest degradation this module is built around. Closing it is one call; it is named here rather than changed because the promise `delivered` makes is about a restart, and the module already refuses what it cannot trust.
+- Seven other `persistLocked` callers discard the result and now say so with `_ =`. They record state rather than back a promise word. The mailbox DRAIN is the interesting one: a drain that is not persisted means the mail returns after a restart and an agent reads it twice. That is at-least-once rather than loss, and C-MAILBOX does not promise at-most-once, so it is recorded here rather than changed on a guess."""
+
+[[content.acceptance_criteria]]
+text = "persistLocked reports whether the state on disk matches the state in memory, and the two answers that promise the hub is holding a message read it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a send the hub cannot make durable is refused with the reason, and the message is taken back out of the mailbox so a retry cannot queue it twice"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an explicit --port beats SYNAPTY_HUB_PORT, which overrides the default rather than the operator"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the CLI reads a refusal from payload.error as well as payload.data.reason, so a missing target, a recipient that went away and an unwritable state file all reach the human in the hub's own words"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test-send-answer-e2e.sh drives a hub whose state file cannot be written and asserts the send is refused, says why, says nothing was queued, and that the hub bound the port it was given"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "an absent --port parses as absent rather than as the default, which is what made it indistinguishable from an explicit 9000"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the stale-position reconnect case covers both siblings — a position refused at the handshake and one outrun mid-catch-up — because which one the timing gives is microseconds and the vocabulary rule is the same for both"
+status = "done"
+category = "fixed"

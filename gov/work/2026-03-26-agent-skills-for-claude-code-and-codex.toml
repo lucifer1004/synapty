@@ -1,0 +1,31 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-26-013"
+title = "Agent skills for Claude Code and Codex"
+status = "done"
+created = "2026-03-26"
+started = "2026-03-27"
+completed = "2026-03-27"
+refs = ["ADR-0001"]
+
+[content]
+description = "Write skill/plugin definitions for Claude Code and Codex that teach them to use the synapty CLI. Cover registration, sending, receiving, and agent discovery workflows."
+
+notes = [
+    "2026-03-27 (mcp): Agent skills replaced by MCP server integration. Config templates created in configs/ for Claude Code, Codex, and Gemini CLI. synapty mcp-serve provides native tool access (synapty_send/recv/agents) without skills text.",
+]
+[[content.acceptance_criteria]]
+text = "Claude Code skill file enables A2A communication via synapty CLI"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Codex plugin file enables A2A communication via synapty CLI"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "End-to-end test: Claude Code sends message to Codex and receives reply"
+status = "done"
+category = "added"

@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-007"
+title = "feat(hooks): harness adapter packs — synapty hooks install, claude first"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "RFC-0003",
+]
+
+[content]
+description = "First hooks column of the harness adapter pack (per-tool integration surfaces as a registry: detect manifest / launch recipe / resume template / hooks / skill). Cooperative harnesses get DETERMINISTIC explicit presence via their own lifecycle hooks, with passive detection demoted to fallback — completing the dual-source model on the cooperative side (cmux's cmux-notify.sh pattern, adapted). Claude Code first: hook events map cleanly to RFC-0004 states (UserPromptSubmit->working, Notification->waiting, Stop->done); each hook command is gated on SYNAPTY_SOCK (set by the pane wrapper, src/run.zig) so hooks NO-OP for claude sessions outside Synapty panes — cleaner than cmux's unconditional global notify. codex second, instructed-manual: we write ~/.config/synapty/hooks/codex-notify.sh and print the config.toml notify snippet — we do NOT edit another tool's TOML. Authority discipline (RFC-0005/0007 lineage): installing hooks modifies the USER'S standing config (~/.claude/settings.json), so 'synapty hooks install' is an explicit human act — shows exactly what it will write, prompts y/N on a TTY, requires --yes non-interactively; idempotent; uninstall removes exactly our entries (identified by the synapty notify command marker) and never touches user-authored hooks. Malformed settings.json aborts without writing (never clobber). Out of scope: externalizing hook templates to data files (registry column is code constants v1), gemini/opencode packs."
+
+[[content.acceptance_criteria]]
+text = "synapty hooks install|uninstall|status <tool> subcommand; claude fully automated (JSON merge into ~/.claude/settings.json preserving unknown fields and user hooks), codex prints script + manual snippet after writing our script file"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "claude event mapping UserPromptSubmit->working Notification->waiting Stop->done; every command gated on SYNAPTY_SOCK and exit-0-safe (stdout silenced — UserPromptSubmit stdout would inject prompt context)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "consent flow — plan shown before writing, y/N prompt on TTY, --yes required non-interactively; install idempotent; uninstall removes only synapty-marked entries; malformed settings.json aborts unwritten"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig tests cover merge into empty/missing/populated settings, idempotency, selective uninstall preserving user hooks, malformed-JSON abort; zig build test green"
+status = "done"
+category = "chore"

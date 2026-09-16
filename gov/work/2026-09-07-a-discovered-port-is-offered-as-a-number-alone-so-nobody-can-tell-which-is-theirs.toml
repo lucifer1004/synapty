@@ -1,0 +1,114 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-001"
+title = "A discovered port is offered as a number alone, so nobody can tell which is theirs"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = [
+    "RFC-0015:C-CONTENT",
+    "RFC-0013:C-PRIMITIVES",
+]
+
+[content]
+description = """
+The Services leaf's "Not offered by an agent" list renders one row per
+listening port and each row reads `port 8931` and nothing else. That is the
+whole of what the human is given to choose from, and a port number is not a
+thing anybody recognises. On a development machine the list is long — 76
+listeners on the operator's Mac, most of them nobody's work — and the one
+row that is theirs is indistinguishable from the seventy-five that are not.
+
+The clause that admits this list already says why it matters. RFC-0015
+C-CONTENT permits discovery only behind an explicit human act, because "a
+machine answers on many ports that are nobody's work, and a list that leads
+with them buries the few that are". Putting the program on the row is the
+remedy for that same burying, at the point where the human is deciding.
+
+WHAT THE HOSTS WILL ACTUALLY SAY was measured on both kinds rather than
+assumed, and every choice below follows from a measurement:
+
+- Linux, `ss -tlnpH`: carries `users:(("openclaw-gatewa",pid=839,fd=21))`
+  on the caller's own processes and nothing at all on other users'. The
+  name comes from the kernel's `comm` and is cut at 15 characters —
+  "openclaw-gatewa" is the real output from greencloud.
+- macOS, `netstat -anv -p tcp`: carries a `process:pid` column, for EVERY
+  listener including root's, with no privilege. The name is cut at 16
+  characters ("com.metacubex.Cl", "io.tailscale.ipn").
+- `ps -eo pid=,args=`: full, untruncated command lines, on both kinds, for
+  every process including other users'. This is what repairs both
+  truncations, and it costs no extra round trip because it rides the same
+  shell line.
+
+LSOF WAS THE OBVIOUS CHOICE AND IS THE WRONG ONE. `lsof -nP -iTCP
+-sTCP:LISTEN` names listeners on macOS, but only the caller's own: measured
+against netstat on the operator's Mac it missed ten of the seventy-six
+ports, among them 7890 and 9090, which are exactly the kind of thing
+somebody wants to look at. Naming ports by taking away ports is a bad
+trade, and `netstat -v` gives the names without it."""
+notes = [
+    """
+A SECOND DEFECT CAME OUT OF THE FIRST, in a shared helper this change made
+load-bearing. `SubprocessRunner` decoded output with
+`String(data:encoding:.utf8)`, which returns nil for one malformed byte
+ANYWHERE in the stream, behind a `?? ""` that then discarded the whole
+thing. That was harmless while discovery read only `ss` and `netstat`, both
+ASCII; it stopped being harmless the moment the command started carrying a
+host's command lines, where a path in some other encoding is enough to turn
+a host that answered in full into one that appeared to say nothing. It now
+decodes lossily, and the test feeds a real 0xFF between two lines and
+requires both to survive.""",
+    """
+WHAT EACH LINE SAYS BELONGS TO THE LISTENER AND NOT TO THE VIEW, and that
+was learned the short way here: the first version built the strings in a
+private method of `ServicesView` and printed `port 3000` twice on a
+listener the host would not name — once as the row's title, once as its
+subtitle. Nothing could have caught it, because that view needs a
+`PortForwardService` and a `TunnelManager` before it will render at all.
+`name`, `detail` and `arguments` are on `PortDiscovery.Listener` now and
+have tests; the view renders them and decides nothing.""",
+    """
+THE PIXELS ARE NOT VERIFIED, and the reason is the recorded one: this
+machine's screen is locked, and macOS UI automation does not run against a
+locked screen (WI-2026-09-03-013's note, and the warnings above `test-ui`
+and `test-swift` in the justfile). The row's three lines are backed by
+tests on the strings themselves and by review. What a screen would still
+settle is proportion — whether a three-line row is too tall for a panel
+this narrow when a machine offers twenty of them.""",
+    """
+VERIFICATION. `just verify` clean: Zig suite, 1436 Swift tests (5 skipped,
+0 failures), govctl, gov-lint, unshipped, shellcheck, federation e2e.
+`PortDiscoveryTests` + `SubprocessRunnerTests` alone: 26 tests, 0 failures.
+THE COMMAND ITSELF WAS RUN, not merely asserted on — `sh -c` locally on
+macOS (1043 lines, marker at line 102) and over ssh to a real Linux host
+(5973 bytes, marker at line 18) — and both captures are the parser's
+fixtures, which is the only reason the `netstat -v` process column was
+known to exist at all.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the discovery command asks the host what program holds each listening port — `ss -tlnpH` on Linux, `netstat -anv -p tcp` elsewhere, plus one `ps` pass for the untruncated command lines, in a single ssh round"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the parser returns a listener — port, pid, program, command line — instead of a bare port, and a port whose owner the host would not name still appears, with the number alone"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a program name is never mistaken for a port. `netstat -v`'s `WeChat:88684` column parses as a process, not as port 88684, because a field yields a port only when the part before the separator is address-shaped"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "each offered row leads with the program and carries the port, the pid and the full command line, matching the shape of the agent-exposed rows above it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the two real captures — greencloud's `ss -tlnpH` and this Mac's `netstat -anv` — are fixtures, and every earlier shape the parser already handled still parses"
+status = "done"
+category = "chore"

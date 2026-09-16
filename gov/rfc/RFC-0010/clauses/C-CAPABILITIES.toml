@@ -1,0 +1,116 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CAPABILITIES"
+title = "Version and Capability Negotiation"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Hubs of different builds WILL meet. That is not a degraded case to be
+designed away — remote deploys lag behind a laptop's rebuild by construction,
+and the first real federation bug came from exactly that gap. The protocol
+therefore negotiates rather than assumes.
+
+Requirements:
+
+- `relay_hello` MUST carry a SUPPORTED VERSION RANGE (minimum and maximum
+  monotonic integers) and a CAPABILITY SET (a list of names). A range and
+  not a single number: "a version it can speak" is a SET, and carrying one
+  integer makes "incompatible" unfalsifiable — which is the same defect
+  this RFC exists to fix, one level up. The link proceeds at the HIGHEST
+  version both sides support; if the ranges do not intersect it is
+  refused, with BOTH ranges in the refusal payload so a human can see
+  which side to move.
+- THE VERSION/CAPABILITY LINE IS DRAWN AT MEANING, NOT AT VOCABULARY. A
+  change needs a VERSION bump if a peer that does not implement it could
+  MISINTERPRET a frame it already accepts, or could send one the other
+  side would misinterpret. A CAPABILITY is sufficient only when the
+  peer's non-participation is indistinguishable from, and semantically
+  equivalent to, the behaviour that existed before. "What frames exist"
+  is the wrong test: the accepted corpus already contains a change that
+  adds no frame and alters meaning (RFC-0009 C-DELIVERY replacing a
+  direct-message response's `{queued, hosted}` with `{status, reason?}`),
+  and a peer holding the old reading of `queued` misreads the new one.
+- THE VERSION IS AN INTEGER AND THIS IS WHERE IT LIVES. The protocol is
+  at VERSION 1, which is what the shipped hub offers at both ends of its
+  range. A bump with no registry is not an act an implementer can
+  perform, and this clause makes "needs a bump" load-bearing, so the
+  number is stated here and moves here. THE PER-MESSAGE FORWARD CONTRACT IS NO LONGER DEFERRED — [[RFC-0009]]
+  C-DELIVERY requires it and this codebase implements both ends — so
+  whether it needs a move is this clause's meaning test to apply against
+  a SECOND implementation, and there is not one yet. Recorded here rather
+  than answered, because a version moved for an audience of one is a
+  number nobody reads.
+- EXACT-MATCH IS REJECTED AS THE RULE. Requiring identical builds would
+  refuse links constantly in the deployment pattern this system actually
+  has, and a system that refuses to federate whenever a server is a day
+  behind is not federating. A hub MUST NOT refuse a link ON VERSION
+  GROUNDS when the ranges intersect. Scoped deliberately: the other
+  refusals (a peer id already held by a live link, an id that fails
+  validation) are untouched by this and remain mandatory.
+- A VERSION MISMATCH THAT PREVENTS SPEAKING AT ALL REFUSES THE LINK, with
+  the reason (C-COLLISION). Implementations MUST NOT accept a link they
+  cannot interpret and discover the problem frame by frame.
+- WITHIN A COMPATIBLE VERSION, MISSING CAPABILITIES REDUCE FUNCTION RATHER
+  THAN REFUSING THE LINK. A peer that cannot relay presence is still worth
+  exchanging mail with. Each side MUST record what the other declared and
+  MUST NOT invoke a behaviour the peer did not declare.
+- A CAPABILITY IS DECLARED BY THE SIDE THAT PROVIDES IT, and absence is
+  the default. A new capability therefore requires no version bump and no
+  coordinated deploy: an older peer simply does not list it, and both
+  sides already know what that means. This is what makes the negotiation
+  survive its own evolution — subject to the meaning test above, which is
+  what keeps "absence is the default" from being applied to a change the
+  older peer cannot silently decline.
+- CAPABILITIES ARE DECLARED BY THE PROVIDER, and this version does not
+  express receiver-side capabilities (a peer that can ACCEPT some newly
+  shaped input). That is a real limitation rather than an oversight: the
+  failures this RFC addresses are all provider-side, and a two-sided
+  declaration would need a matching rule with nothing yet to spend it on.
+  A receiver-side capability requires a version bump under the meaning
+  test, which is the correct answer while this stays unexpressed.
+- The version is NOT a proxy for the build. Two hubs of the same protocol
+  version and capability set may be different builds and that is fine;
+  what a peer needs to know is what the other can DO, not what it was
+  compiled from. Build identity remains a local-adoption concern
+  (C-STRICTNESS).
+- THE NAMES ARE PART OF THE MECHANISM. A capability nobody spells the
+  same way is a capability that never matches, which is the
+  undiagnosable silence C-DIAGNOSABILITY exists to end. The set as it
+  stands: `presence_relay` (relays its hosted identities' presence conclusions,
+  [[RFC-0009]] C-PRESENCE — the name the wire already carries, and this
+  clause's own rule is that a capability nobody spells the same way is
+  one that never matches), `task-tools` — RESERVED AND UNUSED, since [[RFC-0009]] C-NON-GOALS
+  defers relayed task-tool requests; the name is kept so the deferral
+  does not become a second spelling when it lifts —
+  `pending-wake` ([[RFC-0011]] C-DEFAULT), `delegation` (honours a wake
+  delegation AND reports it on the presence carrier — [[RFC-0011]]
+  C-VISIBILITY makes those one capability rather than two, on the ground
+  that a build honouring delegations while declaring only the reporting
+  half would hide the very permission the surface exists to show). A
+  capability added later is added here.
+  THE SEPARATOR IS A HYPHEN, AND `presence_relay` IS THE EXCEPTION,
+  named as one rather than left as a puzzle — it is the spelling the
+  wire already carries, and renaming a shipped value to tidy a
+  convention would make this clause's own warning come true. A
+  capability nobody spells the same way never matches, and a reader who
+  finds two conventions and no rule guesses. Note also that the
+  `pending-wake` CAPABILITY and the `pending_wake` FIELD ([[RFC-0011]]
+  C-DEFAULT) are different things: one says a peer can report the fact,
+  the other carries it.
+- A CAPABILITY SET CAN CHANGE WHILE A LINK IS UP, and declaring it only
+  in `relay_hello` cannot express that. A workbench detaching ends a capability its
+  peer is still relying on, and a hub observes that directly. A HUMAN
+  LOGGING OUT OF GITHUB IS NOT SUCH AN EVENT HERE: the only capability
+  that would have turned on it is `task-tools`, which is reserved and
+  unused while [[RFC-0009]] C-NON-GOALS defers relayed task-tool
+  requests, and no hub can see inside a keychain it holds no key to — and dropping the link to say so would be a reconnect
+  storm standing in for a sentence. A peer MUST therefore be able to
+  send `relay_capabilities` at any time after the handshake, carrying
+  its CURRENT full set (not a delta, so a lost frame cannot leave the
+  two sides disagreeing about which). The receiver replaces what it
+  recorded. Version ranges are NOT renegotiable this way: a build does
+  not learn new protocol versions while running."""

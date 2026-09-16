@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EXIT-SIGNAL"
+title = "A Dead Shell And A Dead Link Are Different Answers"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST distinguish the child's exit from the loss of a client's connection, and MUST make the distinction available to clients.
+
+- When the child exits, the holder MUST report the exit to any attached client, stating whether the child exited normally with a code or was terminated by a signal, and which.
+- Loss of a client's connection MUST NOT be reported as a child exit.
+- A client MUST NOT treat the loss of its connection as evidence that the child has exited, and MUST NOT end, close, or discard the session's local state on that basis alone.
+- A holder whose child has exited MUST remain answerable for at least sixty seconds, reporting the exit to any client that attaches within that interval. A client arriving after the holder has ended is answered as it would be for any absent holder ([[RFC-0014:C-HOLDER]]).
+
+Without the distinction a client can only guess, and the safe guess — treat every drop as a death — is the behaviour that makes a network blip destroy a pane."""

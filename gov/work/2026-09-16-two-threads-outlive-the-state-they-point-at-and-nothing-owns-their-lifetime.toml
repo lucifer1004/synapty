@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-16-001"
+title = "Two threads outlive the state they point at, and nothing owns their lifetime"
+status = "done"
+created = "2026-09-16"
+started = "2026-09-16"
+completed = "2026-09-16"
+refs = [
+    "RFC-0009:C-DIRECTORY",
+    "ADR-0008",
+]
+
+[content]
+description = """
+`src/cli.zig` spawns two threads and joins neither, and both hold pointers into state that is torn down before the process exits.
+
+- `svc.watchParent` is given `&supervision`, a STACK LOCAL of `hubServe`, and polls `sup.supervisorCount()` once a second forever.
+- `hub.HubState.sweepLoop` is given `&hub_server.state`, another stack local, and wakes every thirty seconds to run `federationSweep` on it.
+
+`hub_server` has `defer hub_server.deinit()`, which joins the accept thread, the readers and the dial threads — not these two. So if `hub_server.run()` returns on its fatal set (ConnectionAborted, Unexpected, SocketUnconnected), `deinit` frees every map in `HubState` and `hubServe`'s frame is popped while both threads still hold pointers into it.
+
+NOT REPRODUCED, AND NOT CLAIMED TO BE. The window is from `state.deinit()` to process exit, normally microseconds, and the sweep sleeps thirty seconds — so the one-second `watchParent` poll is the only plausible hit. It is recorded because the lifetime is genuinely unowned, not because it was seen to fire.
+
+THE SAME SHAPE WAS REAL NEXT DOOR. `FakeDaemon` handed its serving thread a pointer into a frame its own function returned by value; that one was measured — the thread held 0x16fa0c8c0 while the caller's copy sat at 0x16fa0caf0 — and it failed on CI while passing locally ([[WI-2026-09-15-003]]). A lifetime that works because nothing has reused the memory yet is not a lifetime."""
+notes = ["""
+Neither thread can be joined: `watchParent` only ever ends the process, and `sweepLoop` sleeps forever by design. So the fix is the third option — the frame is made unable to pop.
+
+`hubServe`'s tail moved into `serveForever(...) noreturn`. The two spawns and `hub_server.run()` live there; `run` returning is now a logged exit(1) rather than an unwind, and the discovery file is removed by hand because the `defer` that normally does it belongs to a frame this never returns to.
+
+THE COMPILER IS THE TEST. Both unsafe shapes were written back in and rejected:
+- `try hub_server.run();` -> `error: function declared 'noreturn' returns`
+- a bare `return;` -> the same error, pointing at the declaration.
+`try` therefore cannot appear in this function at all, so a later fallible call has to be handled on the spot instead of quietly unwinding past two live threads. The two stderr writes in the watchdog-failure path became `catch {}` for that reason, which also makes a failed write stop mattering: the exit was never conditional on it.
+
+Also removed the discovery file on the watchdog-failure exit. It wrote the file, refused to run, and left clients dialing a port nobody listens on — the same `defer` it was already skipping via `exit(1)`."""]
+
+[[content.acceptance_criteria]]
+text = "neither thread outlives the state it points at — joined before teardown, or given something that outlives the frame, or shown to be unreachable by construction"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "whatever makes it safe is visible to a test or to the type system, rather than resting on the window being short"
+status = "done"
+category = "chore"

@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-008"
+title = "feat(hosts): infrastructure workbench tabs — Hosts | Identities | Forwarding segmented views; identity usage counts; global forwarding overview with per-rule active state"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "Approved IA decision (2026-08-09): rather than adding Identities/Port Forwarding as new sidebar rows (6 to 8 rows), Hosts becomes the infrastructure workbench with segmented tabs Hosts | Identities | Forwarding — matching the app-wide grammar 'first-class page = domain, in-page tab = view' established by Tasks Board|Activity (WI-2026-08-09-007) and the hosts grid/list toggle. Identities tab absorbs the existing identities section and adds usage counts (referenced by N hosts / N groups). Forwarding tab is a read-focused global overview: rules grouped by host (host-level rules plus group-inherited ones via effectiveForwardings), per-rule active dot driven by tunnel state, edit jumps to the owning host/group editor panel — no second editor surface. Foundation already exists: PortForward model (-L/-R), host+group rules with inheritance, ForwardingsEditor in editor panels."
+
+[[content.acceptance_criteria]]
+text = "Hosts page header carries a Hosts | Identities | Forwarding segmented control (persisted selection); Hosts tab keeps grid/list + sort exactly as shipped"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Identities tab shows identity cards with usage counts (N hosts / N groups referencing); create/edit still via IdentityEditorPanel inspector"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Forwarding tab lists rules grouped by host including group-inherited rules, each rule showing kind/listen/target and an active dot bound to tunnel state; row action opens the owning host or group editor"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "TDD model layer — HostStore identity usage counts and global forwarding aggregation (host-level + group-inherited, correct precedence) covered by new unit tests; full suite green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Screenshot verification at Extra Large scale: all three tabs render clean (empty and populated states)"
+status = "done"
+category = "chore"

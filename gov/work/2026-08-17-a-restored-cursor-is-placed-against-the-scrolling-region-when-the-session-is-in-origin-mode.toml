@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-014"
+title = "A restored cursor is placed against the scrolling region when the session is in origin mode"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+A restoration ends by re-establishing the modes the session has and then placing the cursor. When the session is in ORIGIN MODE and its scrolling region does not start at the top of the screen, the cursor lands region.top rows below where the session has it.
+
+WHY THE ORDER CANNOT SIMPLY BE CHANGED. Every piece of state the restoration re-establishes moves the cursor: entering origin mode homes it, setting a scrolling region homes it, restoring tabstops walks it across a row. So the cursor must be placed last, and once origin mode is on a CUP is read against the region rather than against the screen. Placing it before origin mode instead is worse, not better: the cursor then ends wherever re-entering the mode homes it, which is wrong in every case rather than only in the ones whose region starts below the top.
+
+WHAT IS MISSING IS THE REGION. Subtracting region.top from the row and region.left from the column would make the placement exact, and the terminal library exposes no way to ask a terminal where its scrolling region is: ghostty_terminal_get has no such datum, and the region reaches the restoration only as a DECSTBM sequence the formatter emits.
+
+NOT URGENT AND NOT INVISIBLE. Origin mode with a partial region is set by full-screen programs that manage their own margins, and those repaint and reposition their own cursor on their next output, so this corrects itself in the common case. It is recorded because it is a KNOWN wrong answer rather than an unknown one, and because the fix is a small addition to the library the workbench already builds from source."""
+notes = [
+    "2026-08-17: Found while making the restoration a full-screen repaint ([[WI-2026-08-17-013]]), which is where the ordering constraint comes from. The limitation is recorded in the code beside the cursor placement in src/holder.zig.",
+    "2026-08-17: NOT OBSERVED IN USE. This was constructed from reading the code while making the restoration a repaint, not from anything a human saw — the human confirmed they have never hit it. It needs a session that is in origin mode AND has a scrolling region that does not start at the top, which is set by full-screen programs that manage their own margins, and those reposition their cursor on their next output. It is filed so that a known wrong answer is written down, not because it is waiting to be done.",
+    "2026-08-17 (later): REPRODUCED AND SEEN. Staged deliberately on a live remote pane — three sequences on the session's tty: a region that does not start at the top, origin mode on, and the cursor placed inside it — then a cold reattach by restarting the workbench. The rows landed correctly and the cursor landed four rows low, on the line that said it must not be there. The human confirms. The earlier note calling this unobserved is superseded: it is real, it is reproducible on demand, and only its likelihood in ordinary use is uncertain.",
+    "2026-08-17: Fixed without the library change the description said it needed. The region cannot be ASKED for — ghostty_terminal_get has no such datum — but it can be made to SAY it: the formatter, asked for the scrolling region and nothing else, emits the DECSTBM and DECSLRM that state it, and those are the same bytes the restoration is about to send. So the paint reads its own words back and converts the cursor into region coordinates after re-entering origin mode. Verified live on remotehost, staged and reattached the same way the failure was, and confirmed by the human; and by two tests, one for the conversion and one against subtracting anything when the region is the whole screen. A library query would still be cleaner and remains worth offering upstream.",
+]
+
+[[content.acceptance_criteria]]
+text = "A restored pane in origin mode with a partial scrolling region places its cursor where the session has it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test asserts the cursor position of a restored session that has both origin mode and a region starting below the top of the screen"
+status = "done"
+category = "chore"

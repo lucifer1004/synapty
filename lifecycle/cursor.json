@@ -1,0 +1,9 @@
+{
+  "_comment": "cursor-agent --resume <chatId> (UUID) per Cursor CLI docs (verified 2026-08-11). Upstream notes chat-id persistence gaps \u2014 one-attempt rule tolerates failure.",
+  "tool": "cursor",
+  "resumeArgv": [
+    "cursor-agent",
+    "--resume",
+    "{resume_ref}"
+  ]
+}

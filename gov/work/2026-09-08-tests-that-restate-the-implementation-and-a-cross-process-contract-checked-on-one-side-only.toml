@@ -1,0 +1,77 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-003"
+title = "Tests that restate the implementation, and a cross-process contract checked on one side only"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+FROM THE SAME ADVERSARIAL TEST AUDIT as [[WI-2026-09-07-010]], the part
+about assertions that cannot fail rather than assertions that miss.
+
+FOUR THAT RESTATED THE IMPLEMENTATION:
+
+- `LinkNoticeView.tint` is `state.isTerminal ? DS.danger : DS.warning`, and
+  the test asserted exactly that mapping while its comment said "the two
+  cannot drift apart" — true by construction, so there was nothing to
+  check. Removed.
+- The Zig `Kind.text()` is `@tagName(self)`, so
+  `expectEqualStrings("paused", Kind.paused.text())` is a compiler
+  identity: a rename breaks the build, not the assertion. Replaced by
+  writing a pause and a resume to a real channel and reading them back —
+  and asserting neither arrives as an `end`, which is the collapse that
+  would actually cost something.
+- `retryMarker.path == channel.path + ".retry"` restates the body of
+  `retryMarker`.
+- `RejoinNoticeView.height == PaneStrip.height` against a property defined
+  as `{ PaneStrip.height }` — removed under [[WI-2026-09-07-010]].
+
+AND A CROSS-PROCESS CONTRACT CHECKED ON ONE SIDE. `AccountEnd`'s raw
+values are spelled by the Zig client's own `@tagName`, and the test that
+claims to pin that asserts the Swift enum against string literals in the
+same file. Renaming `no_session` in `src/cli/commands.zig` leaves it green.
+The same is true of the retry marker: both sides derive
+`<channel>.retry` independently and nothing compares the two derivations.
+
+WHAT IS ACTUALLY CHECKED ACROSS THE WIRE is one ending, by
+`scripts/test-reconnect-e2e.sh`, which drives a real client against a real
+holder and reads the account it writes. `child_exited`, `displaced`,
+`version_mismatch` and `stopped` are unverified in both directions, and so
+is the marker path.
+
+THE FIX IS TO SAY SO RATHER THAN TO PRETEND. A source-guard test — one
+that greps the Zig enum and compares strings — is forbidden here for good
+reason: it asserts on the text of source files rather than on behaviour.
+So these tests now state which side of the contract they cover and name
+the gap, which is worth more than an assertion that looks like a check and
+is not."""
+notes = ["""
+STILL OPEN, DELIBERATELY NAMED RATHER THAN CLOSED: `WorkspaceStatus` is
+referenced by no test but its own, and the audit's demonstration of what
+that costs is exact — put `HostTint.color(for:)` back on the sidebar dot
+and all nine of its tests stay green. It was borne out within the hour:
+[[WI-2026-09-07-007]] found the precedence argument resting on a channel a
+later change had removed, and nine unit tests could not see it because none
+of them go through the row. The shape of the answer — a rendering test
+through the real row, or one asserting on its accessibility description,
+which does pass through both `spoken` and `failureReason` — is a question
+put to the reviewer and not yet answered."""]
+
+[[content.acceptance_criteria]]
+text = "an assertion that a function returns what it is written to return is removed, or replaced by one about behaviour that could differ"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the Zig kinds are checked by writing them to a channel and reading them back, including that neither a pause nor a resume arrives as an `end`"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the tests covering one side of a cross-process contract say that is what they are, and name what is unverified in both directions"
+status = "done"
+category = "chore"

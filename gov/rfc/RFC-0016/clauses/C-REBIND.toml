@@ -1,0 +1,36 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-REBIND"
+title = "The human's choice, and keeping it"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The human may change any binding in the table, and the workbench MUST keep their choice.
+
+## What may be changed
+
+- EVERY COMMAND IN THE TABLE IS REBINDABLE, and every one may be CLEARED ([[RFC-0016:C-UNBOUND]]). A command exempted from this is one whose chord the human cannot escape when another application has taken it — which is the situation this clause exists for.
+- FOR A MEMBER OF AN INDEXED FAMILY ([[RFC-0016:C-TABLE]]), WHAT IS REBOUND IS THE FAMILY'S MODIFIER, and the surface offers the family rather than the member. This is not an exemption from the rule above: the escape is intact — every chord in the family moves together, out of the way of whatever took it — and it is the granularity that changed, not the right.
+- A CHORD IS RECORDED BY PRESSING IT, and cleared by an act of its own. The surface that does either is row 1 of [[RFC-0016:C-DISPATCH]]'s function: while it is listening, NO command is dispatched, because a human recording ⌘W must not thereby close a pane.
+- THE RECORDER HAS AN EXIT THAT IS NOT A BINDING. Escape leaves recording with nothing changed, and this is NOT the workbench binding Escape: it is the surface's own way out, available only while it is listening, and it is why Escape cannot be recorded AS a chord there. Stated because the rule below would otherwise swallow it — Escape carries no qualifying modifier, so "rejected, go on listening" would leave a human who wants out with no way to take it, which is the behaviour every recorder on this platform contradicts.
+- A KEYSTROKE THAT IS NOT A CHORD IS REJECTED AND THE SURFACE GOES ON LISTENING. Rejection is not the end of recording: a human reaching for a chord and pressing something that does not qualify has made a typo, not a decision, and MUST be told which rule it failed and given the next attempt.
+
+## What is stored
+
+- AN OVERRIDE'S VALUE IS EITHER A CHORD OR THE VALUE `none`. **`none` IS A VALUE AND NOT AN ABSENCE.** A cleared command is recorded as holding nothing, because the alternative — recording it by storing no override at all — is indistinguishable from never having touched it, and the table is rebuilt from the defaults every time it loads. Under that alternative every clearing is undone by the next launch: the chord the human removed BECAUSE another application had taken it comes back, silently, and they are given no account of why.
+- AN OVERRIDE IS STORED BY COMMAND IDENTIFIER AND SEPARATELY FROM THE DEFAULTS. Storing the whole table would freeze every default the human never touched at the value it had on the day they changed something else, so a default corrected later would reach new humans and not them.
+- A DISPLACEMENT WRITES BOTH SIDES. When recording takes a chord from the command holding it ([[RFC-0016:C-CONFLICT]]), the loser's new state — `none` — is stored as its own override in the same act. The store must be able to reproduce the table the human was looking at when they left; a displacement recorded on one side only cannot.
+- AN OVERRIDE MUST SURVIVE A RELAUNCH, and MUST be stored with the workbench's other preferences — which is also what decides whether it follows the human between machines. A keymap is taste before it is anything else, and taste belongs to the person rather than to the desk they are sitting at.
+- A CHORD MAY BE UNREACHABLE ON THE MACHINE IT ARRIVES AT, and the workbench MUST NOT pretend otherwise. A rebind made because another application had taken a chord, or because a layout put that character somewhere else, is carried to a machine where neither was true — and there is nothing to detect ([[RFC-0016:C-HONESTY]]). The remedy is the one this clause already provides: rebind it there. What the workbench MUST NOT do is silently drop a synced override it judges unreachable, since it cannot make that judgement.
+
+## Getting back
+
+- THE DEFAULT MUST BE RECOVERABLE — for one command and for the whole table — from the same surface that changed it, without editing a file by hand. Recovering a command's default REMOVES its override rather than storing the default as one, so that a default the workbench corrects later still reaches this human.
+- RECOVERING ONE DEFAULT DOES NOT UNDO WHAT THAT COMMAND DISPLACED BY RECORDING. A command whose chord was taken IN A RECORDING keeps holding nothing, and its own default becoming free again does not hand it back — it was cleared by an act the human made and is undone by an act they make. Stated because the opposite is easy to assume and would mean one recovery silently rewriting a second command's binding. Whole-table recovery clears every override, which does restore both. A command displaced AT LOAD is not covered here and needs no recovery: nothing was stored for it, so the next rebuild gives it whatever it would otherwise have held — its own override, or its default — as soon as the override that displaced it goes ([[RFC-0016:C-CONFLICT]]).
+- RECOVERY IS UNAVAILABLE WHERE THE DEFAULT IS NOT FREE. A command whose default chord is held by another command's override cannot be given it back by removing an override it does not have, and an act that quietly does nothing is the thing [[RFC-0016:C-DISPATCH]] forbids of any command with no object. It MUST be shown unavailable, NAMING the command holding that chord — which is the one piece of information that lets the human do something about it. Recovery MUST NOT displace: the human is asking to undo their own change, not to make a new one at a third command's expense.
+- A REBIND TAKES EFFECT ON THE NEXT KEYSTROKE, without a relaunch. A keymap that cannot be tried cannot be chosen, and trying is how a human finds out whether a chord is one their fingers remember and one no other application has taken.
+- AN OVERRIDE FOUND IN STORAGE IS SUBJECT TO EVERY VALIDITY RULE A RECORDED ONE IS — what may be a chord, what may be refused, what collides. NOT to what a recording additionally DOES: loading resolves and never writes ([[RFC-0016:C-CONFLICT]]). The store is a file and a human may write to it; reading is not a second, laxer entrance to the table ([[RFC-0016:C-CONFLICT]])."""

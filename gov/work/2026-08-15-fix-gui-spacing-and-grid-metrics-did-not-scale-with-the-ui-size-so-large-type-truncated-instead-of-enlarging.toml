@@ -1,0 +1,44 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-002"
+title = "fix(gui): spacing and grid metrics did not scale with the UI size, so large type truncated instead of enlarging"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+
+[content]
+description = """
+"我们的主机卡看起来比 Termius 的就是差了点意思,你觉得和 UI 默认字体有关系吗?"
+
+Not the font. The app uses `.system` — SF Pro, the native choice; Termius is Electron and uses a web stack, so copying it would look LESS like a Mac app. The measurement said something else entirely.
+
+The same page at two UI sizes: at 1.0 a card reads `operator@remotehost:22` and breathes. At 1.3 the same card reads `operator@…loud:22` and is visibly cramped. Two hosts that share the label "SC" are told apart by their addresses at 1.0 and lose most of them at 1.3.
+
+A MISSING MULTIPLICATION, NOT A DESIGN FAILURE. Every step in `DS.Typography` is multiplied by `uiFontScale`; `DS.Space` was constants and the host grid's column width was the literals 260 and 380. So at Extra Large the glyphs grew by a third and the boxes holding them did not, and the only thing a box can do with a third more text is truncate it. A UI-size setting means "make this interface bigger", not "make the letters bigger in the same room".
+
+Spacing and the grid metrics now go through `DS.scaled`. This is a page-wide fix rather than a card fix — everything laid out at a non-default UI size was paying it.
+
+RADII DELIBERATELY DO NOT SCALE. A corner is a property of the shape, not of the text inside it, and Apple's own controls keep their curvature across Dynamic Type sizes. Scaling them would make a large-type card read as rounder rather than as larger.
+
+WHAT THIS RETIRES. Two changes proposed before the measurement and now unnecessary: raising the host label from 13 to 14pt, and dropping `user@` and `:22` from the subtitle to save width. The proportions at 1.0 were always right, and the case for dropping fields rested on there not being enough width — which was the bug, not the constraint."""
+notes = ["""
+VERIFIED BY MEASUREMENT, before and after, at both sizes. Before: 1.0 shows `operator@remotehost:22`, 1.3 shows `operator@…loud:22`. After: 1.3 shows `operator@remotehost:22`. The operator's settings were backed up and restored around the captures.
+
+CAUGHT IN MY OWN CHANGE: the grid columns were first written as a `static let`, which freezes at first access — the width would have locked to whatever the UI scale happened to be then, possibly 1.0 from before settings loaded, and would never follow a change at runtime. Computed now, with the reason beside it. A sweep found no other stored static holding a scaled value."""]
+
+[[content.acceptance_criteria]]
+text = "spacing scales with the UI size, so large type enlarges the layout instead of truncating it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the host grid's column width scales, and is computed rather than frozen at first access"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "corner radii stay fixed, because a corner is a property of the shape"
+status = "done"
+category = "chore"

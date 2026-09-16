@@ -1,0 +1,45 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-003"
+title = "refactor(config): split the config directory by lifetime — machine identity must not be syncable"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = ["RFC-0010"]
+
+[content]
+description = """
+~/.config/synapty/ currently mixes three lifetimes in one directory, and the mixing is only harmless while nothing syncs it:
+
+- FLEET-WIDE HUMAN INTENT: hosts and groups (in ~/.synapty/hosts.json), the GitHub hub-repo config, appearance and font settings. Belongs on every machine the human owns.
+- MACHINE IDENTITY: identity.json, the minted peer id. MUST NOT be copied — [[RFC-0010]] C-COLLISION names "a disk image was copied or a backup restored" as one of exactly two ways two machines end up holding one peer id, whose only remedy is a manual re-mint, and whose symptom is that every message between those machines is misrouted. A directory-level sync is that scenario automated and continuous.
+- MACHINE RUNTIME: hub.json (this hub's port/pid/build), hub-state.json (mailboxes for agents on THIS machine), session.json (pane layout referencing local agents and hosts), the IPC socket directory. Copying any of it to another machine produces confident nonsense.
+
+The separation is worth doing on its own terms, but the forcing function is that the natural sync operation — "sync ~/.config/synapty" — is the one that detonates the identity landmine. The layout should make the safe thing the obvious thing rather than relying on whoever implements sync remembering which file is which."""
+notes = ["""
+IMPLEMENTED 2026-08-13. Two sibling roots under ~/.config/synapty: `shared/` (config.toml, settings.json, ghostty.conf) and `machine/` (identity.json, hub.json, hub-state.json, session.json, detect/, lifecycle/). The classification lives in src/paths.zig and Sources/Support/ConfigPaths.swift as named entries, not as a decision each caller makes.
+
+The point is not that files moved. It is that the SAFE operation is now the OBVIOUS one — `shared/` is a complete portable unit and CANNOT reach `machine/`, because they are siblings — so nobody has to remember which file is which when they write the sync layer.
+
+TWO GUARDS, and the second exists because the first was not enough. The classification guard asserts no machine-scoped entry resolves under the shared root. That passed while the app was still writing session.json to the OLD flat path, because classification being right does not mean every caller uses it — adoption is a separate property. Caught by running the real migration and finding a second session.json at the root on the next launch. The adoption guard now walks Sources/ and fails on any .config/synapty path built without a lifetime directory.
+
+MIGRATION IS A MOVE AND NEVER A COPY: a copy would leave identity.json readable at the old path, which is the one file whose duplication this split exists to prevent, so a half-migration must not leave the landmine armed. And a SUPERSEDED legacy file is now removed rather than left — observed for real when an older build ran once after a migration and recreated two root files. "It is only reachable if someone syncs the root" is the kind of only that stops being true.
+
+Verified on the real installation: identity survived as deskmac-2630, the hub reports it, and the root holds no loose config."""]
+
+[[content.acceptance_criteria]]
+text = "the three lifetimes live in distinguishable locations, such that a whole-directory sync of the syncable one cannot pick up machine identity or machine runtime state"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "existing installations migrate without losing hosts, settings or a machine's minted identity"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a test that fails if a file classified as machine-scoped becomes reachable from the syncable location — the mistake is a future one, so the guard has to outlive this change"
+status = "done"
+category = "chore"

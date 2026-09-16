@@ -1,0 +1,88 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-008"
+title = "Four clause obligations discharged at some of their sites"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Four normative obligations, each owed by more than one place and honoured by
+some of them.
+
+[[RFC-0010]] C-DIAGNOSABILITY, THE CAUSE. The carrier was a `String?` read
+through a `switch` with a `default:`, so `contested` — added on the Zig side
+with its own argument for why a fourth CAUSE beats a fifth STATUS — arrived
+in the workbench and fell into the default. The GUI showed a bare unknown
+with no reason, which is the presentation the clause exists to forbid. It is
+an enum now, matched exhaustively, so a fifth cause cannot slip past the
+same way.
+
+[[RFC-0010]] C-DIAGNOSABILITY, THE SURFACES. Four places ghost an agent
+whose status is unknown; three joined the status and its reason themselves
+and the fourth showed the status alone, so a pane tab said `Claude ·
+unknown` about a machine whose build simply does not report status.
+`statusPhrase` is that join's owner.
+
+[[RFC-0012]] C-LEVEL-CONTROL. Two comments in `HubLogLevel` promised the
+level is re-sent when a hub is reached — one justifying `operatedPorts`
+being read at call time, the other justifying not retrying a failed send.
+Nothing re-sent it. The only caller was `logLevel`'s didSet, which
+`isLoading` suppresses at launch, so a human who set debug and relaunched
+had a hub that deliberately outlived the workbench ([[ADR-0008]]) sitting at
+its default for as long as it ran, and so did every peer linked afterwards.
+`applyCurrent(port:)` is called at the moments a hub becomes reachable: one
+port, not a re-broadcast, since the moment is a hub JOINING.
+
+[[RFC-0016]] C-CONFLICT. "WHAT WAS DISCARDED OR DISPLACED AT LOAD MUST BE
+VISIBLE where bindings are shown." Both were computed, both were tested, and
+nothing read either — so a store line this build cannot apply was ignored in
+silence, and a command left holding nothing by a collision in the file was
+left that way in silence. `loadNotice` is the sentence's owner and both
+surfaces that list bindings draw it. `displacedAtLoad` is also reconciled
+against the finished table now: a command displaced on the way and given a
+chord by a later override holds one at the end, and telling the human it
+lost something it still has is a false alarm.
+
+[[RFC-0016]] C-DISCOVERY, the menus. Which menus exist was written out
+twice, and only one copy built anything. The tuple's arity is part of its
+type, so the second site cannot silently ignore a new section; the pairing,
+which no type holds, is held by a test."""
+
+[[content.acceptance_criteria]]
+text = "AgentInfo.UnknownCause is an enum matched exhaustively, and contested is attributed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "AgentInfo.statusPhrase owns the join of a status and its reason, which four surfaces each made themselves"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "HubLogLevel.applyCurrent(port:) tells a hub the human's level at the moment it is reached"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Keymap.loadNotice owns what a load dropped or took away, drawn on both surfaces that list bindings"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "displacedAtLoad is reconciled against the finished table, so a command that still holds a chord is not reported as losing one"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "MenuLayout.sections is the one list of menus; MenuLayout.all is derived and SynaptyCommands destructures it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "every cause is attributed, a reached hub is told the level, a load notice names what was lost, and every placed command is in the table"
+status = "done"
+category = "chore"

@@ -1,0 +1,66 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-002"
+title = "A file pane can only be walked one folder at a time, and cannot show a file"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-21"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "ADR-0014",
+]
+
+[content]
+description = """
+The file pane navigates by clicking a folder or the enclosing-folder button, and by nothing else. There is no path to type, no history to go back through, no way to filter the directory in front of you, and no way to sort it. Reaching `~/work/proj/src/foo` on a remote machine is five clicks, and one mistake is five more.
+
+It also cannot open anything. A file can be dragged out to the local machine, which is the transfer path and a good one, but reading a remote log means first making a copy of it somewhere.
+
+WHAT THIS IS NOT. This work item does not add create, rename or delete — those are RFC-0015 C-PANE-WRITES and are separate work, deliberately: they are the only destructive capability in this area, the rules that bound them exist to be designed rather than fitted around navigation, and mixing them in is how a confirmation becomes something added at the end.
+
+OPENING A FILE FOLLOWS THE HANDOFF PATTERN THE SERVICES PANE ALREADY USES. That pane renders a page and hands off to the real browser for real work, because a control reassembled one piece at a time is worse than the one already installed. The same holds here: the workbench is not a viewer for every file type on a machine. A remote file is fetched to a local cache and given to the system, which has openers for everything and which the human already knows."""
+notes = ["""
+THE DIRECTORY WAS THE VIEW'S, WHICH IS WHY IT KEPT BEING LOST. `RemoteFilesView` held `path` in `@State` and loaded `~` on appear; a pane's view is destroyed whenever the human looks at another tab, so five clicks of navigation on a remote machine were undone by looking at something else. [[RFC-0015]] C-PERSIST already said whose it is — "a file leaf's durable state is the directory it is showing" — so it moved onto the leaf, into `PaneContent.files(directory:)`, and travels with the snapshot.
+
+WRITTEN BACK ONLY ONCE THE LISTING SUCCEEDS, and from the CANONICAL path the host returns rather than the one that was asked for. A directory that failed to list is not a place to come back to, and a symlinked one that resolved elsewhere is not the place the human is.
+
+HISTORY, FILTER AND SORT ARE RUNTIME AND ALSO NOT THE VIEW'S. C-PERSIST enumerates what a file leaf persists and permits nothing else, so a history restored from disk would offer to go "back" to a place this session never was. But view state would empty itself on every tab switch, and a back button that does that is not a back button — so they live on the manager, keyed by leaf, and die with the process.
+
+A COMPILER DIAGNOSTIC LIED FOR AN HOUR. Adding an associated value to `.files` pushed `ContentView`'s modifier chain past the type-checker's budget, and the error it emitted named whichever expression it happened to abandon — four innocent ones in a row, each of which looked like the cause. Splitting `body` in two made it name the real one immediately (`case "files": .files`). The split is in the code as a comment, because the next person to add a case will meet the same wall."""]
+
+[[content.acceptance_criteria]]
+text = "A path can be typed, and a mistyped one fails visibly rather than navigating somewhere else"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Going back returns to the previous directory, and forward returns from it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The directory in front of the human can be filtered without a round trip, since it is already fetched"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A listing can be sorted by name, size and modification time"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Opening a file gives it to the system opener — a remote one through a local cache — rather than rendering it in the pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Navigation state is what RFC-0015 C-PERSIST says a file leaf persists, and nothing more"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A file pane comes back showing the directory it was showing, and a duplicate of one opens on the same directory rather than on home"
+status = "done"
+category = "fixed"

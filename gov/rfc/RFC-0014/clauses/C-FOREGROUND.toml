@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-FOREGROUND"
+title = "What Is Running In The Session"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST report what is running in the session's terminal.
+
+- It MUST report the command of the foreground process group of the child's pseudoterminal, and MUST report that there is none rather than substitute the child's own when it cannot determine one.
+- It MUST report whether the child itself is still running ([[RFC-0014:C-EXIT-SIGNAL]] governs how its exit is reported).
+- This is process metadata rather than session contents. It is not restricted by [[RFC-0014:C-CONFINEMENT]], and MAY be disclosed to a requester that is not the attached client, subject to [[RFC-0014:C-ENTITLEMENT]].
+
+The holder MUST NOT classify what it reports. It states which command is running; whether that command is an agent, a tool, or a shell is a judgement made by the party that recorded an expectation about it, and a holder that decided this for itself would put tool knowledge on every host and stale it there.
+
+A session's terminal outlives the programs in it. The child may be a shell that ran an agent, watched it exit, and is now sitting at a prompt — a state that is neither "the agent is running" nor "the session is gone", and that no fact about the holder's own existence can distinguish."""

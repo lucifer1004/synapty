@@ -1,0 +1,79 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-04-001"
+title = "A hub of a different build is refused, and the refusal reads as down"
+status = "done"
+created = "2026-09-04"
+started = "2026-09-04"
+completed = "2026-09-04"
+refs = [
+    "ADR-0008",
+    "RFC-0003:C-HUB-ROLE",
+]
+
+[content]
+description = """
+WHAT THIS WORK ITEM FIRST CLAIMED WAS WRONG, and is withdrawn. It said the
+local workbench cannot join a hub another process started. It can:
+`HubManager.start` probes the port, asks the listener who it is, and
+`decideAdoption` returns adopt / takeOver / conflict. Adoption is implemented,
+`.running(port:owned:false)` renders as "Running (adopted)", and teardown
+already spares a hub it does not own — `if owned { process?.terminate() }`.
+The claim came from reading `spawn` and not `start`.
+
+WHAT ACTUALLY HAPPENED. `decideAdoption` adopts only when the running hub's
+build matches this workbench's; anything else that is not workbench-spawned is
+a conflict. The hub holding :9000 had been started by a dial from another
+machine, which runs `synapty hub --ensure` there through
+`scripts/setup-host.sh` — from the DEPLOYED binary. That binary had been
+replaced with a newer build than the installed app, so the builds disagreed
+and the workbench refused the hub. The refusal is deliberate and the reasoning
+above it is sound: two routers on one machine split the agents that must see
+each other ([[ADR-0008]], [[RFC-0010]]).
+
+So the mechanism worked. The version skew was self-inflicted, by updating the
+deployed binary without updating the app beside it.
+
+THE DEFECT THAT REMAINS IS WHAT THE HUMAN WAS TOLD. `HubManager.Status.label`
+spells a conflict "Conflict: <why>" and the code above it insists the human
+must know: "LOUD: the human must know they are not getting A2A, rather than
+discovering it through broken behaviour." What reached the human was the word
+"down". Down is what a hub that crashed looks like, and it suggests waiting or
+restarting; a build conflict suggests neither, and its remedy — line the two
+builds up — cannot be guessed from it."""
+notes = [
+    "FOUND BY BREAKING IT, then repaired by hand, which is what prompted this: the human's answer to the repair was that an orphan hub should not need after-the-fact cleanup. The repair was killing pid 68488 and restarting the app; nothing about it generalises, and the next dial recreates the condition.",
+    "FOUR CRITERIA ARE CANCELLED BECAUSE THE PREMISE THAT PRODUCED THEM WAS FALSE. They asked for adoption to be implemented, for an adopted hub to survive the workbench that adopted it, and for both to be tested — all of which the code already does, and did before this work item existed. They were written from reading `spawn` without reading `start`. Ticking them would have claimed credit for work somebody else finished; deleting them would have hidden that the work item began by misreading the code.",
+    'THE JUDGEMENT WAS NEVER THE DEFECT. `decideAdoption` refuses a hub of a different build for a stated and sound reason — two routers on one machine split the agents that must see each other. What was wrong is that the refusal did not reach the human: the status bar collapsed it to "Hub: down" and the popover said "The hub is not running" and offered a Start button that cannot succeed while another process holds the port. A control that must fail is worse than no control, because it costs the human an attempt before they start looking elsewhere.',
+]
+
+[[content.acceptance_criteria]]
+text = "a workbench starting on a machine that already has a hub adopts it instead of reporting the hub down"
+status = "cancelled"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the hub a workbench adopted is not killed when that workbench quits — it belongs to whoever else is still using it"
+status = "cancelled"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "with a hub already listening, a workbench start reports up and routes through the existing one"
+status = "cancelled"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "with nothing listening, a workbench start still spawns its own supervised hub, as it does today"
+status = "cancelled"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a refused hub is reported as a refusal and says why, wherever the human reads hub status — not as 'down'"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a build conflict names the remedy, since waiting and restarting do not resolve one"
+status = "done"
+category = "fixed"

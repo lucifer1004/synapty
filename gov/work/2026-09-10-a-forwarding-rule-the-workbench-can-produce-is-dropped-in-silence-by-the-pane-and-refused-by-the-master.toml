@@ -1,0 +1,97 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-002"
+title = "A forwarding rule the workbench can produce is dropped in silence by the pane and refused by the master"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "ADR-0020",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+`PortForward.targetHost` is documented "empty = localhost" and is edited
+through a bare TextField, so an empty target is a shape the workbench
+produces rather than a hypothetical one. `Forward.parse` refused it, and
+the two callers of that parser disagreed about what a refusal means:
+`connect.sshArgv` did `orelse continue` and dialled the pane with no `-L`
+in its ssh line at all, while `host.openArgv` printed the rule and exited
+2, taking the ControlMaster — and every pane's reuse of it — with it.
+
+Measured on the binary before the change:
+
+    connect --print --forward local:8080::80
+      -> ssh -T -p 22 ... u@h  (no -L, rc 0)
+    connect --print --forward local:8080:::1:80
+      -> ssh -T -p 22 ... u@h  (no -L, rc 0)
+    connect --print --forward local:0:localhost:0
+      -> ssh -T -L 0:localhost:0 ... u@h  (rc 0)
+    host-master --print --forward local:8080::80
+      -> synapty host-master: not a forwarding: local:8080::80  (rc 2)
+
+Three separate holes behind one guard:
+
+- THE DOCUMENTED DEFAULT WAS NEVER TRUE. Nothing turned an empty target
+  into localhost anywhere on the path.
+- AN IPv6 TARGET CANNOT SURVIVE THE FORMAT. `host` sits between two
+  colons in a colon-separated spec, so `::1` splits in the wrong place.
+  ssh has the same ambiguity in `-L` and spells its way out with
+  brackets; this now uses the same convention rather than a second one.
+- A CLEARED PORT BOX BECOMES PORT ZERO. Both port fields were computed
+  Bindings whose setter was `Int($0) ?? 0`, and `-L 0:host:0` is a
+  forward ssh accepts and places where nobody can find it.
+
+The guard's remaining half — `listen.len == 0` — is not reachable from
+workbench input at all, and the one unit test that existed exercised
+exactly that half.
+
+Found by the reach-hunter pass of the 2026-09-10 debt sweep."""
+
+[[content.acceptance_criteria]]
+text = "an empty target host becomes localhost on the wire, so the default PortForward documents is the default that reaches ssh"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an IPv6 target is bracketed rather than split in the wrong place, and an unbracketed literal is refused instead of dropped"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connect and host-master answer an unparseable rule identically — the rule is named on stderr and the process exits 2; neither dials"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a cleared port box no longer writes port 0 into the rule; PortField holds its own text, commits only 1..65535, and marks itself while invalid"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "PortForward.wireSpec is the single place the --forward argument is built, used by both connectCommand and runSetup"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Forward.parse pins the empty target, the bracketed and unbracketed IPv6 forms, and non-numeric / zero / out-of-range ports"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "HostModelTests pins wireTarget and wireSpec for empty, whitespace, bare-IPv6 and already-bracketed targets"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "TunnelManagerTests pins that the pane's command carries the normalised spec, not the raw fields"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "test-connect-launch.sh drives the binary for both subcommands on the same bad rules and requires the same exit status and message"
+status = "done"
+category = "chore"

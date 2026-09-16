@@ -1,0 +1,119 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-014"
+title = "Three silences at the language boundary: a rule dropped without a word, an unknown outcome answered as success, and a refusal read into a buffer and discarded"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0004:C-VOCABULARY",
+    "RFC-0004:C-PASSIVE-DETECTION",
+    "RFC-0007:C-PRIMITIVES",
+]
+
+[content]
+description = """
+Three places where a fact crossed from Swift to Zig or the reverse, did
+not survive, and nothing anywhere said so.
+
+A RULE DROPPED WITHOUT A WORD. `protocol.Status`'s doc declares itself
+the owner: "The five wire states of [[RFC-0004:C-VOCABULARY]]. Tag names
+ARE the protocol strings — every surface uses them verbatim." The five
+are restated in Swift three times and in `detect/*.json` 122 times
+(measured: 62 waiting, 43 working, 14 done, 3 skip), and nothing read the
+manifests against the enum.
+
+The manifest copy fails by CONSTRUCTION rather than by accident.
+`CompiledManifest.init` was one `guard … else { continue }`: a state or
+region this build does not know did not error, did not log and did not
+fail the load — the manifest simply compiled with fewer rules than it
+has. Rename a tag and detection degrades across the whole 19-tool fleet
+while every test stays green and every manifest still "loads".
+
+What that costs is specific: `waiting` is the state the entire attention
+UI runs on, and C-PASSIVE-DETECTION requires an on-screen change to be
+reflected within two seconds so that "waiting" keeps its "attention NOW"
+meaning. A dropped rule does not degrade that gracefully — the human is
+simply never told their agent is blocked on them, for the tools whose
+rules were dropped.
+
+Both halves now: the loader names the tool, the rule index and the word
+it could not use; and a Zig test walks the shipped `detect/*.json` and
+requires every `state` to be a `Status` tag or `skip`. Canaried by
+renaming one rule's state — it fails naming the file and the word.
+
+The test pins the SHIPPED manifests, not a human's override at
+`ConfigPaths.detect`, which loads at runtime by design. That is the right
+boundary: the fleet is what this project promises, an override is the
+human's own.
+
+AN UNKNOWN OUTCOME ANSWERED AS SUCCESS. `execExitCode` mapped nine
+outcome strings and fell through to `return 0` for everything else —
+including a malformed payload. The producing side, Swift's
+`ExecOutcome`, is an OPEN enum: adding a case costs nothing and takes no
+test red. So an agent running
+
+    synapty exec run --pane p --cmd "make" && deploy
+
+proceeded on a refusal it never saw. The exit code is the only
+machine-readable answer this verb gives — `{"outcome":"refused"}` on
+stdout is prose to a shell — and it was the half nothing measured:
+`grep -rn execExitCode src/` returned the definition and its one call
+site, and the verb has no end-to-end coverage at all.
+
+Exit 9 now means "an outcome this build does not know", and a table test
+covers all nine words plus the unknown one and a malformed answer. The
+direction is deliberate: a workbench newer than the CLI fails loudly at
+the agent rather than appearing to work, because an agent chaining on
+`&&` is the caller this verb exists for.
+
+A REFUSAL READ INTO A BUFFER AND DISCARDED. All five workbench-to-hub
+one-shots did `_ = read(sock, &resp, resp.count)`. The comment is honest
+about why — so the hub has consumed the line before the socket closes —
+and that is all it did. Four of the five carry a vocabulary the hub
+validates against a CLOSED set while Swift builds it from bare string
+literals, and `sendWakeReport` takes `outcome: String`, so there is not
+even a type to rename in an IDE.
+
+Concretely: mistype a wake outcome and the hub refuses,
+`recordWakeReport` never runs, the candidate is never resolved,
+[[RFC-0005]] C-WAKE-ACK's receipt lands nowhere, and the agent is woken
+again on the next edge, and again — with no log line, no UI and no
+failing test. The same shape covers exec receipts (the agent blocks to
+its own deadline) and agent_status (a detector edge is dropped while the
+detector believes it reported).
+
+One reader now logs `ok:false` with the hub's own words and the frame
+that was refused. STATED PLAINLY: this is diagnosability, not a pin. It
+makes the drift findable rather than impossible; a real pin needs a test
+that stands up a hub and requires `ok: true` — the
+`ConfigPathsCrossingTests` shape — which is the more expensive half.
+
+Found by the ssot-crossing pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "a manifest rule this build cannot compile is logged with its tool, index and the word, rather than dropped in silence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a Zig test reads the shipped detect manifests and requires every state to be a Status tag or skip"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "synapty exec answers 9 rather than 0 for an outcome this build does not know, or a malformed response"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the exec exit-code table is pinned for all nine outcomes, the unknown one and a malformed answer"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the five workbench-to-hub one-shots log the hub's refusal with its own words instead of reading it into a buffer and discarding it"
+status = "done"
+category = "fixed"

@@ -1,0 +1,76 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-006"
+title = "The governance gate never opened the justfile, CI, UITests or scripts, and the two gates were free to run different govctl builds"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0010:C-DIAGNOSABILITY"]
+
+[content]
+description = """
+Two more ways the governance gate could report clean about something it
+had not examined.
+
+THE SCAN HAD FOUR ENTRIES AND THE TREE HAS MORE THAN FOUR KINDS OF FILE.
+`gov/config.toml`'s `source_scan.include` covered `src/**/*.zig`,
+`Sources/**/*.swift`, `Tests/**/*.swift` and `build.zig`. Its own comment
+explains why `Sources` was added: "scanning only src/ left every
+reference in it unchecked, so a superseded or misspelled one could not be
+caught." That argument applied unchanged to everything still outside it.
+
+Counted, not guessed:
+
+    scripts/          75 citations
+    UITests/          14
+    justfile          12
+    project.yml        6
+    .github/workflows/ 3
+
+110 references to governed artifacts that `govctl check` never opened a
+file to see. A superseded or misspelled one in any of them pointed
+nowhere and the gate said "All checks passed".
+
+`scripts/` is the one that matters most: the e2e suites cite the clauses
+they exist to test, and this round alone added several more — every one
+of them unchecked as it was written.
+
+Widened, and measured: 333 source files became 356, 2115 references
+became 2225 — exactly the 110 counted — with no errors, so every one of
+those citations was in fact valid. Canaried in both a shell script and
+the justfile: a dangling reference in either is now named with its line.
+
+`scripts/gov-lint.py` was checked for the same shape and does not have
+it: it globs clause files only, so there is no second source list to keep
+in agreement.
+
+AND THE TWO GATES COULD RUN DIFFERENT CHECKERS. CI pinned
+`tag: v0.19.1`; the local install was 0.19.2; nothing anywhere said which
+version this project runs. `CLAUDE.md` says only "govctl via Cargo", and
+`gov/config.toml`'s `[schema] version` constrains the document format
+rather than the checker. So `just verify` and the CI governance job were
+free to disagree and neither would report that they had.
+
+`.govctl-version` names it once. The workflow reads it into the install
+tag, and `_govctl` — which `verify` now depends on — refuses a mismatch
+with the command that fixes it. Canaried by setting the file to 0.19.1
+against the installed 0.19.2.
+
+Found by the ssot-gov pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the source scan reads scripts, UITests, the justfile, project.yml and the CI workflows, so the 110 citations in them are checked"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = ".govctl-version names the checker version once; CI installs it and _govctl refuses a local mismatch with the command that fixes it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a dangling reference in a shell script and in the justfile was confirmed to fail the gate, and the widened scan reports exactly the counted number of new references with no errors"
+status = "done"
+category = "chore"

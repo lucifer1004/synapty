@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-028"
+title = "chore(release): fail closed without notarization, and one source for the version"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 05 M2 L5. The release workflow publishes what the cask calls signed and
+notarized, on a runner that has neither, and the probe logic that could
+refuse already exists in the justfile. Not urgent while nothing ships —
+which is exactly when to make it fail closed.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "fixed: just package fails when signing or notarization is unavailable (SYNAPTY_UNSIGNED_OK=1 keeps a local, unshippable build) and refuses a tag that disagrees with build.zig.zon; release.yml imports the identity and notary credentials from secrets and fails without them; the cask is rendered by the packaging step from cask/synapty.rb.in with the zip's real sha256 and released beside it, so the placeholder zero is gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the version lives in one place and build.zig.zon, project.yml and the cask read it"
+status = "done"
+category = "chore"

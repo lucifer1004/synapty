@@ -1,0 +1,58 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0011"
+title = "Selection is the application's colour, not the system's"
+status = "accepted"
+date = "2026-08-15"
+refs = ["ADR-0001"]
+
+[content]
+context = """
+An earlier decision made selection follow `controlAccentColor`, on the argument that an application highlighting its own teal on a Mac set to blue reads as ported here rather than written here. It shipped, and the operator's report a day later was that the look had got WORSE: the default macOS blue is too strong for this application.
+
+THE COMPLAINT WAS NOT ABOUT ONE MISUSE. Counted on a single screen of the Settings page: twelve distinct accent-coloured regions, the eight largest of comparable area. Four are native toggles and sliders following the app tint, four are this project's own segmented pills, one is a native segmented picker, three are other marks. macOS's accent treatment assumes a sparser layout than a control-dense workbench, and a dozen full-chroma marks on warm low-chroma paper read as noise.
+
+A CORRECTION THAT MATTERS, because the original decision leaned on it: the note in the design system claimed the brand teal was reserved for identity and meaning — status dots and badges. That was not true of this codebase. Status speaks through the semantic colours in dozens of places; the brand teal was tinting eleven decorative glyphs and nothing else. The colour the earlier decision protected was not in use.
+
+A PLATFORM ASSUMPTION WAS ALSO CHECKED AND FOUND WRONG, in the other direction: this project's segmented control was suspected of deviating from AppKit by filling the selected segment with the accent. The application's own native `.pickerStyle(.segmented)` renders exactly the same way. The custom control was not the deviation, so removing accent from it alone would not have addressed anything.
+
+WHAT MAKES THIS A DECISION rather than a taste adjustment: it reverses an accepted decision that has a written rationale, and reversing it silently would leave the earlier argument standing to be re-derived and re-applied by whoever reads it next."""
+decision = """
+Selection, control tint and selected fills use THIS APPLICATION'S accent — the brand teal — not `controlAccentColor`.
+
+TWO ARGUMENTS CARRY THIS, and neither is aesthetic preference.
+
+THE SYSTEM ACCENT IS AN UNCONTROLLABLE SIDE OF A RELATIONSHIP. Selection colour and page colour have to work together, and one of them was arbitrary. That is not a tuning problem, it is a structural one: any tempering must hold for every accent a human might set, including the yellow and orange where white text fails outright. Measured while trying: reducing the blue's chroma by lightening dropped white-on-accent text from 4.01:1 to 2.34:1, below the 3:1 floor for large text. Preserving contrast requires darkening instead, which on light paper raises figure-ground contrast rather than lowering it. There is no setting of the dial that is quiet AND legible AND safe for an unknown hue.
+
+WITH OUR OWN COLOUR, THE NUMBERS ARE OURS TO KEEP. Measured on the shipped palette: white on the light-mode teal is 5.53:1 and the pill sits 4.80:1 from the paper; near-black on the dark-mode cyan is 6.06:1 at 6.21:1 from the page. Both modes clear AA, and both are better than the 4.01:1 the system default was giving.
+
+WHAT IS GIVEN UP, stated rather than minimised: a human who set a non-default system accent does not see it here. AppKit's `alternateSelectedControlTextColor` also went, and it was doing real work — it guaranteed legible text on an accent nobody had chosen in advance. That guarantee is now this project's own, discharged by a foreground pair chosen for this specific teal and by the measurements above rather than by a system promise.
+
+The brand teal keeps its eleven existing glyph tints. No second brand tone is introduced: status already speaks through the semantic colours, so there is no separation to preserve."""
+consequences = """
+GAINED. Both sides of the selection-to-surface relationship are the application's, so it can be designed and measured instead of adapted to. The screen reads as one palette rather than as this project's paper with the system's highlight laid over it. Contrast is a property this project now owns and has numbers for, in both appearances.
+
+PAID. A human who chose a non-default system accent will not see it in this application. That is a real cost to a real preference and it is not recovered by anything here; the mitigation is only that most independent Mac applications behave the same way. `alternateSelectedControlTextColor` is no longer carrying the legibility guarantee, so any future change to the brand teal must re-measure the foreground pair rather than assume it.
+
+NEW OBLIGATION. A change to the brand accent is now a change to selection legibility in both appearances, and must be measured against the surfaces it lands on before it ships. The numbers in the decision are the baseline.
+
+WHAT THIS DOES NOT CHANGE. The system's CONTRAST and TRANSPARENCY settings are still honoured, as are `separatorColor` and the rest of the semantic system colours adopted alongside the accent at the same time. Only the accent is taken back; that work was not wholesale wrong and is not wholesale reverted.
+
+A METHOD NOTE WORTH KEEPING. Two assumptions were checked during this and both were wrong: that this project's segmented control deviated from AppKit by filling with the accent (the application's own native picker fills identically), and that the brand colour was reserved for status (status uses the semantic colours; the teal was decorative). Neither would have surfaced without looking — at the running application, and at what the code actually references."""
+
+[[content.alternatives]]
+text = "Keep following the accent but temper it: reduce chroma so it sits with the palette. Rejected on measurement. Chroma and legibility move in opposite directions here — reducing saturation by lightening dropped white-on-accent text from 4.01:1 to 2.34:1, below the 3:1 floor for large text. The tempering that preserves contrast has to darken instead, which on light paper raises figure-ground contrast rather than lowering it, and it still has to be safe for yellow and orange accents we cannot see in advance."
+status = "rejected"
+
+[[content.alternatives]]
+text = 'Use the brand teal for selection and give the eleven decorative glyph tints a different colour, to keep "what a thing IS" and "what you selected" visually separate. Rejected as a distinction without a difference: status already speaks through the semantic colours, and inventing a second brand tone to preserve a separation nothing was carrying would add a token to protect a rule that was not being followed.'
+status = "rejected"
+
+[[content.alternatives]]
+text = "Use the brand teal for selection, control tint and selected fills. ACCEPTED. Both sides of the relationship become the application's, so the contrast can be measured and kept — 5.53:1 in light and 6.06:1 in dark, better than the 4.01:1 the system default gave. It costs the human's chosen accent not appearing here, which is how most independent Mac applications already behave."
+status = "accepted"
+
+[[content.alternatives]]
+text = "Follow the system accent, as an earlier decision had it. Rejected on evidence that arrived after it shipped: the default macOS blue measured too loud against this application's warm low-chroma paper, and no adjustment is available, because any tempering has to hold for every accent a human might set. It was also justified partly on a claim about this codebase that is not true — that the brand colour was reserved for status and badges."
+status = "rejected"

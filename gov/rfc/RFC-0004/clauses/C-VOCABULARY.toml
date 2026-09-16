@@ -1,0 +1,37 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-VOCABULARY"
+title = "Status Vocabulary — Five Wire States"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Agent status is exactly one of five wire states. The strings below are the
+protocol values; every surface (hub, CLI, skills, GUI, third parties) MUST
+use them verbatim and MUST NOT invent additional states.
+
+- `working` — the agent is actively executing. No attention needed.
+- `waiting` — the agent is blocked on human input (a question at end of
+  turn, a permission prompt, an interactive confirmation). Attention needed
+  NOW; this is the highest-priority attention state.
+- `done` — the agent finished a substantial piece of work and the human has
+  not yet acknowledged it. Attention needed (lower urgency than `waiting`).
+- `idle` — the agent is at rest and the human has seen it (or there is
+  nothing to see). No attention needed.
+- `unknown` — no reliable signal exists. Consumers MUST present `unknown`
+  honestly (e.g. no badge, or a neutral marker) and MUST NOT coerce it into
+  any other state. An unregistered or never-classified pane is `unknown`.
+
+The existing three agent-reportable values (`working`/`waiting`/`done`) keep
+their wire spelling and semantics; `idle` and `unknown` are additive, so
+already-installed skills remain valid.
+
+Forward compatibility: a consumer receiving a status value it does not
+recognize MUST treat it as `unknown`. This is what makes future additive
+states safe for already-deployed consumers.
+
+Attention mapping (normative for any attention UI): `waiting` and `done`
+demand attention; `working`, `idle`, and `unknown` do not."""

@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-007"
+title = "Termius parity: ProxyJump jump hosts, port forwarding, ~/.ssh/config import"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = """
+Termius parity items 2/3/4:
+1. Host Chaining (ProxyJump) — host-level jump field + group-inherited
+   jump host; connect.sh/setup-host.sh pass -J.
+2. Port Forwarding — per-host local (-L) / remote (-R) rules applied
+   when the tunnel is established.
+3. ~/.ssh/config import — parse Host blocks (HostName/User/Port/
+   IdentityFile/ProxyJump), skip wildcards and duplicates, preview +
+   confirm import.
+"""
+
+[[content.acceptance_criteria]]
+text = "ProxyJump works: host-level and group-inherited jump host"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Port forwarding -L/-R applied on tunnel establishment"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "~/.ssh/config import with preview and duplicate skip"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "fixed positional args in connect.sh/setup-host.sh (key+jump always present)"
+status = "done"
+category = "fixed"

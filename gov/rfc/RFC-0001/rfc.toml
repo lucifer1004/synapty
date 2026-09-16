@@ -1,0 +1,60 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0001"
+title = "Synapty — The Agent Workbench"
+version = "0.1.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-03-26"
+updated = "2026-03-26"
+refs = [
+    "RFC-0009",
+    "RFC-0014",
+]
+signature = "8f4f14e78dcffd9be1c39ed0d583525a509ce885dd72ff41ab2928f8b93d3ec9"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Motivation"
+clauses = ["clauses/C-MOTIVATION.toml"]
+
+[[sections]]
+title = "Architecture"
+clauses = [
+    "clauses/C-ARCH-OVERVIEW.toml",
+    "clauses/C-L0-VT-ENGINE.toml",
+    "clauses/C-L1-SESSION.toml",
+    "clauses/C-L2-ORCHESTRATION.toml",
+    "clauses/C-L3-INTROSPECTION.toml",
+    "clauses/C-L4-A2A.toml",
+]
+
+[[sections]]
+title = "Communication Model"
+clauses = ["clauses/C-COMM-MODEL.toml"]
+
+[[sections]]
+title = "Non-Goals"
+clauses = ["clauses/C-NON-GOALS.toml"]
+
+[[sections]]
+title = "Future Directions"
+clauses = ["clauses/C-FUTURE.toml"]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-03-26"
+notes = "Initial draft, plus a 2026-08-26 amendment bringing the architecture overview into line with what the corpus specifies — no version move was made, and the entries below say what changed"
+changed = [
+    "C-L4-A2A describes a hub per machine peered over relay links, which is what RFC-0009 specifies, and keeps the central-Hub design as the record of what it replaced and why",
+    "C-L4-A2A says where location transparency stops: the same call and envelope, and answers a local send cannot produce",
+    "C-L1-SESSION no longer defers detailed failure handling — RFC-0014 gives a session a holder and RFC-0009 gives cross-machine mail a durable queue",
+    "C-L1-SESSION no longer says there is no replay: a reattaching client gets the output produced while it was away, per RFC-0014 C-RESUME",
+    "C-FUTURE marks multi-hub federation as landed rather than anticipated, and narrows cloud deployment to the part topology did not settle",
+    "RFC-0009 and RFC-0014 are declared references — this RFC had none while five documents depended on it by name",
+]

@@ -1,0 +1,46 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Mail reaches a detached remote agent and the agent never notices. Its hub
+mints the [[RFC-0005]] wake candidate correctly; there is no workbench on
+that machine to gate and inject it, so the candidate stays pending
+forever. Delivery succeeds and coordination does not.
+
+THIS RFC AUTHORISES NOTHING TO BE INJECTED YET, and the split is the
+result of its own review. The AUTHORITY half is settled here — who may
+delegate, from where, for how long, and what deployment may never be read
+as implying — because those get harder to fix once anything depends on
+them, and because "deploying an agent does not arm it" is worth stating
+whether or not injection ever ships. The EVIDENCE half is NOT settled:
+C-HEADLESS-GATE records what a machine without a workbench can and cannot
+establish, and injection stays unauthorised until that clause names an
+evidence model that holds.
+
+The reason for the caution is the RFC's own governing principle turned on
+itself. Less evidence must buy MORE caution, and the first draft proposed
+to type into terminals on unattended machines while the authenticity of
+the authorising record could not be established, the classification
+channel differed materially from the one the detection manifests were
+calibrated against, the mandatory veto channel was disclaimed on a false
+premise, the human-typing backoff had no equivalent at all, and the
+acknowledgement C-WAKE-ACK requires was never collected. Every one of
+those is a way for a wake to go wrong where nobody is present to notice.
+
+A second review then found the correction had overshot in the other
+direction. The RFC reasoned as though `tmux capture-pane` were the only
+evidence channel on an unattended machine, and it is not: a detached
+agent runs under this project's own pane wrapper, which carries the hook
+stream and the agent's lifecycle. So the receipt is a DEPLOYMENT gap —
+the remote deploy does not install the agent's hooks — rather than an
+architectural absence, and those have opposite remedies. The screen-
+derived objections are unaffected, because the wrapper passes the agent's streams through instead of proxying a terminal. Both directions of error came from the same habit: reasoning about the remote machine from the outside instead of from what is actually running on it — AND THE HABIT PRODUCED A THIRD ERROR, which C-HEADLESS-GATE now records: the whole inventory was derived from tmux, tmux left the remote path under [[RFC-0014]], and the screen-derived objections quoted above are among the things that changed. The gate re-derives them against the holder.
+
+What is NOT in doubt: the mechanism exists. A remote agent runs under a holder that owns its pseudoterminal by construction, so both writing into that terminal and reading what is on it are available precisely where no workbench is. Availability was never the problem, and it is less of one now than when this paragraph named a multiplexer."""

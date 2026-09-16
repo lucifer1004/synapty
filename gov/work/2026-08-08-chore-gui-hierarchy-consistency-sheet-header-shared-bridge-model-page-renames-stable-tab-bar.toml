@@ -1,0 +1,44 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-056"
+title = "chore(gui): hierarchy consistency — sheet header, shared bridge model, page renames, stable tab bar"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Audit follow-up (UI/UX hierarchy round) — consistency cleanup:
+- GithubConnectSheet is the only modal sheet without DSSheetHeader (hand-rolled title + Cancel).
+- The GithubBinding model + refreshBinding/disconnect logic is duplicated in HubStatusView and SettingsPage (two struct names for the same entity).
+- HostConfigSheet / HubStatusSheet are full pages but named "Sheet" (legacy modal thinking; the actual modal is GithubConnectSheet).
+- PaneTabBar disappears while a session is a connecting placeholder (pane count 0), making the terminal chrome jump.
+
+Fix: GithubConnectSheet uses DSSheetHeader; extract one shared GithubBridgeController (@MainActor @Observable) used by both Hub page and Settings page; rename HostConfigSheet→HostsPageView and HubStatusSheet→HubPageView (pure renames, behavior unchanged); render a stable tab bar for the active session even with zero panes (placeholder tab, disabled +)."""
+
+[[content.acceptance_criteria]]
+text = "GithubConnectSheet uses DSSheetHeader (title+icon+close)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one shared GithubBridgeController serves the Hub page and the Settings page (no duplicated model/refresh/disconnect)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HostConfigSheet→HostsPageView and HubStatusSheet→HubPageView renamed, references updated, behavior unchanged"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the pane tab bar stays visible for the active session with zero panes (placeholder tab, + disabled)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

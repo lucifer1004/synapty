@@ -1,0 +1,120 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-011"
+title = "Four renderings of one status, a derivation only tests took, and a boolean ladder rebuilding a switch the enum already had"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0015:C-FAILURE"]
+
+[content]
+description = """
+Declarations whose only callers were tests, and the three that could
+give a second answer rather than merely a second spelling.
+
+A DERIVATION ONLY TESTS TOOK. `ConnectProgress.link` built a
+[[LinkState]] from three facts and nothing in `Sources/` read it; five
+tests did. It was NOT the derivation that ships.
+`WorkspaceManager.link(ofLeaf:fromDisk:)` also passes `childDied`,
+without which `.dropped` is UNREACHABLE, and on the `fromDisk` path it
+re-reads the account from disk where this read the in-memory field, which
+lags by up to a poll — the very staleness `keepsPaneNow` passes
+`fromDisk: true` to avoid.
+
+So five assertions exercised a path production does not take. That is
+what `scripts/unshipped.py`'s header was written about — "a helper had
+tests and the SHIPPED path had an inlined copy of it, which had already
+drifted" — in the one shape that gate cannot see, because it scans `func`
+and this was a `var`.
+
+The property is gone. This type owns the FACTS; what they mean together
+is `LinkState.from`'s answer, which has one caller and its own tests. The
+five assertions now name the facts.
+
+A BOOLEAN LADDER REBUILDING A SWITCH. `HubStatus` has six cases and a
+`label` no caller anywhere read, while the status strip rebuilt the same
+decision out of `isRunning`/`isRecovering`/`isRefused` — three `if case`
+wrappers, two of them with no other caller.
+
+The cost was not tidiness. The strip printed the bare word "refused"
+while `refusalReason`, written to carry the words `decideAdoption` chose
+and read by nothing, sat beside it. A refused hub is one of the WRONG
+BUILD, and the reason names which build is in the way — the thing that
+tells a human what to do, on a surface whose own test header says both
+surfaces "threw it away". It says it now.
+
+`hubPhrase` and `hubTint` switch on the state, so a seventh case cannot
+fall through into "down".
+
+THIRD AND FOURTH RENDERINGS OF A SYNC STATUS. `SyncMonitor.compactLabel`
+and `accessibilityLabel` — tests only; production reads
+`SyncPreflight.Status.humanDescription`, and `accessibilityLabel` called
+that itself, so it was a layer over a layer. `SyncMonitor`'s deliberate
+two-string rule is real and still holds — the log gets the typed case,
+the UI gets `humanDescription` — and it covers two strings, not four.
+
+A SECOND RENDERER OF THE FORWARDING SPEC. `PortForward.sshFlag` produced
+`wireSpec` with its first colon as a space, had no production caller, and
+its doc claimed an `-L`/`-R` fragment it does not emit.
+
+AND A NAME ADOPTED RATHER THAN DELETED. `Slot.isStacked` had seven test
+uses while production said `slot.panes.count > 1`. Its comment is
+load-bearing — it warns this is NOT "the tab bar is drawn", because every
+position draws one — so the name won and the call site took it.
+
+DELIBERATELY LEFT: `paneIDs`, `paneEntries`, `allChords`,
+`browserAddress` and `placedCommandIDs`. Each is a one-line derivation
+with no production caller, and each CANNOT give a second answer — they
+are the inline expression under a name. Deleting them would inline that
+expression into the tests and make those worse. `placedCommandIDs` in
+particular walks the real menu tree for two tests that check every placed
+command has a binding; that is a property worth asserting, not a
+duplicate.
+
+AND ONE THE AUDIT OVER-CALLED: `HostsPageView.routeText` was reported as
+duplicating `Exposure.display`. It does not — `display` is the address to
+open, `routeText` is what the port forwards TO. Different questions.
+
+Reading that file did find a sixteenth copy of the machine-name ternary,
+and seven more besides, so [[WI-2026-09-11-010]]'s owner now has every
+caller.
+
+Found by the occam-swift and ssot-swift passes of the 2026-09-10
+SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "ConnectProgress.link is gone — a second LinkState derivation only tests took, through which .dropped was unreachable"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the status strip says WHY a hub was refused, switching on the state rather than rebuilding it from three booleans"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HubStatus.label, refusalReason and isRecovering are gone, their behaviour now reachable through the switch that ships"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "SyncMonitor's compactLabel and accessibilityLabel are gone; production's humanDescription is what the tests read"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "PortForward.sshFlag is gone — a second renderer of wireSpec whose doc described output it did not produce"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Slot.isStacked is adopted at the call site that spelled it out, because its comment carries a warning the expression cannot"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the accessors that cannot give a second answer are left, and the reason is recorded rather than left to be re-litigated"
+status = "done"
+category = "chore"

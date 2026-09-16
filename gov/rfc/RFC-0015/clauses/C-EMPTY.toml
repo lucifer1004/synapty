@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EMPTY"
+title = "A Workspace With No Terminals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A workspace with no panes of any kind is a resting state, not an error or a transient. A workspace holding a browser or a file browser and no terminal is not empty; it is a workspace whose work is not a shell.
+
+- A workspace with no tree MUST render a deliberate empty state. It MUST NOT render as a blank pane area, and it MUST NOT be confused with a workspace whose connections are still dialling.
+- The empty state MUST offer the means to create a pane, including choosing a host. Host selection happens at pane creation rather than in the sidebar, so the picker MUST be reachable from an empty workspace as well as from an existing tab bar.
+- An empty workspace MUST persist across a restart like any other. Emptiness is not a signal that the workspace has been finished with."""

@@ -1,0 +1,55 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HUB-REPO"
+title = "Hub Repo — a Single Private Repository as the Interaction Center"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+V1 of the new model uses exactly one private GitHub repository as the
+interaction center ("hub repo"). All agent collaboration artifacts — tasks,
+status updates, comments, handoffs — live there as issues.
+
+Rationale: one repo means one authentication scope (a single fine-grained
+personal access token limited to that repo), one event source to watch, and
+no multi-repository abstraction in V1.
+
+The hub repo is user configuration, not project code: each Synapty user
+points their installation at their own private repo. Configuration is
+captured during first-run setup (`synapty github login` prompts for owner/
+name alongside the token) and persisted in the user config file
+(`~/.config/synapty/config.toml`); the GUI settings view can edit it later.
+No repository is hardcoded anywhere.
+
+Multi-platform (GitLab/JIRA) support and multi-repo federation are explicitly
+out of scope for V1 (see Non-Goals).
+
+
+FEDERATION QUALIFIER ([[RFC-0009]]): the hub-repo configuration is a
+FLEET-WIDE INVARIANT, not a per-machine setting. With one workbench per
+machine, N independent configurations exist and nothing about the
+protocol forces them to agree — agents on different machines could end
+up on different task centres while each believes it is on "the" centre,
+which is a silent split of the one shared artifact this clause exists to
+guarantee. A relayed task-tool request MUST therefore carry the
+hub-repo identity its REQUESTER believes is current — WHEN THERE IS ONE
+TO RELAY, which [[RFC-0009]] defers (C-NON-GOALS); this rule is written
+now so the deferral does not become a gap when it lifts, and the executing workbench
+MUST refuse on a MISMATCH and surface it rather than serving from a
+different repository — while an ABSENT identity is served against the
+serving workbench's own, since C-EVENTS guarantees an agent needs no
+configuration of its own and refusing the unconfigured case would
+revoke it. An agent with no opinion is not an agent that disagrees.
+
+THE REQUESTER AND NOT THE RELAYING HUB. An earlier form of this
+qualifier put the obligation on "a workbench that relays" — and the
+party that would relay is a hub with NO workbench,
+which by C-AUTH and C-HUB-ROLE holds no hub-repo configuration and no
+credential at all. The obligation named a party the mechanism does not
+contain, so an implementer reading either document alone would never
+emit the field and this invariant would fail silently, which is the one
+failure mode it exists to prevent. Refusing is the only safe answer: neither side can tell
+which configuration is the stale one."""

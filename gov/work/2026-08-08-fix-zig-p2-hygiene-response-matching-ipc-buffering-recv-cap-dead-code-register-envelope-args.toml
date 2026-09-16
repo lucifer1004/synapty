@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-028"
+title = "fix(zig): P2 hygiene — response matching, IPC buffering, recv cap, dead code, register envelope args"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review Zig P2: F12 waitForHubResponse matches response ids by substring ('req-5' collides with 'req-50'); F13 parseHubOk substring-matches 'ok:true' anywhere in the JSON; F14 IPC readLine reads one byte per syscall (64k syscalls for a large recv); F15 64KiB recv response truncation surfaces as errors or silence; F18 dead MessageType enum (dispatch is by raw string); F19 makeRegisterEnvelope ignores its id/capabilities args; F21 CLI direct-hub recv/agents do a single read; F16 OOM-path leaks in registries; F11 dead hub/daemon mains; F17 github login passes the PAT via argv (visible in ps) — pipe via stdin instead."
+notes = ["Zig P2: responseIdMatches parses the envelope id exactly (no req-5/req-50 collision); parseHubOk reads payload.ok structurally; IPC readLine reads 4KiB chunks (was 1 byte/syscall); recv drain capped at 50 messages so the 64KiB IPC line cannot truncate/hang; makeRegisterEnvelope takes an allocator, emits capabilities into the payload, and generates unique reg-N ids; dead MessageType enum and its tests deleted; dead hub/daemon mains deleted; CLI recv/agents response reads are line-buffered; registry update/create OOM-path leaks fixed (single cleanup blocks); github login feeds the PAT through stdin (-w with no value) instead of argv."]
+
+[[content.acceptance_criteria]]
+text = "hub response matching parses the envelope id exactly (no req-5/req-50 substring collision)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "IPC reads are buffered; recv responses are capped/chunked so 64KiB cannot truncate or hang"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dead code removed: MessageType enum (or made the dispatch SSOT), hub/daemon mains, daemon parseArgs duplication; makeRegisterEnvelope honors its args"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "CLI direct-hub recv/agents use the line-buffer pattern (no single-read truncation); OOM-path registry leaks fixed; github login feeds the PAT via stdin, not argv"
+status = "done"
+category = "fixed"

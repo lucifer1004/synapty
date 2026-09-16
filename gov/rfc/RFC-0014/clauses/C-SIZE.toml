@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SIZE"
+title = "The Attached Client Owns The Size"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The pseudoterminal's dimensions MUST follow the attached client.
+
+- A client MUST be able to set the dimensions on attach and at any time while attached, and the holder MUST apply them to the child.
+- While no client is attached, the holder MUST retain the last dimensions set. It MUST NOT resize the child on detach.
+- An attach whose dimensions differ from the retained ones MUST resize the child exactly once.
+
+A resize reflows the child's screen and forces whatever is drawing to repaint, so a holder that resized on detach and again on attach would make an ordinary reconnect destructive."""

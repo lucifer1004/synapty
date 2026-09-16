@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-019"
+title = "fix(gui): fit-and-finish — hosts grid keyboard navigation, tab overflow fade, avatar text contrast"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """
+Fit and finish, three unrelated rough edges found by using the app.
+
+- The hosts grid could not be driven from the keyboard. `DSGridKeyNavigation` adds arrow navigation and Return-to-connect, with Return armed ONLY after navigation has started — otherwise Return in a freshly opened page would connect to whatever happened to be first — and disabled entirely while an editor is open.
+- The tab strip cut off mid-glyph when it overflowed. A trailing fade, measured through a preference rather than assumed, shows that there is more.
+- Host avatar tints were too light for the white glyphs drawn on them.
+
+Landed in one batch with [[WI-2026-08-09-017]], [[WI-2026-08-09-018]] and [[WI-2026-08-09-020]]."""
+
+[[content.acceptance_criteria]]
+text = "hosts page arrow-key navigation through visible hosts + Return connects (palette grammar via local monitor); selection ring follows"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "tab strip trailing fade when content overflows; avatar tint brightness lowered for white-glyph contrast (light mode)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build+suite green; screenshots — selection ring navigation, overflow fade, avatar contrast"
+status = "done"
+category = "chore"

@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-014"
+title = "spec(federation): peer identity and version negotiation — two workbenches on one host, and hubs of different builds"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["RFC-0009"]
+
+[content]
+description = """
+Two scenarios with one root: the relay boundary has no negotiation. A hub learns who it is talking to only by taking the other side's word for its name, and learns nothing at all about what that side can do. RFC-0009 C-BOUNDARIES defines a peer id but assigns no authority over it; relay_hello carries `protocol: 1` and NOTHING READS IT.
+
+SCENARIO A — TWO WORKBENCHES REACHING ONE HOST. Not hypothetical: one human with a laptop and a desktop, both peered to the same server.
+
+What already works, because it was designed for other reasons: `hub --ensure` is idempotent so the second workbench finds the first one's hub instead of starting a rival; fallback ids are peer-qualified so `local-ab12` on two Macs cannot collide; and relay links are non-transitive, so the shared host does not re-advertise one workbench's identities to the other (C-BOUNDARIES). None of that needs changing.
+
+What breaks:
+(a) NAMING AUTHORITY IS INVERTED. The remote hub's peer id comes from the label the CONNECTING workbench gave that host. Two workbenches can label the same machine differently, and the second one's `hub --ensure --peer-id` then prints "a hub is already running here under a different peer id; restart it to adopt the new one". Following that advice severs the FIRST workbench's link. The message was written assuming a single workbench, and it is actively harmful otherwise. A machine's name should be the machine's to state, with the connecting side accepting it — the same rule already applied to the DIALING side (peer.zig takes the peer's id from its hello, not from local configuration), just not applied here.
+(b) TWO MACS WITH THE SAME HOSTNAME COLLIDE, SILENTLY. A workbench introduces itself with its own short hostname, and "MacBook-Pro" is a common default. The receiving hub correctly REFUSES the duplicate (peerLinkUp -> PeerIdInUse, which C-BOUNDARIES requires), but the refusal arrives as a plain `response` frame, dialAndServe logs "expected relay_hello" and closes, and the human sees nothing at all. A correct refusal that is invisible is indistinguishable from a feature that does not work.
+(c) THE REDIAL LOOKUP MATCHES LOCAL LABEL AGAINST REMOTE-REPORTED ID. TunnelManager.scheduleRedial finds a peer's port by comparing peerID(for: the local host label) with the peer id from the handshake. Under (a) those differ, and the redial then never fires.
+
+SCENARIO B — HUBS OF DIFFERENT BUILDS. Demonstrated at real cost on 2026-08-12: remotehost ran a binary predating the WI-2026-08-12-009 relay_presence emitter. The symptom was "remote agents show unknown status" — indistinguishable from a bug in the feature — and several rounds of debugging went into the receiving side before anyone thought to compare deploy timestamps. The information needed was available (relay_hello carries a protocol version, hub_info carries a build id) and unused.
+
+Note the asymmetry that makes this worse than it looks: a workbench REFUSES to adopt a local hub whose build does not match (ADR-0008, the version-skew incident that whole line of work came from), and then peers with a remote hub of any vintage without a word. The stricter check guards the cheaper failure.
+
+What the spec must settle, rather than what to implement:
+- Who owns a machine's peer id, how a second workbench learns it instead of proposing one, and what a genuine collision looks like TO A HUMAN.
+- Whether a workbench's own id may be a hostname at all, or must be a generated stable value; and where it is persisted if so.
+- What relay_hello's version means: minimum compatible, exact match, or capability set. A capability set is the honest shape if hubs are expected to differ in practice, and "same build" is the honest shape if they are not — but the current position of carrying a number nobody reads is neither.
+- What a hub does with a peer it cannot fully talk to. Refusing the link entirely is defensible; so is linking with reduced function. Silently linking and then behaving as though a missing feature were a broken one is not.
+- Whether ADR-0008's local-adoption build check and the relay check should be the same rule."""
+notes = ["""
+SPEC DELIVERED 2026-08-12 as [[RFC-0010]] (normative, 7 clauses), with RFC-0009 C-BOUNDARIES, C-PRESENCE and C-IDENTITY-SCOPE amended in the same change so no accepted clause is left contradicted — the failure mode that hurt most on RFC-0009.
+
+Independent review returned NEEDS WORK with 10 findings; all 10 were accepted and fixed. The two criticals were both about a clause promising something the wire could not carry:
+
+(1) C-DIAGNOSABILITY's headline requirement had NO CARRIER. RFC-0009 C-PRESENCE had fixed presence attribution at TWO causes (unobservable / unreachable) and argued deliberately against a sixth vocabulary value. RFC-0010 introduced a third case — peer reachable, link healthy, status unknown because that build does not relay presence — which the two-way encoding reads as "the hosting hub looked and found nothing", i.e. exactly the false reading that cost the debugging session. Two conforming implementations could both have shipped undiagnosable. Fixed with an `unknown_cause` ATTRIBUTE (no_evidence / peer_unreachable / peer_lacks_capability) carried where hosting_peer already is, named explicitly rather than left to implementation, with C-PRESENCE amended to acknowledge its two-way distinction became three-way.
+
+(2) The RFC-0008 kinship claim was INVERTED and I had asserted it twice. RFC-0008 derives its id fragment from an externally durable value, so a hub that loses everything re-derives the SAME id; this suffix is random, so state loss mints a DIFFERENT one. The shape was borrowed, the durability property it carries there was not. Consequence the review traced: a rebuilt machine's old tombstoned entry and its new live entry both advertise the same globally-meaningful durable agent ids, and C-DIRECTORY's conflict rule then makes every agent on that machine unroutable for the tombstone retention — no configuration error behind it and nothing a human can do. Fixed three ways: the identity persists separately from mutable state (removing the common cause), a handshake presenting a NEW id at an endpoint that previously had a different one expires everything keyed on the old id immediately (the endpoint is the continuity, not the id), and re-minting is a supported act.
+
+Also fixed: C-COLLISION told humans to "rename a machine" as a remedy that C-PEER-IDENTITY makes impossible (label and id are independent) — the real remedy for the clone case is a re-mint, now specified; peer-id VALIDATION was a refusal reason with no rule, and `@` had to be excluded by name because C-IDENTITY-SCOPE splits on it to strip a qualifier (a hostname containing `@` was a legal path to silent misrouting); the version was a single integer while "a version it can speak" implies a set, so it is now a min/max range with the link at the highest common version and both ranges in the refusal; the version/capability line was drawn at "what frames exist" and is now drawn at MEANING, because the accepted corpus already contains a change that adds no frame and alters one (C-DELIVERY's dm response); C-STRICTNESS was normative while carrying an obligation that binds specification authors rather than implementations, and is now informative.
+
+NOT re-reviewed after the fixes. Ten specific findings were addressed individually, but the corrected text has not had independent eyes on it."""]
+
+[[content.acceptance_criteria]]
+text = "an RFC amendment settling naming authority for a machine's peer id, how a second workbench adopts rather than proposes it, and what a real collision presents as to a human"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the workbench's own identifier is specified — whether a hostname is admissible, and if not, what generates and persists the stable value"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "relay_hello's version field is given a meaning (minimum-compatible, exact, or capability set) and a defined behaviour on mismatch, including whether a partially-compatible link is refused or accepted with reduced function"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a version or capability mismatch is DIAGNOSABLE — a human or a log can tell 'these two builds disagree' from 'this feature is broken', which is the exact confusion that cost a debugging session on 2026-08-12"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the relation between ADR-0008's local hub adoption build check and the relay check is stated — either the same rule or a recorded reason they differ"
+status = "done"
+category = "added"

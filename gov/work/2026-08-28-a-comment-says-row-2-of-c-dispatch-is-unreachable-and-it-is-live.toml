@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-013"
+title = "A comment says row 2 of C-DISPATCH is unreachable and it is live"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+The doc on `focusedSurface()` states that row 2 of [[RFC-0016]] C-DISPATCH "IS NOT REACHABLE YET, and that is the honest answer rather than a gap", that the find bar is window-shared state, and that giving it an owner is another work item's. All three are false: the bar claims its leaf, row 2 resolves three lines below, and `Tests/KeymapTests.swift` already exercises it.
+
+A reader — human or agent — auditing C-DISPATCH conformance from this file is told a live branch is dead. That is the comment-versus-code shape this repo has shipped four times this week."""
+
+[[content.acceptance_criteria]]
+text = "The paragraph describes what the code does, and the work item it defers to is checked rather than cited"
+status = "done"
+category = "chore"

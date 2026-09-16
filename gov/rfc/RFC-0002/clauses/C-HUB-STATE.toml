@@ -1,0 +1,75 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HUB-STATE"
+title = "Hub State and Message Log"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = '''
+The Hub maintains the following state for the messaging protocol:
+
+### Routing Table
+
+Maps agent ID → TCP stream. Session registration adds entries; TCP disconnection removes them.
+
+### Agent Registry
+
+Maps agent ID → agent metadata (`tool`, `project`, `session`). Populated by `agent_update` envelopes. Entries are removed when the session disconnects.
+
+### Message Log (Global)
+
+An append-only log of ALL messages (DMs and channel messages) for the lifetime of the Hub process. The log serves observability, debugging, and GUI display. It has no delivery function — it is never read by agents or used for message routing.
+
+**Write path:** Every `dm` and `channel_msg` processed by the Hub MUST be appended to the global log, regardless of whether delivery succeeds.
+
+**Log entry format:**
+```json
+{
+  "from": "local-abc1",
+  "to": "dev-server-ghi3",
+  "channel": null,
+  "text": "Can you review the auth changes?",
+  "ts": 1711612800
+}
+```
+
+For channel messages, `to` is `channel:<name>` and `channel` is the channel name.
+
+**Timestamps:** Seconds since Unix epoch (integer), set by the Hub at processing time.
+
+**Retention:** V1 stores the log in memory. The log is bounded to the last 10,000 entries. Older entries are dropped (FIFO). No persistence across Hub restarts.
+
+### No Hub-Level Inbox
+
+The Hub does NOT store messages for offline agents. If a message cannot be delivered (target not connected), the Hub returns an error to the sender. Message buffering is the responsibility of the daemon — see below.
+
+### Daemon as Message Buffer
+
+Each daemon (`synapty run`) maintains an in-memory `MessageQueue` that buffers messages received from the Hub via the TCP stream. Messages accumulate in the queue regardless of whether an agent program (Claude Code, Codex, etc.) has started. When the agent calls `recv`, it drains the daemon's queue.
+
+This means messages sent to a connected daemon are never lost, even if the agent hasn't started yet. Messages sent to a disconnected daemon (session not registered) are rejected by the Hub.
+
+### Channel Registry
+
+Maps channel name → channel state:
+
+| Field        | Type           | Description |
+|--------------|----------------|-------------|
+| `name`       | string         | Channel name (unique, case-insensitive) |
+| `description`| string         | Human-readable purpose |
+| `members`    | Set\<agent_id\>| Current channel members |
+| `created_by` | string         | Agent ID of creator |
+| `created_at` | integer        | Unix epoch seconds |
+
+**Name validation:** Channel names MUST be 1–32 characters, matching `[a-z0-9][a-z0-9-]*[a-z0-9]` (lowercase alphanumeric + hyphens, no leading/trailing hyphens). Single-character names MUST match `[a-z0-9]`. Names are case-insensitive; the Hub normalizes to lowercase on creation.
+
+**Lifecycle:** Channels persist for the lifetime of the Hub process. When the last member leaves or disconnects, the Hub MAY garbage-collect the channel. Channels are not persisted across Hub restarts.
+
+**Session disconnect:** When an agent's session disconnects, the Hub MUST remove it from all channels and send a `channel_event` (`event: "left"`) to remaining members.
+
+**Rationale:** The Hub is a stateless router plus a logger — it does not buffer messages for agents. This keeps the Hub simple and avoids the complexity of persistent identity and inbox management. The daemon, which lives alongside the agent on the same machine, is the natural place to buffer messages. The global message log provides the human operator full visibility into all agent conversations without interfering with message delivery.
+
+*Since: v0.1.0*'''

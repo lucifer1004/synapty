@@ -1,0 +1,56 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EVENT-LOCALITY"
+title = "Event Logs Are Per-Machine"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An event log describes what happened on ONE machine. Federation adds
+facts to a hub's own log; it never merges two logs into one.
+
+Requirements:
+
+- A hub MUST NOT replay a peer's events into its own log, and MUST NOT
+  import a peer's sequence numbers. Two hubs' sequence spaces are
+  unrelated, so a comparison between them is meaningless even where it
+  type-checks, and a merged log would present an ordering no observer
+  ever saw.
+- A HUB MINTS ITS OWN LOCAL EVENTS for federation facts that change what
+  it reports, AND FOR THE PROMISES IT BREAKS. The first is [[RFC-0004]]
+  C-EVENT-LOG's rule and covers presence and directory changes; the second covers a held message dropped, which alters no `list_agents` row and still must outlive the thing it records — a queue that vanished would otherwise read back as one that drained. THERE ARE TWO WAYS TO DROP ONE and they are not the same fact: a message can reach its TTL because the machine never came back, or be evicted to make room while that machine was fine. Reporting the second as the first sends the human after the peer. [[RFC-0004]] C-EVENT-LOG requires anything able to alter a
+  `list_agents` response or a pushed event to be appended at the moment
+  it is applied, with no second write path — and relayed presence and
+  directory changes do alter those. Their kinds MUST be distinct from the
+  local agent-lifecycle kinds they resemble, so no consumer mistakes a
+  directory fact for a local registration.
+- THE KINDS ARE NAMED HERE — NINE: `peer_link_up`, `peer_link_down`, `directory_identity_added`, `directory_identity_removed`, `peer_presence_relayed`, `spool_expired` (a held message dropped at its TTL, which C-DELIVERY requires be recorded — a queue that vanished must not read back as one that drained), `spool_evicted` (a held message dropped to make room for a newer one, which is the same promise broken under pressure rather than over time), `peer_link_refused` (a handshake this hub
+  refused; the refusal frame travels to the DIALLING side, which in a
+  collision is the machine at fault, so without this kind the hub that
+  knows has no way to say so), and `peer_presence_refused` (a relayed
+  status this hub declined to apply). An event kind is a string consumers branch
+  on, so leaving these to implementations would give two of them two
+  spellings for one fact.
+
+  THE NINTH IS THE EIGHTH'S ARGUMENT CARRIED ONE FRAME FURTHER, and it is
+  named rather than folded in because the two are not one fact. A refused
+  handshake at least sends a `relay_refused` somewhere; a relayed presence
+  this hub declines sends NOTHING — the frame is dropped where it lands,
+  so neither machine says anything and the silence is total. What is being
+  declined is a peer speaking for an identity it does not host, which
+  C-BOUNDARIES refuses on purpose; an operator who cannot see the attempt
+  cannot tell a misconfigured peer from a quiet one. A REFUSAL IS NOT A
+  STATUS CHANGE, so it must not wear `peer_presence_relayed`: that kind
+  says this hub took a peer's conclusion, and a consumer counting it would
+  count the ones it threw away.
+- A LINK DROP EMITS ONE `peer_link_down` AND NO REMOVALS. The identities
+  did not end; this hub stopped being able to see them, and a burst of
+  removals would read as an agent lifecycle event on every consumer.
+- Cross-machine causality, where it matters, is already carried in the
+  data: a message forwarded from one hub and delivered on another links
+  the two logs through the identities involved. A merged VIEW may
+  interleave by wall clock for display, and MUST NOT present the result
+  as a causal order."""

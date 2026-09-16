@@ -1,0 +1,34 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/antigravity.toml (herdr id 'agy'), Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "antigravity",
+  "rules": [
+    {
+      "id": "permission_prompt",
+      "state": "waiting",
+      "all": [
+        "requesting permission for:",
+        "do you want to proceed?"
+      ]
+    },
+    {
+      "id": "permission_prompt_edit",
+      "state": "waiting",
+      "all": [
+        "requesting permission for:",
+        "tab amend",
+        "edit command"
+      ]
+    },
+    {
+      "id": "spinner_working",
+      "state": "working",
+      "lineRegex": "^\\s*[\\u2800-\\u28FF]+\\s+\\p{Alphabetic}+\\w*ing\\b"
+    },
+    {
+      "id": "background_tasks_working",
+      "state": "working",
+      "region": "bottom(5)",
+      "lineRegex": "(?i)·\\s*[1-9][0-9]*\\s+task"
+    }
+  ]
+}

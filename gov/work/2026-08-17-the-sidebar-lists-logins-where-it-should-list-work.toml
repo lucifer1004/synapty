@@ -1,0 +1,68 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-026"
+title = "The sidebar lists logins where it should list work"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "ADR-0010",
+    "ADR-0001",
+]
+depends_on = ["WI-2026-08-17-024"]
+
+[content]
+description = """
+The sidebar's rows are logins. Each one is a session, which is to say a host and the state of the link to it, and the human's work is a thing that happens inside a login rather than a thing the sidebar knows about.
+
+Once a tab can hold two machines, that display stops being able to tell the truth. A row cannot show one connection state for a workspace whose panes are on three hosts, and a host cannot be a row that is "connected" when connectedness belongs to a link several unrelated workspaces are sharing.
+
+So the sidebar lists workspaces and nothing else, and the two things it stops carrying go where they can still be answered honestly:
+
+- CONNECTION STATE MOVES ONTO THE PANE that has the connection ([[RFC-0015:C-FAILURE]]). A workspace dialling two hosts at once shows two accounts, independently. The dialling progress panel already exists and is keyed to the session; it is re-keyed to the leaf.
+- HOST SELECTION MOVES TO PANE CREATION. A searchable picker at the tab strip's `+` and in the empty state, rather than a permanent list. Adding, editing and grouping hosts keep working; they move to their own surface rather than living in the sidebar.
+
+A workspace with no terminals also has to be drawn for the first time ([[RFC-0015:C-EMPTY]]). It is the resting state the model now permits, and today there is nothing to render: a session with no panes is a session mid-dial.
+
+ONE THING MUST NOT BE LOST IN THE MOVE. A failure inside a workspace the human is not looking at has to be visible without opening it, or work put aside fails silently and is discovered on return.
+
+Everything drawn here is workbench UI over or around the pane, never bytes written into it."""
+
+[[content.acceptance_criteria]]
+text = "The sidebar lists workspaces only; no row is a host or carries a connection state"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A pane shows the state of its own connection — a workspace dialling two hosts at once shows both accounts independently, with failures carrying their reason and persisting until dismissed or reconnected"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A host picker with search is reachable from the tab strip and from an empty workspace, and creates a pane on the chosen host"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Adding, editing, grouping and deleting hosts remain available from their own surface"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A workspace with no tabs renders a deliberate empty state offering the host picker, distinguishable from a workspace still dialling"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A workspace containing a failed connection is distinguishable in the sidebar without opening it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "No connection chrome, progress or affordance is written into a terminal as bytes"
+status = "done"
+category = "chore"

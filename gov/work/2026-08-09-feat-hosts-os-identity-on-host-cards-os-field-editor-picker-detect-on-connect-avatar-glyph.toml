@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-002"
+title = "feat(hosts): OS identity on host cards — os field, editor picker, detect-on-connect, avatar glyph"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """Termius-style OS recognition on host cards (user request, follows WI-2026-08-08-090 Termius-parity pass). HostEntry gains an optional osHint string (lowercase id: "macos", "windows", "linux", or a distro id like "ubuntu"/"debian" from /etc/os-release ID=). Three sources, in priority order: (1) user picks the OS in the host editor (DSDropdown; "Auto" default), (2) auto-detect after a successful tunnel connect or Test Connection — `uname -s` plus `grep ^ID= /etc/os-release` over BatchMode ssh, written back to the store only when osHint is empty/auto so a manual pick is never overwritten, (3) unknown. Card avatar: KEEPS the deterministic per-host tint; when the OS is known the initials are replaced by a white OS glyph (SF Symbols where honest: apple.logo for macOS; otherwise neutral geometric marks bundled as template assets — NO trademarked distro logos, that is Termius's licensing burden, not ours). Unknown OS keeps initials. Detection failures stay silent (happy-path V1)."""
+
+[[content.acceptance_criteria]]
+text = "HostEntry.osHint optional field — Codable-tolerant (legacy hosts.json loads), round-trip test"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "host editor Connection section gains an OS DSDropdown (Auto + macOS/Linux distros/Windows); manual pick persists and is never clobbered by detection"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "successful tunnel connect / Test Connection triggers os detection over ssh (uname + os-release ID), stored when unset; unit test for the parser mapping raw output -> osHint"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "card avatar shows white OS glyph on the per-host tint when osHint known; initials fallback otherwise; screenshot check at standard and XL scale"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Swift test suite green"
+status = "done"
+category = "chore"

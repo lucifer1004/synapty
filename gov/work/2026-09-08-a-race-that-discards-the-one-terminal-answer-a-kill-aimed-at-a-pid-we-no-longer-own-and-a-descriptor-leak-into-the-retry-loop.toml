@@ -1,0 +1,81 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-004"
+title = "A race that discards the one terminal answer, a kill aimed at a pid we no longer own, and a descriptor leak into the retry loop"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = ["RFC-0014:C-EXIT-SIGNAL"]
+
+[content]
+description = """
+THREE DEFECTS IN CODE WRITTEN THE SAME SESSION, found by an adversarial
+review of the fixes for [[WI-2026-09-08-001]]. All three are in
+`transportVerdict`, and the third meets another of the day's changes coming
+the other way.
+
+A RACE THAT DISCARDS THE ONE TERMINAL ANSWER. `transportVerdict` asked
+`waitpid(WNOHANG)` once and treated "not reaped" as "still running". A
+child's stdout write end closes DURING exit, before it becomes reapable —
+so at the instant the handshake sees end-of-stream, one WNOHANG can answer
+"running" for a process that has already chosen its status. It was then
+killed and reported as a lost link, discarding exit 9. `no_session` is
+terminal and tells the human the session is gone; `transport_lost` retries
+forever against a host that will never have it. The window is microseconds
+and it is on the ordinary path — every `no_session` dial — so it fails
+toward silence under load.
+
+A KILL AIMED AT A PID WE NO LONGER OWN. `if (r != pid)` is true for `r ==
+0` (alive) AND `r == -1` (ECHILD, already reaped). In the second the pid
+has been released and the system is free to have given it to somebody
+else, so this sent SIGKILL to an unrelated process.
+
+A DESCRIPTOR LEAK INTO THE RETRY LOOP. `std.process.Child.wait` closes
+stdin, stdout and stderr — `childWaitPosix` does it in a `defer`, which I
+read to confirm rather than assume. Reaping with a raw `waitpid` skipped
+it, and `attachOnce` closes nothing else on that path. So every attempt
+that reaped there leaked two or three descriptors, in a loop that retries
+for as long as a host is down: a few hours at one dial per thirty seconds
+is on the order of a thousand.
+
+AND OF ALL THE PLACES TO LEAK THEM. Descriptor exhaustion is exactly the
+condition [[WI-2026-09-07-008]] gave `SessionRecord.claim` a fourth state
+to survive — where an EMFILE workbench would have swept every live
+session's record. The two changes are the same failure met from opposite
+ends, and one of them was manufacturing the other's input."""
+notes = ["""
+THE TWO TESTS ARE THE ONES THE AUDIT NAMED AS "WRITE THIS ONE FIRST", and
+both were unreachable rather than merely unwritten. `transportVerdict` took
+a `*std.process.Child`, so asking it about exit 255 meant spawning
+something that exits 255; the e2e only ever produces 1 and the relay's own
+code. `strips(on:)` and the rejoin notice's row were private to a `View`.
+Neither gap was an oversight about what to assert — both were the code
+being shaped so that the assertion could not be made, which is the harder
+kind to notice and the reason the audit found them and the author did not."""]
+
+[[content.acceptance_criteria]]
+text = "a transport is given a fifth of a second to finish exiting before it is called alive, so a status that was already chosen is not killed out from under itself"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = 'ECHILD is not "still running" — nothing is signalled on a pid this process no longer owns'
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the pipes are closed on every path that reaps, not only the one that goes through `Child.wait`"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the status decision is a pure function over an exit status, so exit 255 — ssh's own failure, the commonest real input — can be asserted; it could not be while the decision took a process"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the strip COUNT and the row each notice takes move out of the view onto `PaneStrip`, where the overlap the type exists to prevent can be put a case to"
+status = "done"
+category = "added"

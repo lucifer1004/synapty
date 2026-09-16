@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-007"
+title = "Five UI tests look for a field label the app stopped having, and the suite could not say so"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+FOUND BY RUNNING THE UI SUITE FOR THE FIRST TIME IN THIS WORK, once the
+operator's screen was unlocked. Five call sites across two files look for
+
+    app.textFields["Search hosts, or user@host:port to connect"]
+
+and the palette's field is
+
+    TextField("Search hosts, or type user@host:port", text: $query)
+
+So `waitForExistence` timed out on a palette that had opened — the
+screenshots the runner takes on failure show it open, with the placeholder
+plainly readable and plainly different.
+
+I CHANGED THAT PLACEHOLDER AND DID NOT CHANGE THE TESTS. Both sides of this
+are mine; the divergence is older than today's work and is not less mine
+for that. What it cost is four tests reporting a defect that does not
+exist, in the area — [[RFC-0016]] C-DISPATCH, one keystroke running one
+command — where a real defect would look exactly the same.
+
+AND THE SUITE COULD NOT SAY SO, which is why it went unnoticed for as long
+as it did. macOS UI automation does not run against a locked screen, and
+[[WI-2026-09-03-013]] recorded that it had been unrunnable for the whole of
+that work. A test that cannot run cannot rot loudly: it rots silently, and
+is discovered by the next person who can run it."""
+notes = ["""
+FOUR OF THE FIVE PASS NOW. The fifth, `testCopyAndPasteWorkInAWorkbenchTextField`,
+is blocked by the environment rather than by the code: a macOS modal —
+"allow testmanagerd to enable an input method" — appears during the run,
+System Settings takes the front, and the keystrokes go to it. The
+screenshot taken at the failing assertion shows the paste HAD landed
+("pasteme" is in the palette's field) with the permission dialog beside it,
+so the behaviour under test is fine and the run is not.
+
+IT IS NOT SOMETHING THIS SESSION CAN CLEAR. Answering a security prompt is
+the operator's, and both routes to inspecting it — `screencapture` and
+`osascript` against System Events — are refused for want of Screen
+Recording and Accessibility permission, which is the correct answer to a
+process asking."""]
+
+[[content.acceptance_criteria]]
+text = "the five call sites ask for the placeholder the app actually has"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the cost of a suite that cannot be run is recorded where the next person meets it — this did not fail when it broke, it failed when it was first run again"
+status = "done"
+category = "chore"

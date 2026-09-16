@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-046"
+title = "fix(gui): Settings GitHub login entry; refresh bundled synapty-cli"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Follow-up to WI-2026-08-08-043..045: (1) ROOT CAUSE of 'GUI 没有登录功能': the bundled synapty-cli inside Synapty.app was STALE (github status -> 'unknown subcommand') because the post-build copy ran before the CLI fix compiled — the GUI's binding refresh and connect feedback silently failed. Fix: rebuild + reinstall so the app ships the new CLI, and verify the bundled CLI supports status/logout. (2) UX: the login entry only lived on the Hub page; users look in Settings. Add a GitHub pane to SettingsPage (binding status + Connect/Change/Disconnect + the same GithubConnectSheet)."
+notes = ["ROOT CAUSE fixed: the bundled synapty-cli was stale (the post-build copy ran before the CLI fix compiled) — verified the installed app's CLI now answers 'github status' with JSON. SettingsPage gained a GitHub pane (binding status, Connect/Change/Disconnect, GithubConnectSheet reuse) so the login entry is discoverable from Settings, not only the Hub page. 128/128 Swift tests green."]
+
+[[content.acceptance_criteria]]
+text = "fix: bundled synapty-cli supports github status/logout (verified in the installed app)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: Settings page gains a GitHub pane (binding status + Connect/Change/Disconnect)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

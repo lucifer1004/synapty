@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-022"
+title = "The connection account resizes as it fills and drops what it scrolled past"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["ADR-0012"]
+
+[content]
+description = """
+The panel showing a connection's steps grew as the steps arrived and kept only the last six of them. Both are wrong for what it is: content that arrives a line at a time over several seconds, in front of somebody reading it.
+
+A PANEL THAT RESIZES MOVES UNDER THE EYE. Every new step re-laid the box and everything around it, so the line being read walked up the screen as the next one landed.
+
+AND THE PART WORTH READING WAS THE PART IT DROPPED. Showing the last six steps means that on a slow connection — the only kind anyone watches — what happened at the beginning has already gone by the time the human looks."""
+
+[[content.acceptance_criteria]]
+text = "The account occupies the same frame before its first step and after its last"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Every step remains reachable by scrolling, and the newest is what shows without one"
+status = "done"
+category = "fixed"

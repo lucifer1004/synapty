@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-009"
+title = "The globe badge counts every machine and opens a pane for one"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+The status-bar globe badge counts exposures on EVERY machine, and clicking it opens a services pane bound to the machine the FOCUSED pane is on — which shows only that machine's exposures.
+
+A human working locally, with an agent on `builder` exposing port 3000, sees a globe reading 1 with a tooltip naming no machine, clicks it, and gets a pane reading "Nothing exposed on this Mac". The count and the destination disagree, and nothing on the badge says which machine it is counting.
+
+Either the badge takes the human to the exposure it is counting, or it counts what the destination will show. The first is the better promise; the second is the smaller change."""
+
+[[content.acceptance_criteria]]
+text = "The globe's count and the pane its click opens are about the same machine, with a test that fails when an exposure on another host is counted but not reachable"
+status = "done"
+category = "fixed"

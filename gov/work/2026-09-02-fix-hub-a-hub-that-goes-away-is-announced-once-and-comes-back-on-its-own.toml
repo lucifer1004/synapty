@@ -1,0 +1,51 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-029"
+title = "fix(hub): a hub that goes away is announced once and comes back on its own"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+On 2026-09-02 the hub on 9000 (a stale build, not workbench-spawned) was
+killed by hand and the workbench did nothing for as long as anyone
+watched: adoption is decided once at launch, a conflict is never
+re-probed, and the ContentView fallback subscribed to the very hub it had
+refused, so the agent list looked healthy while status said conflict.
+The other two paths lie differently — an adopted hub that dies leaves
+status green while AgentMonitor reconnects forever, and a spawned hub
+that exits turns the dot red with a Start button nobody sees until they
+open the popover.
+
+Design reviewed against scenarios: wake-from-sleep (a slow probe must not
+spawn a second hub — recovery spawns use --strict-port and an adopted
+loss needs two failed probes and a 5 s grace), a developer's own hub
+Ctrl-C'd (the grace is their window), a crash loop (backoff, one
+notification per outage not per retry, give up after 5), upgrade with two
+instances, the hub dropping a stalled subscriber ([[WI-2026-09-02-015]]:
+disconnect alone is not loss), app quit (shutdown sets .stopped before
+terminating). Peer hubs and a non-hub process holding 9000 are out of
+scope. Builds on [[ADR-0008]]: one hub per machine, supervised sidecar."""
+
+[[content.acceptance_criteria]]
+text = "HubManager owns liveness — a spawned hub's exit and an adopted hub's confirmed disappearance (disconnect + two failed probes over a 5 s grace) both enter .lost, which restarts through start() with 1/2/4/8/16 s backoff and gives up to .failed after 5 attempts; recovery spawns pass --strict-port so a hub that is still alive is never joined by a second; a conflict is re-probed every 10 s and the port taken when it frees"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "AgentMonitor follows HubManager.boundPort and subscribes to nothing while there is no adopted hub; shutdown() sets .stopped before terminating so a quit is not a loss"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "feat: the moment a hub is lost is posted once per outage through AppNotifications (tone failed, reason, and what happens next) with one more post if recovery gives up, never counted as waiting; the status-bar dot reads warning while recovering and danger once given up, the chip reads 'restarting…' / 'down', and the popover problem row offers Restart now / Start"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the recovery policy (next delay / give up) and the loss decision (disconnect vs confirmed loss, one announcement per outage) are pure functions with unit tests; the two loss signals are driven with an injected probe"
+status = "done"
+category = "chore"

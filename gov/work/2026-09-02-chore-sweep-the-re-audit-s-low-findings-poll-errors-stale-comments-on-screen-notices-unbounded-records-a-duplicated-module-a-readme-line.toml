@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-034"
+title = "chore(sweep): the re-audit's low findings — poll errors, stale comments, on-screen notices, unbounded records, a duplicated module, a README line"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+The 2026-09-02 re-audit's low list, each one small and none worth its own
+WI: RemoteFS.receive treats poll < 0 (EINTR) as readable and falls back to
+an unbounded read, and the Pool's doc still promises a retry-once that
+withSession no longer does; HubManager.expectedBuild runs a subprocess on
+the main actor; the --through path has no detach-key hint while the local
+attach's reasoning ("a key nobody knows is not a way out") applies to it;
+attachHere's three epilogue notices bypass screenNotice
+([[WI-2026-09-02-030]]); TransferService.paneWrites and
+AgentDetector.lifecycleSent grow without bound; e2e_test's hub module is
+a second copy of hub_mod; README's package line still says sha256 only."""
+
+[[content.acceptance_criteria]]
+text = "RemoteFS.receive retries poll on EINTR and treats any other negative result as the session closed; the Pool doc says what withSession does; expectedBuild is resolved off the main actor; attachHere's epilogue notices go through screenNotice; the --through path prints the detach hint the local attach prints"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "paneWrites and lifecycleSent are bounded (oldest dropped, with the bound stated); e2e_test reuses hub_mod instead of a second module with the same imports; README's package line names the DMG, zip and cask"
+status = "done"
+category = "chore"

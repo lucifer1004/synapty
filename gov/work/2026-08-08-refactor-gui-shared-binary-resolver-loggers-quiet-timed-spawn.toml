@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-036"
+title = "refactor(gui): shared binary resolver, loggers, quiet timed spawn"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "DRY (Swift): (1) the synapty-cli binary path resolution (Contents/MacOS vs zig-out/bin) is copy-pasted in HubManager, AgentMonitor and TaskMonitor; (2) per-file Logger extensions are defined three times; (3) sshControl re-implements the timed-spawn-kill pattern that SubprocessRunner already provides. Consolidate into Support helpers."
+notes = ["Support/SynaptyBinary.resolve() is the single resolver (three copy-pasted Contents/MacOS-vs-zig-out lookups deleted); AppLog centralizes the service Logger categories (three per-file extensions deleted); SubprocessRunner.runQuiet (nullDevice, timed, kill-on-timeout) added and sshControl now delegates to it."]
+
+[[content.acceptance_criteria]]
+text = "fix: one SynaptyBinary.resolver shared by HubManager/AgentMonitor/TaskMonitor"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: one AppLog namespace for the service loggers"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: SubprocessRunner.runQuiet (nullDevice, timed) and sshControl delegates to it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

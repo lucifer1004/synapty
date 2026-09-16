@@ -1,0 +1,24 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-018"
+title = "A per-leaf search map nothing prunes, and the pruner that exists"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`GhosttyApp` held THREE maps keyed by leaf — `surfaceByLeafID`, `searchResults` and `lastHumanInputAt` — and `unregisterSurface` pruned one of them. The other two outlived every pane the human closed, for the life of the process.
+
+`clearSearchResults(forLeaf:)` existed to prune one of them and had no caller: one reference in the whole project, its own declaration. So it was not dead code but a call nobody wired — and the evidence that someone knew the entry had to go.
+
+FIXED STRUCTURALLY RATHER THAN BY ADDING TWO MORE PRUNES. One record per leaf cannot be half-forgotten, where three prunes have to agree and did not. The record belongs to the LEAF and not to the surface: a surface is destroyed and made again when a layout changes, and the wake gate's typing recency must survive that — so `unregisterSurface` clears only the surface, and the pane's own end drops the record.
+
+NOT COVERED BY A TEST, and the reason is worth stating: `GhosttyApp.init` calls `ghostty_init`, so no unit test constructs one, and the two halves of the guarantee live in different objects. What replaces the test is that the thing a test would have caught — one map pruned and another not — is no longer expressible."""
+
+[[content.acceptance_criteria]]
+text = "The three maps keyed by leaf are one record, so a leaf cannot be half-forgotten, and the pane's own close drops it"
+status = "done"
+category = "fixed"

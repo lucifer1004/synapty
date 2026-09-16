@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-073"
+title = "refactor(gui): converge section/chip components — DSSectionBlock, DSPaneChip, purge dead DS components"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Hierarchy audit (component convergence): SettingsPage.groupBlock and HostEditorPanel.formSection and TerminalSettingsPanel.section are three private copies of the same section construct; SettingsPage.paneChip and HostsPageView.paneChip are two copies of the same pill chip; DSCard / DSBadge / DSRowBackground are defined in the design system but never used.
+
+Fix: add shared DSSectionBlock (title + optional help + content) and DSPaneChip to the design system and replace all private copies; delete the three dead components."""
+
+[[content.acceptance_criteria]]
+text = "one shared DSSectionBlock used by Settings/HostEditor/Terminal panel/Group editor"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one shared DSPaneChip used by Settings and Hosts pages"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "DSCard / DSBadge / DSRowBackground removed (unused)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

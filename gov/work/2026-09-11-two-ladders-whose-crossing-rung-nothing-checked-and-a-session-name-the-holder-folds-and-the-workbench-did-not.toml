@@ -1,0 +1,113 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-015"
+title = "Two ladders whose crossing rung nothing checked, and a session name the holder folds and the workbench did not"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0014:C-SCOPE",
+    "RFC-0009:C-DELIVERY",
+]
+
+[content]
+description = """
+THE TOOL LADDER'S CROSSING RUNG. `protocol.zig`'s header says a caller
+must outlast what it is waiting on at every hop, and closes: "SWIFT HOLDS
+THE FIRST RUNG AND CANNOT IMPORT THIS." What kept the two equal was a
+Swift test asserting the literal `60`.
+
+That pins Swift to itself. The Zig test asserts the property among Zig's
+own three rungs; the Swift test asserts a number. Lower
+`tool_exec_budget_ms` and `tool_park_slack_ms` together and BOTH SUITES
+STAY GREEN — Zig's three rungs are still ordered, and 60 is still 60 —
+while the hub un-parks the requester and reports expiry with the
+workbench's subprocess still running. The agent is told "expired", the
+issue gets claimed anyway, and nobody attributed it: the exact failure
+the ladder exists to prevent, one rung out from where it was checked.
+
+Measured, with `tool_exec_budget_ms` at 10s and the slack at 5s: `zig
+build test` passes with zero failures, and the Swift test now fails
+twice — the budgets differ, and 60000 is not less than 15000.
+
+The build writes `zig-out/tool-ladder.txt`, the same move
+`deploy-targets.txt` makes for the platform list: the build states the
+fact, and the side that cannot import it reads what was built. The Swift
+test asserts the equality AND the relation.
+
+AND THE SAME LADDER ONE MODULE ALONG. `handlers.forward_ack_bound_ms` is
+5000; `readSendAnswer` set 10_000; the relation between them lived in a
+paragraph above the latter. That is precisely what
+[[WI-2026-08-30-010]] replaced for the tool ladder, so it is derived now,
+with a comptime assertion in the shape this codebase already uses.
+
+A SESSION NAME THE HOLDER FOLDS. `holder.canonical` folds A-Z to a-z and
+bounds the name at 98 bytes before building any of the three paths, and
+says why: "These three paths are built the same way from the same string,
+so a name that may not be a socket may not be a record either, and one
+that folds must fold identically or a session's three files stop being
+one session's." `SessionRecord` interpolated the raw string into all
+three.
+
+Measured before the change: `--id MixedCase-Probe` produces
+`mixedcase-probe.{json,lock,sock}` while `SessionRecord.lockURL(for:)`
+builds `MixedCase-Probe.lock`.
+
+A case-insensitive APFS volume reaches the same inode either way, which
+is what has hidden this — and is the reason it is worth fixing rather
+than watching: `holder.zig` names that hazard in those words, "a semantic
+that differs by filesystem is not a semantic". On a case-sensitive
+volume, or a `SYNAPTY_CONFIG_ROOT` pointed at one, `isLive` answers false
+for a session that is running and the workbench tells the human their
+work is gone while the holder still holds the pty.
+
+Not masked even there: `live()` maps directory entries to names, so it
+returns the FOLDED name, while `Rejoining.settled` compared with `==`.
+Both fold now.
+
+THE CAVEAT THE AUDIT RAISED, CARRIED FORWARD HONESTLY: no live path was
+demonstrated where an uppercase id reaches `SessionRecord` — local ids
+are minted lowercase at one line in `TunnelManager`. That one line is the
+whole guard, and `holder.validName` deliberately ACCEPTS uppercase, so
+the Zig side is built for names the Swift side could not represent. This
+is the finding whose consequence was inferred rather than observed, and
+it is fixed on that basis.
+
+A mirror is still a mirror, so the pin is a crossing test rather than the
+mirror itself: it starts a real holder under a mixed-case id and asks
+this side where it would look. Canaried by removing the fold — it fails
+naming both spellings.
+
+Found by the ssot-crossing pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the build writes zig-out/tool-ladder.txt, so the side that cannot import the ladder reads what was built"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the Swift test asserts the crossing rung — the equality and the relation — rather than a literal that pins it to itself"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the CLI's send-answer bound is derived from the hub's forward-ack bound, with a comptime assertion, instead of two numbers and a paragraph"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "SessionRecord folds a session name the way the holder does, on all three derivations"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Rejoining.settled compares names as the holder writes them, since live() already returns the folded form"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a crossing test starts a real holder under a mixed-case id and requires this side to look where it wrote"
+status = "done"
+category = "chore"

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-039"
+title = "perf(gui): one sidebar ticker instead of per-row SessionRow timers"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Perf: SessionRow (HostSidebar.swift:231) declares `let timer = Timer.publish(every: 10...).autoconnect()` as a stored property of the VIEW STRUCT — every parent render (session/agent publishes) reconstructs the struct and starts a NEW Timer per row, tearing down the old subscription. With N sessions this is N timers churning on every publish. Replace with ONE shared sidebar ticker; rows receive `now` and only their duration Text re-renders."
+notes = ["SessionRow no longer owns a Timer.publish (one autoconnect Timer per row recreated on every parent render — N timers churning on every session/agent publish). HostSidebar now runs ONE shared 10s .task ticker (sessionNow) passed into every row; only duration Texts re-render. 128/128 Swift tests."]
+
+[[content.acceptance_criteria]]
+text = "fix: SessionRow has no per-row Timer — one shared ticker drives all rows"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: rows re-render only when their displayed duration actually changes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-COORDINATION"
+title = "Coordination — Amendments This RFC Carries"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This RFC's finalization amended four others. All four landings are in place, and each is recorded at the receiving clause as well as here — so this is the index, not the authority. What is kept below is the REASON each amendment was necessary, because that outlives the act of making it; a reader who finds one of these rules and wonders why it is shaped that way is sent here.
+
+- [[RFC-0003]]: registration carries `resume_ref` as the identity derivation input — the same field [[RFC-0006]] C-RESUME-PLAN defines, because ONE field serves resume and identity, and it is distinct from the existing free-text session-description metadata. Task-tool attribution uses durable ids. Version-skew rule for deployed daemons: hub-side queueing is authoritative, an old daemon's local queue is out of contract, redeploy is required, and C-CLI-TOOLS's same-protocol promise carries the new envelope semantics. Landed in C-CLI-TOOLS.
+- [[RFC-0004]]: a REAL amendment rather than documentation. C-WAIT's generation-continuity rule is CONNECTION-SCOPED: a same-connection re-register keeps the generation; a registration binding the same id on a DIFFERENT connection — and the same-connection identity UPGRADE (C-REHOME) — ends the old generation with a hub-synthesized `agent_unregistered`. C-OWNERSHIP's status preservation is correspondingly scoped to same-generation re-registers. Consumer semantics — wait exit codes, edge scoping — are unchanged, which is what "generations were designed for this" legitimately covers. Landed in C-WAIT, which names this RFC as the amender.
+- [[RFC-0005]]: C-WAKE-TRIGGER binds to the hub-side identity-keyed queue (C-MAILBOX) and carries a rule this RFC made necessary — registration or re-home of an identity whose mailbox is non-empty COUNTS AS a fresh empty-to-non-empty edge, one wake candidate, normal gates and arming applying. WITHOUT IT THE FLAGSHIP SCENARIO NEVER WAKES: resume with mail waiting, where the old candidate was cancelled at generation end and no new edge would ever fire. Landed in C-WAKE-TRIGGER.
+- [[RFC-0006]]: C-RESUME-RESTORE carries the closing note that a resumed session re-registers into the SAME durable identity, so resume continuity is an identity property rather than a plan-file correlation. Landed in C-RESUME-RESTORE.
+
+WHY THEY WENT AS ONE CHANGE, kept because the constraint could recur: the mailbox, the wake edge and `resume_ref` are three halves of one story, and any of them shipping alone leaves a hub that queues mail nobody wakes for, or a resume that re-registers as a stranger."""

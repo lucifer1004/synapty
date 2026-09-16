@@ -1,0 +1,26 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- No PTY handoff / hot workbench replacement (C-PTY-HANDOFF: deferred
+  with reasons, revisit with a headless core).
+- No supervisor semantics: the workbench does not watch agents for
+  crashes and restart them in loops. One resume attempt, then
+  the human. Autonomous respawn is an authority escalation
+  that needs its own design round if ever wanted.
+- No cross-host migration of a running agent; a resume plan replays on
+  the host it recorded.
+- No harness-internal state manipulation: resume uses each harness's own
+  public resume entry point ('--resume', 'resume'), never transcript
+  file surgery.
+- No fabricated presence: nothing in this RFC creates, edits, or
+  preserves hub registrations across process lives ([[RFC-0003]]
+  registration stays the agent's act; [[RFC-0004]] generations stay
+  honest)."""

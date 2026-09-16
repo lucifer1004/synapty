@@ -1,0 +1,48 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-012"
+title = "Three tests that had never run, and the sweep that found them"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+
+[content]
+description = """
+A governance sweep for technical debt, opened after a session in which the
+same defect class kept surfacing: work that LOOKS verified and is not.
+
+`src/cli/connect.zig`'s tests were written, were green, and had never run —
+Zig does not analyse a top-level import that only `main` references, so
+nothing collected them. That was closed with `refAllDecls`, and the obvious
+next question is how many others there are.
+
+ASKED OF THE BUILD, NOT OF THE BUILD FILE. Reading `build.zig` cannot
+answer it: `src/cli/commands.zig` is neither a test root nor referenced by
+`refAllDecls`, and its tests DO run. So every file in `src/` carrying tests
+was given a canary that must fail, and one build was run to see which
+canaries did not fire.
+
+THIRTY-ONE OF THIRTY-TWO FIRED. The silent one is `src/diag.zig`, whose
+three tests have never run: it is created as a MODULE for everything else
+to import and was never added to the test step. `refAllDecls` cannot see
+that shape — the file is not reached through another file's import graph at
+all, it is its own module.
+
+The Swift side has no such gap: 1506 test methods are declared under
+Tests/ and 1506 are executed."""
+notes = [
+    """A CANARY IS THE ONLY HONEST QUESTION HERE. "Is this file's tests collected?" cannot be answered by reading the build description, because Zig's collection depends on lazy analysis of the import graph rather than on the module list — commands.zig proves the negative case and connect.zig proved the positive one. Appending a test that must fail and watching which ones do not appear costs one build and is decidable.""",
+    "AND IT SHOULD BE REPEATABLE RATHER THAN REMEMBERED. This sweep was manual; the shape of it — add a failing test everywhere, build once, diff the failures against the file list — is a few lines of shell. It is not added here because a guard that runs a mutated build on every verify is a different decision from fixing the file it found.",
+]
+
+[[content.acceptance_criteria]]
+text = "src/diag.zig's tests are in the test step, so its three tests run"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Every file in src/ carrying tests was canaried in one build; the one that did not fire is the finding"
+status = "done"
+category = "chore"

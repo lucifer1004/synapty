@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-28-010"
+title = "Polish: CLI IPC helper, MCP decoder table, hub session split"
+status = "done"
+created = "2026-03-28"
+started = "2026-03-28"
+completed = "2026-03-28"
+refs = ["ADR-0002"]
+
+[content]
+description = "Three polish refactors: (1) Extract shared IPC request-response pattern from cli/commands.zig into a helper. (2) Add per-action decoder functions to MCP tool_registry to eliminate the big switch. (3) Split hub/server.zig readerThread into hub/session.zig for reader/framing concerns."
+notes = ["MCP decoder table skipped — 8 fn pointers adds more code than the switch it replaces"]
+
+[[content.acceptance_criteria]]
+text = "shared IPC client helper in cli/commands.zig"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "MCP per-action decoder in tool_registry"
+status = "cancelled"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "hub/session.zig extracts readerThread and framing"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "zig build test passes (50/50)"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

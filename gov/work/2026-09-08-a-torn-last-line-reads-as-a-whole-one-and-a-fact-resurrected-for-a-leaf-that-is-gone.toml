@@ -1,0 +1,70 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-011"
+title = "A torn last line reads as a whole one, and a fact resurrected for a leaf that is gone"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+FROM AN ADVERSARIAL REVIEW OF CODE WRITTEN THE SAME SESSION. Two defects
+and one comment that invited a future one.
+
+A TORN LAST LINE READS AS A WHOLE ONE. `ConnectProgress.endReason` is
+handed the account file's text at the instant the client that writes it is
+exiting, so it can observe a write in progress — and a trailing FRAGMENT
+has the same shape as a finished line. `"… end no_sess"` parses as an
+ending this build does not know, which is `nil`, which falls through to the
+exit code, which for a session that is gone is ZERO, which reads as an
+ordinary exit and CLOSES THE PANE. That is precisely the outcome
+[[WI-2026-09-07-004]] exists to prevent, reached by a torn write. A line is
+trusted now only once it is terminated, which is cheaper than reasoning
+about whether an eighty-byte append can tear on this filesystem.
+
+THE REVIEWER'S MECHANISM WAS WRONG AND ITS CONCLUSION WAS RIGHT, which is
+worth recording. It argued that a complete file's trailing newline yields
+an empty last element that the filter drops, while a torn one does not.
+Swift's `split` omits empty subsequences by default, so that element never
+exists and both shapes are identical — checked, not assumed. The
+vulnerability survives the correction: the fragment is parsed as though
+whole either way.
+
+A FACT RESURRECTED FOR A LEAF THAT IS GONE. `leafChildExited` opened with
+`facts[leafID, default: .init()].childExitCode = code`, and that subscript
+CREATES. This handler and `leafDidClose` are two callbacks whose ordering
+is not ours to fix, so one arriving after the pane has closed writes an
+entry keyed to a leaf nothing holds — permanently, because `forget` has
+already run and will not run again. That is the failure [[LeafFacts]]'s
+header opens with.
+
+AND "HARMLESS TODAY" IS AN INVITATION. `link(ofLeaf:fromDisk:)` takes only
+`ended` from disk while `lostSince` and `pausedSince` still come from the
+poll. That is safe rather than lucky, and the reason is now in the code:
+`keepsPane` is true only for states derived from `ended` or from the exit
+code, and the two states the poll feeds both answer false — the same answer
+as `live`. A stale poll can only move the result between two values that
+are already identical for this one caller. It would stop being safe the
+moment a second caller asked."""
+
+[[content.acceptance_criteria]]
+text = "an ending is read only from a line that is terminated, so a write caught in progress cannot be mistaken for a fact"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an exit arriving after its pane has closed writes nothing, rather than creating a fact for a leaf nothing holds"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the reason the from-disk asymmetry is safe is stated where a second caller would read it, instead of being left as a property nobody wrote down"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a torn line, a line torn before its reason, and a torn line after a whole one — verified RED with the terminator check removed"
+status = "done"
+category = "chore"

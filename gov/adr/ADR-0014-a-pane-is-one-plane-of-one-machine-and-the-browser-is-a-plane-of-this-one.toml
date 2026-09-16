@@ -1,0 +1,196 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0014"
+title = "A pane is one plane of one machine, and the browser is a plane of this one"
+status = "accepted"
+date = "2026-08-19"
+refs = [
+    "ADR-0010",
+    "ADR-0013",
+    "RFC-0001",
+    "RFC-0013",
+    "RFC-0015",
+]
+
+[content]
+context = """
+The file browser and the web view became panes in [[RFC-0015]] C-CONTENT, and that raised a question their previous home never had to answer.
+
+THEY WERE BUILT AS TWO HALVES OF THE PRESENTATION PLANE. [[RFC-0013]] C-PRIMITIVES bound `present` to the file view and `expose` to the web view when this was decided: an agent hands over an artifact and it appears in one, an agent exposes a live surface and it appears in the other. Read that way, both are renderers for what agents put in front of a human.
+
+BUT ONLY ONE OF THEM STAYED THAT. The file view is also a general file browser: a human navigates it, drags a file out of it to another machine, and drags one in from the Finder. The web view is not a general anything — it lists what agents exposed, with a port scan offered as an explicitly second-class fallback.
+
+THE TWO DISAGREE ABOUT THE LOCAL CONNECTION. [[RFC-0015]] C-CONNECTION models local as a connection like any other — the model [[ADR-0013]] decided when it moved the machine down to the leaf, and the model everything below depends on. The file view behaves that way: it lists this Mac and names it. The web view does not — it reads the local connection as "no host chosen" and renders "Pick a host — Choose one above." Nothing is above: that copy is left over from the panel that held both views before they were panes. A local workspace is the default and the most common, so the most reachable web pane in the application opens on a dead end pointing at a control that does not exist.
+
+Naming records the same drift: RemoteFilesView and RemoteWebView, for surfaces whose local case is a first-class one.
+
+SEPARATELY, THE WORKBENCH CANNOT SHOW A WEB PAGE THAT IS NOT A HOST'S. An agent works, and the human wants the documentation, the issue, the API reference. Today that means leaving the workbench for a browser. RemoteWebView refuses an address bar deliberately and gives a reason worth keeping: with one it becomes a browser living inside a terminal application, reassembled one control at a time and worse than the one already installed.
+
+The decision is what these panes ARE, because every open question about them — what the local case shows, how far the file browser may go, whether an address bar belongs anywhere — is downstream of it."""
+decision = """
+A PANE IS ONE PLANE OF ONE MACHINE. What an agent put there is a first-class occupant of that plane and is always framed as an agent's ([[ADR-0010]] rule d), but it is not what the pane is FOR. The pane is for the machine.
+
+Three things follow, and they are the decision rather than illustrations of it.
+
+1. THE SERVICES PANE'S FIRST LAYER IS WHAT AN AGENT CLAIMED. What a machine is merely listening on is a second layer, reached by an explicit act, and only on a remote machine.
+
+A LISTENING PORT IS NOT A SERVICE ANYONE OFFERED. A development machine answers on a screenful of them — daemons, helpers, discovery protocols — and none of it is the human's work. VS Code's remote Ports view is the closest comparable surface and puts forwarded and detected ports in a secondary view rather than a primary one. An earlier draft of this decision made the two one list with discovery running automatically; it is recorded as rejected below, because the mistake in it is one this project could make again: treating "an agent exposed it" and "something is listening" as one subject because one is a subset of the other. They are one subject set-theoretically and two to a human, and the human is who the pane is for.
+
+2. THE FILE PANE ALREADY WRITES, AND MAY NOW DELETE.
+
+The premise this rests on is a fact rather than a definition: dragging a file from the Finder into a file pane on a remote machine CREATES a file on that machine today. The pane is a write surface already, so creating and renaming are the same class as what ships. What is genuinely new is DELETION, which destroys rather than creates, and is therefore decided on its own terms rather than carried in with the other two.
+
+WHY DELETION IS ALLOWED AT ALL, since it is the one verb with no precedent here. A file browser that can put a file on a machine and not take it off is not cautious, it is arbitrary: the human who just created a mistake is sent to a terminal to undo it, on the machine where the mistake is least visible. The caution belongs on HOW it deletes, and that is where it is spent — the rules are in [[RFC-0015:C-PANE-WRITES]], and the reason they are split is that the platform can undo one of the two paths and not the other. A confirmation on the reversible path would train the human to dismiss the one on the irreversible path, which is the only thing standing between them and a machine with no Trash.
+
+AND THE FILE PANE'S OWN VERBS ARE THE HUMAN'S. Agents write to machines — that is exactly what `present` and the brokered transfer are — but create, rename and delete are not theirs. The line is not arbitrary: a transfer has a primitive behind it and [[RFC-0013:C-AUTHORIZATION]] scopes it, records it with its initiator, and defaults it safe. Deletion has no primitive, presents nothing, and would arrive with none of those three. An agent that needs a file gone runs a command in its own pane, where the act is attributable to a process the human can see and scroll back to.
+
+3. NEITHER PANE TREATS THE LOCAL CONNECTION AS AN ABSENCE — BUT THE TWO ARE NOT WORTH THE SAME AMOUNT THERE.
+
+The file pane is fully itself locally: these are files, they are browsable, and the drag that carries one to another machine starts here.
+
+The services pane is not, and the reason is what the pane is actually for. Its value on a remote machine is the FORWARD: it reaches a service that is otherwise unreachable, and attributes it to the agent that offered it. NOTHING ON THIS MAC IS UNREACHABLE. A local service is already addressable, including by a browser pane sitting next to it. So the honest local content is agent exposures and nothing else, and no local port is ever enumerated.
+
+AND ARBITRARY WEB PAGES ARE A FOURTH PANE KIND, NOT A MODE OF THE THIRD.
+
+The workbench should be able to show a page that is not a host's service, and a browser leaf is where it goes. Its binding is fixed BY STIPULATION: a browser leaf names the local connection, always.
+
+THE STIPULATION IS NOT A DERIVATION, AND THE DIFFERENCE IS THE INTERESTING PART. The intuition that produced the rule — a page is fetched by this machine, so this machine is its plane — does not survive its own edge case: a human may address a forwarded port on the loopback interface, and that fetch is served, in substance, over the far machine's network. An argument from routing would therefore have licensed a browser leaf drifting to whichever machine happened to serve the bytes, which is not a rule anyone can implement or test. So [[RFC-0015:C-CONTENT]] states the binding flatly instead, and says in the clause itself that it is a stipulation. [[RFC-0015:C-LEAF-BINDING]] applies to the browser kind unchanged — it constrains that a leaf names a connection, never which — and the reason there is no remote browser leaf is stated rather than merely absent: fetching over a remote machine's network is a proxy, a different capability with a different security story.
+
+THE TWO WEB SURFACES DIVIDE BY WHAT THE HUMAN IS CHOOSING, not by what bytes are reachable, and the difference is worth stating because they overlap. A services pane row is an OFFER: something an agent claimed, wearing that agent's name, on a machine the human would otherwise have to forward a port to reach. A browser leaf is an ADDRESS the human typed, wearing nobody's name. The same page can be reachable both ways — a forwarded port is addressable on the loopback interface — and that is not a defect in the division, because what the two panes present about that page is different: one says an agent offered it, the other says the human went and got it.
+
+WHY THIS IS NOT A FIFTH PRIMITIVE, AND WHAT IT OBLIGES INSTEAD. [[RFC-0013:C-PRIMITIVES]] bounds what an AGENT may put in front of a human, and a browser leaf presents nothing on any agent's behalf. But that cuts both ways, and the obligation is the sharper half: an agent MUST NOT be able to put anything into one, because content there wears no agent's name and would therefore be presentation without attribution, in chrome the human reads as their own. That obligation is not left here as rationale — it is carried in [[RFC-0013:C-PRIMITIVES]]. So are the others this decision produced: the chrome a human-addressed surface must wear, and the prohibition on enumerating local ports, in [[RFC-0015:C-CONTENT]]; the write and deletion rules in [[RFC-0015:C-PANE-WRITES]]. They are obligations rather than reasoning, and an obligation that lives only in a decision record binds nobody."""
+consequences = """
+GAINED. The two panes stop being one rule and one exception. Every open question about them now has an answer that follows from the positioning rather than from taste: the file pane's verbs are a closed set and its confirmations are bounded by what the platform can undo, the local case is settled per pane by asking what each pane is FOR, and arbitrary pages have a home whose binding is stated rather than inferred. A human can keep documentation on the bench beside the agent reading it, which is the workbench [[RFC-0001]] described and did not have.
+
+THE TWO WEB SURFACES DIVIDE BY WHAT THEY CLAIM, AND OVERLAP IN WHAT THEY CAN REACH. A services leaf says an agent offered this and puts that agent's name on it; a browser leaf says the human went and got this and puts nobody's name on it. That division is exclusive and is what makes them one design rather than two features. What is NOT exclusive is the bytes: a forwarded port is reachable from either, so a page can appear in both. Recorded because an earlier draft of this record claimed the surfaces were disjoint in reach, which is false and would have licensed deciding by "can this Mac get to it" — the same routing argument the binding rule had to abandon.
+
+PAID, and none of it hypothetical.
+
+A DESTRUCTIVE CAPABILITY ARRIVES WITHOUT A SHELL, AND WITHOUT THE PROTECTIONS THE CONSTRUCTIVE ONE HAS. Until now every irreversible act on a remote machine went through a command the human typed, in a pane that showed them what they had typed. Deleting from a file browser is a click, and the machine at the other end has no Trash. The asymmetry is worth stating exactly: transfer — the workbench's existing write — is scoped, recorded with its initiator, and defaulted safe by [[RFC-0013:C-AUTHORIZATION]], and NONE of those three attach to a delete, because a delete is not a transfer. What this decision offers instead is a confirmation naming the machine, and a prohibition on agents reaching the verb at all. That is less than C-AUTHORIZATION gives the constructive case, and it is the trade rather than an oversight.
+
+ARBITRARY REMOTE CONTENT ENTERS THE TRUSTED WINDOW. [[ADR-0010]] rule d exists because a web page is exactly the content that can imitate this application, and its answer was the agent frame. A browser pane cannot use that answer, because attributing a human's own page to an agent would be a lie. [[RFC-0013:C-REQUEST-NOT-SEIZE]] forbids anonymous PRESENTED content, including content arriving with no agent registered — a page the human went and fetched is not presented to them by anyone, so that clause does not reach it, and saying so is better than leaving a reader to wonder whether it was overlooked. The gap is real and is closed in [[RFC-0015:C-CONTENT]] rather than here — with a DIFFERENT gate, deliberately: rule d gates on the first primitive shipping, and that clause gates on a human being able to create a browser leaf, because [[RFC-0015:C-UNRELEASED]] would let a release gate defer it indefinitely.
+
+RESTORE FETCHES WITHOUT BEING ASKED. A browser leaf persists its address, so reopening the workbench puts a remote page into the trusted window with no human act at that moment — the act was days ago. That is a different exposure from the one a human creates by typing an address, it is the reason the persisted state is bounded to the address and excludes the session, and it is why the scheme space has to be settled before the kind ships rather than after.
+
+A FOURTH KIND DID NOT COST A RULE PER KIND. IT COST THE CLAUSES THEIR FORM, and that is the larger price.
+
+The specification cost is enumerated once, in the accepted alternative's cons, and is not repeated here — a second enumeration is how one of them comes to be missing something.
+
+What the enumeration does not convey is what happened to the clauses. They had been written as narratives that enumerate cases, and that form fails in one direction: a clause names the cases its author can think of, an amendment closes a named gap, and the closing sentence draws a boundary with a new case on the far side of it. A rule listing the kinds that refuse a file drop lost the kind that accepts one. A rule listing three delivery situations left the fourth between them. A sweep listing four clauses left the two nobody listed contradicting the model.
+
+So [[RFC-0015:C-CONTENT]] was re-formed from a narrative into a TABLE — every kind a row, every question a column, so that a kind admitted later has visible empty cells rather than silent absence — and [[RFC-0015:C-LAYOUT]] from descriptions of gestures into INVARIANTS. The second of those is what made the empty tree representable at all: [[RFC-0015:C-EMPTY]] had been requiring a state [[RFC-0015:C-LAYOUT]]'s rules could not reach.
+
+That is a consequence rather than a note about drafting, because it changes what the NEXT decision costs: a fifth kind meets a row with empty cells rather than a sentence to amend. It is also the answer to whether layout was already kind-agnostic. It was, and [[RFC-0015:C-LAYOUT]] still says so — what a duplicate is turns on whether a pane has a CHILD PROCESS and explicitly not on its kind.
+
+Also not free: the persisted shape now carries per-kind state, restore has to bring a browser leaf back to an address rather than to a blank, and every future question takes the form "and what does this row say".
+
+THE LOCAL SERVICES PANE IS DELIBERATELY THIN, and someone will read that as an omission. It lists agent exposures and nothing else. That is not a stage-one simplification to be filled in later — enumerating this Mac's listeners is refused on the merits, and the empty state has to say what to do instead rather than apologise for having nothing.
+
+WHAT THIS DOES NOT DECIDE, recorded so the next reader does not assume it did. The appearance of the browser pane — the chrome that distinguishes a page from this application without borrowing the agent frame — is an obligation with a deadline in [[RFC-0015:C-CONTENT]] and is not designed here. Nor is the shape of the explicit act that reveals a remote machine's unclaimed ports. Nor is WHICH schemes a browser leaf accepts. That it must be an allow-list, that anything outside it is refused visibly, and that the list is settled before a human can create such a leaf are all carried in [[RFC-0015:C-CONTENT]]; the contents of the list are a security question in their own right and are left to the work that builds the kind."""
+
+[[content.alternatives]]
+text = "The panes are views OF A MACHINE, and arbitrary web pages are a fourth pane kind bound to this Mac"
+status = "accepted"
+pros = [
+    "The file pane already works this way, so one of the two stops being an exception rather than both changing",
+    "Arbitrary pages get a home whose network question has an answer, and C-LEAF-BINDING holds for all four kinds",
+    "Each pane's local case is settled by asking what the pane is FOR rather than by making both behave alike: files is fully itself locally, the web pane is not, and the difference is derivable rather than arbitrary",
+    "The local dead end disappears as a consequence rather than as a patch: the local connection is a connection like any other, so there is nothing to pick",
+]
+cons = [
+    "Arbitrary web content renders inside the window the human trusts most, and needs an appearance that is neither the agent frame nor the application's own chrome",
+    "DELETION is a destructive capability the workbench did not previously have, and it arrives through a file browser rather than a shell the human typed in. Creating is not new — a drag from the Finder already writes to a remote machine — so the cost here is the destroying verb and not the writing",
+    "A fourth pane kind, a snapshot format change, and this specification cost — stated here and nowhere else, and grouped by WHY each clause was touched, because a flat count is what went stale twice. AMENDED BY THIS DECISION, in [[RFC-0015]]: C-CONTENT (re-formed as the kind table), C-LAYOUT (re-formed as invariants), C-PERSIST, C-SUMMARY, C-ARCHIVE, C-UNARCHIVE, C-EMPTY, C-RESTORE, C-RELEASE; and C-PANE-WRITES written. In [[RFC-0013]], at a minor version: C-PRIMITIVES — which also gains a destination-resolution regime it did not have, since a pane kind, unlike a panel, may be absent — C-ADDRESSING and C-CONTROL-PLANE. DISCHARGING AN OLDER DEBT, not created here: C-LEAF-BINDING, C-WORKSPACE, C-CONNECTION and C-FAILURE carried tab-as-container vocabulary this project owed from the earlier single-tree layout change; re-deriving the corpus for this decision is what found them. FOUND THE SAME WAY BUT OLDER STILL: C-HONESTY's closed list of causes had no entry for a child that simply exited, so a human whose remote build finished was told the machine had rebooted.",
+]
+
+[[content.alternatives]]
+text = "The panes stay renderers for the presentation plane, and general browsing leaves the workbench"
+status = "rejected"
+pros = [
+    "Smallest surface: nothing to write to a remote filesystem, no arbitrary web content in the trusted window",
+    "Closest to [[RFC-0013]] as it read when this was decided, which bound present to the file view and expose to the web view",
+]
+cons = [
+    "Leaves the local web pane with nothing to say, since a machine with no agent exposure is exactly the case that renders the dead end",
+    "It is a ROLLBACK, not a hold. General browsing is what the cross-machine drag is built on, and a Finder drag into a remote file pane already writes there — so adopting this removes shipped capability rather than declining to add any. That is a cost to weigh, not a refutation, and it is weighed here as one",
+    "IT BUNDLES TWO INDEPENDENT QUESTIONS — what the panes are, and whether general browsing belongs on the bench — and the second is argued separately below rather than settled by this rejection",
+]
+
+[[content.alternatives]]
+text = "Split them: agent-presented content gets an inbox pane of its own, files and web become pure machine views"
+status = "rejected"
+pros = [
+    "One identity per pane kind, cleanly: the inbox is agent content, the machine views are the human's",
+    "Quarantine becomes structural rather than per-item — everything in that pane is an agent's",
+]
+cons = [
+    "Separates an artifact from the directory it belongs to. A file an agent finished IS a file on that machine, and putting it somewhere else makes the human hold two mental locations for one thing",
+    "A fifth pane kind on top of the fourth, for a problem the frame already solves",
+    "Requires amending [[RFC-0013]] C-PRIMITIVES, which names the file view and the web view as the destinations. Recorded without weight against this option, because the accepted one amended C-PRIMITIVES too — the wording was stale for both",
+]
+
+[[content.alternatives]]
+text = "Give the web pane an address bar, on the local machine or on every machine"
+status = "rejected"
+pros = [
+    "No new pane kind, no snapshot change, no RFC amendment",
+    "The page appears where a human already goes to look at pages",
+]
+cons = [
+    "IT WOULD MIX AN OFFER WITH AN ADDRESS AND COULD NOT SAY WHICH IT WAS SHOWING. Every row in that pane is something an agent claimed, wearing that agent's name; a typed address wears nobody's. One list carrying both makes attribution a per-row accident in the one surface whose whole content model is attribution",
+    "Restricting it to the local pane gives nothing to a human working in a remote workspace, who is the one most likely to want the documentation. Not rejected for making a kind behave differently by machine — the accepted option does that too, forbidding local port enumeration and permitting it remotely, and a criterion applied here and waived there would be a double standard",
+]
+
+[[content.alternatives]]
+text = "One list in two parts: what agents exposed above what the machine is merely listening on, discovery running automatically on every machine"
+status = "rejected"
+pros = [
+    "Set-theoretically honest: an agent's exposure IS the named subset of what is listening, so one list is the truthful shape",
+    "Removes the second-class feel the current 'Find listening ports' button gives the unnamed half",
+]
+cons = [
+    "A LISTENING PORT IS NOT A SERVICE ANYONE OFFERED. A development machine answers on a screenful of daemons, helpers and discovery protocols, none of which is the human's work, and putting that first buries the handful of things an agent actually offered",
+    "Locally it solves nothing: the web pane's value is the forward, and nothing on this Mac needs one",
+    "VS Code's remote Ports view, the closest comparable surface, keeps forwarded and detected ports in a secondary view rather than a primary one. No survey was done beyond that, so this is one attributed comparison rather than a claim about the category",
+]
+
+[[content.alternatives]]
+text = "Views of a machine, but the file pane stays read-only: no create, no rename, no delete"
+status = "rejected"
+pros = [
+    "The workbench never acquires an unshelled destructive verb on a remote machine, and every irreversible remote act keeps going through a command the human typed and can scroll back to",
+    "The positioning survives without it — a terminal pane is a plane of a machine and writes nothing itself either, so 'a plane must write' is a definition rather than a finding",
+    "Nothing to decide about whether agents inherit the capability, which is the hardest question this decision raises",
+]
+cons = [
+    "READ-ONLY IS NOT THE CURRENT STATE AND CANNOT BE RESTORED WITHOUT REMOVING A SHIPPED CAPABILITY. Dragging from the Finder into a remote file pane creates a file on that machine today, so this option is not 'stay as we are' — it is a rollback",
+    "Leaves the human able to see a directory and unable to make one in it, which is the gap that started this and is not answered by 'open a terminal' any more than a file browser that could not open folders would be",
+]
+
+[[content.alternatives]]
+text = "Keep documentation out of the workbench: hand a URL to the system browser, or a detached window outside the trusted chrome"
+status = "rejected"
+pros = [
+    "Near-zero cost: no pane kind, no snapshot change, no quarantine design, and no arbitrary remote content in the window the human trusts most",
+    "The human gets devtools, zoom, find, a password manager and extensions — a real browser rather than one reassembled a control at a time",
+    "It is what the web pane already does with 'Open in Browser', so the pattern is established and understood",
+]
+cons = [
+    "It answers reading and not watching: a page a human wants next to a running build is checked repeatedly, and every check is a window switch",
+    "It does not remove the obligation it appears to avoid — the web pane already renders remote pages in the trusted window, so the appearance question is owed either way",
+    "THE ARRANGEMENT IS THE PRODUCT. A page in another application cannot be placed beside the terminal it is about, cannot be split, moved or restored with the layout, and does not come back when the workspace does — which is the whole of what [[RFC-0015]] made panes for",
+]
+
+[[content.alternatives]]
+text = "Writes yes, delete no: the file pane creates and renames, and destruction stays in a terminal"
+status = "rejected"
+pros = [
+    "It maps exactly onto this decision's own split — create and rename are the class that already ships, deletion is the new one — so it concedes everything the accepted option argues and stops at the point the argument stops carrying",
+    "No irreversible act on a remote machine becomes reachable by a click, and the confirmation this decision leans on never has to work",
+]
+cons = [
+    "IT MAKES THE PANE ARBITRARY RATHER THAN CAUTIOUS. A browser that can put a file on a machine and not take it off sends the human who just created a mistake to a terminal to undo it, on the machine where the mistake is least visible",
+    "The caution it buys is available more cheaply by spending it on HOW deletion works rather than on whether — which is what the accepted option does, and what [[RFC-0015]] C-PANE-WRITES carries",
+    "It does not remove destruction from the pane, only the verb that names it: a rename onto an existing name replaces what was there. That is a weaker point than it looks — [[RFC-0015]] C-PANE-WRITES makes such a rename single-target, asked, and safe by default, where a delete is bulk and off the local Trash unrecoverable — so it narrows the gap rather than closing it",
+]

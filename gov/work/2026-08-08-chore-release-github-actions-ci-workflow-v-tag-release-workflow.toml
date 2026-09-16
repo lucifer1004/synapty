@@ -1,0 +1,37 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-089"
+title = "chore(release): GitHub Actions — CI workflow + v-tag release workflow"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Add GitHub Actions:
+- ci.yml: push to main + PRs — checkout (submodules: recursive), mlugg/setup-zig@v2 (0.16.0), zig build test, xcodegen, Swift test suite (macos-26 runner)
+- release.yml: v* tags — full build (zig build for the bundled synapty-cli, cross-compile the 5 deploy targets, GhosttyKit xcframework, just package) then upload DMG + zip via softprops/action-gh-release@v3
+- package script tolerates a "v" prefix in SYNAPTY_VERSION (tags carry it)
+- action versions pinned to latest majors: checkout@v7, setup-zig@v2, action-gh-release@v3 (none are 0.x)"""
+
+[[content.acceptance_criteria]]
+text = "ci.yml runs Zig + Swift tests on push/PR (latest major actions)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "release.yml builds on v* tags and uploads DMG + zip assets"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "package script strips a v prefix from SYNAPTY_VERSION"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: workflows are valid YAML; Swift suite still green"
+status = "done"
+category = "chore"

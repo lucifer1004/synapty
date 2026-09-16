@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESTORE"
+title = "What a Restore Restores"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A restore brings back workspaces, and re-acquires the connections their leaves name.
+
+- Restore MUST reconstruct every non-archived workspace with everything [[RFC-0015:C-PERSIST]] requires to be written — its tree, its stacks, focus, names and pin state — and MUST place archived workspaces in their archived state without dialling anything.
+- For each restored leaf, the workbench MUST acquire the connection for its recorded host under [[RFC-0015:C-DIAL]] — which means one dial per host, however many leaves name it, rather than one per leaf.
+- RE-ESTABLISHING A LINK IS RESTORATION AND IS PERMITTED. This is [[RFC-0006]] C-RESUME-RESTORE's settled position and is restated here because this document changes the unit being restored and must not be read as reopening the question: reconnecting a host the human had open spends nothing and starts no turn. What may be TYPED into a restored pane remains governed entirely by that clause, unchanged.
+- A restored remote leaf MUST attempt to rejoin the work that was running rather than start new work, where [[RFC-0014]] makes that possible. Where it does not, [[RFC-0015:C-HONESTY]] governs what the human is told.
+- A restored leaf whose host no longer exists in the host store MUST be preserved with its binding and reported, not silently dropped. Deleting a host is not an instruction to discard the layouts that referenced it.
+- A restore that opens NO WORKSPACE — because there are none, or because every one of them is archived — MUST create one empty workspace rather than none. There is always somewhere for the human to put a pane."""
