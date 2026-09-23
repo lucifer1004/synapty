@@ -1,0 +1,83 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-003"
+title = "A file pane can put a file on a machine and cannot take one off"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-21"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "RFC-0013",
+    "ADR-0014",
+]
+depends_on = ["WI-2026-08-19-002"]
+
+[content]
+description = """
+Dragging a file from the Finder into a file pane on a remote machine creates a file on that machine, today. So the pane is already a write surface, and the question this settles is not whether it writes but which writes it has: it can put a file on a machine and cannot make a folder to put it in, rename it, or take it off. The human who has just created a mistake is sent to a terminal to undo it, on the machine where the mistake is least visible.
+
+DELETION IS THE ONE VERB WITH NO PRECEDENT HERE, and it is why this is separate work. Until now every irreversible act on a remote machine went through a command the human typed, in a pane that showed them what they had typed. A delete from a browser is a click, and the machine at the other end has no Trash the workbench can restore from.
+
+RFC-0015 C-PANE-WRITES carries the whole boundary and it is worth reading before starting rather than after: local deletion goes to the Trash and is NOT confirmed, because a confirmation on a reversible act is what teaches a human to dismiss the one that matters; every other connection is confirmed, and the implementation may not exempt one because the far machine has a trash of its own, since a trash this application cannot restore from is not an undo it can offer. A confirmation names the machine, because "Delete 3 items?" tells a human with three file panes open nothing at all. A write that would REPLACE something is a destruction too — renaming onto an existing name destroys what was there — and a collision may not be resolved silently.
+
+AND NO AGENT MAY DRIVE THESE VERBS. The prohibition is on this surface rather than on the effects: agents do create files on remote machines, because that is what a brokered transfer is, and RFC-0013 C-AUTHORIZATION scopes it, records it with its initiator and defaults it safe. Rename and delete from a pane have none of those three."""
+notes = [
+    '''
+THE WRITE VERBS ARE PROTOCOL PACKETS, NOT SHELL COMMANDS, and that decision was made under fresh evidence: a file literally named `%s\n"` was found in a home directory on one of these hosts the same afternoon. It turned out not to be ours — owner root, dated five days before Synapty was ever installed there, from whatever provisioned the machine — but it is exactly what a mis-quoted `printf` leaves behind, and a delete implemented as `ssh host "rm '\(path)'"` would have handed that name to a shell. `RemoteFS.Write` sends SSH_FXP_MKDIR / RENAME / REMOVE / RMDIR with length-prefixed strings, so `; rm -rf ~` is a name.
+
+A DIRECTORY AND A FILE ARE DIFFERENT PACKETS. REMOVE on a directory fails on every server and the failure reads as a permission problem rather than as the wrong verb.
+
+THE RULES LIVE IN [[PaneWrites]] AND NOT IN THE DIALOGS. Every sentence C-PANE-WRITES writes — confirm the unrecoverable, never confirm the recoverable, name the machine, state what cannot be undone, default to the safe answer — is one a view can quietly fail to honour by drawing the wrong button, and none of those failures look like anything on screen. As values, a test can put a case to each.
+
+THE THIRD SOURCE IN THE ACTIVITY STREAM. A pane write reaches no hub and moves no bytes, so the stream that already merged hub events and transfers now merges these too — modelled as its own record rather than as a Transfer, because a deletion has no destination, no byte count and no progress, and a record that invents them lies in three fields to save one type.
+
+NO AGENT MAY REACH THE VERBS, tested over the source rather than over behaviour: `RemoteFS.perform` has exactly one caller, and no file under Sources/Services — the surfaces an agent can reach — may so much as name `RemoteFS.Write`. A claim about what CANNOT be reached needs a test shaped like that one.''',
+    """
+ACTIVITY BECAME A PAGE, which overturns [[WI-2026-08-09-007]]'s decision to file it as a tab inside Tasks. That decision's RULE stands — first-class pages are domains — and the reason to revisit it is that the stream stopped being one. When it was filed it carried hub events: what agents asked for, which is task-shaped. It then took on the transfers a human drags, which reach no hub at all, and now the create, rename and delete a file pane performs, which C-PANE-WRITES requires to appear wherever transfers do. Of the three sources, one is a task.
+
+The obligation C-PANE-WRITES places on a human's own destructive act is that it be findable AFTERWARDS — "an act nobody can find again is one nobody can audit, including their own" — and "what did I just delete, and on which machine" is not a question anybody thinks to ask a page called Tasks. Zihua raised it as soon as the writes landed there.
+
+THE PAGE EXISTED BEFORE THE RAIL LISTED IT, for one build: `AppPage` grew a case, the switch rendered it, the route answered, and the sidebar's list is written by hand — so it could not be reached. The same shape as a view that is never instantiated, met one layer up. A test now asserts that every page appears in the rail and has a command in the key table, since a page with neither is a page with no way in.""",
+]
+
+[[content.acceptance_criteria]]
+text = "A directory can be created, and an item renamed, on the machine a file pane is bound to"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An item can be deleted, and on the local connection it goes to the Trash without a confirmation"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A deletion the workbench cannot undo is confirmed, names the machine in the sentence, and says what cannot be recovered"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "A write that would replace something asks first and defaults to the safe outcome, including a rename onto an existing name"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "No agent can reach a file pane's create, rename or delete by any interface"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "A write that fails is reported as a failure, and the listing never shows the outcome the human asked for instead"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A destructive file-pane operation is visible afterwards where transfers are"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The rules above are covered by tests, including that the local and remote deletion paths do not share a confirmation"
+status = "done"
+category = "chore"

@@ -1,0 +1,100 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-BOUNDARIES"
+title = "Three Kinds of Connection: Submission, Relay, Observer"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A hub has three kinds of connection, with different trust models, and
+implementations MUST NOT blur them: SUBMISSION, RELAY, and OBSERVER. The
+kind is decided by the OPENING frame and by nothing else.
+
+The separation is borrowed from mail. SMTP long ago split SUBMISSION — a
+client handing a message to its own server, authenticated as one identity
+— from RELAY, servers handing messages to one another and carrying many
+identities at once. Synapty needs the same split for the same reason: the
+guarantees a hub can make about "this connection is that agent" hold on
+loopback and do not survive a shared link.
+
+SUBMISSION — an agent to the hub on its own machine:
+
+- A submission connection carries EXACTLY ONE identity for its lifetime,
+  as it does today. Every connection-scoped rule already specified stays
+  literally unchanged: registration generations ([[RFC-0004]] C-WAIT),
+  exec-pane ownership ([[RFC-0007]] C-EXEC-SCOPE), and durable-identity
+  binding, re-home and displacement ([[RFC-0008]] C-REHOME).
+- WHAT A LOOPBACK CONNECTION PROVES IS WHERE IT CAME FROM, not who is
+  behind it. A hub MUST NOT state or imply that a submitted identity is
+  verified, attested or authenticated. That is the same authority a local
+  process already has over the human's shell and files, so the protocol
+  adds no exposure — but a hub that claimed more would be claiming
+  evidence it does not hold.
+
+RELAY — a hub to a peer hub:
+
+A RELAY LINK IS ONE ORDERED STREAM: frames arrive in the order they were
+sent, which every ordering argument in this RFC leans on.
+
+- A relay link is NOT a submission connection and MUST NOT be treated as
+  one. It carries traffic for many identities, none of which registered
+  on it.
+- A PEER ID IS SELF-REPORTED, on the same footing as an agent id. The
+  link arrives on the same loopback listener as every submission and the
+  only discriminator is the first frame, so a hub MUST NOT state or imply
+  that it verified the channel or the peer. No document may rest a
+  security argument on peer authentication.
+- The link runs inside a channel the workbench established — the SSH
+  machinery it already manages for hosts — and a hub MUST NOT invent its
+  own credential scheme while that path exists. A hub sees a loopback
+  socket and cannot see what carried the bytes to it.
+- ON A RELAY LINK THE PEER'S STAMPED SOURCE IS AUTHORITATIVE, bounded by
+  two rules. THE ADVERTISEMENT IS WHAT ADMITS AN IDENTITY: a relayed
+  frame whose stamped source this hub holds no directory entry for is
+  REFUSED — admitted by the name it was advertised under, which for a
+  pane id is the QUALIFIED one (C-IDENTITY-SCOPE), since that is the
+  directory key. And a hub REFUSES a relayed frame claiming an identity
+  it hosts locally or another peer has advertised.
+  WHICH DISPLACES ONE ACCEPTED RULE: [[RFC-0008]] C-IDENTITY resolves an
+  envelope's effective source from the CONNECTION BINDING, and a relay
+  link has no binding to resolve from, so that rule is scoped to the
+  submission side and relayed traffic takes the two rules above instead.
+- A hub MUST NOT re-advertise, re-forward, or otherwise speak for what a
+  peer told it. Federation is one hop (C-DELIVERY).
+- A hub MUST reject a relay handshake from a peer claiming a peer id a
+  live link already holds OR THIS HUB'S OWN, and MUST surface the
+  collision rather than renaming either side. A hub's own id is held by
+  no LINK, so a rule about live links alone would admit the one peer that
+  must never be admitted — and [[RFC-0010]] C-PEER-IDENTITY calls the
+  cause routine: a disk image copied, a backup restored onto other
+  hardware.
+- AN UNRECOGNISED RELAY FRAME IS IGNORED, not a reason to drop the link.
+  A peer one version ahead is an ordinary event; dropping the link would
+  make every addition a coordinated deploy.
+
+OBSERVER — a client that holds no identity and neither submits nor
+relays:
+
+- The vocabulary is ENUMERATED, because a hub cannot classify a
+  connection against a set nobody wrote down: `hub_info`, `list_agents`,
+  `subscribe`, `tool_request`, `agent_status`, `wake_report`,
+  `exec_receipt`, `tool_receipt`, `peer_connect`, `set_log_level`.
+  Every citation for these names the clause requiring the ACT, not one
+  naming the frame — most are named nowhere but here.
+- IT IS NOT EXCLUSIVE. Inside a pane, `synapty task`, `agents` and `wait`
+  reach the hub through the pane daemon's own REGISTERED connection, so a
+  submission connection MAY carry observer frames. What is exclusive runs
+  the other way: the relay vocabulary is refused to everything but a
+  relay link, and an observer connection is refused EVERY frame outside
+  the list above — including on the second and later lines of one write,
+  which is how `hub_info` followed by `dm` once posted mail from a
+  connection holding no identity.
+- `peer_connect` carries `{peer_id, endpoint}` — the id the human
+  configured and the address to dial — and its bound is DIALLING: a hub
+  dials what the frame names and nothing else, never on its own
+  initiative, and never a second link to an id a live link already holds.
+  It performs no other write; a hub does not learn its own name from the
+  least-trusted connection kind in the taxonomy."""

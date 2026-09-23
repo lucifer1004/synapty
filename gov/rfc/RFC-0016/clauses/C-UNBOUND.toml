@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-UNBOUND"
+title = "A command with no chord"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Clearing a chord removes a shortcut and never a capability.
+
+- EVERY COMMAND IN THE TABLE HAS A NON-KEYBOARD PATH, whether or not it holds a chord: a menu item, or a control in the workbench's own chrome — which [[RFC-0015:C-CONTENT]] already licenses as a panel beside the layout rather than a pane. This is a column of the table ([[RFC-0016:C-TABLE]]) and it has no empty value, so a command cannot be admitted without one.
+- A COMMAND REACHABLE ONLY BY ITS CHORD IS ONE THE HUMAN CAN DELETE BY ACCIDENT and never find again — and also the one they cannot invoke while deciding what to rebind it to.
+- A COMMAND WITHOUT A CHORD IS STILL IN THE TABLE and MUST be listed where bindings are shown ([[RFC-0016:C-DISCOVERY]]). Hiding it would make clearing a chord irreversible through the very interface that performed it."""

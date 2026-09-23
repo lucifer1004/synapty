@@ -1,0 +1,111 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-008"
+title = "The hub port had seven holders and two followers, and the fallback pointed the other five at the hub adoption had just refused"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0012:C-LEVEL-CONTROL",
+    "RFC-0010:C-DIAGNOSABILITY",
+]
+
+[content]
+description = """
+`HubManager.boundPort` owns this number. It honours `SYNAPTY_HUB_PORT`,
+it climbs the ladder when 9000 is taken, and it is nil in exactly three
+cases: a test host, a spawn that failed, and an adoption REFUSED as
+`conflict`.
+
+Seven other places held a copy of it and two of them followed the owner.
+
+`ContentView.swift` carried the correction already, at the top of the
+same file: "THE MONITOR FOLLOWS THE PORT THE HUB ANSWERED ON, and
+nothing else: with no hub adopted it subscribes to nothing. It used to
+fall back to 9000 and subscribe to the very hub adoption had just
+refused, so the agent list looked healthy under a status that said
+conflict ([[WI-2026-09-02-029]])." Forty lines below it:
+
+    let hubPort = await hubManager.start() ?? 9000
+
+and at the gaze emitter:
+
+    HubEventClient.sendStatusSignal(port: hubManager.boundPort ?? 9000, …)
+
+9000 is the ONE number that must not stand in for that nil, because it
+names the hub the refusal was about. So on a refused adoption the
+workbench told the human A2A was unavailable and simultaneously pointed
+`agentDetector`, `wakeCoordinator`, `execController`, `toolBridge` and
+`tunnelManager.hubPort` into it — and `tunnelManager.hubPort` is baked
+into every pane's `--hub 127.0.0.1:<port>`.
+
+Four of the five were wired once at launch and had no path back at all:
+`agentDetector.start`, `wakeCoordinator.start`, `execController.start`
+and `toolBridge.start` have one call site each. Each also kept its own
+`private var port: Int = 9000` placeholder — four more copies of the
+literal, and `synapty run --help` documents a fifth as its own `--hub`
+default. So a hub that MOVED (the ladder, a restart, `SYNAPTY_HUB_PORT`)
+took wake reports, exec receipts, tool receipts and passive detection
+with it. The symptom is silence, which is why it survived.
+
+WHAT REPLACED IT: one owner, one follower. `pointEverythingAtTheHub` is
+the only setter and both the launch path and the existing
+`onChange(of: hubManager.boundPort)` call it. Every consumer holds an
+`Int?` with no default literal. "There is no hub, so there is nothing to
+send" is stated once, in `HubEventClient`, rather than as a guard at each
+of the twelve send sites. The pane command OMITS `--hub` rather than
+naming a port, which says "I do not know" in the vocabulary the far side
+already documents.
+
+Two tests were made honest on the way: `operatedPorts` compared the
+function's output to the same property it reads, and the pane-command
+test's 9000 was a seventh copy of the literal rather than a fact about a
+hub.
+
+`ContentView.body` was at Swift's type-check budget and this tipped it
+over, so the launch closure became `startWindow()` — the same remedy the
+`statusBar` property beside it already records.
+
+Found by the ssot-swift pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "no consumer substitutes 9000 for an absent hub port; both ?? 9000 fallbacks are gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "pointEverythingAtTheHub is the single follower of HubManager.boundPort, called by the launch path and by onChange alike"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the four services hold an Int? with no default literal and are no longer handed a port at start()"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "HubEventClient states no-hub-nothing-to-send once, so twelve call sites need no guard"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a pane whose machine has no hub is given no --hub flag rather than a port that names a refused hub"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "ContentView's launch closure becomes startWindow(), giving the type checker the boundary the file already documents needing"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a workbench with no hub produces a pane command containing neither --hub nor 9000, and no service invents a port"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "operatedPorts is pinned against literals rather than against the property it reads"
+status = "done"
+category = "chore"

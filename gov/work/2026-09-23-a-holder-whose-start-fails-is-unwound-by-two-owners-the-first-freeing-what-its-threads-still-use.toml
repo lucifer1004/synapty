@@ -1,0 +1,48 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-001"
+title = "A holder whose start fails is unwound by two owners, the first freeing what its threads still use"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0014:C-HOLDER"]
+
+[content]
+description = """
+`Holder.start` released its retention buffer and pty in its own `errdefer`s, and its one caller defers `stop()` on failure — which releases them again. Two owners of one set of resources.
+
+WHAT THAT DID, IN ORDER. On any failure after the three threads were spawned — a second or third spawn failing, or `Record.describe` failing, which is the full-disk path `start`'s own last comment names — `start` freed the retention buffer and closed the pty master while the pump thread was still reading the one and writing the other. Then `stop()` joined the pump, and freed the buffer a second time: `Retained.deinit` did not empty the slice, so `stop()`'s `buf.len > 0` guard still passed. The pty descriptors were closed twice as well, the second time closing whatever the kernel had handed those numbers to in between.
+
+AND BEFORE THE PTY WAS OPENED, `init` left it as `undefined`, so a `start` failing early had `stop()` close descriptors nobody had set.
+
+AND `stop()` RAN TWICE ON A LATER FAILURE. The caller holds it in an `errdefer` and a `defer`; anything failing after a successful `start` — `server.startThreads()` is the next line — ran both, joining joined threads and freeing the screen and the client threads twice."""
+notes = ["""
+`start` has no `errdefer`s now; the comment where they were says why. `stop()` is guarded by a `stopped` flag. `sys.Pty` gained `none` (both descriptors -1) and `deinit` takes `*Pty` and resets to it; `Holder.init` sets `.pty = sys.Pty.none` rather than `undefined`. `Retained.deinit` empties the slice. Seven tests in sys.zig changed `const pty` to `var pty` because the release now mutates.
+
+THE TEST puts a DIRECTORY where the record goes, so `Record.describe` fails after the child and all three threads are up, and nothing else fails. It then calls `endChild`, `stop`, `stop` — the caller's own sequence.
+
+CANARIED:
+- the two errdefers back in `start` (the original) -> abort in `Allocator.free` from `stop()`'s `self.retained.deinit`: the second free.
+- `stop()` unguarded -> "reached unreachable code" on the second pass."""]
+
+[[content.acceptance_criteria]]
+text = "everything start acquires has one owner, stop, which joins before it frees"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "stop runs once however many unwinding paths reach it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a pty that was never opened, or has been closed, is a defined value that releasing again leaves alone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a start made to fail with all three threads running is unwound by the caller's own two calls without a second free"
+status = "done"
+category = "chore"

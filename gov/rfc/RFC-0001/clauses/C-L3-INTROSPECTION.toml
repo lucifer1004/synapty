@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-L3-INTROSPECTION"
+title = "L3 — Terminal Introspection for LLMs"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The Terminal Introspection layer transforms the terminal from an opaque character stream into a structured, queryable surface that LLMs can reason about spatially.
+
+**2D DOM tree export.** Traditional agent frameworks capture terminal output by reading stdout as flat text. This discards critical information: cursor position, color/style attributes, spatial layout, and semantic regions. Synapty instead exports the VT engine's in-memory grid directly through a C/Zig interface, producing a structured representation of the terminal's two-dimensional state.
+
+**Structured output format.** The exported DOM preserves colors, bold/italic attributes, spatial positioning, and annotates semantic regions (prompt area, output area, status line) so that the consuming LLM receives explicit structural context rather than inferring layout from raw characters. The leading candidate format is HTML with inline CSS and accessibility labels — chosen for broad LLM familiarity and tooling support — but the specific serialization format will be evaluated and decided in a separate ADR.
+
+**Spatial visual perception for agents.** With DOM introspection, an agent can understand that "the cursor is on line 15, column 8, inside a vim buffer showing file.zig, with a compiler error highlighted in red on line 23." This is fundamentally richer than "here are the last 100 lines of stdout." It enables agents to interact with complex TUI applications (editors, debuggers, dashboards) as sighted users would, rather than relying on brittle text parsing.
+
+**On-demand and push models.** Introspection supports both pull (agent requests current DOM state) and push (VT engine notifies when a watched region changes) access patterns, enabling both polling-based and event-driven agent architectures."""

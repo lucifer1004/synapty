@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-010"
+title = "Ghostty theme configuration"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "Ghostty theme configuration: pick from 592 bundled built-in themes (Settings page), persist in settings.json, write theme= into the Synapty-managed ghostty.conf fragment; bundle terminfo sentinel so ghostty resolves bundled themes."
+
+[[content.acceptance_criteria]]
+text = "theme picker with 592 bundled themes"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "terminfo sentinel bundled, themes resolve"
+status = "done"
+category = "added"

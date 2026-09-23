@@ -1,0 +1,56 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-16-002"
+title = "A note on a pane that has already painted is recorded and shown to nobody"
+status = "done"
+created = "2026-09-16"
+started = "2026-09-16"
+completed = "2026-09-16"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "RFC-0014:C-RESUME",
+]
+
+[content]
+description = """
+A client says two things on the `note` channel that no surface shows.
+
+WHY THEY ARE NOTES. A position the holder could not honour and a catch-up the child outran are both holes in what a pane can show, and both used to be said on `lost` — which sets [[ConnectProgress]]`.lostSince`, a value only `paint` and `live` clear. After a gap neither ever comes, so a pane whose output was streaming wore "Link lost — reconnecting" for the rest of its attach and took the sidebar mark at sixty seconds ([[WI-2026-09-11-020]]). Moving them to `note` stopped the workbench telling the human something false.
+
+IT DOES NOT YET TELL THEM THE TRUE THING. `ConnectProgress.latest` is read by exactly one surface — `LeafConnectionView`'s dialling placeholder — which is gone once the pane has painted. So a note that arrives on a REVEALED pane is recorded in `steps` and shown to nobody, and "there is a hole in your scrollback" is a fact the human never receives.
+
+THE OBVIOUS PLACE IS FORBIDDEN. Writing it into the session's own terminal is what [[WI-2026-08-29-004]] records fixing: a notice floated over the grid sat on the shell's first row, and `runAttachThrough` wrote into a screen a full-screen program owns every cell of.
+
+NO CLAUSE SPEAKS, WHICH IS WHY THIS IS OPEN RATHER THAN DEFERRED. [[RFC-0015]] C-FAILURE governs what a failure owes a human; a hole in the scrollback is not a failure and the pane is working. Whether the workbench owes a notice on a revealed pane at all — and if so on which surface, since [[PaneStrip]] already owns the height above it — is the question, and answering it is part of this work.
+
+THE LOCAL `attach` PATH ALREADY SAYS IT, and how is instructive: with no workbench there is no other place, so it writes a `screenNotice` to stderr — into the terminal the human is watching. That is right there and wrong in a pane."""
+notes = ["""
+THE ANSWER IS YES, AND IT IS NOW A CLAUSE. RFC-0015 C-FAILURE (v0.5.0) gained: a gap in what a pane can show is owed a notice of its own, even though nothing failed; it MUST be dismissible, unlike a failure, because it reports a fact about the past; and it MUST NOT be cleared by the connection recovering, because nothing fills the gap back in. The same bump names the case that looks like an exception to "never write into the terminal" and is not: a client with NO workbench has no pane to draw over, so the human's own terminal is the surface — which is what the local `attach` already does.
+
+A KIND OF ITS OWN, NOT A NOTE. `note` carries the transport's stderr relayed line by line, so "surface every note the workbench hears after a paint" would raise a strip on any ssh chatter. `progress.Hole.kind()` now answers `.hole`, which is one line because the mapping already had an owner — the value WI-2026-09-15-003 made out of the flaky shell case. An older workbench reading the new kind falls into `default` and shows it as a step, which is what it did before.
+
+WHERE IT GOES. `ConnectProgress.hole` is a `Hole(text:afterPaint:)`, cleared on a re-dial and by the human, and untouched by a repaint. `HoleNoticeView` is a third pane strip; `PaneStrip` orders the three newest-fact-first — link (true now), hole (during this session), rejoin (how the pane came back) — and owns the count, so a pane gives up room for exactly what is drawn on it.
+
+CANARIED, BOTH HALVES:
+- recording the hole only when `!revealed` (the defect itself) -> `testAHoleOnAPaintedPaneIsCarriedSomewhereItCanBeShown` fails naming the missing sentence, and `testAHoleOutlivesTheNextPaintAndGoesOnlyWhenDismissed` fails with "coming back does not put the missing output back".
+- dropping `hole` from `PaneStrip.count` -> three assertions fail, including the pane inset by two while three strips draw, which is the terminal-under-a-notice failure the file exists for.
+
+The before/after-paint distinction is the `afterPaint` field and is asserted both ways: before the paint a hole is NOT one of the dial's steps and `latest` stays nil, so the placeholder does not narrate it as progress.
+
+The local-attach `screenNotice` now takes its sentence from `Hole.catch_up_outrun.text()` instead of repeating the literal, so the two clients say one thing about one event."""]
+
+[[content.acceptance_criteria]]
+text = "whether the workbench owes a human a notice on a pane that has already painted is answered by a clause, not by the absence of one"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "if it does, the two holes reach a surface a human sees, without anything being written into the session's screen"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "whatever carries it is a value with a test, and a note that arrives after a paint is distinguishable from one that arrives before"
+status = "done"
+category = "chore"

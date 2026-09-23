@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-049"
+title = "fix(gui): debounced settings persistence — ghostty.conf off-main, settings.json debounced"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit item #3: every @Published didSet synchronously writes settings.json AND rewrites ghostty.conf AND posts notifications on the main thread — a slider drag fires disk IO per tick. Fix: ghostty.conf rewrite moves to a background queue (it feeds ghostty's config reload, so the notification that triggers the reload stays immediate — ordering preserved); settings.json persistence is debounced (~500ms) so bursts coalesce. applyAppearance stays immediate (UI crossfade)."
+
+[[content.acceptance_criteria]]
+text = "fix: ghostty.conf is written off the main thread, immediately before the reload notification"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: settings.json writes are debounced (bursts coalesce to one write)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-IDENTIFY"
+title = "What an Agent Is Told About Its Placement"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An agent can see its own environment and nothing about the window it is drawn in, so the workbench is the only party that can tell it where it is. What it reports MUST name things that still exist after this split.
+
+- An agent asking about its own placement MUST be told its own agent id, the machine it is running on, and the workspace it is in — the workspace's human-readable name AND its durable identifier.
+- THE DURABLE IDENTIFIER IS THE WORKSPACE'S OWN, not an agent id belonging to whichever leaf happened to be dialled first. The prior model answered with the container's dial-time agent id, which for any leaf other than the first names a DIFFERENT AGENT — a latent error that the split makes routine rather than rare.
+- A NAME IS NOT AN IDENTIFIER, and both MUST be offered. Workspace names are chosen by the human, editable, and not unique ([[RFC-0015:C-WORKSPACE]]); an agent that quotes one into a message or a task has recorded something nobody can resolve later. The identifier is what durable references use.
+- Agents in one workspace MUST be able to recognise each other as such from this answer, including when they are on different machines. This is what a workspace identifier buys that a machine name cannot: a cross-machine arrangement is one piece of work, and its agents can tell.
+- THE AGENT SKILLS ARE PART OF THIS CONTRACT, not documentation of it. Changing the fields an agent sees changes what the agent was told to expect, so the skills were rewritten alongside and now carry both names and the difference between them; leaving them describing the old fields is what turns a rename into a silent breakage, and that is the reason this obligation is written down rather than the record of one edit.
+- Nothing here grants an agent visibility into any pane's contents, into other workspaces, or into layout. It reports facts about the asker's own placement and remains outside [[RFC-0013]] C-PRIMITIVES."""

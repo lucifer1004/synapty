@@ -1,0 +1,9 @@
+{
+  "_comment": "opencode --session <ses_...> per OpenCode CLI docs (verified 2026-08-11).",
+  "tool": "opencode",
+  "resumeArgv": [
+    "opencode",
+    "--session",
+    "{resume_ref}"
+  ]
+}

@@ -1,0 +1,248 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-004"
+title = "A dropped link retries forever in silence, and a reconnect that finds no session says nothing at all"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-14"
+refs = [
+    "RFC-0014:C-EXIT-SIGNAL",
+    "RFC-0015:C-FAILURE",
+    "RFC-0014:C-RESUME",
+]
+
+[content]
+description = """
+WHAT ALREADY WORKS, because the defect is only legible against it and an
+earlier reading of this got it wrong. On a durable host the pane's child is
+`synapty attach --id <agent> -- <transport>`, NOT ssh: ssh is the
+transport that client spawns. `runAttachThrough` already reconnects without
+limit — transport dies, say `lost`, sleep a second, dial again — in the
+same process and the same pty, which is why a dropped link leaves the
+pane's scrollback where it was. The holder honours [[RFC-0014]] C-EXIT-SIGNAL
+(`child.exited` is set only from `waitpid`), resumes from a position
+(C-RESUME) and repaints from a restoration (C-RESTORE). The workbench
+records `lostSince` and lays a scrim over the pane.
+
+The drop-and-reconnect path is built. What is missing is everything around
+its edges.
+
+THE CLIENT CAN EXIT, AND WHEN IT DOES AFTER A PAINT NOTHING IS SAID. Five
+outcomes break the loop: `child_exited`, `displaced`, `no_session`,
+`version_mismatch`, `stopped`. Each writes `end <reason>` to the account.
+`ConnectProgress.absorb` then does `if !revealed { failure = latest }` —
+and a pane that has painted has `revealed == true`, so the reason is
+DISCARDED. What the human is left with is libghostty's own
+"Process exited. Press any key to close the terminal.", a sentence written
+for a local terminal where the child IS the work.
+
+`no_session` is the case that matters most: the link came back and the
+session did not, because the host rebooted. That is "reconnect failed", and
+it is the one thing in this whole area a human cannot currently be told.
+
+RETRYING FOREVER AT A FIXED SECOND IS WRONG AT BOTH ENDS. 3600 dials an
+hour on a machine that may be on battery, with no escalation — nothing
+says "this host has been unreachable for five minutes" — and no way for
+the human to stop it.
+
+THE SCRIM SAYS NOTHING. `lostSince` draws 45% background over the pane and
+marks the tab. No words, no elapsed time. A scrim with no explanation is
+indistinguishable from an unfocused pane, and [[RFC-0015]] C-FAILURE requires a
+failure to carry its reason.
+
+AND THE SIDEBAR CANNOT SEE IT. C-FAILURE: the workbench MUST NOT require
+the human to open a workspace to learn something in it failed. But
+`hasFailedConnection` reads the CONNECTION's state, and a mid-session loss
+is a fact about the PANE's account — the host may be perfectly reachable.
+A lost pane in a background workspace is invisible.
+
+THREE SUBJECTS ARE BEING CONFLATED, and separating them is the whole
+design: the HOST LINK (a fact about a machine, shared by every pane on it),
+the PANE'S TRANSPORT (this pane's ssh), and the SESSION (the holder's child
+on the far side). A network drop takes the first two and leaves the third
+untouched. There are states for the first and a scrim for the second, and
+nothing at all for "the third is gone"."""
+notes = [
+    """
+PHASE 2 OF 4, and what it is: the model and the fix under it. The pane
+states are a value with tests ([[LinkState]]), the account now records WHY
+it stopped whatever the pane has on it, and `WorkspaceManager.link(ofLeaf:)`
+hands both to whoever draws. Nothing is drawn yet — the sentences exist and
+no pixel shows them, which is phase 3.
+
+THE `if !revealed` WAS TWO QUESTIONS READ OFF ONE GUARD. "Should a failure
+card cover this pane?" is rightly no once the session has painted — a card
+over working work would be a lie. "What ended this account, and why?" is a
+different question with a different answer, and it was answered by the same
+`if`. So every end that mattered — a reconnect that found no session, a
+child that exited, a protocol mismatch — was discarded exactly when the
+pane had the most to lose by not knowing.""",
+    """
+PHASE 3 OF 4: the pane says it, and the sidebar shows it.
+
+THE SCRIM GAINED WORDS AND KEPT ITS JOB. The screen underneath is the last
+true thing the session said and is not touched — [[RFC-0015]] C-FAILURE
+forbids writing this into the terminal at all — so the sentence goes in a
+strip above the pane, on the idiom [[RejoinNoticeView]] already established
+and for the reason it records: a notice floated over the grid sat on the
+shell's first row, and the pane photographed BLANK with the prompt beneath
+it.
+
+WHICH FORCED A SECOND OWNER OUT INTO THE OPEN. Two strips that each inset
+the pane by their own height would both have drawn at the top, with the
+terminal under whichever won. [[PaneStrip]] owns the height and the place,
+`RejoinNoticeView.height` defers to it, and the geometry tests moved with
+it and gained the two-strip case.
+
+THE NOTICE DOES NOT DISMISS, unlike the one beside it. A rejoin notice
+reports a fact about the past that a human may take or leave; this reports
+a condition that is STILL TRUE, and a notice that can be silenced while the
+thing goes on being broken makes the pane lie quietly.""",
+    """
+WHAT PHASE 3 DID NOT BUILD, said plainly rather than left to be discovered:
+
+- "Start a new shell here" on a pane whose session is gone. It needs a
+  leaf's command relaunched into a surface whose child has died, which is
+  entangled with who decides a pane closes — phase 4's subject.
+- "Stop trying" while the client is still dialling. The client checks for
+  the retry marker only while PAUSED, so stopping early would need it
+  checking between attempts as well. The human chose a thirty-minute budget
+  and that budget is what answers this; the button would be a convenience,
+  and it is not built.
+
+THE PIXELS ARE NOT VERIFIED. The screen on this machine is locked and macOS
+UI automation cannot run against one. The sentences, the escalation
+threshold, what each state offers, and the strip geometry are all values
+with tests; what wants a screen is whether a 22-point strip over a terminal
+reads as the workbench's rather than as the session's own output.""",
+    """
+PHASE 4 OF 4: the sentence and the close decision both come back to the
+workbench, and they only work as a pair. Taking
+`GHOSTTY_ACTION_SHOW_CHILD_EXITED` returns true and suppresses libghostty's
+text — and upstream then falls through to `close()` regardless, so taking
+the action ALONE would have left the pane closing with nothing said at all,
+which is worse than what it replaced. What keeps the pane is `leafDidClose`
+refusing.
+
+THE EXIT CODE EARNED ITS OWN STATE, and it is the case nothing else speaks
+for. A host that keeps no session between connections ([[RFC-0014]]
+C-OPT-OUT) has no client in front of its transport: ssh IS the pane's
+child, a dropped link kills it outright, and no account says a word. That
+was the last place a network blip could still take a pane down in silence
+— exactly what C-EXIT-SIGNAL's rationale names — and the code is the only
+evidence there is.
+
+PHASE 2's `keepsPane` WAS PROVISIONAL AND IS CORRECTED HERE. It answered
+`true` for `live`, `lost` and `paused`, which reads correctly as prose —
+no transport failure may cost the pane — and would have refused to close a
+pane whose shell the human had just exited. The question is narrower than
+its name: it is asked only where the process HAS gone, so it means "was
+that exit the end of the work, or of the thing carrying it". It was
+answerable only once the exit code was in hand, which is this phase.
+
+AND ONE METHOD WAS DOING TWO ACTS. `closeExecPane` reached `leafDidClose`,
+so the guard meant for a remote session would have kept an exec pane open
+whenever its command failed — one leaked pane per failure. A close somebody
+DECIDED on has no guards, because the decision is already made;
+`closeLeafDeliberately` is that one, and the notice's own Close button uses
+it too (`closeLeaf` alone takes the pane and leaves the resume plan and the
+armed bit behind).""",
+    """
+"START A NEW SHELL HERE" IS CANCELLED RATHER THAN DEFERRED, and the reason
+is a fact about the surface rather than a judgement about priority.
+
+A leaf's command is applied when its ghostty surface is made, and cannot be
+applied afterwards — the file that draws panes says so where it builds one,
+and the spurious-local-shell defect ([[WI-2026-03-31-003]]) is what taught
+it. So starting a fresh shell in that pane means destroying the surface and
+making another, which discards the frozen screen. And the frozen screen was
+the entire reason for keeping the pane: it is the last true thing the
+session said and usually the output the human was looking for. A button
+that trades it away is "close this and open a new pane" wearing a label
+that hides what it costs, and the human can already do that.
+
+WHAT WOULD MAKE IT REAL is the same shape phase 1 gave the pause: the
+client not exiting on `no_session` either, and offering to start a session
+from inside the process that owns the pty — so the new session paints below
+what is already there. That is its own piece of work with its own design,
+not something to bolt onto this one.""",
+    """
+VERIFICATION, AND WHAT IS NOT VERIFIED. `just verify` clean across all four
+phases: Zig suite, 1477 Swift tests (5 skipped, 0 failures), govctl,
+gov-lint, unshipped, shellcheck, federation e2e; `just deploy-all` green on
+all five cross-compiled targets.
+
+NOT VERIFIED, and it is most of what this work is: none of it has been seen
+on a screen. This machine has been locked throughout and macOS UI
+automation cannot run against a locked one. Everything decidable as a value
+has tests — the backoff and the budget, the state precedence, what each
+state says and offers, the strip geometry, and what closes a pane. What
+wants a screen is whether a 22-point strip over a terminal reads as the
+workbench's rather than as the session's own output, and whether one amber
+dot in a sidebar column is findable.
+
+AND NOT REPRODUCED. No actual network drop has been staged against any of
+it. The account vocabulary is exercised by writing the lines a client
+would write, which is a test of this side of the contract and not of the
+two together.""",
+    """
+CLOSED 2026-09-14, AND THE TWO CAVEATS ABOVE ARE NOT BOTH STILL TRUE.
+
+THE BACKOFF WAS THE LAST UNTICKED LINE AND IT IS WIRED. `progress.Retry.delayMs` is called from the reconnect loop (`runAttachThrough`'s lost arm), the ladder's values are pinned including the cap — 1s, 2s, 4s, 8s, 15s, and 15s for every attempt after — and `keepTrying` is measured from the loss rather than counted in attempts, so the budget does not move when the ramp does.
+
+"AND NOT REPRODUCED" IS NO LONGER TRUE. `scripts/test-reconnect-e2e.sh` was written since, and it stages the drop by KILLING the transport — its header records why that is the real thing and not a simulation: "From the client's side they are the same event: the process carrying the frames went away." It now covers an unreachable host retrying without claiming the session is gone, a killed transport recovered from in the same pty, a reconnect that finds nothing, a client that pauses and comes back on the marker, a successful reconnect resetting the budget, and a position the holder cannot honour. The bounded loss count in the first case is the RAMP measured end to end: a flat second would give nine attempts in nine seconds and the assertion admits three to five.
+
+WHAT IS STILL NOT VERIFIED IS ONLY THE SCREEN. Whether a 22-point strip over a terminal reads as the workbench's rather than as the session's own output, and whether one amber dot in a sidebar column is findable, are questions a test cannot answer. That is unchanged and is not a criterion.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the reconnect backs off — 1s, 2s, 4s, 8s, then 15s — instead of dialling every second for as long as the outage lasts"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "after thirty minutes down the client STOPS dialling and PAUSES, and does not exit. The pty stays, so the screen and the scrollback the human was reading stay with it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a paused client resumes on a retry marker beside its account channel, or on any key from a human sitting at the pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an `end` after the pane has painted is no longer discarded. A reconnect that finds no session, a child that exited and a version mismatch each reach the human instead of leaving libghostty's sentence as the whole account"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "pane states for the three subjects a drop separates — the link is down and retrying, it has been down long enough to say so, dialling is paused, the session is gone, the child ended"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the pane says which of those it is, with the elapsed time, over its own screen and never written into it ([[RFC-0015]] C-FAILURE)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a pane whose session is gone offers a new shell in place and MUST NOT close itself"
+status = "cancelled"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a workspace holding a lost or gone pane is distinguishable in the sidebar without opening it ([[RFC-0015]] C-FAILURE)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the workbench handles GHOSTTY_ACTION_SHOW_CHILD_EXITED and decides for itself whether a pane closes, so a transport's death can never destroy a pane"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the backoff, the budget, and the account vocabulary are values with tests; the states are a value with tests, not branches inside a view"
+status = "done"
+category = "chore"

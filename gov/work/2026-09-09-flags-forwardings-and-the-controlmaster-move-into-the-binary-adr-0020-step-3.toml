@@ -1,0 +1,98 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-007"
+title = "Flags, forwardings and the ControlMaster move into the binary (ADR-0020, step 3)"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0013:C-BROKER",
+]
+
+[content]
+description = """
+The third step of [[ADR-0020]], and the one that makes `connect.sh` a
+payload builder rather than a program.
+
+WHAT MOVED. Assembling ssh's flags, turning the workbench's forwarding
+quads into `-L`/`-R`, probing for a ControlMaster, choosing whether the
+durable client goes in front and which terminal ssh is asked for, writing
+the pool's socket and pid records, and reading what the transport exited
+with. `synapty connect` does all of it.
+
+WHAT STAYED SHELL, AND WHY IT HAD TO. The string that runs on the FAR side
+— the TERM preamble, the hub ensure, the cd, the run — executes before that
+machine's synapty binary has been located. It is the bootstrap that locates
+it. It is built by the script as before and passed through as ONE argument,
+never looked at again.
+
+TWO MODES, BECAUSE THERE ARE TWO EVENTS. The DIAL happens once: probe,
+say, hand over. The TRANSPORT is one ssh, and on a durable host the client
+in front re-runs it after every drop — so the connection it rides is named
+by a FILE it re-reads on each attempt rather than baked into an argv.
+
+AND THE LOCAL `bash -c` IS GONE. That re-reading used to be a shell snippet
+embedded in the argv: `bash -c 'printf %s "$$" > "$2"; exec ssh -S
+"$(cat "$1")" "${@:3}"'`. It ran on this machine, which is exactly what
+[[ADR-0020]] says shell is not for; `--socket-file` and `--pid-file` are
+the same behaviour in the language the rest of it is in.
+
+`--print` says what would run and connects to nothing, which [[ADR-0020]]
+requires: a human could read and run `connect.sh` by hand, and what
+replaced it has to be as inspectable. It prints the handover and the ssh,
+quoted so the line can be pasted."""
+notes = [
+    "TESTS THAT WERE WRITTEN, WERE GREEN, AND HAD NEVER RUN. Zig does not analyse a top-level import that only `main` references, so the tests in the new file were never collected — `zig build test` passed while a deliberately broken assertion sat in it. Found by breaking one on purpose and watching the suite stay green, and closed with `refAllDecls` beside the three files already there for the same reason. Every test written today for that file was therefore verified twice: once red before the fix, once after the collection was real.",
+    """TWO SIZE LIMITS THAT FAILED IN SILENCE, BOTH MINE. `execInto` copied each argument into a fixed 256 bytes and returned without a word when one did not fit; the interesting argument on this path is the far side's script, which is a page and a half. The caller printed "could not run the transport" and the cause was invisible. It allocates now. The second was `--print` writing the account and the pool record during what is meant to be a dry run.""",
+    'AND TWO BACKTICK ACCIDENTS. A comment inside an unquoted heredoc mentioned a verb in backticks, so the shell writing that file executed it — the fake binary came out mangled and a test failed with "attach: command not found". The same class had already eaten a phrase out of a commit message and an ADR entry earlier in the day. Backticks are live inside `<<EOF` and inside a double-quoted argument; neither is a place for prose.',
+    "THE SCRIPT'S REMAINING SHAPE. It parses its positional arguments, builds the far side's script, and calls the binary with the forwardings as one argument each. That last part is what let everything else stop riding in the environment: a variadic run of quads at the end of an argument list leaves no room after it, which is why SYNAPTY_BIN, SYNAPTY_DURABLE and SYNAPTY_FRESH_ID were env vars in the first place.",
+    "WHAT IS LEFT FOR A FOURTH STEP: the far side's script is still assembled in shell, and the pane's command is still `bash connect.sh …` rather than the binary. [[ADR-0020]] wants that string constructed and quoted by Zig; doing it here would have meant porting a hundred and fifty lines of shell text in the same change that moved the connection path, and no part of that could have been verified separately.",
+]
+
+[[content.acceptance_criteria]]
+text = "synapty connect assembles ssh's flags and forwardings, probes the ControlMaster, chooses the client and the tty, and records the pool's socket and pid"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The transport re-reads the connection it rides on every attempt, without the local bash -c that used to carry that re-reading in an argv"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "--print says what would run and connects to nothing, quoted so the line can be pasted"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "sys.execInto no longer refuses an argument longer than 256 bytes in silence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "connect.zig's tests are collected; an import referenced only from main is not analysed in a test build, so they had never run"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A master's ssh carries no forwardings and a direct one carries its own, with every robustness option present"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A forwarding kind that is not one is refused rather than guessed"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Who goes in front of the transport and which terminal it asks for is asserted through --print, not by eval'ing a slice of the script"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The far side's script reaches ssh as one argument, asserted on its last characters meeting the closing quote"
+status = "done"
+category = "chore"

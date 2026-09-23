@@ -1,0 +1,81 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-015"
+title = "feat(federation): a machine mints and owns its peer id (RFC-0010 C-PEER-IDENTITY, C-COLLISION)"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-13"
+refs = ["RFC-0010"]
+
+[content]
+description = """
+Implement [[RFC-0010]] C-PEER-IDENTITY and C-COLLISION. Today the peer id is whatever the CONNECTING workbench proposed: setup-host.sh passes PEER_ID from its own label for the host, and `hub --ensure --peer-id X` on an already-running hub prints advice to restart it — which severs any other workbench's link. The hub's hostname fallback is the only self-naming that exists, and it collides for two machines with the same hostname.
+
+Scope, in the order the RFC states it:
+- MINT ONCE AND PERSIST, as `<label>-<suffix>`, with the identity stored SEPARATELY from the hub's mutable state so a `--no-state` start or a wiped state file does not change the machine's name. That separation is the cheap half of the state-loss problem and removes its common cause.
+- PROVISIONING SUGGESTS ONLY. An existing hub returns its own id and ignores the supplied one; the "restart it to adopt the new one" message must go, because another workbench may be using that hub.
+- VALIDATION as specified: lowercase, bounded at 64, letters/digits/-/_/. only, `@` excluded BY NAME (RFC-0009 C-IDENTITY-SCOPE splits on it to strip a qualifier, so a hostname containing one is a legal path to silent misrouting), and no id beginning with RFC-0008's reserved `local-` prefix. A label that cannot satisfy this is disciplined into one, not rejected — nobody should have to rename their laptop to federate.
+- ENDPOINT CONTINUITY. A handshake presenting an id DIFFERENT from the one last seen at that endpoint means the machine was rebuilt: expire everything keyed on the old id immediately rather than letting it ride out the tombstone retention. Without this the old tombstoned entry and the new live entry both advertise the same globally-meaningful durable agent ids and C-DIRECTORY's conflict rule makes every agent on that machine unroutable, with nothing a human can do.
+- RE-MINT as a supported act on the machine that owns the name, and a refusal that points at it. Renaming cannot resolve a collision — label and id are independent by design — and the clone case (restored backup) is routine.
+- REFUSALS REACH A HUMAN. Today a rejected handshake arrives as a generic response frame, the dialer logs "expected relay_hello" and closes, and nothing surfaces. The three reasons (id already held by a live link / id fails validation / version incompatible) must stay distinct, because the human's next action differs for each.
+
+Note for the implementer: TunnelManager.scheduleRedial currently matches peerID(for: the LOCAL host label) against the peer id from the handshake. Once the machine owns its name those diverge by construction, so the redial lookup has to key on what the peer reported, not on what this workbench calls it."""
+notes = [
+    """
+IMPLEMENTED 2026-08-13. src/hub/identity_store.zig mints `<label>-<4 hex>` once and persists it at ~/.config/synapty/identity.json — SEPARATE from hub-state.json on purpose: the working state is discardable (a --no-state start throws it away deliberately) while a machine's name is not, because peers key directory entries, spooled mail and qualified fallback ids on it. Keeping both in one file would make the cheap operation silently perform the expensive one. federation.disciplineLabel/composePeerId handle the character rules; a label that cannot satisfy them is DISCIPLINED rather than rejected, because nobody should have to rename their laptop to federate.
+
+Endpoint continuity implemented as specified: peerLinkUp records the id last seen at each dialed port, and a DIFFERENT id at a known port drops that peer's directory entries and spool immediately. Both directions are tested — a rebuilt machine's stale entries go, and an ordinary reconnect of the SAME id keeps everything, without which every link flap would discard the state the tombstone rule exists to protect.
+
+A refusal is now its own frame (`relay_refused`) with a machine-readable reason, recognised and logged by the dialer with the detail. Previously it arrived as a generic response, the dialer logged "expected relay_hello" and closed, and a human saw a link that just did not come up. The collision refusal names the remedy — re-mint, not rename.
+
+TWO DEFECTS FOUND BY DOING, both recorded because neither was reachable from the spec:
+(1) mintSuffix seeded a PRNG from the clock on every call, so two mints inside the same millisecond in the same process produced the SAME suffix — a re-mint immediately after a mint returned the id it was meant to replace, silently doing nothing, which is the one outcome an operator resolving a collision cannot detect. Caught by the remint test on its first run. Seeded once per process now.
+(2) A `--peer-id` experiment on a scratch hub minted into the REAL identity file and relabelled this laptop after a remote host. `--discovery-path` exists for exactly that hazard and identity has it worse — a discovery file is a pointer, a machine name is what every peer keys its state on. Added `--identity-path`, passed through to the spawned child like the discovery path, and verified the real file survives the same experiment.
+
+Also fixed here because RFC-0010 makes it inevitable: TunnelManager.scheduleRedial matched peerID(for: the LOCAL host label) against the peer-reported id. Those now diverge BY CONSTRUCTION (a host labelled "remotehost" reports "remotehost-7f3a"), so the redial keys on what the link reported, learned from the port carried on peer_link_up.
+
+NOT done here: setup-host.sh still sends PEER_ID as a suggestion, which is correct, but no live two-machine run has exercised minting on remotehost — the remote still holds the pre-RFC-0010 binary.""",
+    """
+GAP FOUND AT WRAP-UP, same line of work: handlePeerConnect still let the workbench's `self_peer_id` OVERRIDE the hub's minted identity. WI-015 taught provisioning not to impose a name and left this path imposing one, so a hub that minted `deskmac-2630`, persisted it and reported it correctly answered to `deskmac` the moment the workbench asked it to dial — silently discarding the identity every peer keys its directory and spool on.
+
+Caught by hub_info reporting a name the identity file did not contain, during the final cross-machine check rather than by any test. The field is now accepted ONLY when the hub has no identity at all, which should not occur (it mints at startup) and is handled rather than assumed away.
+
+Reordered while fixing: the identity check now precedes port validation. A hub with no name cannot introduce itself no matter where it dials, so that is the more fundamental refusal — and it means a refused request spawns no dial thread, which is what makes the regression test hermetic. The first version of that test passed port 9200 and reached the operator's live SSH forward, turning a unit test into an accidental network call.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a hub mints its peer id once and persists it independently of mutable state; a --no-state start and a wiped state file both keep the machine's name"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "provisioning cannot override an existing id, and no path advises restarting a hub to rename it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "peer-id validation as specified, with '@' and the reserved 'local-' prefix excluded, and an unsatisfiable label disciplined rather than rejected"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a new id at a previously-known endpoint expires the old id's directory entries and spool immediately, instead of leaving two entries advertising the same durable agents"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "re-mint is available on the owning machine, and a collision refusal names it as the remedy"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the three refusal reasons are distinct and reach a human, not a log line the dialer drops"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "two-hub e2e covering a rebuilt peer (new id at a known endpoint) and a genuine collision (two peers, one id)"
+status = "done"
+category = "chore"

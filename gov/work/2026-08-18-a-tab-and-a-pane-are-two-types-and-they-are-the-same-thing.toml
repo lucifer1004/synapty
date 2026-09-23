@@ -1,0 +1,67 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-18-002"
+title = "A tab and a pane are two types, and they are the same thing"
+status = "done"
+created = "2026-08-18"
+started = "2026-08-18"
+completed = "2026-08-18"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+]
+depends_on = ["WI-2026-08-18-001"]
+
+[content]
+description = """
+The layout has two container species where it needs one. A workspace holds `panes: [Pane]` — the tab bar — and each of those holds a `SplitNode` tree of its own. So the shape is A TAB BAR OF SPLIT TREES: a tab is a container, a split leaf is a surface, and they are different kinds of thing.
+
+The model every workbench with docking uses is the other way round: a SPLIT TREE OF TAB STACKS. There is one species, a pane, and it is the atom. The tree's slots hold an ordered stack of panes and show a tab bar when a slot holds more than one. A tab is not a type — it is what you see when several panes occupy the same position.
+
+DOCKING IS WHAT MAKES THE DIFFERENCE MATTER, and it is why this surfaced now rather than as a matter of taste. The central gesture of pane docking is "drop this pane onto that one and they share a position", which in the target model is appending to a slot's stack — one operation on one type. In the current model it means converting a split leaf into a tab, which are different levels of a hierarchy: there is no operation to write, because the destination type does not exist at the source's level. A docking gesture built on the current shape would encode the split permanently into the interaction.
+
+WHAT THIS DOES NOT DISTURB, because it is worth being precise about how much survives. The leaf already carries what a pane is: its content kind and the connection it runs on ([[RFC-0015:C-LEAF-BINDING]], [[RFC-0015:C-CONTENT]]). Those facts are per-pane and stay exactly where they are — this changes what CONTAINS a pane, not what a pane is. Connections, their sharing and release, and the workspace's own residency are all untouched.
+
+What goes: the `Pane` type that means "tab", the workspace-level tab bar as a single strip, and the operations phrased in terms of moving between tabs.
+
+THE CONVERSION CANNOT BE FAITHFUL, and the choice should be made deliberately rather than discovered. The two shapes are not isomorphic: a workspace with three tabs, one of which is split two ways, has no exact single-tree equivalent. The conversion preserves the first tab's arrangement as the tree and stacks every other tab's panes into its first slot — which is close to what the human already sees, since today only one tab's splits are visible at a time. Perfect preservation is not on offer; saying which imperfection was chosen is."""
+notes = [
+    "2026-08-18: The tree itself is DONE and set aside, not lost — SplitNode with Slot and Pane, the four operations (stack / splitSlot / removePane with sibling collapse / updating), position-walking focus navigation, presets folding slots, and 10 tests in Tests/LayoutTreeTests.swift. It compiles. Saved as .claude/wip/layout-tree.patch and the working copy restored to green, because the consumer migration is 190 sites across WorkspaceManager (119), SplitContentView, PaneTabBar, SplitLayout and the tests — too large to finish safely in the session that wrote the tree, and a half-migrated build helps nobody. Apply the patch and work the compiler's list.",
+    "2026-08-18: The parked tree landed and the consumers migrated. Two things were found only by building it. (1) C-LAYOUT said a slot showing one pane draws no tab bar; that removed the drag HANDLE from the commonest arrangement there is, so the gesture this WI exists to enable could not be started on it. The clause is amended and every slot draws its bar. (2) Splitting was minting a blank shell at home. It is copying the pane now — same connection, same directory, own agent id — which needed a starting directory on the far side too: connect.sh gained SYNAPTY_START_CWD, in the environment for the same reason SYNAPTY_BIN rides there.",
+]
+
+[[content.acceptance_criteria]]
+text = "A pane is the only layout type — the split tree's slots hold an ordered stack of panes, and a tab is what a slot shows"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "No type means tab; no operation moves a thing between tabs as a separate kind of move"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "Every slot draws its tab bar, including one holding a single pane — the tab is the handle the pane is dragged by, and the bar belongs to the slot rather than to the workspace"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A pane keeps its content kind, its connection and its identity through every layout change — the surfaces and ptys are keyed by it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A stored arrangement is not converted: the persisted shape carries a new version and a store at any other version is discarded, per RFC-0015:C-UNRELEASED — the criterion this replaces predates that clause"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Stacking, unstacking, splitting and closing are covered by tests over slots holding one pane and slots holding several"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Splitting is copying the pane and cutting its slot in two: a terminal is reopened on the same connection in the same working directory under its own agent id, and a file or web pane is copied as the value it is"
+status = "done"
+category = "changed"

@@ -1,0 +1,62 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-004"
+title = "The workbench cannot show a page that is not a host's service"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-23"
+completed = "2026-08-23"
+refs = [
+    "RFC-0015",
+    "RFC-0013",
+    "ADR-0014",
+    "ADR-0010",
+]
+
+[content]
+description = """
+An agent works, and the human wants the documentation, the issue, the API reference. Today that means leaving the workbench, and leaving it means leaving the arrangement: a page in another application cannot be placed beside the terminal it is about, cannot be split or moved with the layout, and does not come back when the workspace does.
+
+RFC-0015 C-CONTENT admits a fourth pane kind for this. It is not a mode of the services pane, and the reason is not stylistic: every row in that pane is bound to a named machine, and a typed address is not, so one pane would have to answer "over whose network?" and could not.
+
+A BROWSER LEAF NAMES THE LOCAL CONNECTION, ALWAYS, and the clause says in its own text that this is a stipulation rather than a derivation — the intuition that produced it does not survive its own edge case, since a human may address a forwarded port on the loopback interface and that fetch is served over the far machine's network. Implement the rule as stated rather than as reasoned.
+
+TWO OBLIGATIONS GATE THIS ONE BEFORE A HUMAN CAN CREATE SUCH A LEAF, and they are gates rather than polish. A page is the content best able to imitate the window it is drawn in, so a browser leaf must carry chrome of its own that marks it as a rendered page — a positive mark, not merely the absence of ours — and it must not wear the frame that marks agent content, because no agent asked for it. And it must bound what it will load: an allow-list, documented, excluding `file:`, refusing anything outside it visibly. Both cost nothing while no such pixel exists and cannot be retrofitted once content sits somewhere it appears to belong.
+
+RESTORE IS PART OF THE SECURITY QUESTION, not only of the feature. A browser leaf persists its address, so reopening the workbench fetches a remote page with no human act at that moment. That is why C-PERSIST bounds what is written to the address and excludes the session, the history and anything a site left behind."""
+
+[[content.acceptance_criteria]]
+text = "A pane can be opened on a web page the human addresses, beside a terminal on any machine"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A browser leaf names the local connection whatever workspace it sits in, and there is no way to make a remote one"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A browser leaf is visibly not this application, by a mark of its own rather than by the absence of ours, and never wears the agent frame"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "What a browser leaf will load is a documented allow-list that excludes file:, and anything outside it is refused where the human can see the refusal"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "A browser leaf comes back at its address after a restart, and brings back nothing else — no history, no session, nothing a site left behind"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The snapshot carries the fourth kind, and a store written by the previous shape is discarded rather than converted"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Every pane-shaped surface — the new-pane menu, restore, splitting, docking — has an answer for the fourth kind"
+status = "done"
+category = "chore"

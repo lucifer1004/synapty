@@ -1,0 +1,95 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-003"
+title = "spec(hub): RFC for remote hub deployment, agent authentication and multi-workbench semantics"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-24"
+refs = [
+    "ADR-0007",
+    "RFC-0004",
+    "RFC-0005",
+    "RFC-0007",
+    "RFC-0008",
+    "ADR-0008",
+]
+depends_on = ["WI-2026-08-12-002"]
+
+[content]
+description = """
+[[ADR-0008]] requires the peer protocol to be SPECIFIED before it is built, for the reason [[ADR-0006]] was written in the first place: implementation drifting from specification is how this project produced its worst bugs. This WI drafts and reviews that RFC. It replaces the earlier "remote hub + multi-workbench" scope, which assumed a single selected hub — an assumption [[ADR-0008]] removed.
+
+What the RFC must settle:
+
+1. The submission/relay split. Agent-to-hub connections carry exactly one identity (as today, and this is where impersonation defence lives); hub-to-hub peer links are authenticated and carry many identities. State the threat model plainly rather than implying it, and state what binds a connection to the identity it may claim.
+2. Directory exchange: how a hub advertises its local identities to peers and how peers learn of changes, bounded so it stays a small table rather than becoming a routing protocol.
+3. Cross-hub routing and store-and-forward: forwarding to the peer hosting an identity, spooling with a TTL when that peer is unreachable, flush ordering on reconnect (spooled traffic precedes new traffic), and what happens when a TTL expires or an identity is unknown everywhere — noting that the current fail-fast "unknown target" behaviour cannot survive unchanged once a target may live on an unreachable peer.
+4. Presence federation: how [[RFC-0004]] status and generations behave when the observer and the observed are on different hubs, and what an agent waiting on a peer across an unreachable link is told.
+5. Identity uniqueness across machines: [[RFC-0008]] derives durable ids from (tool, resume_ref) which is globally unique in practice, but the `local-` fallback prefix is machine-scoped and would collide between two laptops.
+6. Event logs are per-machine by decision; specify what the workbench's merged view may and may not claim about ordering across machines."""
+notes = [
+    '''[[RFC-0009]] drafted with ten clauses. REVIEW HONESTY: the govctl rfc-reviewer subagent STALLED after ~10 minutes with no findings delivered, so the review below is my own against the same five criteria (unimplementable clauses, unamended contradictions with accepted RFCs, untestable MUSTs, gaps producing divergent implementations, overclaimed guarantees). An independent review has NOT happened and should be run before stage 4 code lands.\n\nNine findings, all fixed. Two were HARD CONFLICTS with accepted [[RFC-0004]]: (a) I had introduced 'unreachable' as distinct from every vocabulary value, which would have extended a closed vocabulary — corrected to reuse , whose existing meaning ('no reliable evidence') is exactly the unreachable case, with reachability carried alongside as a peer attribute; (b) I had required a 'distinct outcome' for  against an unreachable peer, which would have extended a CLOSED, stable exit-code contract — corrected to reuse exit 2 (not in the local directory at start) and exit 4 (pinned identity lost mid-wait), distinguishing the cases only in human-readable output.\n\nTwo findings were WHOLE MISSING CLAUSES, both listed in this WI's own description and both absent from my first draft: workbench-directed request routing (exec and task tools must reach the workbench attached to the HOSTING hub, and fail fast where none is attached — never queue side-effecting actions) and wake locality (candidates minted only by the mailbox holder; a hub with no workbench simply keeps them pending).\n\nFive were gaps or overclaims: 'once the peer has accepted it' was undefined (now an explicit forward-ack with hold-until-acked and retry-or-spool); the conflict case had no sender-facing answer (now a fourth, distinct refusal); C-DIRECTORY's 'full set' contradicted C-IDENTITY-SCOPE's ban on advertising unqualified fallback ids; presence-relaying looked like an exception to the no-event-replay rule (now explicitly not, with a ban on satisfying presence by forwarding agent_status_changed); and C-BOUNDARIES overclaimed what loopback proves — an SSH reverse tunnel terminates on loopback, so it bounds submission to 'this machine plus whatever a workbench-established tunnel admits', not to this machine.\n\nCoordinated amendments applied (version bumps blocked by phase=spec, so folded into the current candidates as with [[RFC-0005]] and [[RFC-0007]] earlier): [[RFC-0008]] C-MAILBOX (fail-fast on unknown targets holds only while no peer is unreachable), [[RFC-0007]] C-EXEC-SCOPE (read 'the workbench' as the hosting hub's), [[RFC-0005]] C-WAKE-TRIGGER (forwarding hub must not mint candidates), [[RFC-0004]] C-WAIT (unreachable maps onto the existing closed exit-code set).''',
+    """
+FOR THE RFC THIS ITEM PRODUCES: version skew between a workbench and the hub it deployed is a real failure mode, found by running it ([[WI-2026-08-16-001]]).
+
+A host connected today ran a hub three days older than the workbench, and rejected every tool added in between with a bare "unknown tool" — naming neither the host, nor the cause, nor anything to do about it. Two compounding defects produced it, and the shape of both is worth a clause rather than a fix:
+
+- THE APP SHIPPED BINARIES IT NEVER BUILT. The bundling step copied a cross-compiled binary if one happened to be lying around and skipped silently otherwise, so the macOS half tracked every build while the Linux half was frozen at whenever someone last ran the cross-compile by hand. A deployment mechanism that faithfully delivers a stale artifact is indistinguishable from one that works.
+- `hub --ensure` PROBES FOR A LIVE HUB AND LEAVES IT ALONE, which is what makes it safe to run on every connect and what kept a host on the same hub across every upgrade. Uploading a new binary does not replace a running process.
+
+What was implemented, for the RFC to accept, amend or reject: the hub is replaced on connect when — and only when — the upload just happened, because if we wrote a new binary then whatever is running cannot be it. No version probe is needed and none would be more reliable. Connect is the moment for it: the tunnel and peer link are being rebuilt anyway, and panes reconnect to whatever hub next binds the port with their identity replayed. Done by pid from the hub's own discovery file and guarded on the process's command line, never by pattern — a `pkill -f` issued over ssh matches the shell running it.
+
+AND THE SKEW MUST STAY VISIBLE REGARDLESS. Automatic replacement makes a stale hub rarer, not impossible: an unreachable host, a full disk, a missing build target. The host card carries a warning when the running hub is not the deployed binary. Two figures rather than one, because the bug is that they disagree — the discovery file names the PROCESS, the binary on disk names only what would run next, and comparing files would have reported everything fine.""",
+    "Amendment criterion checked clause by clause on 2026-08-24: RFC-0003 C-HUB-REPO, RFC-0004 C-WAIT and its presence snapshot, RFC-0005 C-WAKE-TRIGGER, RFC-0007 C-EXEC-SCOPE and RFC-0008 C-MAILBOX each carry an explicit FEDERATION QUALIFIER naming the RFC-0009 clause that reaches them, so no accepted clause still assumes a single hub or a single machine. What remains open is the INDEPENDENT review of RFC-0009 — the review on record is the author's own, and a second reading by the same author is not the thing the criterion asks for.",
+    """
+REVIEW PASS 2026-08-24, against the accepted RFCs and against the implementation. Three findings, all checkable.
+
+F1 (contradicts an accepted clause). C-DELIVERY's WIRE SHAPE bullet permits keeping 'queued' as a derived boolean 'for one release so existing callers keep working while they migrate'. That is compatibility language for a product that has never been released, which RFC-0015 C-UNRELEASED answers directly — nothing in the world holds this shape — and 'for one release' names an end that no release cadence defines, so the allowance never expires. It is the same class of clause that was deleted this morning as RFC-0014 C-CUTOVER. It is not theoretical: handlers.zig:328 writes exactly that derived boolean today.
+
+F2 (internal contradiction, and the implementation resolves it the way the clause forbids). C-DIRECTORY's CONFLICT bullet requires a sender addressing a conflicted identity to get 'a refusal that names the conflict — distinct from all three C-DELIVERY answers, because neither queued, unreachable nor unknown describes a target that exists twice.' Three problems in one sentence. (a) C-DELIVERY defines FIVE answers, and neither 'queued' nor 'unreachable' is among them — the enumeration is stale. (b) C-DELIVERY says status MUST be one of those five, so the required refusal has no value to be sent as; DeliveryOutcome in federation.zig has no conflicted case either. (c) The implementation refuses the SECOND advertisement at admission (handlers.zig:1358, registry.zig:1473) and logs it, so the first claimant keeps the identity and stays routable — which is picking a winner, the thing the clause says MUST NOT happen, and the sender is never told anything.
+
+F3 (minor, naming). 'unknown' is normative in two different senses in one document: a delivery status in C-DELIVERY, and the RFC-0004 presence status that C-PRESENCE requires for identities of an unreachable peer. Different namespaces, never said to be. One sentence would remove the hazard.
+
+INDEPENDENCE, STATED PLAINLY: this pass is the author's again. What it produces is findings that can be checked against clause text and line numbers, which is worth having; it is not the independent reading the criterion asks for.""",
+    """
+FINDINGS FIXED 2026-08-24, authorized. F1: C-DELIVERY's migration allowance is deleted — nothing is carried beside `status`, and handlers.zig no longer writes the derived `queued` boolean (which answered true for `spooled`, the overstatement the next bullet forbids). F3: the two meanings of `unknown` are named apart in C-DELIVERY.
+
+F2 IS FIXED AT THE SOURCE, which was Zihua's point. Qualification already removes accidental collisions (C-IDENTITY-SCOPE), so the only remaining route to two live claims is one harness session genuinely visible on two machines — a home directory shared across cluster nodes — which is a configuration error on those machines rather than a routing case, and C-IDENTITY-SCOPE now says so.
+
+What was left was a defect the clause had hidden: the directory treated a claim against a TOMBSTONED entry as a conflict, so an agent that re-homed while its old machine was unreachable stayed unroutable for the whole retention window — deliberately no shorter than the spool TTL, i.e. exactly the period the design added to keep it reachable. That is now a MOVE and the new claim supersedes.
+
+Two LIVE claims keep both, route to neither, and clear themselves when either claimant withdraws or its link drops — refusing the second claim, which is what the implementation did, leaves the first routable and is picking a winner. `conflicted` joins C-DELIVERY as a sixth answer so a sender is told. Three tests, each put to a mutant.""",
+    """
+INDEPENDENT REVIEW RUN 2026-08-24 (govctl rfc-reviewer, not the author). Verdict: MAJOR ISSUES — 5 critical, 12 major, 7 minor. It cleared the two things the author's pass had just worked on (no compatibility language remains; the submission-boundary impersonation honesty is maintained precisely) and found five classes the author's pass did not look for at all: an overclaim at the RELAY boundary that other RFCs rest on, a closed enumeration two accepted RFCs already falsify, answer-set gaps in delivery, an unsatisfiable MUST in C-WORKBENCH-ROUTING, and staleness against RFC-0010/0011 amendments those documents assert were made here.
+
+ONE CRITICAL IS THE AUTHOR'S, FROM AN HOUR EARLIER: adding `conflicted` to C-DELIVERY left the clause's own header saying FOUR answers over a five-item list, and left RFC-0008 C-MAILBOX — which this clause amends and which carries the RFC-0003 C-CLI-TOOLS exit-code mapping — enumerating five names with no place for the sixth. So no accepted clause says whether `conflicted` is exit 0 or non-zero, and the implementation had to guess (federation.zig makes it a failure). That is the exact shape of defect this WI's own notes describe from the first review round: a revision that covers the case in front of it and draws a new boundary somewhere else.
+
+The findings are their own scope and are raised as WI-2026-08-24-005.""",
+]
+
+[[content.acceptance_criteria]]
+text = "RFC drafted and reviewed covering workbench-addressed routing (exec to the owning workbench, wake to the hosting workbench), cross-machine identity uniqueness, generation semantics under multiple observers, and offline/unreachable degradation"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "agent authentication specified — what binds a connection to the identity it may claim, with the SSH tunnel bounding reachability but NOT identity; the threat model stated plainly rather than implied"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "coordinated amendments to [[RFC-0004]]/0005/0007/0008 identified and applied, so no accepted clause silently assumes a single workbench"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "RFC drafted and reviewed covering the submission/relay trust split with an explicit threat model, directory exchange, cross-hub routing with spool/TTL/flush-ordering, presence federation, cross-machine identity uniqueness, and the limits of a merged event view"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "coordinated amendments to [[RFC-0003]]/0004/0005/0007/0008 identified and applied so no accepted clause silently assumes a single hub or a single machine"
+status = "done"
+category = "chore"

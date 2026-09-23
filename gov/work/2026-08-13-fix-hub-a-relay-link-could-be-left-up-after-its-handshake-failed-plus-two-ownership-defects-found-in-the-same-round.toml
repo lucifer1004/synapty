@@ -1,0 +1,45 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-006"
+title = "fix(hub): a relay link could be left up after its handshake failed, plus two ownership defects found in the same round"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+A code-quality round over everything written since the last one (~2000 lines of Zig, ~800 of Swift: federation identity and negotiation, the config lifetime split, per-record host storage, the merged multi-hub view).
+
+THE ONE THAT MATTERS. handleRelayHello brings a peer link UP and then does four more fallible things — two arena puts, a send and a dupe. The teardown that undoes peerLinkUp is the CALLER's `defer`, which is not installed until handleRelayHello returns, so that whole tail ran unguarded. The trigger is not OOM: Connection.enqueue answers error.ConnectionClosed, so a peer whose process dies or whose tunnel drops between its hello and our answer takes the path on an ordinary day.
+
+Three consequences, worst first. The stale PeerLink holds a pointer to a Connection that is about to be destroyed, and forwardToPeerLocked and relayPresenceLocked write through it. The peer can then NEVER reconnect: every later relay_hello is refused with PeerIdInUse. And that refusal advises re-minting the peer id, which under [[RFC-0010]] C-COLLISION invalidates directory entries, spooled mail and qualified ids on machines that were never involved — so following the advice makes it strictly worse.
+
+The dialing caller in peer.zig never had the window, because its defer sits on the line after peerLinkUp. That asymmetry is why the defect survived: the same operation was safe in one caller and unguarded in the other, and nothing in either function said which.
+
+TWO OWNERSHIP DEFECTS. peerLinkUp recorded endpoint continuity with `self.allocator.dupe(u8, peer) catch peer` — on allocation failure it stored the CALLER's slice in a map whose values HubState owns and frees. peer.zig frees that slice when the link drops, leaving a dangling pointer that the continuity check reads on the next link to the same port and that deinit frees a second time. Separately, a failing fetchPut leaked the duped key.
+
+STRUCTURE. peer.zig's dialAndServe carried twelve hand-written `conn.shutdown(); writer.join();` pairs across twelve early returns — one leaked thread and one leaked fd for whichever one a later edit forgets. Replaced by a single defer next to the spawn.
+
+WHAT THE ROUND CHECKED AND FOUND CLEAN, recorded so the next round can skip it: the presence_mutex discipline holds across all 28 locking methods in HubState (no re-entrancy, and all 18 call sites of the seven *Locked helpers hold the lock); the accepting side's link teardown in session.zig is correct; peer_connect's self_peer_id is correctly a suggestion that cannot rename a hub that already has an identity."""
+
+[[content.acceptance_criteria]]
+text = "a relay_hello that fails after peerLinkUp leaves no PeerLink behind, proven by a test that fails without the errdefer"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "endpoint continuity never stores a borrowed slice in an owned-value map, and never leaks the duped key"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dialAndServe has one teardown defer rather than twelve hand-written pairs"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "TunnelManager's redial chain clears its own slot, so the entry guard means 'already trying' rather than 'already tried'"
+status = "done"
+category = "chore"

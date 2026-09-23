@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-043"
+title = "feat(gui+cli): GitHub unbind/rebind — logout command and GUI connect form"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "User-scenario gap #6/#1/#2: the GitHub credential can neither be unbound nor rebound — the CLI's github subcommand only accepts 'login', the Keychain entry (service synapty.github) has no removal path, and the GUI has no connect form (Settings has no GitHub section; the Hub page only shows 'Run synapty github login in any terminal pane'). Deliver: CLI 'github logout' (deletes the Keychain credential + clears the config binding) and 'github status' (JSON: owner/repo/username/configured); SubprocessRunner gains stdin input support so the GUI can feed the token without exposing it in argv; a GUI 'Connect GitHub' sheet (owner/repo/token + Create-PAT link + submit runs login with the token via stdin, success/failure feedback)."
+notes = ["CLI: 'synapty github logout' (Keychain deleteToken via security delete-generic-password + config file removal) and 'synapty github status' (JSON {configured,owner,repo,username,hasToken}) — the ONLY removal path that existed before was nothing. SubprocessRunner gained stdin input so the GUI feeds the PAT without argv exposure. GUI: GithubConnectSheet (owner/repo/secure token field, Create-PAT link, verify-on-submit via 'github login --owner --repo' with token on stdin, failure feedback). Smoke-tested live: status/logout/status round-trip works. NOTE: the live smoke test unbound the real lucifer1004/hub binding (see WI notes) — recovery is the new Connect sheet."]
+
+[[content.acceptance_criteria]]
+text = "fix: CLI github logout removes the Keychain credential and clears the config binding; github status prints the current binding as JSON"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: SubprocessRunner can write stdin input (token never appears in argv/ps)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: GUI Connect GitHub sheet (owner/repo/token, PAT link, verify-on-submit, feedback)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 124 Zig tests still green (incl. new parse/status tests where practical); 128 Swift tests still green"
+status = "done"
+category = "chore"

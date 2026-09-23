@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-03-31-002"
+title = "Merge hub/daemon/CLI into single synapty binary"
+status = "done"
+created = "2026-03-31"
+started = "2026-03-31"
+completed = "2026-03-31"
+refs = [
+    "ADR-0001",
+    "ADR-0004",
+]
+
+[content]
+description = "Consolidate synapty-hub, synapty-daemon, and synapty CLI into a single binary with subcommands. The daemon is functionally equivalent to 'synapty run' and the standalone hub is dev-only (embedded in GUI per ADR-0001). Merging reduces the build matrix (5 targets x 1 vs x 3) and simplifies deploy."
+
+notes = [
+    "2026-03-31 (build): Merged: single 2.2M binary (was 5.5M total). Hub subcommand, run --hub flag, 54 total tests pass.",
+]
+[[content.acceptance_criteria]]
+text = "'hub' subcommand to CLI that runs standalone Hub"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "fold daemon --hub flag into 'run' subcommand"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "remove synapty-hub and synapty-daemon executables from build.zig"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "all existing tests pass"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "new hub subcommand has parse tests"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes"
+status = "done"
+category = "chore"

@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-030"
+title = "fix(gui): SubprocessRunner bounded drain with process-group kill"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 CRITICAL (Swift): SubprocessRunner.drainGroup.wait() is unbounded — on timeout bash is SIGTERMed while its ssh/scp child keeps the pipe write-ends open, EOF never arrives, and the caller (monitoring/task/activity polling, tunnel setup) hangs FOREVER with the in-flight guards stuck — the exact silent wedge [[WI-2026-08-08-005]] was written to prevent. The 'hard timeout' guarantee is false for stubborn children, and the orphan child is never killed."
+notes = ["SubprocessRunner now SIGKILLs the whole process group on timeout (grandchildren ssh/scp cannot hold the pipes open) and bounds the drainGroup wait — a stuck EOF handler can never wedge the caller; in-flight polling guards always reset."]
+
+[[content.acceptance_criteria]]
+text = "fix: on timeout the whole process group is SIGKILLed (children cannot keep the pipes open)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: drainGroup.wait() is bounded — a stuck EOF handler cannot hang the caller"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: in-flight guards always reset (a wedge is impossible by construction)"
+status = "done"
+category = "fixed"

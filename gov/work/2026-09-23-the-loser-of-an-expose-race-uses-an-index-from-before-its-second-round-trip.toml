@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-003"
+title = "The loser of an expose race uses an index from before its second round trip"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0013:C-PRIMITIVES"]
+
+[content]
+description = """
+`PortForwardService.expose` has two round trips, and the list of exposures can change during either.
+
+THE FIRST WAS ALREADY HANDLED. After placing and opening the forward it asks the list again, because another expose of the same port can have landed meanwhile (WI-2026-09-02-033). If one has, this call lost the race: it closes its own forward and settles on the winner.
+
+THE SECOND WAS ADDED LATER AND WAS NOT. Closing the losing forward became an awaited ssh round trip of up to ten seconds (WI-2026-09-02-036), and the code after it went on writing `exposures[idx]` with the index found before it. A withdrawal in that window moves every later exposure down one place, so the loser set ANOTHER exposure's path and returned that exposure to the agent — which then tells the human a URL for a different service. A shorter list indexes past the end and traps."""
+notes = ["""
+Re-found after the second await, and refused with a sentence if the winner has gone.
+
+`ControlGate` in the test parks an ssh control action by action, by the remote port in its spec, and by how many times that pair has been asked — so the loser's forward and cancel can be told apart from the winner's without knowing which local port each was given.
+
+MEASURED, NOT ONLY READ. With the old index back, the loser was handed the exposure for port 7001 instead of 8888, and the unrelated exposure's path became "/y" — both assertions fail with exactly the harm the description predicts."""]
+
+[[content.acceptance_criteria]]
+text = "the loser settles on the winner as the list stands after its last round trip, not before it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a winner withdrawn during that round trip is reported as withdrawn rather than indexed past"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the interleaving is forced — both control actions for the port are parked until the test releases them, and the list is changed while the loser is closing its forward"
+status = "done"
+category = "chore"

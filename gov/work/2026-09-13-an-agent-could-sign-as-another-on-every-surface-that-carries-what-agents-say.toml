@@ -1,0 +1,61 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-13-001"
+title = "An agent could sign as another, on every surface that carries what agents say"
+status = "done"
+created = "2026-09-13"
+started = "2026-09-13"
+completed = "2026-09-13"
+refs = [
+    "RFC-0008:C-TRUST",
+    "RFC-0009:C-BOUNDARIES",
+    "RFC-0003:C-A2A-REDUCTION",
+]
+
+[content]
+description = """
+The trust-boundary axis of the second audit round, which returned nothing twice — the agent died to API timeouts both times — so this was done directly.
+
+WHAT WAS MEASURED, NOT REASONED. Against a live hub on loopback: an agent registered honestly as `mallory-03`, then set `source` to `alice-01` on its frames.
+
+- Its mail reached `bob-02` reading `"source":"the-human"`. `handleDm` serialised the envelope AS RECEIVED and queued it; the recipient reads that field to know who wrote to it.
+- Its message reached a PRIVATE channel it had never been invited to, and a real member read it as Alice's — because `isMember` tests the same client-supplied field. That is an AUTHORISATION decision made on a field the sender fills in, not merely a wrong name.
+- `channel_invite` and `channel_create` read it too: the first decides who may widen a channel's membership, the second decides who owns one.
+
+An UNREGISTERED connection cannot do any of this — measured, a dm sent before registering never reaches a mailbox — so every frame that gets this far has a bound identity to be judged by. The fix has no fallback case to guess at.
+
+THE RULE IS THIS PROJECT'S OWN AND WAS APPLIED TWICE. `stampAttribution` says it in as many words — "stamp … with the requesting connection's bound identity — HUB-side, so agents cannot sign as each other" — for task-center prose. `handleAgentStatus` resolves its subject the same way and calls the result unforgeable. Every surface that carries what agents SAY to each other took the envelope's word.
+
+WHY THE CLAUSE NEEDED THE OTHER HALF. RFC-0008 C-TRUST already prices identity spoofing and adopts a hardening for it: durable claims are accepted only over transports the hub can vouch for. That gate is on REGISTRATION. Re-reading `source` per message did not defeat the gate — it routed around it, because nothing downstream asked again. So the clause now states the local half of the rule it already has the federation half of (RFC-0009 C-BOUNDARIES, "a relay peer speaks for the identities IT HOSTS and no others").
+
+AND IT CURES A STALENESS ALREADY NAMED. The pane daemon stamps the id it captured at startup, which goes dead after an identity upgrade. WI-2026-08-11-019 fixed exactly that for status signals by resolving hub-side, and said so in a comment twenty lines from `handleDm`; messages kept sending under the dead pane id.
+
+SCOPE, HONESTLY. This does not introduce authentication, attestation or signing — C-TRUST rules those out and the trust domain is unchanged. It stops the hub from making decisions on a field it has a better answer for. The shared-server consequence C-TRUST records is untouched and still deferred.
+
+WHAT ELSE THIS AXIS CHECKED AND FOUND CLEAN: both shell-quoting primitives (`Shell.quote`, `connect.shellQuote`) are correct POSIX single-quoting, and every remote command built in Sources/ passes its values through one of them — enrolment's authorized_keys writes included, which are the ones that would matter most. Relay frames cannot reach these handlers: federation has its own dispatcher with a deliberately smaller vocabulary, and `peerMaySpeakFor` bounds what a peer may claim."""
+
+[[content.acceptance_criteria]]
+text = "a dm carries the sender the connection is bound to, so mail can no longer arrive claiming to be from somebody else"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "channel membership and channel creation are decided on the connection's bound identity, so an agent cannot post to a channel it was never invited to by naming a member"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a pane whose identity was upgraded sends under the durable id rather than the dead pane id it captured at startup"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "RFC-0008 C-TRUST states the local half of the rule — the identity a frame acts with is the connection's, never the envelope's — which is what makes its own registration hardening mean anything"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an agent registered as one identity cannot deliver mail as another, cannot reach a private channel by naming a member, and cannot create a channel owned by somebody else"
+status = "done"
+category = "chore"

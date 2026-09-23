@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-002"
+title = "feat(dist): Developer ID signing and notarization — remove the Gatekeeper detour every new user hits"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+The app is ad-hoc signed (`Signature=adhoc`) with no Developer ID and no notarization, so every new user meets Gatekeeper before they meet the product: install via cask to have the quarantine attribute stripped, right-click-Open, or `xattr -cr`. The README documents the detour, which is the tell.
+
+This is the largest distribution gap and it is independent of every other line of work. The nearest comparable tools win on zero-friction adoption — one runs inside the terminal the user already has, the other is a signed native app — and a first-launch that looks like the OS refusing to open the download is a worse first impression than any missing feature.
+
+Also a prerequisite for WI-2026-08-13-005: iCloud entitlements are unavailable to a free Apple ID personal team. The paid programme is being bought for signing regardless; iCloud comes with it rather than justifying it."""
+notes = ["""
+VERIFIED END TO END, not merely configured. Submission 8d968be2 was Accepted on the first attempt, the ticket is stapled, `spctl -a -t install` reports `source=Notarized Developer ID`, and the stapled app was installed to /Applications and launched: the hub came up, the nested helper exec'd, and libghostty rendered with no code-signature kill.
+
+THREE THINGS THE FIRST SIGNED BUILD GOT WRONG, each of which alone fails notarization:
+1. `com.apple.security.get-task-allow` survived pointing CODE_SIGN_ENTITLEMENTS at an empty file — Xcode injects it on top. CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO is the switch that actually removes it.
+2. `Contents/Helpers/synapty` was only ad-hoc signed. Xcode signs the bundle and the nested code it recognises (frameworks, XPC services); Helpers/ is not one of those, so the Zig binary arrived linker-signed and stayed that way.
+3. `Contents/Resources/deploy/macos-x86_64/synapty` was not signed at all — a cross-compiled payload the linker never touched.
+
+All three are now handled in the post-build script, which runs BEFORE Xcode seals the app, so the nested binaries are correct when the outer signature is computed.
+
+ENTITLEMENTS ARE EMPTY, and that is a finding rather than an omission. The hardened runtime restricts JIT, unsigned executable memory, DYLD injection and loading libraries this app did not sign — not spawning child processes, which is the terminal's whole job. libghostty asked for none of it: the app runs notarized with an empty entitlements dict. Copying a permissive template would have worked on the first try and left nobody able to say which line was load-bearing.
+
+STAPLING ORDER. The app is notarized and stapled BEFORE it is packaged, so the Homebrew zip and the DMG both carry an already-stapled app; the DMG is then signed, notarized and stapled as its own artifact. Notarizing only the DMG would leave the app — the thing a human drags out and keeps — validating online, and failing closed offline.
+
+THE CASK NO LONGER STRIPS QUARANTINE. That was the workaround for not being notarized; keeping it would discard the check notarization exists to pass.
+
+CREDENTIALS. The Team ID and certificate name are in project.yml on purpose: any distributed app hands both to anyone who runs `codesign -dv` (Ghostty is 24VZTF6M5V, VS Code is UBF8T346G9), so hiding them costs contributors a buildable tree and protects nothing. The private key and notarization secret are not in the repo — notarytool credentials live in the keychain, and .gitignore now refuses *.p12, *.p8, *.cer, provisioning profiles and ExportOptions.plist, which this public repo had no rules for."""]
+
+[[content.acceptance_criteria]]
+text = "the shipped app carries a Developer ID Application signature and is notarized; a first launch from a fresh download requires no quarantine removal, no right-click-Open and no xattr"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the cask and the release instructions drop the Gatekeeper workarounds, because they no longer describe reality"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the signing and notarization steps are part of the packaging recipe rather than a remembered manual sequence, and a stapled artifact is verified before release"
+status = "done"
+category = "chore"

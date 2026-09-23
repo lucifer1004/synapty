@@ -1,0 +1,76 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-008"
+title = "A claim that could not be asked was read as a claim that said no, and that answer sweeps records"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = ["RFC-0014:C-LIVENESS"]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL RFC AUDIT of the same day's work, and it is the
+most dangerous thing shipped that day.
+
+[[WI-2026-09-07-005]] widened `Record.ownerGone` from `claimState == .free`
+to `claimState != .held`, on this argument: `Record.write` claims the lock
+BEFORE it writes the record, so a record can only exist where a lock
+existed; therefore `absent` beside a record cannot be a live holder;
+therefore reporting it gone cannot report a RUNNING holder as gone.
+
+THE ARGUMENT IS TRUE AND DOES NOT REACH THE PREDICATE. It establishes that
+a lock file existed ONCE. `claimState` answers `.absent` when it could not
+open a lock file NOW, and the gap between those needs a premise that is
+false — that the lock FILE lives as long as the holder. The kernel ties the
+FLOCK to the process, not the file; `Record.remove` has to unlink the lock
+explicitly precisely because nothing removes it on death and nothing
+protects it during life.
+
+AND `.absent` WAS NEVER "NO LOCK FILE". `sys.openForClaim` was
+`return if (fd < 0) null else ...` — every `open(2)` failure collapsed into
+one answer. So `.absent` also meant EACCES, EMFILE, ENFILE, ELOOP, EIO,
+ENAMETOOLONG. `Record.lockPathFor` returning null — an unresolvable state
+directory — answered `.absent` too, which made EVERY session on the machine
+read as gone in one call. The Swift side was identical.
+
+SO AN FD-EXHAUSTED WORKBENCH WOULD HAVE SWEPT EVERY LIVE SESSION IT HELD.
+EMFILE arrives when the most surfaces are open, which is exactly when there
+are the most live sessions to be wrong about. Before the widening `.absent`
+was inert; the widening made it destructive, and none of the reasoning
+behind it engaged with this at all, because it was reasoning about write
+ordering and this has nothing to do with write ordering.
+
+[[RFC-0014]] C-LIVENESS: "THE DETERMINATION MUST NOT REPORT A RUNNING
+HOLDER AS GONE. A test that can answer 'gone' for a holder that is merely
+busy is inadmissible however well it behaves in the ordinary case." The
+verification offered for WI-005 — one stuck record swept, the listing clean
+afterwards — is the ordinary case, and the clause pre-empts it in those
+words."""
+notes = ["""
+THE SWEEP ITSELF IS UNCHANGED AND STILL WIDER THAN IT WAS. `absent` — a
+lock file that is genuinely not there, beside a record — is still a
+tombstone, which is what WI-005 set out to fix and what unstuck a real
+row that had sat in a human's sidebar for six days. What that WI got wrong
+was not the direction; it was believing `absent` meant what its name says."""]
+
+[[content.acceptance_criteria]]
+text = "`openForClaim` reports WHY it could not open — ENOENT is the only failure that means the name is unclaimed, and everything else is this process being unable to look"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a fourth claim state, `unknown`, on both sides. It is never live and never gone: a stale row is litter, a swept record is a live session nothing names"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an unresolvable state directory answers `unknown` rather than `absent`, so one bad path cannot report every session on the machine as gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a lock that cannot be opened for a reason other than ENOENT leaves the record alone, on both sides, provoked by a real error rather than a stub"
+status = "done"
+category = "chore"

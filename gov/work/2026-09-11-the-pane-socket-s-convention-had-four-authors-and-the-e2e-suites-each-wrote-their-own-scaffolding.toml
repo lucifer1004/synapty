@@ -1,0 +1,101 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-017"
+title = "The pane socket's convention had four authors, and the e2e suites each wrote their own scaffolding"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0013:C-BROKER"]
+
+[content]
+description = """
+FOUR AUTHORS FOR ONE CONVENTION. `/tmp/synapty-<pid>.sock` is how a pane
+wrapper's IPC socket is named, and three places in `src/` each stated it
+independently:
+
+- `run.zig` CREATED it from `"/tmp/synapty-{d}.sock"`.
+- `run.zig` SWEPT `/tmp` for `"synapty-"` and `".sock"`, then sliced the
+  pid back out by those two lengths.
+- `mcp.zig` DISCOVERED it from `"/tmp/synapty-"` plus `"{s}{d}.sock"`.
+
+Plus a fourth in the shell suites.
+
+WHAT DRIFT COSTS. `synapty mcp-serve` falls back to a process-tree walk
+when `SYNAPTY_SOCK` is absent; a changed prefix means it logs "no IPC
+socket found" and every `synapty_send`, `synapty_recv` and
+`synapty_notify` stops working while the pane itself is fine. The sweeper
+independently stops recognising the files the creator just wrote and
+leaks one socket per dead pane forever. No Zig test coupled the creator
+to the discoverer — `mcp.zig`'s own test says so in as many words, using
+"A PREFIX NOTHING LISTENS ON, rather than the real one".
+
+`ipc.pane_socket` states it once, and the sweeper's half — recovering the
+pid from a name — is a function beside the one that writes it rather
+than two hard-coded lengths. `ipc` is the owner because it is what serves
+that socket, and because `run` and `mcp` already import it; `paths` would
+have meant widening two module graphs.
+
+STILL IN `/tmp`, AND THAT IS A DIFFERENT DECISION. The holder's sockets
+moved out of it for a named reason — [[paths]] records `/tmp` as "a
+directory the operating system is free to sweep and any user is free to
+empty", and what was lost with a swept socket was that "the holder and
+its child went on running with nothing able to name them". The pane
+socket is the one path still there. Moving it would break the
+`SYNAPTY_SOCK` contract with every running pane and every deployed
+binary, which is a product decision rather than a tidy-up — and naming
+the convention is what makes that decision a one-line change when it is
+taken.
+
+AND THE SUITES EACH WROTE THEIR OWN SCAFFOLDING. Seven end-to-end suites
+stood entirely alone, and the parts that are not about what a suite tests
+were written out once per file: `fail` in four shapes, the free-port
+one-liner four times, the config-root preamble four times, and the
+hub-start-and-wait block byte-identical in two.
+
+The shapes were ALREADY diverging, which is what makes it a file rather
+than a preference: `fail` took `$1` in four suites and `$*` in two, so a
+message given unquoted was truncated to its first word, and three wrote
+to stdout where a failure interleaves with the ok lines a human is
+reading. That half was fixed in [[WI-2026-09-11-013]] by making seven
+copies identical; this replaces the copies.
+
+`scripts/lib.sh` holds `fail`, `free_port`, `isolate_config`, `start_hub`
+and the pane-socket naming. What stays in each suite is everything about
+what it tests — its fakes, its assertions, and any extra a failure should
+dump: `test-host-setup` and `test-reconnect-e2e` keep their own `fail`
+because each dumps a different file after it. A suite is still runnable
+alone; it sources by a path relative to itself, not through the justfile,
+and `shellcheck -x` follows the source so the gate reads it too.
+
+Canaried by drifting the shell's prefix from the binary's: the pane
+socket test fails naming the path it watched for.
+
+Found by the ssot-shell and ssot-zig passes of the 2026-09-10 SSOT/Occam
+round."""
+
+[[content.acceptance_criteria]]
+text = "ipc.pane_socket states the pane socket's directory, prefix and suffix once, with the sweeper's pid-recovery beside the path that writes it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the creator, the sweeper and mcp-serve's discoverer all read that one statement"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "scripts/lib.sh holds fail, free_port, isolate_config, start_hub and the pane-socket naming, shared by the seven suites"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "each suite keeps only what is about what it tests, including its own fail where it dumps a different file"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the convention is canaried by drifting the shell's prefix from the binary's"
+status = "done"
+category = "chore"

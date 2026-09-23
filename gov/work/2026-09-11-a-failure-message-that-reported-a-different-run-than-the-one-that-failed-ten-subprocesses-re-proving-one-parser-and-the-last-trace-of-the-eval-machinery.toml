@@ -1,0 +1,95 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-013"
+title = "A failure message that reported a different run than the one that failed, ten subprocesses re-proving one parser, and the last trace of the eval machinery"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["ADR-0020"]
+
+[content]
+description = """
+Three of these are about code added EARLIER IN THIS ROUND, by me, and
+the first is the same class of defect the round exists to remove.
+
+A MESSAGE THAT REPORTED A DIFFERENT RUN. The forwarding assertions added
+for [[WI-2026-09-10-002]] read
+
+    case "$(fwd_plan 'local:8080::80')" in
+        *"-L 8080:localhost:80"*) ;;
+        *) fail "… : $(fwd_plan 'local:8080::80')" ;;
+    esac
+
+— so `fwd_plan` ran twice, and the output printed in the failure came
+from a SECOND invocation rather than the one that failed. Four
+subprocesses for two assertions, and a diagnostic that can disagree with
+the thing it is diagnosing. Captured once now.
+
+TEN SPAWNS RE-PROVING ONE FUNCTION. The same block looped five bad rules
+over two subcommands. What only this layer can show is that `connect` and
+`host-master` answer the SAME input the same way — the disagreement
+WI-2026-09-10-002 was about, where one exited 2 and the other dialled a
+pane with no `-L` in it at all. WHICH rules the parser refuses is a
+question about `Forward.parse`, and `connect.zig` asks it of the function
+directly, for all five shapes, with no subprocess at all. The other nine
+runs re-proved that slowly and kept a second copy of the parser's table
+in a shell file.
+
+One rule through both callers now, and the assertion says what it is
+for: the two exit statuses must MATCH, rather than each being compared to
+2 separately. Canaried by restoring `orelse continue` in `host.zig`: it
+fails saying host-master accepted the rule.
+
+THE LAST TRACE OF THE EVAL MACHINERY. `test-connect-launch.sh` carried a
+byte-identical pair of lines — `unset SYNAPTY_DURABLE` and the
+`REMOTE_LAUNCH=` that follows it — six lines apart, the second
+recomputing what the first had already computed from an environment it
+had already unset. Between them sat a truncated fragment of a dead
+comment: "Read by the eval'd block below, which shellcheck cannot see
+into: the". [[ADR-0020]] removed every `eval` from this file, and the file
+says so twice in its own prose — but the fragment ran headlong into a
+live comment about a different thing, so it read as a justification for
+the line beneath it.
+
+ONE FAILURE SHAPE IN SEVEN SUITES. `fail()` existed in four shapes:
+`$1` or `$*`, stdout or stderr. `$1` truncates a message given unquoted
+to its first word, and three suites reported failures on stdout where
+they interleave with the ok lines. All seven are `$*` and stderr now,
+each keeping whatever it dumps afterwards.
+
+AND TWO IDENTICAL MESSAGES FOR TWO ENTRY POINTS.
+`test-setup-host-master.sh` and `test-host-setup.sh` both assert that the
+human's forwarding rides the master — the same property of the same
+`openArgv`, reached through the two subcommands. That duplication is
+deliberate and is the axis WI-2026-09-10-002 established, so both stay;
+what was wrong is that the failure text was identical, so a failure could
+not say which caller had stopped carrying it. Each names its subcommand.
+
+Found by the ssot-shell pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the forwarding assertions capture their output once, so a failure shows the run that failed rather than a second one"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one bad rule through both callers, with the two exit statuses required to match — the property only this layer can show — instead of ten spawns re-proving Forward.parse"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the duplicated unset/REMOTE_LAUNCH pair and the truncated eval justification are gone"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "fail() has one shape in all seven suites — $* so a message is not truncated, stderr so it is not interleaved with the ok lines"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the two suites asserting one property through two subcommands name their subcommand, so a failure says which caller stopped carrying it"
+status = "done"
+category = "fixed"

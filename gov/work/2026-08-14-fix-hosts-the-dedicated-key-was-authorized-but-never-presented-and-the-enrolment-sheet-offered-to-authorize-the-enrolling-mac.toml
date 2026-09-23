@@ -1,0 +1,51 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-012"
+title = "fix(hosts): the dedicated key was authorized but never presented, and the enrolment sheet offered to authorize the enrolling Mac"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "WI-2026-08-14-001",
+    "WI-2026-08-14-010",
+]
+
+[content]
+description = """
+Two things the operator saw immediately: the enrolment sheet offered to authorize the Mac doing the authorizing.
+
+THE SHEET. This Mac is the one running the command — it already reaches the host — so offering to grant it access is noise. Excluded.
+
+THE REAL FINDING BEHIND THE QUESTION. The dedicated key was generated, published and authorizable, and NOTHING EVER PRESENTED IT. `effectiveKeyPath` returned only what the record configured, so enrolling any Mac — including this one — authorized a key no connection would ever offer.
+
+That is precisely the gap [[ADR-0009]] exists to close: host records SYNC and `sshKeyPath` is a machine-local PATH, so a record that works on the Mac it was written on can name a file the next Mac does not have. Enrolment is meaningless without a fallback to the key it authorized.
+
+TWO QUESTIONS, KEPT SEPARATE, because conflating them broke four existing tests and would have quietly changed what every connection authenticates with:
+- `HostStore.effectiveKeyPath` answers WHAT THE RECORD SAYS — host, then identity, then group. Configuration, unchanged.
+- `TunnelManager.effectiveKeyPath` answers WHAT THIS MACHINE WILL PRESENT: the configured key when it exists here, otherwise this machine's dedicated key, otherwise the configured path so a failure names the file the human expected.
+
+The fallback fires only when the configured path is absent or missing HERE, so a Mac that has the human's key keeps using it.
+
+AND A SECOND ISOLATION HOLE, found by the same failures. The tests were reading the operator's real `~/.ssh` — the new key was there and four assertions picked it up. `MachineKey.sshDir` now redirects under a test host, the same process-level boundary [[WI-2026-08-14-010]] drew for the config root. The per-test override added first was the opt-in pattern that work item had just established as insufficient."""
+
+[[content.acceptance_criteria]]
+text = "this Mac is not offered for authorization on a host it is already reaching"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a Mac without the configured key presents its own dedicated key, so enrolment means something"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a Mac that has the configured key keeps using it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a test host cannot read or write the human's real ~/.ssh"
+status = "done"
+category = "fixed"

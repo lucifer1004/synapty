@@ -1,0 +1,36 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PTY-HANDOFF"
+title = "PTY Handoff — Explicitly Deferred"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Adopt-or-defer decision: DEFERRED.
+
+herdr's top rung — handing live PTY master fds from the old server
+process to the new one so panes survive an upgrade — is real and proven
+in its architecture (handoff_runtime transfers fds, sizes, keyboard
+protocol state, serialized history). Synapty deliberately does not adopt
+it now, for three reasons:
+
+1. Architectural mismatch: herdr's PTYs live in a headless TUI server
+   whose replacement is an exec-and-hand-over. Synapty's PTYs are owned
+   by libghostty surfaces inside the GUI process, bound to Metal
+   renderer state; there is no process seam at which an fd handover
+   yields a working pane without rebuilding the entire surface stack.
+2. Cost/benefit: what a restart actually destroys that matters is agent
+   conversation context, and resume plans (C-RESUME-PLAN) recover that
+   through the harnesses' own persistence at a fraction of the
+   complexity. The residual loss — scrollback and running non-agent
+   processes — has not yet justified a process-architecture change.
+3. Cadence: workbench restarts are currently developer-driven and
+   infrequent for end users; the pain is concentrated in development,
+   where resume plans already remove most of it.
+
+Deferred, not rejected: if V2 grows a headless core ([[RFC-0001]]'s layered
+architecture makes room for one), handoff belongs to that design round,
+and this clause is the record of why it waited."""

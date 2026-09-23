@@ -1,0 +1,105 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-002"
+title = "A session picked up from Still Running stays in the list for up to a minute"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = [
+    "RFC-0014:C-END",
+    "RFC-0015:C-PANE-ARCHIVE",
+]
+
+[content]
+description = """
+Pick a session up from Still Running and its row stays there. The pane
+opens, the work is on screen, and the list still offers it as something to
+return to — this session's own pane was in that state while the defect was
+being reported.
+
+WHAT IS ACTUALLY WRONG IS WHEN THE SUBTRACTION HAPPENS, not whether it
+happens. `noteRemoteSessions` filters the host's answer through `shown()`
+ONCE, at the moment the answer arrives, and stores the result;
+`hostsWithSessions` and `runningCount` then read that stored array
+straight through. So the subtraction is only ever as fresh as the last
+poll — and the poll is `refreshRemoteSessions()` on a ten-second ticker
+that fires every sixth tick. Sixty seconds.
+
+Nothing triggers it on pick-up, which is the immediate cause. But a
+trigger on pick-up is the wrong repair: it is a round trip to a host to
+learn something this workbench already knows — that a pane here now names
+that session — and it fixes one of the transitions rather than the class.
+Archive, unarchive, restore and rename all move a name across the same
+line.
+
+THE VIEW BESIDE IT ALREADY DOES THIS CORRECTLY. `runningAgents` filters
+the hub's agents through `leafShowing(agent:)` in the view body, and its
+comment says why: "ASKED, NOT RECORDED. This is a view body". The session
+rows are the ones that record. Making the subtraction a computed read over
+what each host reported puts them on the same footing and needs no new
+trigger, no new state, and no network.
+
+THE END PATH ALREADY PAID FOR THIS ONCE. `settleEnding` removes a row from
+the stored table by hand, with a comment recording that leaving it to the
+poll "made a failed end look like a successful one until the next poll put
+the row back". That is the same staleness, patched at one call site.
+
+AND THE TESTS ENCODED THE CONVENIENT ORDER. Every existing case calls
+`recordLeafAgent` BEFORE `noteRemoteSessions`, which is the sequence where
+a snapshot filter cannot be wrong. The real sequence is the other one: the
+host reports, and the human picks up afterwards."""
+notes = [
+    """
+THE THIRD TEST WAS DROPPED BECAUSE IT PASSED FOR THE WRONG REASON. It
+archived a pane after the host had reported it, and went green against the
+unfixed code — because it recorded the agent BEFORE the report, so the
+snapshot filter had already subtracted the row and archiving changed
+nothing. That is the same convenient ordering the rest of the file has, met
+one more time. Archive-after-report is already covered by
+`testAnArchivedRemotePaneIsNotAlsoListedFromItsHost`, so it went rather
+than being rewritten into a duplicate.""",
+    """
+WHAT IS STILL A POLL, AND RIGHTLY. A session that ends ON THE HOST — killed
+over there, or its child exited — still takes up to a minute to leave the
+list, because that is a fact only the host has and only a round trip can
+learn. The local end path does not wait: `settleEnding` drops the row when
+the far side confirms. What this changes is the class of staleness where
+the workbench was waiting to be told something it already knew.""",
+    """
+A SECOND OF RESIDUE REMAINS BETWEEN THE CLICK AND THE DIAL RETURNING, and
+it is left there on purpose. The leaf learns its agent in `paneDidConnect`,
+so on a cold host the row is still listed while the pane shows
+"connecting". Nothing is attached yet in that window, so the row is not
+lying; recording the name at click time would make it lie the other way if
+the dial then failed.""",
+    """
+VERIFICATION. The two new cases were run against the UNFIXED code first and
+failed with the row still present ("gpu-4", "gpu-9" where one was expected)
+— so they pin the defect rather than the fix. Afterwards `just verify` is
+clean: Zig suite, 1438 Swift tests (5 skipped, 0 failures), govctl,
+gov-lint, unshipped, shellcheck, federation e2e.
+NOT verified on screen: this machine is locked and macOS UI automation
+cannot run against a locked screen.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a session picked up from Still Running leaves the list as soon as a pane here names it, without waiting for the next poll"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "what a host reported is stored unsubtracted, and `remoteSessions` subtracts what this workbench shows at READ time — the same discipline `runningAgents` beside it already follows"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the order the defect needs — host reports first, human picks up second — is the order the new cases use, because every existing one recorded the agent first and could not fail"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "no new trigger, no new state and no extra round trip to a host; the Swift suite stays green"
+status = "done"
+category = "chore"

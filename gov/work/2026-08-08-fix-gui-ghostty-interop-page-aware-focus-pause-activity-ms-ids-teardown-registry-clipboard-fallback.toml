@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-032"
+title = "fix(gui): ghostty interop — page-aware focus/pause, activity ms ids, teardown registry, clipboard fallback"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 warnings (ghostty interop): (1) viewDidMoveToWindow overwrites the paused display-id applied by registerSurface — hidden surfaces render at 60fps indefinitely (the WI-013 fix is neutralized on the exact path it targets); (2) focus gates ignore page-level visibility — a background page's surface can steal focus, and returning to the Terminal page never restores it; (3) ActivityItem.id is second-resolution ts — multi-agent bursts collide, breaking ForEach identity and the new last-id scroll; (4) teardown: isShuttingDown leaves dangling registry pointers after app_free, and late applyDisplayIds can touch freed surfaces; (5) clipboard callbacks fall back to the global activeSurface when the leaf is unregistered — wrong-surface completion; (6) hardcoded Cmd bindings bypass ghostty's keybinding config (confirmed original item)."
+notes = ["display ids: registerSurface/applyDisplayIds is the single source of truth (creation cannot un-pause a hidden surface); focus gates include page visibility (TerminalView isTerminalPageVisible) and returning to the Terminal page restores focus; hub activity timestamps are milliseconds (ids unique under bursts; view converts for display); shutdown() clears the surface registries after app_free; clipboard resolution never falls back to activeSurface; performKeyEquivalent consults ghostty_surface_key_is_binding before the hardcoded table."]
+
+[[content.acceptance_criteria]]
+text = "fix: registerSurface/applyDisplayIds is the single source of truth for display ids (creation cannot un-pause a hidden surface)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: focus gates include page visibility; returning to the Terminal page restores terminal focus"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: activity ids are unique under bursts (millisecond timestamps from the hub)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: registry holds no dangling pointers after teardown; clipboard resolution never completes on the wrong surface"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: Cmd-key handling consults ghostty's binding lookup before the hardcoded table (or is documented as intentional)"
+status = "done"
+category = "fixed"

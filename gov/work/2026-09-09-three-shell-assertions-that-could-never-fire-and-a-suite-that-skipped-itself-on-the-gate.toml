@@ -1,0 +1,65 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-015"
+title = "Three shell assertions that could never fire, and a suite that skipped itself on the gate"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+
+[content]
+description = """
+From the debt sweep: tests that were green for a reason other than the
+behaviour they name.
+
+TWO `awk` ASSERTIONS THAT COULD NEVER FIRE. An `exit` inside a RULE does
+not end awk — it jumps to `END`, whose own exit status wins. So
+`{ exit 0 } END { exit 1 }` always exits 1 and the `&& fail` after it was
+unreachable. Measured both ways: with a match and without, the status is 1.
+
+The two dead assertions were the two that matter most in that file. Line 90
+is the guard for [[WI-2026-09-07-006]] — an unreachable host reported as
+"the session is gone", which is the defect the script's own header names as
+its reason for existing. Line 230 is the guard for [[WI-2026-09-09-002]] —
+a client that reached the session on every attempt must not pause. The
+`await` helper two dozen lines above had the correct idiom
+(`{ f=1 } END { exit !f }`) the whole time.
+
+Both are now live, and both were proved so by restoring the defect they
+guard: classifying every handshake failure as `no_session` fails line 90,
+and reverting the outage reset to the rendered-byte count fails line 230.
+
+AND A SUITE THAT SKIPPED ITSELF ON THE GATE. `test-host-setup.sh` required
+a real cross-compiled binary and a real compiled terminfo entry and exited
+0 when either was absent. Neither `just deploy-all` nor `just ghosttykit`
+is in `just test`'s dependency chain, and CI runs ghosttykit AFTER it — so
+on every CI run the first guard fired and a hundred and sixty lines
+guarding the newest code in the repository reported success having asserted
+nothing. Measured in an empty tree holding only the CLI: `SKIP`, exit 0.
+
+What is under test there is the SEQUENCE OF SIDE EFFECTS, not the contents
+of what is copied — the checksum comparison works on any bytes. So the
+binary is copied into a tree of its own and both payloads are synthesised
+where it looks for them. The suite now needs nothing but `zig build`, and
+there is no path through it that passes without asserting."""
+notes = [
+    "A SKIP IS A PASS TO EVERY READER OF THE GATE. The exit code is 0, the recipe continues, and the line that says SKIP scrolls past in a log nobody opens when it is green. This one guarded the newest code in the repository, written the same day, and would have gone on doing so silently — the file itself was inconsistent about it, since a missing CLI binary was already exit 1 three lines above.",
+    "THE FIX WAS TO REMOVE THE PREREQUISITE, NOT TO ADD IT TO THE CHAIN. Making `just test` depend on `deploy-all` and `ghosttykit` would have put a multi-minute cross-compile and a Metal toolchain build in front of every unit-test run, to supply bytes whose only use is being checksummed. What the suite needs is A file at each of two paths.",
+    "AND THE awk IDIOM WAS ALREADY RIGHT TWENTY LINES AWAY. `await` used `{ f=1 } END { exit !f }` from the beginning; the two broken ones were written later in the same file by someone who had the correct form in front of them. That is worth noting because it is not a knowledge gap — it is what happens when a shell assertion is written and never seen to fail.",
+]
+
+[[content.acceptance_criteria]]
+text = "The two awk assertions use the idiom that can fail, and each was proved to by restoring the defect it guards"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The host-setup suite synthesises its own payloads, so it runs on the gate instead of skipping"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Verified in an empty tree holding only the CLI — the suite runs there, and still goes red there when the upload's rm -f is removed"
+status = "done"
+category = "chore"

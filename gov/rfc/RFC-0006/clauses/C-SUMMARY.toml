@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+An agent leaves the world when the app quits: session restore brings back layout and working directories, but every agent process — and the conversation context inside it — is gone. This RFC gives the workbench ownership of the lifecycle moment that matters, BRINGING AN AGENT BACK after a workbench restart, through resume plans.
+
+STARTING ONE IS NOT ON THAT LIST, AND USED TO BE. C-MANAGED-START let the workbench spawn an agent into a fresh pane from a per-tool launch recipe. It was withdrawn as a false requirement: starting an agent is typing its name in a terminal, usually with options this particular run needs, and a fixed recipe can carry only the option-less case — which was already free. The clause was deleted rather than deprecated, because a struck-through normative clause specifies nothing and every later reader has to step over it. The title and this summary went on promising it for some time afterwards, which is the reason the withdrawal is recorded here rather than only in a changelog.
+
+Resume is specified as a data-driven mechanism in the spirit of the detection manifests: per-tool resume argument templates are configuration, not code, so supporting a new harness is a data change. Registration remains the agent's own act ([[RFC-0003]]) — the workbench replays a command, it never fabricates presence.
+
+Hot server replacement (herdr-style PTY handoff between workbench generations) is evaluated and explicitly DEFERRED with reasons (C-PTY-HANDOFF): resume plans recover the valuable thing (agent context) at a fraction of the complexity. This RFC is the first brick of [[RFC-0001]]'s L2 orchestration cockpit."""

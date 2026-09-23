@@ -1,0 +1,42 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EVENT-LOG"
+title = "Hub Event Log — Append-Only Source of Truth"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The hub maintains an append-only, in-memory event log. Event kinds (V1):
+`agent_registered` (payload includes the registration generation, see
+C-WAIT; a live re-register emits this event carrying the EXISTING
+generation, so metadata updates visible in `list_agents` stay covered by
+the invariant), `agent_unregistered`, `agent_status_changed` (payload: old
+state, new state, signal class per C-OWNERSHIP), `message_routed`. Each
+event carries a monotonic sequence number and the agent id. The kind set
+is EXTENSIBLE by later normative RFCs ([[RFC-0005]] wake receipts,
+[[RFC-0007]] exec receipts, [[RFC-0008]] identity transitions);
+consumers MUST ignore event kinds they do not recognize. Presence facts
+and message activity share one log; the invariant below is scoped to
+presence.
+
+Invariant (testable, at write time): every externally visible presence
+change — anything that can alter a `list_agents` response, a pushed event,
+or a GUI badge — MUST be appended to the log as an event at the moment it
+is applied. The registry's current-status map is a materialized view
+maintained in the same operation; there is no second write path.
+
+Bounds, and the reason they are not a deferral: the log is a bounded in-memory ring — old events
+are evicted, so history is not fully reconstructible from the ring alone;
+the subscription snapshot (C-SUBSCRIPTION) covers truncation for new
+consumers. The log does not survive hub restart, and that is a DIFFERENT KIND OF
+thing from the mail beside it. A message is owed to a recipient, so it is
+persisted and comes back; history is owed to nobody, and a hub that
+rebuilt its past would be reconstructing a record no consumer is waiting
+on. This is not the retired "happy path only" posture speaking — failure
+tolerance is a product requirement now, and mailboxes and the spool are
+persisted for exactly that reason. Should full replay ever be wanted, all
+consumers already read through the log, so it is a storage change and not
+a protocol change."""

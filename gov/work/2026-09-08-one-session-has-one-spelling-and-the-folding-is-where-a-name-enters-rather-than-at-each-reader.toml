@@ -1,0 +1,81 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-014"
+title = "One session has one spelling, and the folding is where a name enters rather than at each reader"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = ["RFC-0014:C-SESSION-NAME"]
+
+[content]
+description = """
+THE OPERATOR'S DECISION, on the question [[WI-2026-09-08-013]] left open:
+normalise rather than refuse.
+
+`Foo` and `foo` were one session on a Mac and two on a Linux host, because
+the default APFS volume is case-insensitive and ext4 is not. For a tool
+whose whole point is spanning machines, a semantic that differs by
+filesystem is not a semantic.
+
+IT SANITISES WHERE `validName` REFUSES, AND THE TENSION IS REAL. That
+function's own comment says "refused rather than sanitised: a name quietly
+rewritten is a session the human cannot find under the name they gave it".
+Folding is sanitising, so the rule needs restating rather than quietly
+breaking: REFUSE WHAT HAS NO SINGLE RIGHT ANSWER. A name carrying a slash
+is rewritten arbitrarily by any sanitiser one could pick and the human
+cannot guess which. Case has exactly one obvious folding, and the collision
+it creates is the collision that is wanted.
+
+ASCII ONLY, AND IT IS A LIMIT RATHER THAN A CHOICE. Folding `İ` correctly
+is locale-dependent, and deciding whether a composed and a decomposed `é`
+are one name is Unicode normalisation — for which Zig's standard library
+has no tables and this project has no room for a dependency (libghostty
+and zig-clap, nothing else at runtime). So a non-ASCII name is STILL one
+session on a Mac and two on Linux. That is asserted in a test rather than
+left to be discovered.
+
+AND IT IS APPLIED WHERE A NAME ENTERS, not at each reader. The three path
+builders fold, so a session's socket, lock and record cannot end up under
+different names — the shape [[WI-2026-09-08-008]] was about. And
+`runHold` now takes the child's `SYNAPTY_AGENT_ID` from the PATH the
+session is served on rather than from what was typed, which removes the
+second deriver: an agent told `Foo` while its three files all said `foo`
+would have an id that does not name its own session."""
+notes = ["""
+VERIFIED ON REAL PROCESSES, not only in tests: `--id Foo` produces
+`foo.sock`, `foo.lock` and `foo.json`; a second start as `--id foo` is
+refused as already held; and the listing shows `foo`.
+
+WHAT THIS DOES NOT DO, said because a partial answer read as a whole one is
+how the next surprise gets made: an existing session created under a
+capitalised name before this change keeps its capitalised files, and will
+now be unreachable by that name. Nothing migrates it — this project ships
+no conversion code while it is unreleased — so such a session is ended by
+hand or left to its holder."""]
+
+[[content.acceptance_criteria]]
+text = "a session name folds to one spelling, so `Foo` and `foo` are one session on every filesystem"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the folding is idempotent, which is what lets it be applied in more than one place without those places having to agree about who applied it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the agent id a child is told comes from the path its session is served on, not from what was typed — one deriver, not two"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = 'the rule `validName` states is restated as "refuse what has no single right answer", so folding case does not read as a contradiction of it'
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the three files agree, the round trip closes, and the ASCII-only limit is asserted rather than left to be discovered"
+status = "done"
+category = "chore"

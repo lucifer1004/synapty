@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-075"
+title = "refactor(gui): host blocks open terminal on double-click — drop the separate button"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: the host block does not need a separate Open Terminal button — double-clicking the block should start the terminal directly.
+
+Fix: remove the terminal button (and its row slot) from HostBlockView; single click keeps selection (multi-select drag), double-click opens the terminal via the existing shared connect path; the block keeps an accessibility action "Open Terminal" and a hover tooltip hinting the double-click."""
+
+[[content.acceptance_criteria]]
+text = "no separate Open Terminal button on host blocks"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "double-click on a block opens the terminal (single click still selects)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "accessibility action + tooltip carry the double-click affordance"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

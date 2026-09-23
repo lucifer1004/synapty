@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Release entitlements.
+
+  It was an empty dict until CloudKit, and the emptiness was itself a
+  finding: the hardened runtime restricts JIT, unsigned executable memory,
+  DYLD injection and loading libraries this app did not sign — not
+  spawning child processes, which is the terminal's whole job. libghostty
+  asked for none of it. Everything below is here because CloudKit needs
+  it, and nothing else was added along for the ride.
+
+  NOT app-sandbox. Synapty spawns arbitrary child processes, SSHes out and
+  drives tmux; sandboxing it would not be a hardening step, it would be a
+  different product. If CloudKit turns out to require the sandbox on
+  macOS, that is a dead end to discover in the first ten minutes rather
+  than after a sync engine is written — see SyncPreflight.
+
+  These are RESTRICTED entitlements: they are only valid when the embedded
+  provisioning profile authorises them, which is why Release now embeds
+  one and Debug does not need to.
+-->
+<plist version="1.0">
+<dict>
+	<!-- Xcode normally injects these two, and
+	     CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO — which is how
+	     get-task-allow is kept out — removes them along with it. That is
+	     not cosmetic: CloudKit identifies the app by
+	     application-identifier, and without it CKContainer fails at
+	     construction with "Trying to initialize a container without an
+	     application ID". The build signs, notarizes, launches and reports
+	     itself entitled, and sync never starts. Caught by running the
+	     shipped build rather than by reading the signature. -->
+	<key>com.apple.application-identifier</key>
+	<string>HSEZTB9EQB.com.synapty.app</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>HSEZTB9EQB</string>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.synapty.app</string>
+	</array>
+	<!-- CKSyncEngine learns about remote changes through silent pushes.
+	     Without this the data still converges, but only when the app
+	     happens to fetch — a change on one Mac would not appear on
+	     another until something else prompted a sync. -->
+	<key>com.apple.developer.aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>

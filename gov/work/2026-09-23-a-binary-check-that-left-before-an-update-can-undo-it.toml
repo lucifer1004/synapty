@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-006"
+title = "A binary check that left before an update can undo it"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+
+[content]
+description = """
+Whether a connected host runs the binary this build deploys is asked in two places: the sidebar's poll once a minute, and the human's Update, which uploads and then asks again. Each is an ssh round trip, and each wrote its verdict into the same store when it returned. Their in-flight guards were separate sets, so neither could see the other.
+
+A POLL THAT LEFT BEFORE AN UPDATE COULD LAND AFTER IT, and put `stale` back over `current`. The host then said it was behind right after the human had brought it up to date, and offered Update — another scp — until the next poll a minute later.
+
+THE SAME SHAPE AS WI-2026-09-21-002, the session listing that came back after an end, and it has the same answer: judge an answer by when its question was asked, not when it arrived."""
+notes = ["""
+`noteHostBinary(_:for:asOf:)` is the one writer and keeps `hostBinaryAsOf` per host. The poll stamps the moment it asks; the update stamps the moment it re-queries, which is after the upload — so a poll that left before the upload is always older.
+
+Only skipping the poll while an update runs would not have been enough: a poll already in flight when the update started still lands after it.
+
+CANARIED: writing whatever arrives last (the original) -> "a verdict asked for before the update overwrote the one asked after it"."""]
+
+[[content.acceptance_criteria]]
+text = "a verdict whose question was asked earlier cannot overwrite one asked later, from either writer"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a later question still wins, so a host that really went back to an old binary is seen to"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "both writers go through one method that holds the ordering"
+status = "done"
+category = "changed"

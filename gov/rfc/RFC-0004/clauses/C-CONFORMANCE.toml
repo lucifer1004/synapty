@@ -1,0 +1,34 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONFORMANCE"
+title = "Conformance — Binding Surfaces and Keywords"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The normative clauses of this RFC bind four surfaces: the hub (embedded or
+later extracted), the `synapty` CLI, the agent skill package, and the
+workbench GUI. Conformance is assessed PER HUB and its attached surfaces,
+not per fleet ([[RFC-0009]]: each machine runs its own hub). A hub with no
+workbench attached — the normal case for a server hosting detached agents
+— satisfies the workbench-addressed clauses VACUOUSLY: C-PASSIVE-DETECTION
+and C-OWNERSHIP's gaze-driven `done` transition address a surface that is
+absent, and their absence is not a violation. A hub MUST NOT be reported
+as non-conforming for lacking a surface it was never deployed with.
+NOTED, NOT AMENDED: [[RFC-0011]] C-HEADLESS-GATE explores classifying a remote pane from what the holder can produce ([[RFC-0014]] C-RESTORE) — it reasoned from a tmux capture until that mechanism left the remote path, and the substitution changed which objections stand. Either way it would reactivate
+C-PASSIVE-DETECTION on exactly such a hub and relocate the detection
+fleet out of the workbench layer. That RFC authorises no injection and
+this vacuity therefore stands unchanged; whichever way it resolves, the
+relocation is a decision this clause must be amended to reflect and not
+one an implementation may make on its own. A surface conforms when every MUST that addresses it holds;
+SHOULD marks a strong default that may be broken only with a recorded
+reason; MAY marks genuine freedom. Requirement keywords follow the RFC 2119
+convention.
+
+Third-party consumers (other GUIs, scripts, future plugins) that read
+presence data MUST honor C-VOCABULARY (including the unrecognized-value
+rule) and MUST NOT re-derive status from raw signals (C-PRECEDENCE rule 6);
+the remaining clauses do not bind them."""

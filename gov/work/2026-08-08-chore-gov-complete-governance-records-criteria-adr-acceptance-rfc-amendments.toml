@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-019"
+title = "chore(gov): complete governance records — criteria, ADR acceptance, RFC amendments"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Complete the governance records the code review flagged, now that govctl 0.19.0 can operate on the repo ([[WI-2026-08-08-018]]): (1) seven done work items have no structured acceptance criteria ([[WI-2026-08-02-001]], [[WI-2026-08-05-001]]..[[WI-2026-08-05-006]]) — several with literal 'TBD' criteria or criteria embedded in description prose; (2) all four ADRs are stuck at status=proposed although [[ADR-0001]]/[[ADR-0004]] are cited as authority throughout the code, and [[ADR-0002]] is placeholder boilerplate ('Describe the decision that was made') despite the hub submodule split being implemented; (3) [[RFC-0003]] C-EVENTS forbids polling ('no poll tax') while the app deliberately polls (5s activity / 60s tasks per [[WI-2026-08-05-012]]) — the RFC record must reflect the shipped model; (4) [[RFC-0002]] was deprecated by [[WI-2026-08-05-004]] but its record still says normative/impl."
+notes = [
+    "Completed (2026-08-08): (1) structured acceptance criteria added and ticked done for WI-2026-08-02-001 and WI-2026-08-05-001..006 (28 criteria total, each verified against the shipped code); started/completed dates could NOT be backfilled — those fields are lifecycle-owned (read-only) in govctl 0.19.0. (2) All four ADRs accepted with complete records: ADR-0001 gained the chosen 'native GUI workbench' alternative (accepted; the three rejected ones were already ticked); ADR-0002 rewritten with the real hub-submodule-split decision plus alternatives; ADR-0003/0004 gained historical alternatives and were accepted. (3) RFC-0003 advanced spec->impl and amended: C-EVENTS rewritten ('GUI polls the hub, never the GitHub API' — V1 polling concession per the 2026-08-05 decision; no poll tax on GitHub quota preserved), C-HUB-ROLE polled-view line corrected, changelog entry appended. (4) RFC-0002 advanced impl->test->stable and deprecated with the phase lifecycle; 15 stale source references to RFC-0002 clauses were repointed at RFC-0003 (or marked legacy per C-A2A-REDUCTION); docs re-rendered (signatures green). govctl check: zero diagnostics. 129/129 Zig tests green.",
+    "Audit-2 follow-up (2026-08-08): the [[RFC-0003]] govctl.version field (0.1.0) is lifecycle-owned and cannot be bumped to match the 6-entry changelog (0.1.0..0.6.0) without corrupting the version history — the changelog is the authoritative version history; the field records the lifecycle-tracked candidate. Documented here rather than forced.",
+]
+
+[[content.acceptance_criteria]]
+text = "all done work items have structured, code-verifiable acceptance criteria (no TBD/prose-only criteria remain)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[ADR-0001]]..[[ADR-0004]] are accepted with complete content ([[ADR-0002]] rewritten with the real module-split decision); alternatives ticked consistently"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0003]] C-EVENTS reflects the shipped polling model (version bump + changelog)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0002]] record reflects its deprecation (status/phase/changelog)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "govctl check passes with zero diagnostics; 129 Zig + 94 Swift tests unaffected"
+status = "done"
+category = "chore"

@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-005"
+title = "feat(gui): sidebar navigation + management-page internals modernized — labeled nav list with badges, activity timeline cards, hub console treatment, page rhythm alignment"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """The sidebar's icon-only horizontal rail (WI-2026-08-08-053) reads as a cramped toolbar next to the upgraded pages, and Activity/Hub/Tasks internals lag the new design language (user: "样式落后"). (A) Sidebar: vertical LABELED navigation list — the native macOS source-list idiom on the existing vibrancy: icon (accent-tinted, like Finder) + 13pt label per row, selection pill (DS.selection), grouped workspace/management/configuration with breathing space instead of hairlines; live count badges where meaningful (Tasks: doing count, Hub: connected agents). Sessions section unchanged below. (B) Pages: ActivityLogView becomes an inset-grouped card timeline (DSCard rows + dividers, per-action SF symbol, DSTag agent chip); HubPageView logs get a purposeful console treatment (always-dark recessed block with light mono text — the terminal-workbench identity — plus DSIconButton copy action) and the content column is width-constrained like Settings; TaskListView paddings/rhythm aligned to the Hosts page (xl gutters). Verification is screenshot-driven via --page args at the user's XL scale."""
+
+[[content.acceptance_criteria]]
+text = "sidebar vertical labeled nav — accent icons, selection pill, grouped spacing, Tasks/Hub count badges; sessions section unchanged"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Activity page — card timeline with action icons and agent chips (empty state kept)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Hub page — dark console log block with copy action, width-constrained content column"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Tasks page rhythm aligned (gutters/spacing consistent with Hosts)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "build + full Swift test suite green; screenshots at XL scale for sidebar + all three pages"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "ONE form-row grammar (detail audit round): label-above fields everywhere, equal-column pairs (themes/ports), right-aligned toggle column with separators, Appearance panel drops cryptic icon rows for labeled fields (shared controls with Settings)"
+status = "done"
+category = "added"

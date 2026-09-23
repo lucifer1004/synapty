@@ -1,0 +1,17 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ENTITLEMENT"
+title = "Who May Attach, Enumerate, And End"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A holder MUST serve only the local account that owns it.
+
+- The holder MUST refuse attach, enumeration, and end requests that do not originate from that account.
+- Enumeration MUST NOT reveal the existence, name, or state of a holder belonging to another account.
+
+The holder is responsible for its own checks; it does not undertake to defeat an account that can already act as the owner, and it is not the boundary that keeps unauthorised users off the host. The mechanism this replaces carried this property incidentally, in the permissions of a multiplexer's socket. Stated here because it is now ours to provide: a durable session is a terminal a human types into and an agent works in, and on a shared host an unrestricted local endpoint would let any account read and drive both."""

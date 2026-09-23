@@ -1,0 +1,22 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-ONE-CLIENT"
+title = "At Most One Attached Client"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A holder MUST have at most one attached client at a time.
+
+- A successful attach while another client is attached MUST detach the previous client, and the detached client MUST be told that it was displaced rather than left to infer a transport failure from silence — and told by whom, when the displacing client said who it was ([[RFC-0014:C-CLIENT-LABEL]]).
+- A displaced client MUST NOT be able to reclaim the session by waiting; it reattaches by attaching again, on the same terms as any other client.
+- TELLING THE PROCESS IS NOT TELLING THE HUMAN. Where the displaced client presents the session to a person, that person MUST be able to read why it ended. A notice written into a surface that the same act destroys has not been delivered, and what the human is left with is the silence this clause already forbids — reached the long way round, through a protocol that satisfied it.
+- A CLIENT MUST BE ABLE TO LEARN THAT IT WOULD DISPLACE, BEFORE IT DOES. The holder MUST answer whether it has a client attached without taking that client's seat.
+- WHERE AN ATTACH IS OFFERED TO A PERSON, displacing somebody else MUST NOT be the unannounced consequence of accepting the offer. A surface that lists a session as somewhere to return to is describing the ordinary case, where nobody is there; when somebody is, the offer and the act have stopped being the same thing, and the person accepting it is the one who has to be told.
+
+One pseudoterminal has one size ([[RFC-0014:C-SIZE]]), and that is the weaker of the two reasons. The stronger is that input has no owner. [[RFC-0014:C-INPUT]] requires a client's bytes to reach the child in order and unaltered, and two clients typing into one line discipline do not produce two commands of which one is corrupted; they produce one command nobody wrote, out of a partial line the pty holds and neither client can see. Size could be negotiated down to the smaller client. That cannot be negotiated at all.
+
+WHAT THIS REFUSES IS A SECOND DRIVER. An observer that receives output and sends no input shares neither problem, and is not decided here either way."""

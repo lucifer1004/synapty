@@ -1,0 +1,131 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-016"
+title = "A reader that goes deaf on a re-dial, a seat taken without asking, and a Retry addressed to the wrong name"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "RFC-0014:C-ONE-CLIENT",
+    "RFC-0014:C-RESUME",
+]
+
+[content]
+description = """
+Six defects found by an adversarial review of [[WI-2026-09-07-004]]'s series
+of changes. They are one work item because they are one shape: a fact was
+read from a source that answers a NEARBY question, and the two answers had
+since drifted apart.
+
+A LOCAL SHELL'S EXIT CODE WAS READ AS A LINK STATE. `link(ofLeaf:)` fed
+`facts[leaf].childExitCode` to `LinkState.from`, which classifies a non-zero
+code as `.dropped` and keeps the pane. On a REMOTE pane that is right — the
+child carries the work. On this Mac the child IS the work, and a failing
+command followed by Ctrl-D is the ordinary case, so `exit` stopped closing
+a terminal.
+
+A READER WENT DEAF ON EVERY RE-DIAL, IN SILENCE. Each dial empties the
+connect channel by making a new file at the same path. A `FileHandle` held
+across that goes on reading an inode nothing will ever append to again:
+no error, no bytes, forever. `Reader.pump` only reopened `if handle == nil`.
+Worse, `Center.begin` was idempotent on "this account has not revealed a
+screen yet" — which is the description of exactly the accounts a Retry
+follows — so the retry returned early and the pane sat frozen on the dead
+dial's reason. The button appeared to do nothing.
+
+A RETRY WAS ADDRESSED TO A NAME NOTHING WAS POLLING. The retry marker is
+derived from the channel, and the channel was opened under the name the
+pane was DIALLED with. `retryLink` keyed it off `facts[leaf].agent`, which
+the hub renames to the durable id ([[RFC-0008]], `remapLeafAgent`), so
+after that rename permission was written where no client looks. And nothing
+ever removed a marker, so one left by a press a dead client never took
+would be taken by the NEXT connection under that name, which would then
+resume itself without anybody asking.
+
+A SEAT WAS TAKEN WITHOUT ASKING. `attachWouldDisplace` read
+`remoteSessions`, which subtracts everything this workbench shows — open
+panes AND archived rows. An archived pane holds no seat (archiving is what
+ends its client), so the subtraction hid the very row that says somebody
+else has since taken one. Returning to an archived pane displaced another
+Mac in silence, which is precisely what [[RFC-0014]] C-ONE-CLIENT's sheet
+exists to prevent.
+
+A PORT WAS ATTRIBUTED TO A PROGRAM CALLED `(`. `netstat -anv` prints the
+owner as `<name>:<pid>` and macOS process names contain spaces —
+`Cursor Helper (P:38945`. Splitting on whitespace and taking the token that
+ends in a pid left the fragment `(P`. The executable is the honest source:
+a second `ps` section keyed by pid, and the basename of that."""
+notes = [
+    """FOUND BY AN ADVERSARIAL REVIEW, NOT BY THE SUITE. Four agents were pointed at [[WI-2026-09-07-004]]'s series with no brief beyond "find what is wrong". The three defects that mattered most — the deaf reader, the mis-addressed Retry, the seat taken in silence — are all invisible to a unit test that does not first know to ask, because nothing in the code FAILS: a handle on an unlinked inode reads zero bytes without error, a marker written to the wrong path is written successfully, and a subtraction that removes too much still returns a well-formed list.""",
+    """THREE COMMENTS ASSERTED THE OPPOSITE OF THE CODE THEY CITED. Each was confident and each was written during that series: `close_surface_cb` "falls through to close() regardless" (the abnormal branch returns), `transportVerdict`'s wait "is only reached because the read failed" (it is not), and `Claim.absent` meaning "no lock file" (it collapsed every `open(2)` failure, so EMFILE would have swept every live session's record). A comment that reasons about behaviour is a claim, and an unchecked claim in a comment outlives the reader who could have checked it.""",
+    "EVERY FIX HERE WAS RED FIRST. `testAReaderFollowsTheChannelRatherThanTheInodeItFirstOpened` and `testASecondDialOnAPaneThatNeverPaintedIsHeard` both failed for the stated reason before the change, which is what distinguishes them from a test that agrees with the code it was written against.",
+    "PANEARCHIVETESTS WAS WRITING INTO THE REAL CONFIG DIRECTORY. `accountSaying` calls `ConnectProgress.begin`, and nothing set `ConfigPaths.rootOverride` — so every run of that suite left `gpu-7.log` and friends beside the human's own connect accounts. Fixed here because this work is what would have started leaving `.retry` markers there too.",
+]
+
+[[content.acceptance_criteria]]
+text = "A pane on this Mac is closed by an exit code again; only a REMOTE pane's code is read as a link state"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A re-dial's account is read: the reader follows the channel's file rather than the inode it first opened, and Center.begin restarts an account whose dial is over"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Retry addresses the client by the name the channel was opened under, not by the name the hub later gave the pane"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A new dial removes a retry marker left by the last one, so permission is never inherited"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Returning to an ARCHIVED pane whose seat another client has taken asks first (RFC-0014 C-ONE-CLIENT); the Still Running list still hides what the archive shows"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A discovered port names the program holding it even when that program's name contains spaces or was truncated by netstat"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A local shell exiting non-zero closes its pane, and the same code on a remote pane keeps it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A second dial on a pane that never painted is heard, and watching the same dial twice keeps what has been read"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A reader whose channel file is replaced follows the new one and drops the replaced dial's steps"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "Retry after remapLeafAgent leaves the marker where the paused client polls"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A dial removes a stale retry marker"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "attachWouldDisplace/attachedClient answer for an archived pane whose session another client attached"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A program whose name contains a space is named whole, and a truncated column falls back to the executable"
+status = "done"
+category = "chore"

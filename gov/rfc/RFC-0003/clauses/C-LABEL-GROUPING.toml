@@ -1,0 +1,26 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LABEL-GROUPING"
+title = "Label Grouping — One Repo, Many Projects"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Issues are grouped into per-project workstreams with labels. Each project gets
+a `p:<name>` label (e.g. `p:synapty`, `p:research`). An issue belongs to
+exactly one project label; agents filter by label to see only their
+workstream.
+
+Conventions:
+
+- Project label: `p:<project-name>` — the only mandatory label on every issue.
+- Status labels (optional, see C-ISSUE-STATES): `s:todo`, `s:doing`, `s:done`.
+- An issue without a `p:` label is unassigned work; agents must not claim it
+  implicitly.
+
+The label set is bootstrapped by Synapty on first run for the configured
+projects; missing labels are created on demand.
+"""

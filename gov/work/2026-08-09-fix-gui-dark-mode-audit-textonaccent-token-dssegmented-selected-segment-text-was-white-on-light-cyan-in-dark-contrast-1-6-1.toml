@@ -1,0 +1,25 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-016"
+title = "fix(gui): dark-mode audit — textOnAccent token; DSSegmented selected-segment text was white-on-light-cyan in dark (contrast ~1.6:1)"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = """
+A dark-mode contrast audit. The accent colour inverts between appearances — teal in light, light cyan in dark — so a fixed white foreground on it is legible in one and nearly invisible in the other.
+
+`DS.textOnAccent` became a dynamic token: white on light-mode teal, near-black on dark-mode light cyan. The one real offender was `DSSegmented`'s selected-segment text, which sat at roughly 1.6:1 in dark. Tab pills, keycap badges, pane badges, the hub popover and the status bar were checked against dark screenshots and were already sound."""
+
+[[content.acceptance_criteria]]
+text = "DS.textOnAccent dynamic token (white in light, near-black in dark); DSSegmented selected text uses it — sole white-on-accent offender per grep audit"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build+suite green; dark screenshots — segmented controls readable on Tasks and Hosts; other new surfaces (tab pills, keycap badges, pane badges, popover) verified OK in dark"
+status = "done"
+category = "chore"

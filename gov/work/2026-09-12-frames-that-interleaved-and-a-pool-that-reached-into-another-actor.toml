@@ -1,0 +1,89 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-12-001"
+title = "Frames that interleaved, and a pool that reached into another actor"
+status = "done"
+created = "2026-09-12"
+started = "2026-09-12"
+completed = "2026-09-12"
+refs = [
+    "RFC-0014:C-ONE-CLIENT",
+    "RFC-0013:C-BROKER",
+    "RFC-0009:C-DELIVERY",
+]
+
+[content]
+description = """
+The second audit round's concurrency axis. Two defects that can be seen from the outside, five that are latent, and one map that contradicted the code it describes.
+
+A FRAME IS TWO WRITES, AND FOUR THREADS SHARE THE CLIENT'S SOCKET. `writeFrame` writes a header and then a payload, and `sys.writeAll` loops on short writes. Nothing ordered the writers, so a whole frame could land between another's header and its payload: the pump delivering the child's bytes, the handshake writing the restoration, the child reaper's `.exit`, and the next attach's `.displaced` to the client it takes the seat from. `writes_in_flight` answers a different question — it stops the fd being CLOSED under a writer ([[WI-2026-09-02-016]]) — and `catching_up` serialises exactly one of the pairs. That is the shape of it: the pump is held off while `catchUp` writes, and then `attach` publishes the fd with `catching_up == false` BEFORE the restoration, so the largest write of all had nothing holding the pump off it.
+
+`readFrame` takes the next five bytes as a header, so the reader takes a length out of somebody else's payload: the session drops, or the child is handed bytes that were never typed. The client side has the same shape with `.input` and `.resize` on one socket — resize a window during a paste. Measured: a two-thread hammer fails within twenty frames. A staged real attach with the child flooding passed every run, which is why this is tested as the invariant rather than through one of its callers.
+
+THE POOL REACHED INTO ANOTHER ACTOR. `MasterPool.sshArgs` was a closure written in `@MainActor TunnelManager` and stored as a bare `(HostKey) -> [String]`, which erases the isolation it was written in; `MasterPool` is `@unchecked Sendable`, so nothing in the type system was left to notice. `grow` called it after dropping the pool's lock, on one of the background threads the pool's own header REQUIRES, while it walked `trackedHosts` — a dictionary the heartbeat's main hop mutates in place. Not a stale read: a walk over a buffer being rehashed, so the crash is inside Dictionary's internals, and the milder outcome is a master opened with another host's `-i` or `-J` that then fails to authenticate and reads as an SSH problem.
+
+Credentials are now resolved on the main actor and handed to the pool with the key — which is the discipline `runHeartbeat` already states in as many words for everything else the check needs. The `openMaster` fake carries them too, because the thing that was silently wrong was not observable from any test.
+
+AND THE MAP CONTRADICTED THE FILE. `pending_forwards` said `forward_mutex` "is taken alone — never with presence_mutex held", and `forwardToPeerLocked` takes it under exactly that. The code has always followed `presence -> forward`; it was the comment that was wrong, which is the dangerous direction — a reader trusting it and moving an acquisition to satisfy it inverts the order. The RATIONALE it gave still holds and is why the rule is safe: `awaitForward`'s five-second wait runs outside `presence_mutex`.
+
+WHAT CAME BACK EMPTY, so the emptiness is on the record rather than merely unmentioned: no deadlock or lock-order inversion on any pair, no arena-lifetime escape, no double free, fork and signal safety intact (`spawnOnPty` runs three lines before the first thread), and no Swift `weak` capture assumed non-nil.
+
+NOT DETERMINISTICALLY REACHABLE, AND SAID SO RATHER THAN CLAIMED: the nack-reason leak needs `completeForward` to land between `awaitForward`'s last look and its final lock acquisition, which is a window between two statements on another thread. The drop's own rule is what is pinned instead — the rule `deinit` twenty lines away already had right.
+
+STILL OPEN: `sweepLoop` and `watchParent` are spawned and never joined, and both hold pointers into `hubServe`'s stack frame and into a `HubState` that `defer hub_server.deinit()` tears down. The window is from `state.deinit()` to process exit. No reproducer was constructed and none is claimed; the lifetime is genuinely unowned and is named here rather than fixed on a guess."""
+
+[[content.acceptance_criteria]]
+text = "every socket with more than one writer serialises its frames through FrameWriter — the holder's client fd (pump, restoration, child exit, the displaced notice) and the attach and through client connections (input and resize)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "closeAllPeerLinks retains each connection across the unlock it must do, so a reader that drops the link cannot free it under the shutdown"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "io.get() is race-free — the flag is atomic with acquire/release and the test fallback returns the testing instance instead of installing it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "handlePeerConnect and adoptMintedPeerId read peer_id under presence_mutex rather than racing setPeerId's rewrite of the slice"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dropPendingLocked frees the nack reason the entry owns, and completeForward no longer stores a string literal in a field that is freed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "MasterPool is handed the ssh credentials with the key instead of holding a closure that read TunnelManager's main-actor state from a background thread"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the three CLI client stop flags are atomic, matching the holder's own fix for the same hoisting"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the pending_forwards comment states the real lock order (presence then forward) instead of claiming forward_mutex is never held under presence_mutex"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a hammered two-thread writer on one socket fails within twenty frames without FrameWriter and passes with it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a master is opened with the credentials the record asks for, observable because the openMaster fake now carries them"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "dropping a pending forward that carries a nack reason leaves the testing allocator clean"
+status = "done"
+category = "chore"

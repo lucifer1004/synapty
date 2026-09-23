@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-084"
+title = "refactor(gui): merge Settings-Appearance into the right panel — rename it Appearance"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: Settings → Appearance and the right panel are both display-effect settings — merge them: the right panel becomes the single Appearance surface (Mode + UI Size + theme/font/size/opacity/cursor rows) and is renamed "Appearance". The Settings page drops its Appearance pane (3 panes remain: Terminal / Network / GitHub).
+
+Fix: panel gains Mode (System/Light/Dark, circle.lefthalf.filled) and UI Size (Small/Standard/Large/XL, a.magnify) rows and is titled "Appearance" with updated help text; SettingsPage removes the appearance pane, its chips and bindings."""
+
+[[content.acceptance_criteria]]
+text = "right panel titled Appearance with Mode + UI Size rows added"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings page has 3 panes (Appearance pane removed)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

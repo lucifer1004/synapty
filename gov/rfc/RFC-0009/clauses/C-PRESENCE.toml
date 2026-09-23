@@ -1,0 +1,52 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRESENCE"
+title = "Presence Across Hubs"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Presence ([[RFC-0004]]) is evidence about an agent, merged by the hub
+that OBSERVES that evidence. Federation carries presence without
+pretending the observer moved.
+
+Requirements:
+
+- The HOSTING hub owns an identity's presence. It runs [[RFC-0004]]
+  C-PRECEDENCE against evidence from its own machine and the merged
+  status is its output. A peer MUST NOT apply acceptance rules to a
+  relayed status; it RELAYS A CONCLUSION, it does not re-merge evidence
+  it never saw. Implementations MUST route relayed presence through a
+  distinct write-through path — reusing the local merge path would
+  silently discard the whole feature.
+- `relay_presence` carries `{id, status}`, with `id` in the same form the
+  advertisement used, since that is the directory key, and `status` one
+  of [[RFC-0004]] C-VOCABULARY's five.
+- RELAYED PRESENCE NEEDS AN ENTRY TO LAND ON. A conclusion for an
+  identity this hub holds no directory entry for is DROPPED and the drop
+  surfaced: the advertisement is what admits an identity, and admitting
+  one through the presence path would route around the refusal rules. A
+  conclusion from a peer that is not the entry's hosting peer is REFUSED,
+  for the reason C-BOUNDARIES gives generally.
+- Relayed presence MUST carry its hosting peer, and consumers MUST be able to tell local presence from relayed presence. THE FIELDS THAT DO THAT ARE ENUMERATED IN ONE PLACE AND IT IS NOT HERE: [[RFC-0004]] C-SUBSCRIPTION owns the row, because the row exists on a hub with no peers at all and federation adds fields to it rather than creating it. This clause governs WHAT RELAYED PRESENCE MAY SAY THROUGH THOSE FIELDS; C-SUBSCRIPTION governs which fields the row has. Two clauses each claiming the carrier, each enumerating it differently, and each citing the same argument for its own list is how the enumeration drifted apart once already.
+  A ROW THIS HUB DID NOT OBSERVE ITSELF IS MARKED `remote`, and that is
+  what tells a relayed row from a local one when the other two fields are
+  absent on both. They are absent on both: a CONTESTED identity has no
+  single hosting peer to name and no single reachability to report
+  (C-DIRECTORY forbids picking one), so without the mark it wears a local
+  agent's signature exactly.
+  A LOCALLY HOSTED AGENT CARRIES BOTH ABSENT — not this hub's own id and
+  `true`. Both fields are about another machine; filling them in makes
+  every row look relayed, and "reachable" becomes a claim about a peer
+  that does not exist. On a single-hub deployment the snapshot is then
+  byte-for-byte what it was before federation, which is what lets a
+  consumer that ignores the two fields degrade to the single-hub reading
+  it already implements.
+- WHEN A PEER'S LINK DROPS, its identities' status is `unknown`, which
+  [[RFC-0004]] already defines as the honest answer where there is no
+  reliable evidence. A hub MUST NOT serve the last value it saw: an old
+  conclusion presented as a current one is indistinguishable from a fresh
+  one, and this is the case the distinction exists for."""

@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-024"
+title = "A version mismatch hangs up instead of saying so, and the client does not check at all"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+[[RFC-0014]] C-VERSION is titled "Skew Is Visible, Never Silent" and requires that a side which does not implement the other's announced version "MUST refuse the session, MUST surface the refusal as a version mismatch NAMING BOTH VERSIONS, and MUST NOT proceed on a best-effort interpretation".
+
+NEITHER HALF DOES IT.
+
+- The holder refuses, but silently: `if (frame.payload[0] != protocol_version) return error.Closed;` closes the socket. The human sees a hangup with no reason and no versions.
+- The client never checks. It reads the holder's version at `welcome.payload[0]` and goes straight on to `payload[1]`, so a holder NEWER than the client is read best-effort — the case the clause names explicitly.
+
+WHY THE SECOND HALF IS THE DANGEROUS ONE: the deploy path replaces the remote binary and kills only the hub, so a holder outlives the update by design — `RemotePwd` already says so in as many words. The client is therefore routinely the OLD side when a workbench has not been updated but the host has, which happens the moment a second Mac deploys.
+
+NOTHING IS BROKEN TODAY: `protocol_version` is 1 and there has never been a 2. This is the guard that will not be there the first time it is needed, and the clause's own rationale says what that costs — "one that half-works costs a corrupted screen nobody can attribute".
+
+The one part of C-VERSION that IS honoured: `.status_request` and `.end_request` are answered before the version check, so `sessions` and `end` keep working across a mismatch as the clause requires.
+
+The code says it knew: "A full mismatch contract is [[RFC-0014]] C-VERSION and is not this slice's work; the byte is here so that the handshake has somewhere to put it.""""
+
+[[content.acceptance_criteria]]
+text = "A mismatched attach is refused with a message naming both versions, on both sides, with a test that drives a client and a holder that disagree"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Enumerating and ending a holder still work across that mismatch"
+status = "done"
+category = "fixed"

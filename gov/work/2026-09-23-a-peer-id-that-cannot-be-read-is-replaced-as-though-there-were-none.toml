@@ -1,0 +1,48 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-002"
+title = "A peer id that cannot be read is replaced as though there were none"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0010:C-PEER-IDENTITY"]
+
+[content]
+description = """
+The identity store's own header states the stake: "A machine's NAME is not discardable: peers key directory entries, spooled mail and qualified fallback ids on it, so losing it re-mints and every one of those goes stale on machines this one cannot even see."
+
+AND IT RE-MINTED ON ANY FAILURE TO READ IT. `readSmall` returned null when `openFile` failed for any reason — a permission, a descriptor limit, an I/O error — and swallowed a failed read into an all-zero buffer that also came back null. `load` passed that on, and `ensure` read it as "this machine has never minted one": it minted a new id and wrote it over the file. A transient failure to LOOK permanently replaced the name. This is the lesson `SessionRecord.Claim` recorded for session records (WI-2026-09-07-008, "I could not ask is not an answer"), never applied here.
+
+THE WRITE WAS NOT SAFE EITHER. It truncated the file in place and then wrote it, so a crash or full disk between the two left no id — and during a re-mint, the operator's deliberate replacement, that lost the old name and the new one together. It created the file with the default mode and chmodded afterwards: the world-readable window WI-2026-09-02-025 closed for the state file.
+
+A CORRUPT FILE IS A DIFFERENT CASE AND STAYS AS IT WAS. A test pins that a file holding no valid id is minted over rather than refused, because an id with `@` in it would break the qualifier split every peer performs — there is nothing worth keeping. That decision is untouched; only "could not read it" changes."""
+notes = ["""
+`load` returns `Loaded` (found / none / unreadable) and `ensure` returns `Ensured` (id / unreadable). `readSmall` answers `absent` only for `FileNotFound`. The log line moved to `registry.adoptMintedPeerId`, the caller that decides the hub will run without a name — `ensure` now reports and does not narrate. `remint` still proceeds on an unreadable file, because replacing is what the operator asked for; it only loses the old label. `write` goes through `state_store.writeFile` — sharing the writer is not sharing the file, and the header's reason for keeping the two apart (what may be discarded) is untouched.
+
+TESTED: an owner-unreadable file (mode 000) makes `load` answer `.unreadable` and `ensure` answer `.unreadable`, and the file's bytes are unchanged afterwards. The absent case still mints.
+
+CANARIED: every open failure read as absent (the original) -> "an identity file that cannot be read is never minted over" fails.
+
+NOT CANARIED: the atomic write. A crash between truncate and write has no deterministic trigger in a unit test. It is the state file's writer, and every mint and re-mint test now goes through it."""]
+
+[[content.acceptance_criteria]]
+text = "a file that is there and cannot be read is never written over, and the hub runs without a name rather than taking a new one"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "only a missing file, or one holding no usable id, licenses minting"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the id is written atomically and born private, through the writer the state file already uses"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the store reports what it found to its caller, which is where the human is told, instead of answering null for three different things"
+status = "done"
+category = "changed"

@@ -1,0 +1,55 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/maki.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "maki",
+  "rules": [
+    {
+      "id": "permission_prompt",
+      "state": "waiting",
+      "all": [
+        "permission required"
+      ],
+      "any": [
+        "y allow",
+        "confirm allow",
+        "confirm deny",
+        "enter deny"
+      ]
+    },
+    {
+      "id": "plan_complete_form",
+      "state": "waiting",
+      "all": [
+        "plan complete",
+        "enter confirm"
+      ],
+      "any": [
+        "space toggle parallel",
+        "edit plan"
+      ]
+    },
+    {
+      "id": "status_bar_spinner_working",
+      "state": "working",
+      "region": "bottom(1)",
+      "lineRegex": "^( [\\u2800-\\u28FF]){1,2} \\[(BUILD|PLAN|BASH)\\]"
+    },
+    {
+      "id": "status_bar_idle",
+      "state": "done",
+      "region": "bottom(1)",
+      "lineRegex": "^ \\[(BUILD|PLAN|BASH)\\]"
+    },
+    {
+      "id": "prompt_box_idle",
+      "state": "done",
+      "region": "bottom(3)",
+      "lineRegex": "^❯ ",
+      "not": [
+        "queue another prompt"
+      ],
+      "notRegex": [
+        "(?m)^( [\\u2800-\\u28FF]){1,2} "
+      ]
+    }
+  ]
+}

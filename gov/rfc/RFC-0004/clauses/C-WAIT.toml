@@ -1,0 +1,65 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WAIT"
+title = "The Wait Primitive — Event-Driven Cross-Agent Synchronization"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+`synapty wait --agent <id> --until <state> [--timeout <secs>]` blocks until
+the target agent's merged status reaches the given state, then prints the
+final status JSON.
+
+Registration generation (definition): the hub assigns each registration a
+generation — the sequence number of the `agent_registered` event that
+created it. Generation continuity is CONNECTION-SCOPED (amended by [[RFC-0008]]):
+a re-register of an id from the SAME connection updates metadata and
+KEEPS the generation (matching status preservation in C-OWNERSHIP: a
+wrapper reconnect is not a new occupant). A registration binding the
+same id from a DIFFERENT connection — and the same-connection identity
+upgrade defined in [[RFC-0008]] C-REHOME — ends the old generation with
+a hub-synthesized `agent_unregistered` and starts a fresh one. A
+registration otherwise ends only at `agent_unregistered`; a later
+register of the same id creates a new generation. Generations appear in `agent_registered` payloads and in
+subscription snapshots (C-SUBSCRIPTION).
+
+Semantics:
+
+- Event-driven: served by the hub from the event stream (C-SUBSCRIPTION).
+  Implementations MUST NOT poll.
+- Valid targets: `--until` accepts `working`, `waiting`, `done`, `idle`.
+  `unknown` is not a valid target — "the agent went away" is the pinning
+  failure below, not a state to wait for.
+- Already-satisfied: if the target is already in the requested state at
+  wait start (per the snapshot), return immediately.
+- Unregistered target: if `<id>` has no current registration at wait
+  start, fail immediately — waiting for a not-yet-registered agent is a DIFFERENT PRIMITIVE rather than a deferred one, since a wait binds to the generation observed at wait start and there is no generation to bind to before a registration exists.
+- Pinned identity: the wait binds to the generation observed at wait
+  start. If that generation ends (`agent_unregistered`), the wait fails
+  rather than being satisfied by a newcomer's state — waiting for "the
+  codex in pane 3 to finish" must not be satisfied by a fresh claude that
+  reused the pane. A same-generation re-register does not disturb the
+  wait.
+- Exit codes (stable, for scripts): `0` satisfied; `2` usage error or
+  target not registered at start; `3` timeout expired; `4` target's
+  generation ended while waiting.
+- `--timeout` bounds the block; without it the wait blocks indefinitely
+  (matching `recv --wait` precedent).
+- FEDERATION QUALIFIER ([[RFC-0009]] C-PRESENCE): A WAIT THAT CANNOT RECEIVE THE EVENT THAT WOULD END IT FAILS IMMEDIATELY rather than blocking to its timeout — such a wait is a timeout with extra steps, and exit 3 would read as a slow agent. THREE REMOTE CASES SATISFY THAT TEST, and the third is the one this qualifier missed:
+  - the hosting peer's LINK IS DOWN;
+  - TWO PEERS CLAIM the identity, so it is addressed by nobody;
+  - the link is UP and the peer never declared `presence_relay` ([[RFC-0010]] C-CAPABILITIES), so no presence event for that identity will ever arrive and the status stays `unknown` forever. A link being up is not evidence that events will come; the capability is.
+  All three fail under the existing rule (exit 2), and because that code is lossy the machine-readable failure payload — not only the human-readable text — MUST say which of the three it was. The third is `peer_lacks_capability` ([[RFC-0010]] C-DIAGNOSABILITY), which is already the value the presence row carries for exactly this state — the wait reports what the row would have said rather than inventing a second name for it. This exit-code set stays CLOSED; federation adds no code to it.
+- Remote targets are waitable because a hub mints LOCAL events for
+  directory and relayed-presence changes ([[RFC-0009]] C-EVENT-LOCALITY).
+  Without those, a wait implemented as a filtered subscription would
+  block forever on an identity whose every state change happened in
+  another hub's log.
+
+This is the collaboration primitive [[RFC-0003]] anticipated: agents
+coordinate through events and state, not conversation. The skill teaches
+wait for hand-offs ("start when the builder is done") in place of
+recv-polling loops."""

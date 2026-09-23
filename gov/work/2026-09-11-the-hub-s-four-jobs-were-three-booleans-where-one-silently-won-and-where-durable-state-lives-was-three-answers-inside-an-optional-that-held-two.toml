@@ -1,0 +1,105 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-005"
+title = "The hub's four jobs were three booleans where one silently won, and where durable state lives was three answers inside an optional that held two"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0008:C-MAILBOX",
+    "ADR-0008",
+]
+
+[content]
+description = """
+Two argument shapes that could not say what they meant.
+
+FOUR JOBS, THREE BOOLEANS, ONE SILENT WINNER. `synapty hub` does one of
+four things and the choice was `--log`, `--remint` and `--ensure` as
+independent flags read in a fixed order:
+
+    if (h.log) return try hubLog(h);
+    if (h.remint) return try hubRemint(h);
+    if (h.ensure) return try hubEnsure(h);
+    try hubServe(h);
+
+Measured: `synapty hub --ensure --log` and `synapty hub --log --ensure`
+both printed the log and dropped `--ensure` without a word. Four of the
+eight combinations are meaningless and none was refused.
+
+The comment above those functions already made the case for an enum —
+the modes "have nothing in common past the flag that selects them" — and
+[[SkillsArgs]] states the rule outright: "AN ENUM RATHER THAN A BOOL,
+because a bool has no name to render ... and a second action cannot be
+added without `cli`'s switch answering for it." Every other multi-mode
+subcommand in this CLI follows it; `hub` did not.
+
+Now an `Action` enum with an exhaustive switch, and naming two jobs is a
+usage error. It gets its own `ParseError` rather than reusing
+`TooManyArguments`, because a caller told "too many arguments" about two
+flags it meant would go looking for a third: the message is "two jobs
+named at once; this command does one of them per run".
+
+THREE ANSWERS IN AN OPTIONAL THAT HELD TWO. `state_path` was
+`?[]const u8` where `null` meant `--no-state` and the literal string
+`"default"` — what the parser wrote when the flag was absent — meant the
+machine path. Two consequences, both real:
+
+- `synapty hub --state-path default`, naming a relative file, was
+  silently reinterpreted as the machine state path. The one value a
+  human could not ask for was the one that looks like a filename.
+- `cli.zig` read it as `statePath(&sbuf) orelse sp` — falling back to the
+  SENTINEL AS A PATH. `statePath` returns null when no root resolves, so
+  a hub with no `$HOME` wrote its durable mailboxes to `./default` in
+  whatever directory it happened to start in, and lost them on the next
+  start from anywhere else. That is mail whose senders were told
+  `queued`, which `state_store`'s own header calls a lie.
+
+The field's doc said "Absent = ephemeral", which was the opposite of what
+the only parser produced.
+
+It is a union now — `none`, `machine`, `at: path` — so the three answers
+are three, an unresolvable root means no durable state and says so rather
+than inventing a relative file, and `default` is just a filename.
+`service.zig` passed the sentinel explicitly on the ensure-spawn and now
+passes no flag at all, which is the same request in the shape the parser
+has.
+
+Found by the occam-zig pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "synapty hub selects its job with an Action enum and an exhaustive switch, so a fifth job cannot be added without the switch answering for it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "naming two jobs in one hub invocation is refused, in either order, with a message that says what is wrong rather than reporting a missing third argument"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "HubArgs.StatePath is a union of none, machine and at, so the third answer is not a string among two"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "an unresolvable state root means no durable state and says so, rather than writing mailboxes to a relative file named after the sentinel"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the ensure-spawn passes no --state-path rather than the sentinel, since the default is the default"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the parser is pinned for all three state-path answers, including that 'default' is now an ordinary filename"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "two jobs named at once is pinned in both orders"
+status = "done"
+category = "chore"

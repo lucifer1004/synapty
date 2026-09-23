@@ -1,0 +1,93 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-12-002"
+title = "Four fixes whose claim outran what they changed, and six small drifts"
+status = "done"
+created = "2026-09-12"
+started = "2026-09-12"
+completed = "2026-09-13"
+refs = [
+    "RFC-0009:C-DIRECTORY",
+    "RFC-0005:C-WAKE-TRIGGER",
+    "RFC-0008:C-MAILBOX",
+    "RFC-0014:C-RESTORE",
+]
+
+[content]
+description = """
+The second audit round's adversarial pass over the round before it. Four fixes whose CLAIM outran what they changed, and six smaller drifts.
+
+THE `--hub` OMISSION WAS A CHANGE TO A STRING. [[WI-2026-09-10-008]] took the hub port off a `?? 9000` fallback in seven places, because 9000 is the one number that must not stand in for "no hub": it names the hub an adoption may have just REFUSED. For the pane it did that by omitting the flag — and an absent `--hub` RESOLVES (SYNAPTY_HUB_PORT, then the discovery file, then 9000), so the pane went on registering into the refused hub. The other four consumers were genuinely fixed; `HubEventClient.loopback` really does return nil. Measured: with the flag omitted the pane appears in `synapty agents`. `run` takes `--hub none` now, and a pane that has none holds its session and serves its own socket.
+
+THE RELAY WENT OUT BEFORE THE ADVERTISE. `wakeCandidateLocked` ends in `relayPresenceLocked`, so registering an identity with mail already queued put both frames on the link presence-first — and a peer applies presence by looking the identity up in its directory. Refused `not_in_directory`; the advertise that followed created the entry with `pending_wake = null`, which renders `no_evidence`; nothing re-sends until the agent's STATUS moves, which for an agent sitting on its mail may be never. The durable-bind path has always advertised first.
+
+THE IDENTITY CEILING HAD NO WRITE SIDE. `state_store` refuses a file whose identity list exceeds `max_identities`, and nothing stopped this hub writing one — so past the ceiling the next restart rejects the WHOLE store, every identity and all queued mail, rather than the overflow. The mailbox's equivalent is safe because a comptime assertion proves no store this hub writes can reach it; identities had the same sentence and no such proof. Refused at the bind now, where it is one agent being told to prune.
+
+THE REPAINT CANARY LOST ITS PROPERTY. `24` was an unlinked copy of a constant on the other side, and the repair took the highest row addressed and required only that it be past the marker — which a repaint that paints rows 1-11 and stops also satisfies, while the line below still said every row. Re-derived: the build states the geometry a client with no terminal announces, and the shell reads what was built, as `deploy-targets.txt` and `tool-ladder.txt` already do.
+
+WHERE REASONING LOST TO MEASUREMENT. The Unicode finding came with a proposed fix — fold ASCII per CHARACTER — and the crossing test rejected it: a decomposed `Ü` is one Swift `Character` whose `isASCII` is false, while the holder folds its leading `U` BYTE. Foundation converts `Process` arguments through the file-system representation, which on Darwin normalises to NFD, so the workbench held one spelling and the binary received the other.
+
+The deeper fact is that a byte-wise fold is not normalisation-stable AT ALL: `--id Ü` precomposed and decomposed are two sessions a human cannot tell apart, with no Swift in the picture. A test in `holder.zig` already documented that as an accepted limit ("one session on a Mac and two on Linux") — which the same file's header calls not a semantic. Non-ASCII identifiers are refused now. That is a narrowing, and it is a judgement: mirroring Foundation's normalisation would have fixed one launch path, not the pane's, and left the CLI-only case broken.
+
+NOT ACTED ON: nothing. The two tautological comptime guards are kept and their comments now say they guard the DERIVATION rather than the values, because read as checks on two independent constants — the shape `MailStore.max_per_queue` really has — they look like pins that pin nothing."""
+
+[[content.acceptance_criteria]]
+text = "synapty run takes --hub none, and a pane on a machine with no hub holds its session and serves its socket without registering anywhere — omitting the flag resolves and could not say this"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "registerAgentTracked advertises the identity before it relays the pending-wake edge, so a peer applies it instead of refusing it not_in_directory"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a durable bind is refused at the identity ceiling, so this hub cannot write a state file its own restart rejects whole"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SessionRecord.canonical folds bytes the way holder.canonical does, and non-ASCII session identifiers are refused rather than folded into two sessions a human cannot tell apart"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "TransferService.machineName still names this Mac when the weak host store is gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the client geometry a hello announces with no terminal is stated once and emitted as a build fact, and the holder e2e re-derives the repaint assertion from it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "scripts/test-host-setup.sh renames its local port picker so it cannot shadow the shared library's"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the holder e2e asserts the restoration addresses every row from 1 to the announced height, not merely some row past the marker"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the pane-socket e2e asserts a pane told there is no hub registers with none, with a hub up and reachable"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a peer is told the identity exists before it is told mail waits for it, asserted on the order of the frames on the link"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "SyncMonitorTests requires the six stopped states to say six different things, which is what specific meant"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "two comptime guards say they guard the derivation rather than the values, and lib.sh no longer claims free_port honours an override"
+status = "done"
+category = "chore"

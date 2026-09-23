@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-06-005"
+title = "feat(gui): per-appearance terminal themes — separate light and dark theme pickers"
+status = "done"
+created = "2026-08-06"
+started = "2026-08-06"
+completed = "2026-08-06"
+
+[content]
+description = "Terminal colors currently use a single theme for both appearances. Let users pick separate light and dark themes; the fragment writes ghostty's `theme = light:X,dark:Y` pair so the theme follows the Appearance mode live (color scheme → soft reload → conditional state). Migrate the legacy single themeName setting to both slots."
+
+[[content.acceptance_criteria]]
+text = "Light Theme and Dark Theme pickers in Settings → Terminal"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "fragment emits light/dark theme pair; single-theme fallback for legacy choice"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "theme switches live with the Appearance mode (light/dark/system)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "legacy single themeName migrated to both light and dark slots"
+status = "done"
+category = "changed"

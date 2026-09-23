@@ -1,0 +1,55 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-003"
+title = "fix(sync): a machine's untouched defaults were offered as an edit and erased another Mac's settings"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["WI-2026-08-13-005"]
+
+[content]
+description = """
+The report was "为什么应用重启后设置回到默认了?". The file had lost fontSize, fontFamily, both theme names and backgroundOpacity outright, and uiFontScale and appearanceMode had reverted to their defaults.
+
+ROOT CAUSE, IN TWO PARTS.
+
+FIRST, THE ORIGIN. A second Mac that nobody had configured still wrote a settings.json full of defaults and offered it to sync. `flushPersistence()` saved unconditionally on teardown, so quitting the app once was enough. On the receiving machine that record is indistinguishable from a deliberate one: the three-way merge compared it against a base holding the first Mac's real values, found `ours == base` and `theirs` absent for every field the defaults happen to omit, and correctly concluded "only they moved — take theirs, including the deletion". The merge was right. Its input was a lie.
+
+SECOND, THE AMPLIFIER, which is why nothing could be recovered. `reloadFromDisk()` called `load()` WITHOUT setting `isLoading`, so every property it assigned fired its didSet, each of which persists, and appearanceMode's didSet saves immediately. Each of those saves called `noteLocalChange("settings.json")`. So the machine that had just been overwritten re-uploaded the clobbered file under its own name and moved its merge base with it — destroying the evidence of what it used to hold. By the time this was diagnosed the base on disk was byte-identical to the defaults.
+
+`writeGhosttyFragment()` had the same shape and was worse-placed: `init` calls it on every launch to guarantee the file exists, and it announced a local change every time. So every launch of every machine claimed to have edited ghostty.conf.
+
+THE FIX IS AT THE ORIGIN, NOT IN THE MERGE. Field-level deletion semantics are correct — a person can reset a setting, and that removes the key. Changing RecordMerge to ignore absent fields would break real resets to fix a lie told upstream. So:
+- A machine's untouched defaults are not an edit. `hasLocalEdit` distinguishes a human setting something from the app persisting the state it started with; `flushPersistence` writes only when the former happened, so a machine nobody has configured now creates no settings.json at all.
+- A write that changes no bytes is not a change and is not offered to sync. This covers the per-launch ghostty.conf claim without special-casing it.
+- `reloadFromDisk` loads under `isLoading` and then applies the suppressed side effects once, exactly as `init` does. A record handed over by sync is not this machine's edit.
+
+WHAT IS NOT COVERED. The operator's original values are not recoverable from this machine — the base was overwritten before the cause was found. They must be re-entered once, after which convergence carries them: the local record then differs from a base holding the defaults, so this machine's values win and propagate."""
+notes = ["""
+VERIFICATION. Two regression tests in SynaptySettingsTests, each falsified before being believed:
+- `testUntouchedDefaultsAreNeverPersisted` — a fresh instance flushed on teardown must leave no settings.json; one real edit then persists normally. Reverting `flushPersistence` to its unconditional `save()` turns it red.
+- `testReloadFromDiskDoesNotWriteBackOrChangeTheFile` — a record written to disk by sync must reach memory and leave the file byte-identical. Removing the `isLoading` guard from `reloadFromDisk` turns it red.
+
+383 Swift tests pass. The clobber itself is no longer reproducible on this machine — the base was overwritten before the cause was found — so the tests target the two mechanisms rather than the incident."""]
+
+[[content.acceptance_criteria]]
+text = "a machine with no settings of its own writes no settings.json and offers nothing to sync"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "one real edit still persists and is offered normally"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "applying a record delivered by sync leaves the file exactly as delivered, and is not re-uploaded as a local edit"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a write whose bytes are unchanged is not announced to the sync engine"
+status = "done"
+category = "fixed"

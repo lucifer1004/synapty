@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-06-003"
+title = "fix(settings): font-family override — clear user ghostty config families first"
+status = "done"
+created = "2026-08-06"
+started = "2026-08-06"
+completed = "2026-08-06"
+
+[content]
+description = """Ghostty's font-family is a repeatable key: later lines append as a fallback chain rather than override. The user's own ghostty config (~/Library/Application Support/com.mitchellh.ghostty/config etc.) loads first via default files, so its font-family always became the primary family and the Synapty settings font never appeared — switching fonts had no visible effect. Emit `font-family = ""` (ghostty's documented config-file clear) before the configured family lines in the fragment so the Synapty choice becomes primary."""
+
+[[content.acceptance_criteria]]
+text = "settings font becomes the visible primary family even when the user's ghostty config sets font-family"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fragment emits the empty-family clear before configured family lines"
+status = "done"
+category = "added"

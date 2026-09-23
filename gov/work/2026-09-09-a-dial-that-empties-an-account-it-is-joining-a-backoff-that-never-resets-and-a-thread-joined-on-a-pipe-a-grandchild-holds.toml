@@ -1,0 +1,113 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-002"
+title = "A dial that empties an account it is joining, a backoff that never resets, and a thread joined on a pipe a grandchild holds"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "RFC-0014:C-ONE-CLIENT",
+    "RFC-0014:C-RESUME",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+Three defects, one of them introduced by [[WI-2026-09-08-016]] a few hours
+earlier.
+
+A DIAL EMPTIED AN ACCOUNT IT WAS ONLY JOINING. [[WI-2026-09-08-016]] gave
+each dial an identity by having `begin(for:)` unlink the channel rather
+than truncate it. That is right for a dial that MINTS its name, and wrong
+for the two paths that are handed one: the Still Running row's
+`onOpenSession` and the status bar's `openRemoteAgent`, both of which dial
+a session whose client is alive and writing that very file. Unlinking it
+leaves that client with an fd on an inode no path reaches, so its
+`end displaced` goes nowhere; `accountEnd()` reads by path, sees the new
+dial's empty file, returns nil, and the displaced pane closes silently
+with no notice and no `taken` surface — the [[RFC-0014]] C-ONE-CLIENT
+outcome, reintroduced through a fix. The unlink also discarded a retry
+marker pending on a live paused client.
+
+The two obligations had been discharged by one line. Replacing the channel
+belongs to a dial that owns the name; clearing permission belongs to every
+dial. `beginDial(for:joining:)` says which is which.
+
+A BACKOFF AND A BUDGET THAT NEVER RESET. The reset asked whether more
+BYTES had been rendered — but a resumed attach sets `rendered` from
+`welcome.position`, and an IDLE session's position is identical on every
+reconnect. So a client that reached the far side every single time still
+doubled its wait and still spent its budget from the first loss. Measured
+against a live holder running `sleep 1` in a loop: reconnects at +3036,
++7081 and +12123ms, each one answered with `live returned to the session
+where it was left`, and the delay doubling anyway. After half an hour it
+pauses saying "stopped dialling after 30 minutes down" having reached the
+session on every attempt. The question is whether the far side ANSWERED,
+which is where the welcome is read.
+
+A THREAD JOINED ON A PIPE A GRANDCHILD HOLDS. The transport's stderr is
+read on its own thread and the attempt joined it before returning. A pipe
+reaches end-of-stream only when EVERY holder of its write end has closed
+it, so a transport that backgrounds anything — ssh autostarting a
+ControlMaster, `ssh -f`, a remote command that daemonizes — left a
+grandchild holding it, and the join waited for the grandchild. Nothing
+bounds a defer.
+
+MEASURED RATHER THAN REASONED, and the first reading was wrong. A
+grandchild holding STDOUT delays the handshake instead, and that IS
+bounded — `readWelcomeWithin` gives up at 30s (30143ms measured for a
+grandchild sleeping 45), so a test that left stdout held would pass either
+way. Isolating stderr and running one build with the pump's read blocking
+and polling in turn: 46316ms against 120ms."""
+notes = [
+    "A FIX PUT BACK THE DAMAGE IT WAS FIXING BESIDE. The unlink in `begin(for:)` was added hours earlier to give each dial an identity, and it was reviewed on the path that mints its own name — where it is correct. The two paths that are HANDED a name were not considered, and they are precisely the ones aimed at a session that is already running. The reviewer also noted that the earlier fix to `attachWouldDisplace` makes the collision MORE likely, because a session held by an open pane here is now correctly still listed, so the row a human clicks is the one that triggers it.",
+    "THE REVIEWER NAMED THE WRONG PIPE AND WAS RIGHT ANYWAY. The report said stderr and cited a measurement of 20011ms; measuring it here showed that number was the grandchild's own lifetime and that STDOUT was the holder, bounded at 30s by the handshake deadline. Only after isolating stderr — redirecting the grandchild's stdout away — did the real thing appear, and it is worse than reported: 46316ms with no deadline over it at all. Both the report and the first reading of it were wrong in different directions, and the A/B on one build is what settled it.",
+    "WHAT IS STILL OPEN from this round: `Record.describe` fails silently, leaving a live session with a claim and a socket and no record, invisible to `sessions` and unsweepable, on ENOSPC or EACCES. `nowMillis` is CLOCK_REALTIME, so an NTP step can abort a healthy handshake or trip the retry budget on the first loss — and a waking laptop is exactly when reconnects happen. The 200ms WNOHANG window in `transportVerdict` is a race rather than a bound: a transport whose stdout closes well before it exits has its status discarded and retries forever.",
+]
+
+[[content.acceptance_criteria]]
+text = "A dial handed a session name joins its account instead of emptying it, so the client writing there can still say why it stopped"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Clearing a stale retry marker happens on every dial, including one that replaces nothing"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "An attempt that reached the far side ends the outage, whether or not the session had anything new to show"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The transport's stderr pump is told to stop rather than waited out, so a process the transport left behind cannot hold the attempt open"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "closeTransportPipes leaves stderr to the path that has stopped and joined its reader"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Joining an account leaves what its client is still writing; a fresh dial still replaces the channel"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A joining dial inherits no retry permission either"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A client whose link is cut four times over six seconds never pauses under a 2.5s budget"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A transport that backgrounds a process holding stderr reports its lost link at once"
+status = "done"
+category = "chore"

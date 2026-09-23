@@ -1,0 +1,20 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-012"
+title = "fix(gui): Cmd+N creates exactly one new session, not a double action"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P1: Cmd+N 'New Session' (SynaptyCommands.swift) BOTH calls requestNewTab() (adds a pane to the currently active session) AND posts .synaptyNewSession (ContentView adds a brand-new session) — one keystroke leaves an unexpected extra pane in the previous session plus a new session. The code's own TODO acknowledges the confusion. Pressed before ContentView.onAppear sets TunnelManager.shared it also spawns a spurious local shell with a nil command."
+
+notes = [
+    "2026-08-08: Cmd+N 'New Session' now performs exactly one action — posting .synaptyNewSession (ContentView.addLocalSession). The requestNewTab() call (which added a stray pane to the current session) and the TODO are removed. 'New Tab' (Cmd+T) still adds a pane as intended.",
+]
+[[content.acceptance_criteria]]
+text = "Cmd+N performs exactly one action — creating a new local session (requestNewTab call removed, TODO resolved)"
+status = "done"
+category = "fixed"

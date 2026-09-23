@@ -1,0 +1,64 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EVENTS"
+title = "Request-Driven Bridge — GUI Polls the Hub, Never the GitHub API"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+There is no GitHub-side polling. The GitHub API is request-driven and
+single-homed:
+
+- The device running Synapty (the "login device") holds the credential and
+  hosts the GitHub bridge. AMENDED by [[RFC-0009]] C-BOUNDARIES and
+  C-NON-GOALS: the bridge is a WORKBENCH service, not an embedded hub
+  service. A hub routes; anything requiring the human's credentials
+  executes at the workbench. The economics below are unchanged — this
+  relocates the executor, not the request-driven design.
+- Any agent — local or on a remote device — invokes task tools through MCP,
+  and this guarantee SURVIVES federation. Its request reaches the workbench
+  holding the credential: directly, when that workbench is attached to the
+  agent's own hub; otherwise relayed one hop to a peer hub whose workbench
+  holds it — WHICH FEDERATION DOES NOT YET DELIVER. [[RFC-0009]] deferred
+  task-tool relaying (C-NON-GOALS), so today the guarantee holds only
+  where the agent's own hub has the workbench with the credential. On a
+  machine whose hub has none, a task tool fails locally rather than
+  reaching one that could serve it. Recorded as an open edge of this
+  guarantee rather than left to be discovered.
+  What moves is the REQUEST, never the credential — the same arrangement
+  this clause always described, in a topology where the agent's hub is on
+  its own machine rather than the login device.
+- Agents on other devices need no GitHub configuration at all; they only need
+  a hub connection, which they already have. When no reachable workbench
+  holds the credential the request MUST fail fast rather than queue: a task
+  claimed hours after it was asked for is worse than a refusal.
+
+V1 GUI concession — the GUI polls the HUB, never the GitHub API: the
+task/activity views refresh by polling the hub via the synapty CLI
+(activity 5s, tasks 60s — a deliberate 2026-08-05 decision recorded in the
+work-item ledger). Agent presence is NO LONGER polled: [[RFC-0004]] retires
+the former 5s agents poll in favor of the hub event subscription (push);
+the activity view MAY later migrate to the same subscription
+([[RFC-0004]] C-SUBSCRIPTION) but stays polled until then. Hub polling
+targets the local hub, not the remote repository, so the no-poll-tax
+guarantee on GitHub quota is preserved. (The RFC-0002-era chat events were
+reduced away by [[RFC-0003]] C-A2A-REDUCTION.)
+
+Consequences:
+
+- GitHub API quota is consumed only by real requests (no poll tax).
+- GitHub API latency is request/response, not poll-interval-bound; the GUI
+  view refresh adds at most one poll interval.
+- Credentials never leave the login device.
+- The GUI's activity view is fed by the hub's tool-request log (who
+  listed/claimed/updated which issue), polled from the hub at a sane
+  interval in V1.
+- Webhooks are unnecessary in V1 for the same reason: the bridge is invoked
+  on demand, so there is no external change stream to watch.
+
+A pull-to-refresh action in the GUI ("Sync now") performs an on-demand issue
+list fetch for the visible projects — still a request, never a background
+poll."""

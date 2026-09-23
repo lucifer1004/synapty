@@ -1,0 +1,53 @@
+#:schema ../../schema/rfc.schema.json
+
+[govctl]
+id = "RFC-0010"
+title = "Peer Identity and Capability Negotiation"
+version = "0.2.0"
+status = "normative"
+phase = "impl"
+owners = ["@lucifer1004"]
+created = "2026-08-12"
+updated = "2026-08-28"
+refs = [
+    "RFC-0004",
+    "RFC-0008",
+    "RFC-0009",
+]
+signature = "c6e1101535d5dd40821af41886e80ac5b8980a9e2b1bff420cd3d471d3ad9ca1"
+
+[[sections]]
+title = "Summary"
+clauses = ["clauses/C-SUMMARY.toml"]
+
+[[sections]]
+title = "Specification"
+clauses = [
+    "clauses/C-PEER-IDENTITY.toml",
+    "clauses/C-COLLISION.toml",
+    "clauses/C-CAPABILITIES.toml",
+    "clauses/C-DIAGNOSABILITY.toml",
+    "clauses/C-STRICTNESS.toml",
+    "clauses/C-NON-GOALS.toml",
+]
+
+[[changelog]]
+version = "0.2.0"
+date = "2026-08-28"
+notes = "The refusal reasons are five, and two of them were being sent unnamed"
+changed = ["`directory_overflow` is named, for a peer hosting more identities than the receiving hub will record for one peer. RFC-0009 C-DIRECTORY now requires the link be refused rather than the surplus identity dropped."]
+fixed = ["C-COLLISION said FOUR CONDITIONS, THREE CODES while the hub was sending a fourth. `malformed_hello` -- a hello carrying no version range or capability list -- was invented by an implementer because the clause left them needing a string, which is the exact failure the bullet exists to prevent. It is named now, with the reason it is not `version_incompatible`: a hello with no range is not an old peer whose range fails to intersect, it is a frame this protocol does not define, and the remedy is to replace that build rather than move either side's version."]
+
+[[changelog]]
+version = "0.1.1"
+date = "2026-08-25"
+notes = "Capabilities are named and updatable; unknown_cause carries a contested identity"
+changed = [
+    "C-CAPABILITIES names the capability strings and adds relay_capabilities, since a set fixed at handshake cannot express a workbench detaching",
+    "C-DIAGNOSABILITY's unknown_cause gains contested",
+]
+
+[[changelog]]
+version = "0.1.0"
+date = "2026-08-12"
+notes = "Initial draft"

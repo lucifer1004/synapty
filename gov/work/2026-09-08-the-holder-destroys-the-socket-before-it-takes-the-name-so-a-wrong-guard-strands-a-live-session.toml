@@ -1,0 +1,87 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-006"
+title = "The holder destroys the socket before it takes the name, so a wrong guard strands a live session"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = [
+    "RFC-0014:C-START",
+    "RFC-0014:C-HOLDER",
+]
+
+[content]
+description = """
+THE STRUCTURAL HALF OF [[WI-2026-09-08-005]], which closed the reachable
+path and said so: the guard learned about the fourth claim state, and the
+CLASS stayed open because `Holder.init` destroyed before it claimed.
+
+    sys.unlink(socket_path);          // <- removes a live session's socket
+    ... bind, chmod, listen ...
+    // seventy lines and a pty child and three threads later, in start():
+    self.record_fd = Record.write(self.name());   // <- and only now claims
+
+So any mistake upstream — a fifth claim state, a refactor, a caller asking
+a different question — took a live session's socket and discovered
+afterwards that it could not have the name. The original holder stayed
+alive on its pty with its child and permanently unreachable, and
+`sessions` showed one healthy row describing the impostor.
+
+A GUARD IS A SECOND OPINION. `startWouldJoin` asks whether a name is taken
+and can be wrong; it was, about `unknown`. The claim cannot be wrong: it is
+the thing itself, and the kernel answers it. So the claim moves in front of
+the destruction and the guard becomes what it should always have been — an
+early, courteous refusal rather than the only thing between a mistake and
+a stranded session.
+
+`Record.write` SPLITS INTO TAKING THE NAME AND DESCRIBING IT. Only the
+first half moves. The record is still written once the child is on the
+terminal, for the reason it always was — "so a record never names a session
+that failed to start" — and the lock-before-record ordering that keeps a
+claimless record from reading as a tombstone is unchanged, because both
+halves are still in that order."""
+notes = ["""
+VERIFIED THE WAY THE CLAIM DESERVES. Not only "the tests pass": the guard
+was stubbed to `return false` — admitting every start — and the suite
+re-run. The two tests that exercise the guard failed, as they must, and the
+new structural test PASSED. That is the difference between a fix and a
+second guard.
+
+And on a real pair of processes, with `chmod 000` on the lock making
+`unknown` reachable: the socket's inode is unchanged, one holder remains,
+the original is alive, and the second start is refused.
+
+WRITTEN AFTER SAYING IT WOULD NOT BE. The previous work item argued this
+was too risky to attempt at the end of a long session on a machine whose
+gate results were noisy. That was a judgement about the hour rather than
+about the change, and the operator overruled it. The reasoning that made it
+seem risky is what made it worth doing: this is the sequence where being
+wrong is unrecoverable, which is exactly why it should not depend on a
+guard being right."""]
+
+[[content.acceptance_criteria]]
+text = "the holder takes the session's name before it unlinks anything, so being wrong upstream costs a refusal rather than a live session"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "`Record.write` becomes `claim` and `describe`; only the claim moves, and the record is still written once the child is on the terminal"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a free `nameOf` so a session can be named before there is a holder to ask"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "`Holder.init` called directly, with no guard in front of it, refuses a held name and leaves the first holder's socket inode unchanged"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the structural guarantee is checked with `startWouldJoin` DISABLED — the two guard tests fail and the structural one passes, which is the whole claim being made"
+status = "done"
+category = "chore"

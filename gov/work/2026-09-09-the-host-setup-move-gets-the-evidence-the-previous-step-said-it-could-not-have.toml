@@ -1,0 +1,82 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-010"
+title = "The host-setup move gets the evidence the previous step said it could not have"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0009:C-BOUNDARIES",
+]
+
+[content]
+description = """
+[[WI-2026-09-09-009]] closed with a hedge: the far side's launch script
+could be diffed against the shell that used to build it, byte for byte,
+but "this half cannot be — it is a sequence of side effects on a machine,
+not a string." That was true of the shape and false of the conclusion. A
+sequence of side effects IS a transcript once the boundary is stubbed, and
+the boundary here is small: `ssh` and `scp`.
+
+WHAT THE COMPARISON FOUND. The deleted script was recovered from history
+and run against a fake host beside the binary, on four shapes — a host with
+nothing on it, one that already had everything, one whose hub will not
+start, and one that will not hold a connection. Standard output and
+standard error were identical on all four. The recorded call sequence
+differed in exactly three places, two of which are the same file reached by
+different relative roots (verified by inode) and one of which is a
+deliberate change recorded below.
+
+AND ONE OF THEM WAS A REAL DEFECT. `runMaster` opened the connection and
+`runSetup` then asked, independently, whether one was there — two round
+trips, and the SECOND answer is what everything depends on. The script
+latched it from the open's own exit status. `ssh -MNf` returns once the
+master is listening, so re-probing can only agree or be wrong; being wrong
+means the setup skips the peer forward and prints no `PEER_PORT`, so the
+local hub is never told to dial its peer and cross-machine A2A is silently
+absent. The answer is taken from what was done now.
+
+THE THIRD DIFFERENCE IS DELIBERATE. The build query used to travel as an
+ssh command ARGUMENT — a multi-line shell program inside argv — and now
+travels on stdin to `sh -s`, which is how the probe and the hub
+replacement already travelled. Same output, one less thing quoted into an
+argument list.
+
+AND THE HARNESS STAYS. `scripts/test-host-setup.sh` drives the binary
+against that fake host and asserts what happens to a host, which nothing
+did before: the upload, the terminfo copies, the hub replacement and the
+peer link had no test at all."""
+notes = [
+    'THE HEDGE WAS THE WRONG SHAPE, NOT TOO CAUTIOUS. Saying "this cannot be verified by comparison" reads as honesty and was actually a failure to look for the seam. The boundary between this code and the machine it changes is two programs, `ssh` and `scp`; stubbing them turns every side effect into a line in a file. That took under an hour and found a defect that would have shown up as cross-machine messaging silently not working.',
+    "THE STUB HAD TO BE MADE FAITHFUL BEFORE IT COULD JUDGE ANYTHING. Its first version answered `-O check` from a fixed knob, so a master opened by `-MNf` was still reported absent — which made the new code look broken on a path where it was not, and would have hidden the path where it was. `ssh -MNf` returns once the master is listening, so the stub leaves a marker and a check that follows it succeeds. A fake that does not behave like the thing it stands in for tests a machine that does not exist.",
+    'AND `${VAR:-default}` SUBSTITUTES FOR AN EMPTY VALUE TOO. The case that sets the hub port empty to mean "this host has no hub" got the default back and asserted against a host that had one; it passed for the wrong reason until the assertion for the warning failed. `${VAR-default}` is the one that distinguishes unset from empty.',
+    "EACH ASSERTION WAS CHECKED BY BREAKING WHAT IT GUARDS. Removing the `rm -f` before the upload, disabling the hub replacement, and forcing an upload the checksums say is unnecessary each produced the failure named for it. An assertion that has never been red is a claim about the test rather than about the code.",
+]
+
+[[content.acceptance_criteria]]
+text = "Whether a host has a ControlMaster is answered once, from opening it, rather than re-probed by the step that depends on the answer"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The build query travels on stdin to sh -s, like the probe and the hub replacement, instead of as a multi-line ssh command argument"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "host-setup is driven against a recording fake host — the upload, the terminfo copies, the hub replacement and the peer link had no test before"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A host that already has everything is copied nothing, and its hub is not replaced"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A host whose hub will not start loses its PEER_PORT and keeps its SETUP_OK; one that will not hold a connection loses both the peer link and the ControlPath"
+status = "done"
+category = "chore"

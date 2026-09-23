@@ -1,0 +1,34 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONFLICT"
+title = "One chord, one command"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The map from chords to commands MUST be injective at every moment — including the moment the table is loaded, before anyone has pressed anything. THE SHIPPED DEFAULTS ARE THE FIRST CASE OF THAT, and are a well-formedness constraint on the table checkable by inspection alone, alongside the refusal list's ([[RFC-0016:C-CHORD]]): two commands shipped on one chord is a defect nobody has to press a key to find. A command holding nothing is not in that map and cannot collide with anything.
+
+## Recording
+
+- RECORDING A CHORD THAT ANOTHER COMMAND HOLDS TAKES IT. The command that held it is left holding nothing, and this is THE resolution rather than one of two permitted ones: a facility that sometimes refused would make the human's act succeed or fail by a rule they must first discover, and the panel exists so they can see what they did instead.
+- THE COMMAND THAT LOST THE CHORD MUST BE NAMED AT THAT MOMENT, and MUST afterwards be visibly unbound wherever bindings are shown ([[RFC-0016:C-DISCOVERY]]). A human who binds a chord and thereby unbinds a command they use daily meets the consequence weeks later, in a context that offers no way to connect the two.
+- BOTH SIDES OF THE DISPLACEMENT ARE STORED ([[RFC-0016:C-REBIND]]).
+- THE WORKBENCH MUST NOT WRITE A CONFLICT, to the table or to the override set. There is no state IT PRODUCES in which one chord stands against two commands with a warning beside it: whichever such a table ran, it would run because of an ordering nobody chose. It cannot make the same promise about the FILE — a human may write two overrides on one chord into it, and the workbench is forbidden to rewrite the store behind them ([[RFC-0016:C-REBIND]]). Such a store is resolved at every build by the rule below, left exactly as it was found, and shown.
+
+## Loading
+
+- **THE EFFECTIVE TABLE IS ALWAYS `build(defaults, overrides)`, REBUILT AFTER EVERY CHANGE TO THE STORE** — not only at launch. "At the next build" throughout this specification therefore means "as soon as the human's act is stored", which is what makes a rebind take effect on the next keystroke ([[RFC-0016:C-REBIND]]) rather than on the next launch. Stated because the alternative — mutating a live table in place — is a reasonable thing to build and gives a DIFFERENT answer: removing an override that was displacing another command would leave that command holding nothing for the rest of the session and hand its binding back only after a relaunch. Right on the next launch and wrong on this run is the same defect as its mirror image, and both are avoided by having one construction and no incremental one.
+- **LOADING BUILDS THE TABLE AND MUST NOT WRITE THE STORE.** The store is written only by a human act — recording, clearing, or recovering a default, INCLUDING ONE MADE ON ANOTHER MACHINE AND CARRIED HERE BY A SYNC. A sync is not a second authority inventing bindings; it is the same human's act arriving late, and the rule it must obey is the one below rather than an exemption from it. "As if recorded" below imports the RESOLUTION rule and nothing else: not the write that a recording performs ([[RFC-0016:C-REBIND]]), and not the naming of the displaced command, which at load has no moment to happen in and no one to happen to — the visibility obligation at the end of this clause is what stands in its place.
+
+  Without this sentence the rule eats itself. A human who binds a chord away from a command and later gives that command another chord has a store both of whose halves are right; a load that re-performed the displacement would write the loser back to `none` over the newer chord, and the table would be correct for the rest of THAT run and wrong from the next launch on — a defect that appears one relaunch after the act that caused it.
+- THE TABLE IS BUILT FROM THE DEFAULTS, THEN EACH OVERRIDE IS APPLIED AS IF IT HAD JUST BEEN RECORDED, in ascending order of command identifier compared by Unicode code point. The order is stated so that it is a CHOSEN one, and the rule is the recording rule so that there are not two resolutions to keep in step. An override of `none` applies as a clearing; one carrying a chord applies as a recording, and displaces whatever holds that chord in the table built so far.
+- IN THE ORDINARY CASE THE ORDER CHANGES NOTHING, because a displacement stores both sides: the table the human left is reproduced whatever order its overrides are read in. The order decides only what happens when something else has moved underneath them — a default that changed between builds, or a line a human wrote into the store by hand.
+- AN OVERRIDE THAT CANNOT BE APPLIED IS DISCARDED: one naming a command that does not exist, one whose value is neither a chord nor `none`, one whose chord fails [[RFC-0016:C-CHORD]]. A COLLIDING OVERRIDE IS NOT IN THIS LIST — it is applied, and displaces, exactly as a recording would.
+- A MERGE MUST NOT PRODUCE A CONFLICT. Where the store is replicated between machines, two of them may record different commands onto one chord with neither having seen the other, and merging those override sets is the workbench writing — so the prohibition above binds it. The merge MUST resolve by the same take rule in the same stated order, and MUST leave the loser holding `none` on both sides, exactly as a recording does. A merge that wrote both and left resolution to the next build would put a conflict in the file the workbench itself produced, which is the one thing this clause does not permit.
+- A DISPLACEMENT AT LOAD IS NOT STORED, AND IS NOT THE SAME THING AS A RECORDED ONE. It is recomputed every time the table is built and lasts exactly as long as the override that causes it: remove that override and the displaced command is rebuilt with whatever it would have had all along — its own override if it has one, its default if it has not — because nothing was ever written to say otherwise. A RECORDED displacement is the opposite — it is stored on both sides and outlives the binding that caused it ([[RFC-0016:C-REBIND]]).
+
+  Both leave a command holding nothing and they look identical on screen, so the difference MUST be stated rather than left for an implementer to discover: one is a fact about the store, the other a consequence of it, and only the first is the human's own act.
+- WHAT WAS DISCARDED OR DISPLACED AT LOAD MUST BE VISIBLE where bindings are shown. Silently dropping the human's choice and silently keeping a broken one are equally bad, and the second also breaks the invariant."""

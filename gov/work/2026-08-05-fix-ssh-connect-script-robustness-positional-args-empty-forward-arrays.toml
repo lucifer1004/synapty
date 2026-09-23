@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-015"
+title = "fix(ssh): connect script robustness — positional args, empty forward arrays"
+status = "done"
+created = "2026-08-05"
+started = "2026-08-05"
+completed = "2026-08-05"
+
+[content]
+description = "connect.sh/setup-host.sh hardened for macOS bash 3.2: key and jump arguments are always passed positionally (shift 7 with a fallback), and an empty forwarding list no longer trips the unbound-variable error under set -u."
+
+[[content.acceptance_criteria]]
+text = "key and jump args always passed positionally to connect.sh/setup-host.sh"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "empty forwarding list no longer triggers unbound variable on macOS bash 3.2"
+status = "done"
+category = "fixed"

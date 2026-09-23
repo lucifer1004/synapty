@@ -1,0 +1,42 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-001"
+title = "fix(run): the pane wrapper never removes its IPC socket — /tmp accumulates one file per pane, forever"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+`synapty run` binds /tmp/synapty-<pid>.sock and unlinks only the STALE one before binding (src/run.zig:152). Nothing removes it on exit, so every pane that has ever run leaves a file behind. Observed on the operator's machine at wrap-up: roughly 100 of them, spanning several days of sessions.
+
+Small, and worth fixing for a reason beyond tidiness: a socket path is keyed by pid, pids wrap, and a stale file at a recycled pid is exactly what the pre-bind unlink exists to handle — which means the litter is already being compensated for rather than prevented. Cleaning up on exit turns that unlink from a routine necessity into the defensive check it was written as.
+
+Do NOT rely on a normal-exit path alone. A pane's wrapper is frequently killed rather than asked to stop (the app quits, the human closes the tab, a session is torn down), so a deinit-only cleanup will still leak most of the time. Either handle the signals that actually end these processes, or sweep unowned sockets at startup — a file whose pid no longer exists is unambiguously dead, and the hub already uses exactly that pid-liveness test for its discovery file."""
+notes = ["""
+IMPLEMENTED 2026-08-13. Two halves, and the second is the one that works: RunServer.deinit unlinks its own socket (the graceful path, and the MINORITY case), and every wrapper sweeps at startup for sockets whose owning pid is gone. A pane's wrapper is usually killed — the app quits, a tab closes, a session is torn down — so a deinit-only fix would have leaked most of the time, which is why the WI said not to write one.
+
+Safety argument, stated because a sweep that deletes files is worth arguing: a file whose pid no longer exists is unambiguously dead. The opposite error — a dead pane whose pid was REUSED — leaves one file behind, which is the harmless direction. Deleting a LIVE pane's socket would require its pid to be gone, which means the pane is gone too. Only numerically-named synapty-*.sock files are judged; a test asserts the sweep spares synapty-notapid.sock, synapty-.sock, synapty-123.txt and notsynapty-123.sock, because a sweep that guessed would be deleting other people's files.
+
+TEST ISOLATION, and an honest limit. The unit tests were first written against the real /tmp — which deleted 98 genuinely dead files and was therefore "correct", and was still the wrong shape: this codebase has paid for unscoped test writes twice (a hosts.json clobbered, a machine renamed by a scratch hub) and both were also individually defensible. The sweep is now directory-scoped and those tests use a scratch dir.
+
+What is NOT isolated, deliberately: the e2e tests construct real RunServers, and a real wrapper sweeps /tmp at startup. Running the suite therefore does reclaim dead sockets on the developer's machine. Left as is rather than plumbed around, because what it deletes is provably dead and provably ours — unlike hosts.json or identity.json, which are real data and real identity. Recorded so nobody later mistakes it for an oversight.
+
+Verified live: 98 accumulated sockets reclaimed, the one with a live owner spared, and a decoy at a dead pid reclaimed by a real wrapper launch."""]
+
+[[content.acceptance_criteria]]
+text = "a pane's IPC socket does not outlive the pane under the ways panes actually end, not only under a graceful exit"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "sockets left by dead processes are reclaimed rather than accumulating; a file whose pid is gone is unambiguously dead"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a test covering the kill path, since that is the common case and the one a deinit-only fix would miss"
+status = "done"
+category = "chore"

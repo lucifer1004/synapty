@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-002"
+title = "feat(diag): hub diagnostics reach Console, and the level is set while running (RFC-0012)"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = ["RFC-0012"]
+
+[content]
+description = """
+Implements [[RFC-0012]]. Three of its four clauses record what the code already does; this work item is the part that does not exist yet.
+
+WHAT IS ALREADY TRUE: severity semantics and the two-channel rule are applied across the Zig and Swift sides, and the detached hub writes to a bounded machine-scoped file instead of /dev/null.
+
+WHAT IS MISSING.
+
+The hub does not reach macOS unified logging at all. It writes stderr and a file, so Console shows the workbench's lines and none of the hub's — and Console is the only place this system's lines interleave with the SSH, sandbox and network lines they usually have to be read against. `syslog(3)` is bridged into unified logging and is a plain C function; a Zig probe confirmed a line written that way is visible to `log show`. src/diag.zig is already the single entry point every scoped logger goes through, which is what makes this a small change rather than a sweep.
+
+There is no way to read a REMOTE hub's log. The file exists on that machine and nothing brings it here. SSH already reaches those machines and a file on another machine is what SSH is for; a log stream over the A2A protocol would give that protocol a reader it should not have.
+
+The level cannot be changed at all, and a level that requires a restart is unusable on the machines that matter — restarting a hub severs A2A for every agent working there, so "raise the level and reproduce it" would destroy the thing being diagnosed.
+
+SCOPE NOTE: the frame is dedicated rather than a field on hub_info, per C-LEVEL-CONTROL — a frame named for asking must not also set, or the next reader cannot tell which calls are safe to repeat. It travels on the anonymous one-shot connection, and the workbench sends it to its own hub and to each peer hub it holds a DIRECT connection to. Deliberately not the relay link: that is scoped to identities and mail, and the workbench's relationship to a peer hub here is operator, not peer."""
+notes = ["""
+VERIFIED LIVE, and the live run found what reading could not. The hub's info line was absent from log show and the cause was not the plumbing — unified logging does not persist info without a system-level change, which is exactly the caveat C-LEVEL-CONTROL requires be stated. And the level-change announcement was being filtered by the level it announced: applying before logging meant setting err suppressed the record of having set err, so the log went quiet with nothing saying why. Announce first, then apply. Severity was never the problem; ordering was. Both changes now appear, including the one that lowered verbosity.
+
+Also corrected: `just logs` filtered on process == "Synapty" only, and the hub is a separate executable named "synapty" — so the half this work exists to expose was the half the reader could not see. It now covers both processes and both line shapes, since the Swift side renders as [com.synapty.app:Category] through os_log and the Zig hub as [scope] through syslog."""]
+
+[[content.acceptance_criteria]]
+text = "the hub's diagnostics appear in Console alongside the workbench's, on macOS, through the single entry point in diag.zig"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a Linux hub keeps writing its bounded machine-scoped file, since it has no system log to use"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a remote hub's log is readable over the SSH the operator already has, not over the A2A protocol"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a dedicated frame sets the level on a RUNNING hub — no restart, because restarting severs A2A for agents working there"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the workbench applies the level to its own hub and every peer hub it directly operates"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the setting states what it cannot control — a hub started before any workbench runs at its default, and raising to debug needs a system-level change the app cannot make"
+status = "done"
+category = "chore"

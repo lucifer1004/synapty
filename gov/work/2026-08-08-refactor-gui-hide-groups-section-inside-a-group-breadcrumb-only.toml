@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-068"
+title = "refactor(gui): hide GROUPS section inside a group — breadcrumb only"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Product feedback: once inside a group, the GROUPS section must not be shown anymore — only the breadcrumb (All Hosts › Group) and the group's hosts.
+
+Fix: when a group filter is active, the scroll content is just the breadcrumb row + the HOSTS section (group hosts); the GROUPS section (group blocks + New Group) renders only in the default All Hosts view."""
+
+[[content.acceptance_criteria]]
+text = "inside a group, the GROUPS section is hidden — only breadcrumb + group hosts render"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the default All Hosts view still shows the GROUPS section (group blocks + New Group)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

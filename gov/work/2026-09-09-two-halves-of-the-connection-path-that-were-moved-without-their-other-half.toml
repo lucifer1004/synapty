@@ -1,0 +1,86 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-014"
+title = "Two halves of the connection path that were moved without their other half"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0013:C-BROKER",
+    "RFC-0014:C-OPT-OUT",
+]
+
+[content]
+description = """
+Two defects from the debt sweep, both introduced by [[ADR-0020]]'s move and
+both the same shape: a capability whose implementation is present and
+cannot fire. Two independent sweeps converged on the first one.
+
+THE TRANSPORT NEVER RECORDED ITS PID, so no pane could ever be moved
+between a host's connections. Moving one is a single write to the socket
+record plus a signal to the transport, so the pool needs the transport's
+PID and the transport is the only process that knows it. The shell did
+both in one line — `printf %s "$$" > "$2"; exec ssh -S "$(cat "$1")" …` —
+and [[ADR-0020]] step 3 moved the socket half into the binary and left the
+pid half behind. `--pid-file` is parsed and honoured; nothing emits it, and
+`SYNAPTY_PID_FILE` has no reader in `src/` at all, while the workbench
+still exports it.
+
+`TunnelManager.migratePane` opens on `guard let pidText = try? String(…)`,
+so it returned false EVERY time in production. Both callers were dead —
+explicit migration, and `migrateStalledPanes`, whose own comment calls it
+"the case the human actually reports: a terminal that was fine until a
+port forward started moving data underneath it". A pane stayed pinned to
+the saturated connection for its whole life.
+
+The test was green because it wrote the pid file itself before asserting
+the migration succeeds — the precondition the production path had stopped
+producing. Exactly the mechanism that hid `LinkState.dropped`.
+
+AND "TRY AGAIN" ON A SEVERED PANE DID NOTHING. [[WI-2026-09-09-004]] gave
+`severed` a retry, and the strip's retry writes the marker a PAUSED client
+polls for. A severed link has no client: the host keeps no session, the
+transport WAS ssh, and it is dead. The marker went to a path nothing
+reads. The comment beside it claimed "connecting again is one press, and
+what it gives is a fresh session" — right about what it should do, wrong
+about what it did.
+
+The two states that offer a retry mean opposite acts. Waking a paused
+client is a nudge that preserves the pty it is holding; dialling again
+destroys exactly what the pause preserved. `retryMeans` answers which,
+`offersRetry` is derived from it, and the call site can no longer send
+both to the same one."""
+notes = [
+    'BOTH ARE MINE, FROM TODAY, AND NEITHER SHOWED UP IN ANY GATE. The pid record went missing in step 3 of a move whose whole discipline was "behaviour-preserving, piece by piece, each piece keeping its tests green as it crosses". It kept its tests green because the test constructs the precondition itself. The severed retry was added six hours later with a comment asserting the behaviour it did not have.',
+    "TWO SWEEPS CONVERGED ON THE FIRST ONE INDEPENDENTLY, from different briefs — one hunting unreachable states, one auditing clauses against code. Both traced it to the same commit and both noticed the test writes its own precondition. Agreement between two searches that did not share a hypothesis is worth more than either report.",
+    "THE PAIRING IS THE FIX, NOT THE FLAG. `--pid-file` existed and worked the whole time; what was missing was the caller. So the test asserts BOTH records after one dial rather than the pid alone — the defect was one of a pair going missing, and a test that checks one of them is the same test that was already green.",
+    """AND THE COMMENT WAS THE TELL IN BOTH. The step-3 script's own header said `SYNAPTY_PID_FILE` is "read on the other side of this call exactly as [it was] read here", which had stopped being true in the same commit that wrote it; and the severed retry's comment described a fresh session it never dialled. A comment that reasons about behaviour is a claim, and these two were written in the same session as three others that were also wrong.""",
+]
+
+[[content.acceptance_criteria]]
+text = "A dial that names the pool's socket record also names its pid record, so a pane can be moved between a host's connections again"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Try again on a severed pane dials a fresh connection instead of writing a marker no process polls"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "retryMeans says which of two opposite acts a retry is, and offersRetry is derived from it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A dial through a live master writes BOTH pool records, asserted together because the defect was one of a pair going missing"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The two states that offer a retry mean opposite things, and no other state offers one"
+status = "done"
+category = "chore"

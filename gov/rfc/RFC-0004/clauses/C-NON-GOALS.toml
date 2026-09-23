@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Explicitly out of scope for this RFC:
+
+- Process-tree detection heuristics (scanning `ps`/tty for known agent
+  binaries) — the manifest detector plus explicit registration covers V1;
+  revisit only with evidence of real gaps.
+- Full L3 introspection: 2D DOM export to agents, OSC-to-A2A bridging
+  (the [[RFC-0001]] deferral stands except for the C-PASSIVE-DETECTION
+  slice).
+- Durable event persistence and replay across hub restarts (storage
+  upgrade path noted in C-EVENT-LOG).
+- Session/agent resume references and workspace snapshot restore — the
+  persistence ladder is a separate track (future ADR); its protocol needs
+  (an optional resume-ref field on register) can be added additively.
+- Attention delivery UX (which badges, which sounds) — owned by the GUI
+  design system, constrained here only by C-VOCABULARY's attention mapping.
+- Third-party detector plugins — arrives with the plugin-model RFC, which
+  should treat manifests as its first extension point."""

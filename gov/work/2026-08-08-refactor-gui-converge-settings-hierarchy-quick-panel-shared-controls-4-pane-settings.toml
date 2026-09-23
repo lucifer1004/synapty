@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-052"
+title = "refactor(gui): converge settings hierarchy — quick panel, shared controls, 4-pane Settings"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Audit follow-up (UI/UX hierarchy round): TerminalSettingsPanel duplicates the Settings page's Appearance + Terminal panes (5 control groups), mixes an app-level setting (Appearance mode) into a terminal context panel, and its floating form on non-terminal pages has no toggle affordance. Also: the Settings sub-navigation is a single 6-chip row with an over-thin Network pane.
+
+Fix: panel becomes a terminal-scope quick subset (no Appearance mode — that stays on the Settings page only); shared section components render the same controls in both surfaces (no duplicated layout); the panel toggle button moves to ContentView level so it exists on every page; Settings sub-navigation merges Scrolling + Clipboard into the Terminal pane (4 panes: Appearance | Terminal | Network | GitHub)."""
+
+[[content.acceptance_criteria]]
+text = "TerminalSettingsPanel no longer contains the app-level Appearance mode (Settings page is the single authority)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "terminal controls (theme/font/background/cursor) render from shared section components used by both the panel and the Settings page"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the settings-panel toggle is available on every page (not only the Terminal page)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings sub-navigation is 4 panes (Scrolling+Clipboard merged into Terminal)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

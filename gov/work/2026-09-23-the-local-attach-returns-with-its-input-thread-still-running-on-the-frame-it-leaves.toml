@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-004"
+title = "The local attach returns with its input thread still running on the frame it leaves"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0014:C-DETACH"]
+
+[content]
+description = """
+The local `attach` spawns two client threads, both handed `&state` — a local of the function. The second spawn was a bare `try`: if it failed, the function returned with the first thread still running on a frame that was being popped. Nothing joined it.
+
+THE SAME SHAPE WAS FIXED TWICE THIS WEEK AND HANDLED ONCE ALREADY. `hubServe` (WI-2026-09-16-001) and `FakeDaemon` (WI-2026-09-15-003) were both a thread outliving the frame it pointed into. And the through-attach path in the same file, spawning the same pair of loops, has always caught a failed second spawn, stopped the first and joined it. The local path was the one left out."""
+notes = ["""
+Mirrors the through path: `catch |err| { state.running.set(false); in_thread.join(); return err; }`. The input loop polls its flag every `input_poll_ms`, so the join is bounded by one interval.
+
+NOT CANARIED, and this is why. Failing `std.Thread.spawn` on demand would need either exhausting the process's thread limit — which makes the test itself unreliable — or a spawn function injected only for this, which is a seam with no production reason to exist. The through path's identical handling has never had a test for the same reason. Verified instead by the holder e2e, which drives the local attach end to end: ALL OK."""]
+
+[[content.acceptance_criteria]]
+text = "a failed second spawn stops and joins the first before the function returns"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "why this is not tested, written down: a thread spawn cannot be made to fail deterministically in a test"
+status = "done"
+category = "chore"

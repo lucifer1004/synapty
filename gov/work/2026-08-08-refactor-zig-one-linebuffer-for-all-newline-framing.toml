@@ -1,0 +1,28 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-035"
+title = "refactor(zig): one LineBuffer for all newline framing"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "DRY: the newline-framed socket reader exists in FIVE copies — hub session reader (carry-remainder), daemon hubReaderThread (carry-remainder + oversized-line resync), ipc.readLine (chunked), cli readLineHub (chunked), plus e2e/mcp readers. Unify into one LineBuffer (borrowed buffer, carry-remainder, StreamTooLong on oversized lines, explicit dropOversizedLine for the daemon) and rewrite the five call sites on top of it."
+notes = ["src/framing.zig LineBuffer (borrowed buffer, carry-remainder, StreamTooLong, dropOversizedLine, countBufferedLines) now serves the hub session reader, the daemon hubReaderThread, ipc.readLine and the CLI's readLineHub — five copies to one. The unification EXPOSED and fixed a real bug: the first implementation clobbered its own returned line (copy-on-return overlap) — fixed with a deferred-compaction start cursor. hub session and daemon readers gained oversized-line survival through the shared path. 124/124 Zig tests."]
+
+[[content.acceptance_criteria]]
+text = "fix: src/framing.zig LineBuffer with carry-remainder + StreamTooLong + dropOversizedLine"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: hub session reader, daemon hub reader, ipc.readLine, and cli readLineHub all delegate to LineBuffer (one implementation)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 124+ Zig tests still green (hub e2e exercises the rewritten readers)"
+status = "done"
+category = "chore"

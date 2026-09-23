@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-018"
+title = "The sentence for an unreachable hub written three times, and the account format stated on each side and crossed by neither"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0003:C-CLI-TOOLS",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+The last two items on the crossing list.
+
+ONE SENTENCE, THREE COPIES. Three verbs open a connection to the hub, and
+each carried its own `error: cannot reach the hub (is Synapty running?)`.
+[[RFC-0003]] C-CLI-TOOLS asks for a readable failure, and what that
+sentence replaced was `error: ConnectionRefused` plus eight frames of
+this repository's own source paths — so a reworded copy is a caller
+reading a different sentence about the same condition, and
+`test-send-answer-e2e.sh` loops over exactly these three verbs expecting
+one.
+
+`hubOrSayWhy` takes the exit code and returns the fd. THE CODE STAYS THE
+CALLER'S: `wait` answers 1 for a transport failure and a tool verb
+answers `refused`, which are different contracts with different readers.
+What is shared is the sentence.
+
+THE ACCOUNT FORMAT, STATED ON EACH SIDE AND CROSSED BY NEITHER.
+`progress.say` writes `<13-digit ms> <kind> <text>`; `ConnectProgress`
+parses it; `test-connect-launch.sh` pins the shape as a regex against the
+binary and `test-reconnect-e2e.sh` pins it positionally. Three
+statements, each pinned to its own side — the shell suites prove the
+BINARY writes the shape, and the Swift tests prove SWIFT reads what Swift
+wrote.
+
+`ConfigPathsCrossingTests` now drives `synapty account` — the verb the
+connection itself uses, which is the point: a line composed by the test
+would only prove Swift can read its own fixture — and hands the file to
+`ConnectProgress.endReason`. It asserts every line's shape and the
+DECISION the format exists to carry: a session that is gone told apart
+from a human who left.
+
+Canaried by changing the separator from a space to a pipe: the crossing
+test fails on the stamp's length and on it not being a number, naming the
+line.
+
+That makes four crossing tests in the file that was the only one in the
+suite to run the binary at all — config classification, the tilde root,
+the holder's session name, the tool ladder and now the account. The
+audit's own closing note was that this shape is the answer wherever it is
+available, and that reading a fact off the hub is better still where it
+is.
+
+Found by the ssot-shell pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "the three verbs that dial the hub share one sentence for an unreachable one, each keeping its own exit code"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a crossing test drives synapty account and parses the result with ConnectProgress, so the writer and the reader are pinned to each other rather than each to itself"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the account crossing is canaried by changing the separator, and fails naming the line"
+status = "done"
+category = "chore"

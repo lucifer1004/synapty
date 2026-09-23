@@ -1,0 +1,49 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-EXPIRY"
+title = "A Grant Nobody Can See Must Not Outlive Attention"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0005]] C-AUTHORITY persists the per-pane armed bit with the session
+snapshot, reasoning that "it is the human's standing choice for that pane,
+same authority class as the layout itself". A delegation MUST NOT inherit
+that treatment.
+
+THE REASON, stated as the one that actually holds. It is tempting to say a
+local pane is seen every time the human opens the workbench while a remote
+delegation is not — but C-VISIBILITY requires the delegation to be marked
+in the merged view, which the human also sees on every open. The asymmetry
+that survives is different and unassailable: a local armed pane can only
+be injected into WHILE A WORKBENCH IS RUNNING, which is when a human is
+present. A delegated grant fires when nobody is present. That is a
+different authority class, and it is what expiry answers.
+
+Requirements:
+
+- A DELEGATION MUST EXPIRE, and the maximum lifetime MUST be finite and
+  bounded by the specification rather than by whatever an interface
+  offers. SHOULD: no more than 24 hours. Without a ceiling the MUST is
+  decorative — an interface offering "never" would conform while defeating
+  the clause's whole argument.
+- Expiry MUST NOT be silently extended by activity. An agent that keeps
+  being woken is not evidence the human still wants it woken; it is
+  evidence that peers keep writing to it.
+- RENEWAL IS A NEW ACT, requiring the same gesture that created it. This
+  friction MUST NOT be optimised away — the same reasoning [[RFC-0007]]
+  C-EXEC-AUTHORITY records for re-arming exec panes: a re-affirmation of
+  delegated authority is the point, not an inconvenience.
+- ON EXPIRY, PENDING CANDIDATES ARE NOT DISCARDED (C-DELEGATION). The
+  agent still has mail; only the permission to interrupt it has lapsed.
+- BEHAVIOUR ACROSS A HUB RESTART MUST BE DECIDED, NOT LEFT OPEN. A
+  delegation MUST NOT survive a restart of the hub holding it. Both
+  answers were defensible and they have opposite failure profiles — a
+  grant silently outliving a restart the granting human never saw, versus
+  one silently vanishing while C-VISIBILITY renders nothing. The first is
+  worse: a permission nobody re-affirmed, on a machine nobody is watching,
+  is the ambient permission this clause exists to prevent, and the second
+  fails toward the default that is already acceptable."""

@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-002"
+title = "feat(detect): match-evidence capture — which rule fired, on what text"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "ADR-0005",
+]
+
+[content]
+description = "When passive detection misclassifies today, the only recourse is rebuilding the app with print statements. herdr captures per-hit evidence (rule id, region name, region byte count, bounded text preview) on every classification — port that discipline into AgentDetector. Scope: optional 'id' field on manifest rules (fallback tool#index), detector keeps per-agent last-classification evidence in memory, surfaced LOCALLY only (os_log debug category and/or a debug-flag-gated inspector). Hard boundary: RFC-0004 C-PASSIVE-DETECTION prohibits forwarding screen text — evidence previews are local diagnostics and MUST never cross the hub boundary or ride any signal. Origin: herdr gap analysis 2026-08-11 (tier 'cheap and high-value')."
+
+[[content.acceptance_criteria]]
+text = "manifest rules accept an optional id; compiled rules carry it (fallback tool#index); bundled manifests get stable ids for the high-traffic rules"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "AgentDetector records per-agent last classification evidence (rule id, region, proposed state, bounded preview) including no-match and skip outcomes"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "local-only surfacing via os_log (and optional debug inspector); evidence never leaves the process — C-PASSIVE-DETECTION forwarding prohibition upheld by design and asserted in review"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "evidence populated on hit with correct rule id/region; no-match recorded as such; preview length bounded; skip evidence distinguishable from state evidence"
+status = "done"
+category = "chore"

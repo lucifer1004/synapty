@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-018"
+title = "fix(ci): the gates converge — CI runs what verify runs, and every e2e script is wired in"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 05 H2 H3 L2 L7 L8. Three standards today: just verify locally, CI a
+strict subset, release looser still. Two e2e scripts — one pins exit code
+4 for a dead hub — are wired into nothing and rot silently. Two scripts
+share hardcoded port 19731 and collide when run together; both depend on
+GNU timeout undeclared on macOS. Given how much quoting subtlety the shell
+carries, a shellcheck step pays for itself.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "test-send-answer-e2e.sh and test-setup-host-master.sh run from just verify (or just test)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fixed: ci.yml runs the shell e2e suite, govctl check, gov-lint and unshipped, so a green PR means verify is green — NOT DELIVERED BY THIS WI'S COMMIT: the ci.yml edit failed unread and the commit message claimed it anyway; delivered by [[WI-2026-09-02-031]] (unshipped stays local: it is a heuristic, not a gate)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the e2e scripts take their hub port from an argument or a free port, declare their coreutils timeout dependency, clean up every session they create, and end sessions with synapty end rather than pkill; shellcheck runs in the gate"
+status = "done"
+category = "fixed"

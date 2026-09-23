@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-010"
+title = "feat(panes): broadcast — type into several panes at once, with the switch impossible to miss"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+tmux synchronize-panes, iTerm2 broadcast input. Highest value for fleet
+work and highest risk of the set: a key sent to the wrong machine cannot
+be taken back. So the state must be louder than any other mark this app
+has, and the forwarding rule explicit. Depends on the grid (group-as-grid)
+for a sensible target set; schedule last."""
+
+[[content.acceptance_criteria]]
+text = "a broadcast set can be armed for the visible panes of a workspace; keystrokes in the focused pane are delivered to every armed pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "every armed pane wears a persistent, unmistakable mark on its tab and the workspace shows the state; disarming is one act and the mark goes with it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the delivery rule (what is forwarded, what is not — e.g. paste, IME composition) is written down and pinned by tests"
+status = "done"
+category = "chore"

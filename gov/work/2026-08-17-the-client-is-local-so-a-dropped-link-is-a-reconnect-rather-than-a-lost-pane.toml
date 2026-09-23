@@ -1,0 +1,68 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-009"
+title = "The client is local, so a dropped link is a reconnect rather than a lost pane"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = [
+    "RFC-0014",
+    "ADR-0012",
+]
+
+[content]
+description = """
+[[ADR-0012]]'s last claim, and the one the rest was for: a brief link loss becomes invisible rather than merely survivable.
+
+IT CANNOT BE DONE WHERE THE CLIENT IS NOW. The attaching client runs on the remote host and the local side is a pipe, so when ssh dies the client dies with it — and the position it held goes too. Worse, that position was never the right one to trust: the only party that knows which bytes were actually RENDERED is the terminal they were rendered into, which is local. A remote client that persisted its own position would resume from bytes that died in the pipe, and the human's scrollback would have a hole in it that nothing announced — precisely what [[RFC-0014]] C-RESUME forbids.
+
+So the client moves to this side. The remote end becomes a relay: it connects to the holder's socket and moves frames between it and its own standard streams, touching no terminal and holding no state. The local end owns the terminal, counts what it has rendered, and when the transport dies, dials again and resumes from that count.
+
+WHAT THE HUMAN SEES is a pane that does not close, does not clear, and continues — with a line saying it reconnected, because a reconnect that leaves no trace is indistinguishable from nothing having happened, and something did.
+
+OUT OF SCOPE: the workbench's own close-surface handling. With the client reconnecting inside the pane, the surface's process outlives the drop and the pane never learns of it, so there is nothing for the Swift layer to be taught yet. What remains for it — the resume gate asking what is running ([[RFC-0014]] C-FOREGROUND) — is its own work."""
+notes = ["""
+2026-08-17: measured end to end — the transport is killed mid-session and the pane continues, TICK1 through TICK18, across the break.
+
+Three defects, all found by that test and none by reading. `std.process.Child.kill` panics on a child that has already gone, and the transport dying is the ORDINARY case here, so the child is reaped rather than killed and its input closed to end a relay still alive. Closing that pipe descriptor directly and letting the child's cleanup close it again is a double close, which this platform reports as use-after-free and the standard library turns into a panic — it is closed through the child that owns it. And a client whose input is not a terminal has no size to follow: asking answers ENOTTY forever, which is a stack trace every quarter of a second under safety.
+
+The test itself was wrong first. It killed the relay by matching a tag on the command line, and the client's own arguments contain the transport command by construction — so it killed the thing it was testing. The relay moved into a script, and what is matched is the relay's own invocation.
+
+Bytes are counted AFTER they are written to the terminal. A byte counted before the write is a byte the next attempt will not ask for and the human never saw."""]
+
+[[content.acceptance_criteria]]
+text = "A relay mode moves frames between the holder's socket and its own standard streams, and touches no terminal"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The local client drives a transport command, owns the terminal, and counts what it has rendered"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A transport that dies is retried, and the session resumes from what the terminal actually received"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A reconnect is visible to the human, and a gap it could not close is stated"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A child that exits, and a client that is displaced, end the local client rather than being retried"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The connect path runs the local client against an ssh transport"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "An end-to-end test kills the transport mid-session and shows the pane continuing from where it was"
+status = "done"
+category = "chore"

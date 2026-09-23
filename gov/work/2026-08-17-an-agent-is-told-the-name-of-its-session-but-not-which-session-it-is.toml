@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-020"
+title = "An agent is told the name of its session but not which session it is"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+refs = ["RFC-0013"]
+
+[content]
+description = """
+`agent.identify` hands an agent the session's LABEL — the words in the sidebar — and nothing durable to go with it. An agent that repeats "I am in remotehost 2" into a message, a task comment or a note has written down something that means "the second remotehost open at that moment", which is not a thing anyone can resolve later.
+
+THE LABEL IS FOR THE HUMAN AND IS ALLOWED TO CHANGE. It is chosen as the shortest name nothing else is using ([[WI-2026-08-17-019]]), the human can rename it, and a number freed by closing a session is used again. All of that is right for a list somebody is looking at. None of it is right for a reference.
+
+THE DURABLE NAME ALREADY EXISTS and is not being handed over: the session's agent id — the same string the reattach path dials, and the one the snapshot keeps across launches. Giving it alongside the label costs one field and lets an agent quote something that still means the same session tomorrow.
+
+The fix is NOT to make the label stable. A display name that has to survive being quoted stops being free to be short, and the identifier it would be impersonating is right there."""
+
+[[content.acceptance_criteria]]
+text = "An agent that identifies itself receives a durable name for its session as well as the label the human sees"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The agent-facing documentation says which of the two may change and which may be quoted"
+status = "done"
+category = "chore"

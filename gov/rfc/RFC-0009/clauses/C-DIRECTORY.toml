@@ -1,0 +1,89 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DIRECTORY"
+title = "Directory — Who Hosts Whom"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Each hub knows what it hosts and what its direct peers host. Nothing
+else, and nobody keeps a global map.
+
+Requirements:
+
+- On establishing a relay link, each side MUST send its full set of
+  locally hosted identities, and afterwards an incremental update when an
+  identity is bound or ends locally. The frame carries `{op, identities}`
+  with `op` one of `replace`, `add` or `remove` — one frame does three
+  jobs, and a receiver that cannot tell them apart either never performs
+  the replace or performs it on every update and deletes what the peer
+  did not mention.
+- A HUB MAY BOUND WHAT IT RECORDS FOR ONE PEER, AND MUST NOT SERVE A
+  VIEW IT KNOWS IS INCOMPLETE. Where the bound is reached the link is
+  REFUSED — `directory_overflow` ([[RFC-0010]] C-COLLISION) — rather than
+  the surplus identity being dropped.
+
+  WHY REFUSING IS THE ONLY HONEST OPTION. A dropped identity is not
+  merely absent: a send to it matches no entry, and with the peer
+  perfectly reachable the answer set forces `unknown`, whose own
+  definition is "no peer advertises it and this hub does not host it". A
+  peer DID advertise it and this hub declined to record it, so the hub
+  reports its own truncation as a name the human typed wrong. None of
+  C-DELIVERY's six answers describes what happened, and a seventh is not
+  available: `indeterminate` was removed deliberately once tombstoning
+  closed the gap it covered, and a cap re-opens the one case that
+  argument did not reach.
+
+  A LINK THAT DOES NOT COME UP, WITH A REASON, IS BETTER THAN ONE THAT
+  SILENTLY LOSES THE THOUSAND-AND-FIRST AGENT. The bound is an
+  implementation's own memory decision and this clause does not set its
+  size; what it settles is that reaching it is a fact about the LINK,
+  surfaced where a human can act on it, and never a fact invented about
+  an identity.
+
+- THE LINK SAYS WHICH PEER, and nothing else does. An advertisement is
+  authoritative FOR THE PEER THAT SENT IT, which the receiver knows
+  because it holds the link. Where an id carries a qualifier
+  (C-IDENTITY-SCOPE), that qualifier MUST name the sending peer or the
+  entry is REFUSED — otherwise a peer could attribute identities to a
+  machine it has no relationship with.
+- Advertisements MUST NOT carry presence status. Presence has its own
+  rules (C-PRESENCE), and folding it in here would smuggle status changes
+  past them.
+- A hub MUST NOT re-advertise identities learned from one peer to
+  another. With the one-hop rule in C-DELIVERY this keeps the directory a
+  one-hop fact.
+- A PEER CLAIMING WHAT THIS HUB HOSTS IS REFUSED, NOT CONTESTED. The
+  local registration is backed by a connection this hub holds and can
+  re-check now; a peer's claim is a report. The advertisement is refused
+  and surfaced, and the local identity stays routable.
+- A CLAIM AGAINST A RETAINED ENTRY WHOSE PEER IS GONE IS A MOVE, not a
+  conflict. Where the only other claimant is a peer this hub can no longer
+  reach, a new peer's claim SUPERSEDES it and the old entry is dropped:
+  that is the ordinary shape of an agent changing machines — the machine
+  it left is unreachable or has withdrawn, and the machine it is on now
+  says so. Treating it as a conflict would make a re-home ([[RFC-0008]]
+  C-REHOME) unroutable for as long as the old entry is retained, which is
+  deliberately no shorter than the spool TTL — the agent would be
+  unreachable for exactly the period the retention exists to keep it
+  reachable.
+- TWO LIVE PEERS CLAIMING ONE IDENTITY IS A CONFLICT, and the hub MUST
+  route to NEITHER and MUST surface it. Picking a winner would misroute
+  every message between them silently, which is worse than an error the
+  operator can see. It is rarer than it looks: pane ids are qualified by
+  their hosting peer, so two peers cannot collide by accident, and a
+  derived id is a harness session id — two live claims mean one session
+  is genuinely visible on two machines, which is a configuration error
+  (a home directory shared across cluster nodes) and not a routing case.
+- WHEN A LINK DROPS, ITS ENTRIES ARE TOMBSTONED — retained and marked
+  unreachable — not discarded. The word is used by [[RFC-0008]],
+  [[RFC-0010]] and the code, so it is named here rather than described. A hub cannot spool "to the hosting peer" for an identity
+  whose host it has forgotten, and it cannot tell a name that is merely
+  on a sleeping machine from one nobody has ever claimed. They are
+  retained at least as long as the spool's TTL, so a held message never
+  outlives the entry naming where to send it. TWO THINGS REMOVE ONE:
+  expiry, and a superseding claim from another peer (below) — which is an
+  agent that has moved, not a name that has gone. The peer re-advertises on reconnect."""

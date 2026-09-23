@@ -1,0 +1,20 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-LIVE-CHILD"
+title = "An Attached Session Is Not A Fresh One"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A client that attaches to a holder MUST treat the session as continuing, not as beginning.
+
+- Such a client MUST NOT send input the human did not type in order to re-establish state, and MUST NOT execute a recorded start or resume procedure against it ([[RFC-0006]] C-RESUME-RESTORE, [[RFC-0005]] C-STATE-GATE).
+- A client MAY execute a recorded resume procedure in an attached session only after establishing that the program the procedure would resume is NOT running in it ([[RFC-0014:C-FOREGROUND]]). Absence of a holder is not that evidence, and neither is the client's own belief that it has restarted.
+- A client MUST NOT execute one against a session whose child has exited and whose holder is still answerable ([[RFC-0014:C-EXIT-SIGNAL]]). A procedure typed into a pseudoterminal with nothing behind it is not resumption; it is a client believing it resumed.
+
+The distinction this turns on is between a session and the program that was running in it. A human who quits their agent and leaves the shell at a prompt has a live session with no agent in it, which is precisely where a resume procedure belongs; a human returning to an agent that never stopped has a live session with the agent still in it, where the same keystrokes are not an incantation but a prompt, starting a turn nobody asked for on their account.
+
+[[RFC-0006]] C-RESUME-RESTORE carries the consequence: its reconnect-path rule was written when a client's restart necessarily implied a dead remote program, and it now decides whether the OFFER exists from the evidence above rather than forbidding the case outright. The gate belongs on the affordance rather than on the keystroke, for the reason that clause gives: a check can fail open, an absent affordance cannot be taken."""

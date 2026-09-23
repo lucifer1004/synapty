@@ -1,0 +1,25 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-010"
+title = "fix(gui): disconnectTunnel runs off the main thread with proper error handling"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Code-review P1: disconnectTunnel (TunnelManager.swift) runs /usr/bin/ssh -S <socket> -O exit synchronously on the MAIN thread from SwiftUI button actions (HostConfigSheet Delete Host confirm / disconnect), and calls waitUntilExit() after a swallowed try? process.run() — when the remote is unreachable ssh -O exit can block for the full connect timeout (tens of seconds), freezing the whole UI, and a launch failure followed by waitUntilExit on a never-run process is undefined behavior."
+
+notes = [
+    "2026-08-08: disconnectTunnel now resolves socket/user@host on the main actor, then runs ssh -O exit on a background queue via the shared sshControl (SubprocessRunner-style drain not needed — output goes to nullDevice) with launch errors handled inside the helper; the .disconnected state update hops back to main. Delete-host confirm and the disconnect button no longer freeze the UI on unreachable remotes.",
+]
+[[content.acceptance_criteria]]
+text = "disconnect runs on a background queue (SubprocessRunner with timeout) with the result hopping to the main actor"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "launch errors are handled explicitly — no waitUntilExit after a swallowed run() failure"
+status = "done"
+category = "fixed"

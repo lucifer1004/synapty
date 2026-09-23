@@ -1,0 +1,79 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-013"
+title = "A validator that accepts what the next layer refuses, and a claim handed back without its file"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = ["RFC-0014:C-SESSION-NAME"]
+
+[content]
+description = """
+FROM AN ADVERSARIAL ZIG REVIEW, both reproduced by measurement rather than
+argued.
+
+A VALIDATOR THAT ACCEPTS WHAT THE NEXT LAYER REFUSES. `max_name_len` was
+128, chosen as a round number. A socket whose full path is too long binds
+by BASENAME from inside its directory, and that basename is `{name}.sock`
+— so with `sun_path` at 104 the real ceiling is 104 − 5 − 1 = ninety-eight.
+One start per length: 98 comes up, 99 and 110 and 128 do not, and they fail
+LATE, in `Holder.init`, with "the session did not come up" and no reason
+at all.
+
+That is worse than no validation in the range it was wrong about. A
+validator's whole job is to refuse early and say why; one that promises
+thirty bytes which do not work has MOVED the error rather than prevented
+it, and moved it somewhere with less to say.
+
+A CLAIM HANDED BACK WITHOUT ITS FILE. `Record.claim` creates the lock file
+and then takes it; the unwind closed the descriptor, which releases the
+flock, and left the file. A lock with no record and no socket beside it is
+invisible to `sessions` — which enumerates `.json` — and unsweepable by
+`sweepEnded`, which needs a record it can read. It reads `free` to
+everything else and accumulates one per failed start, forever. Finding
+above gave it a trigger anybody could pull.
+
+AND A START THAT FAILED HALFWAY LEFT BOTH. `runHold` was
+`init` then `start` with no unwind between them. `init` has taken the name
+and bound the socket by the time `start` runs, so a `start` that cannot
+spawn — a thread limit, a pty exhausted — left the socket AND the lock on
+disk with no record: the same invisible, unsweepable shape, accumulating
+for any name never used again."""
+notes = ["""
+AN OPEN QUESTION, NOT A DEFECT, AND IT IS THE OPERATOR'S TO SETTLE. The
+same reviewer found that `Foo` and `foo` are one session on a Mac and two
+on a Linux host, because the default APFS volume is case-insensitive and
+ext4 is not; HFS+ Unicode normalisation does the same to composed and
+decomposed accented names. The refusal is SAFE either way — the claim
+catches it — but it names `foo` for a session called `Foo`, and for a tool
+built to span machines a semantic that differs by filesystem is worth a
+decision rather than an accident. Nothing is changed here: picking a policy
+(fold case, refuse uppercase, or accept the divergence) is a product call
+and not one to make while fixing a length constant."""]
+
+[[content.acceptance_criteria]]
+text = "the name ceiling is the kernel's — 104 less `.sock` less a NUL — and the constant says where it comes from instead of being a round number"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the refusal names the length, which is now the commonest reason to be refused"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "handing a claim back takes the lock file with it, so a failed start leaves nothing behind"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a start that fails after the name is taken unwinds, rather than leaving a socket and a lock with no record"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the ceiling is asserted against `sockaddr_un` itself rather than restated, so the validator and the kernel cannot disagree again"
+status = "done"
+category = "chore"

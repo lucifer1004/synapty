@@ -1,0 +1,49 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-05-001"
+title = "Implement GitHub hub-repo bridge — auth, REST client, issue polling"
+status = "done"
+created = "2026-08-05"
+
+[content]
+description = """
+Implements [[RFC-0003]] (Implement GitHub hub-repo bridge — auth, REST client, issue polling).
+
+Acceptance criteria:
+- `synapty github login` prompts for hub-repo owner/name and a fine-grained
+  PAT; both are stored in the macOS Keychain (repo as a config value, token
+  never on disk)
+- hub-repo owner/name is user configuration persisted to
+  ~/.config/synapty/config.toml and editable from the GUI settings view;
+  no repo is hardcoded
+- GitHub REST client (issues + labels) works against the configured repo
+- embedded GitHub bridge executes issue/label API calls on demand (request-driven, NO polling per C-EVENTS); remote agents' tool requests reach it via hub routing
+- poll interval and repo are configurable; invalid config yields a clear
+  setup prompt instead of a silent failure
+"""
+
+[[content.acceptance_criteria]]
+text = "synapty github login prompts for hub-repo owner/name and a fine-grained PAT; both stored in the macOS Keychain (repo as a config value, token never on disk)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hub-repo owner/name is persisted to ~/.config/synapty/config.toml and editable from the GUI — no repo is hardcoded"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "GitHub REST client (issues + labels) works against the configured repo (src/github.zig)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the embedded GitHub bridge executes issue/label API calls on demand — request-driven from the hub side, no GitHub polling"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "task tools (list/claim/update/comment/create) reach GitHub only through the login-device bridge"
+status = "done"
+category = "added"

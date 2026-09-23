@@ -1,0 +1,36 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-012"
+title = "fix(gui): the agent list hides unregistered agents while the status bar counts zero"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+
+[content]
+description = """
+AgentMonitor.mergeAgents publishes only agents where `hasMetadata` (tool != unknown, or a project/session other than "-"). The intent is sound — a bare shell pane is not an agent and should not drown the list. The reporting around it is not: the status bar reads "Hub: 0 agents" while the hub holds registrations it is choosing not to show. On 2026-08-12 that misled the author of the filter into concluding a peer subscription had failed when it had not.
+
+Two separable things. The COUNT is a straightforward honesty defect: whatever the filter is for, a number labelled "agents" must not contradict what `synapty agents` returns from the same hub. The FILTER is a product decision that has never been made explicitly — it silently defines "agent" as "something that ran `synapty register`", which also means a remote agent someone started by hand is invisible in the merged view no matter how healthy it is.
+
+Not a request to remove the filter. A request to decide what it means and make the surface say the same thing the hub does."""
+notes = ["""
+IMPLEMENTED 2026-08-12. The product decision the description said had never been made explicitly: the FILTER STAYS — a bare shell pane is not an agent and should not drown the list — and the COUNT changes to the hub's own, with the difference shown rather than swallowed. AgentMonitor.registeredCount is every registration the hubs report; the status bar reads that, and the popover adds "N registered without metadata (run `synapty register`)" whenever the two differ. A filter whose exclusions are visible is a filter; one whose exclusions are silent is a disappearance.
+
+That also covers the remote case the description flagged: an agent someone started by hand on another machine is now counted and its absence from the list is explained, instead of being invisible with no indication anything was omitted."""]
+
+[[content.acceptance_criteria]]
+text = "the agent count and the agent list agree with each other and with what the hub reports; a hidden registration is never counted as absent"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the filter's meaning is decided and recorded — either unregistered connections are shown in a distinguishable way, or they are excluded with the exclusion visible rather than silent"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a test pins the count against a hub holding registrations that the list filters out, which is the exact case that produced the false 'zero'"
+status = "done"
+category = "chore"

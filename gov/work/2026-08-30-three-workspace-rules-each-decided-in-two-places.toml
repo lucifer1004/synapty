@@ -1,0 +1,71 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-007"
+title = "Three workspace rules each decided in two places"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Three from the sweep, all in the workbench's own lifecycle, all the same
+shape.
+
+A WORKSPACE ENDS TWO WAYS AND ONLY ONE OF THEM TIDIED UP. `forget(_:)` is
+the single owner of per-leaf cleanup — it releases the connection pool's
+tenant, deletes the pid file, drops the leaf's facts, forgets the surface
+and its connect account. `archiveWorkspace` ran it over every pane inline
+and then re-counted connections; `removeWorkspace` did neither. Closing a
+workspace and archiving one leave its panes in the same state, so a closed
+workspace held tenants it no longer used and kept facts for panes that no
+longer existed. `forgetPanes(of:)` is that loop's owner now and both paths
+call it.
+
+A PANE ARMED FOR WAKE CAME BACK DISARMED. Archiving snapshots the tree with
+the arm in it and then forgets the leaves, which drops the live arm — so
+the arm survives only in the archived tree. `restore` re-applied it in a
+post-rebuild loop; `unarchiveWorkspace` rebuilds through the same code, does
+not run that loop, and collected the same metadata only to drop it. The arm
+belongs to the rebuild, not to one of its callers: `recordRebuilt` makes
+recording a rebuilt leaf and restoring its arm one statement at both exits
+of `rebuildPane`, so any future rebuilder gets it by rebuilding. Restore's
+loop keeps the rejoin offer, which is genuinely restore's alone.
+
+A NAME AND A NOTICE ABOUT THE SAME PANE COULD DISAGREE. Whether a restored
+local pane may keep its recorded id was decided twice: `Rejoining.local`
+consults the durability opt-out, and `localCommand` chose the id from
+liveness alone, twenty-five lines before it read that setting. With
+durability off the child is run directly — no holder, no attach — so it is
+by construction a NEW child, and it was being handed a surviving session's
+name. That is the [[RFC-0015]] C-PERSIST violation the whole shape exists
+to prevent: the name routes A2A mail, so the new child receives what was
+addressed to the one it replaced. The decision is made once now and rides
+out on `PaneLaunch`, so the rebuild reads the answer the command was built
+from instead of asking again."""
+notes = ["""
+The first version of the two workspace tests passed alone and failed in the
+full suite: the class had no storage isolation, so it ran against whatever a
+previous test had left. Every sibling class in that file calls
+`setUpHostStoreStorage` and this one did not."""]
+
+[[content.acceptance_criteria]]
+text = "forgetPanes(of:) owns what a whole workspace's panes are owed, and closing a workspace now calls it and re-counts connections"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "recordRebuilt makes recording a rebuilt leaf and restoring its wake arm one statement, so unarchiving gets the arm"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the local rejoin decision is made once, consulting durability, and PaneLaunch carries it to the rebuild"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a closed workspace forgets its panes, an unarchived pane comes back armed, and a directly-run child is not given a live session's name"
+status = "done"
+category = "chore"

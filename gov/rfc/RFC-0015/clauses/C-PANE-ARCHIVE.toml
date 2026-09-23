@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PANE-ARCHIVE"
+title = "Closing Ends, Archiving Keeps"
+kind = "normative"
+status = "active"
+since = "0.4.0"
+
+[content]
+text = """
+Closing a pane ENDS what runs in it. Archiving a pane puts it away with its work still running. These are the same two acts a workspace has, with the same names.
+
+[[RFC-0014:C-DETACH]] requires every conforming implementation to answer what closing a pane means and says both obvious answers are harmful when chosen SILENTLY. The harm is in the silence: a close that would end a running process MUST ask first, and the question MUST offer archiving as an alternative.
+
+- CLOSING A PANE ENDS ITS SESSION. The client ends the holder ([[RFC-0014:C-END]]) and the pane leaves the layout. ONE ANSWER FOR EVERY MACHINE: a pane on this Mac and a pane on a host MUST mean the same thing by the same gesture, because the gesture cannot show which machine a pane is on.
+- THE QUESTION IS ASKED EXACTLY WHEN A FOREGROUND PROCESS WOULD DIE. A terminal whose foreground is a process other than its shell MUST NOT be closed without confirmation; a terminal whose foreground is its own shell, and every non-terminal kind, MUST close without one. The confirmation MUST offer Archive, and Archive SHOULD be its default, so that the safe act is the one a habitual Return performs.
+- ARCHIVING A PANE MUST NOT END WHAT RUNS IN IT. The client detaches ([[RFC-0014:C-DETACH]]) and the holder keeps the child. Only a terminal leaf can be archived — it is the only kind that runs a child ([[RFC-0015:C-CONTENT]]); the other kinds, and a terminal whose child has already exited, have nothing to keep and close instead.
+- AN ARCHIVED PANE MUST REMAIN LISTED, under the workspace it was archived from, with the machine it is on, the agent running in it if one is, and when it was archived. A session that is alive and named nowhere is the leak; being listed is what makes it not one. The list MUST be reachable without knowing a session exists.
+- UNARCHIVING MUST PUT IT BACK in the workspace it came from, attached to the same child. Where that workspace is gone, it MUST be returnable somewhere rather than lost with it.
+- RESTORE MUST NOT ATTACH ONE. Archived panes come back listed, not connected, for the reason [[RFC-0015:C-ARCHIVE]] gives for archived workspaces.
+- RELEASE FOLLOWS THE ACT. Archiving a pane is a decision the human has stated and MUST release the connection nothing open still references at once, as archiving a workspace does ([[RFC-0015:C-RELEASE]]); closing a pane is the churn the grace period exists to absorb and MUST NOT release immediately.
+- ENDING MUST ALSO BE AVAILABLE FROM THE LIST, as a distinct act, for a pane archived earlier. Both acts MUST be offered on the pane itself as well — the plain close gesture for ending, and a modified gesture, a menu item and a key for archiving — and the interface MUST name which is which before either is performed."""

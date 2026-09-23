@@ -1,0 +1,17 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CUTOVER"
+title = "Sessions Created By The Previous Mechanism"
+kind = "normative"
+status = "deprecated"
+since = "0.1.0"
+
+[content]
+text = """
+A session this project created on a host by a mechanism the current client cannot speak to MUST NOT be silently orphaned.
+
+- The client MUST NOT present such a session as attachable.
+- Such a session MUST remain enumerable and endable on its host by this project's command-line interface.
+
+This obligation is written in general terms because it outlives the particular migration that prompted it: any change of durability mechanism leaves sessions of the previous kind running, and the previous mechanism's own failure mode was sessions nobody could address, found later in their dozens."""

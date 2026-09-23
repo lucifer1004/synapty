@@ -1,0 +1,75 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-009"
+title = "Taking the child-exited action means libghostty may never close the surface, and the comment said the opposite"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = ["RFC-0006:C-RESUME-PLAN"]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL SWIFT REVIEW of the same day's work. Two defects
+in [[WI-2026-09-07-004]] phase 4, one of them a comment that asserts the
+opposite of the code it cites — from a file that had been read the same
+day.
+
+THE COMMENT SAID: "RETURNING TRUE SUPPRESSES THE TEXT AND NOTHING ELSE.
+Upstream then falls through to `close()` regardless." `Surface.zig`'s
+`childExited` has TWO branches, and the first one does not:
+
+    if (info.runtime_ms <= abnormal_command_exit_runtime_ms) {
+        if (comptime !isDarwin()) { if (exit_code == 0) break :runtime; }
+        if (performAction(.show_child_exited, info)) return;   // no close
+        childExitedAbnormally(info); return;
+    }
+
+The threshold is 250ms by default and Synapty does not set it, and on
+Darwin the `exit_code == 0` escape is compiled out — so EVERY pane whose
+child goes within a quarter second takes that branch.
+
+SO ANSWERING TRUE STRANDED THE SURFACE. `close_surface_cb` never fired,
+so `leafDidClose` never ran: the armed bit stayed set, `onLeafClosed`
+never fired ([[RFC-0006]] C-RESUME-PLAN names pane close as its observable
+drop trigger), and the leaf was never forgotten — one leak per fast-failing
+pane, bypassing the "one dictionary, one removal" argument [[LeafFacts]]
+is built on. And because answering true ALSO suppresses
+`childExitedAbnormally`, a pane that used to die with an explanation now
+died with none: at exit code 0 the state reads `live`, so there is no scrim
+and no notice either. Strictly worse than before the change.
+
+AND THE EXIT CODE WAS WRITTEN ONCE AND CLEARED NOWHERE. Three references
+in the whole tree: the declaration, one read, one write. `LinkState.from`
+consults it ahead of everything the account says, so a pane that lost its
+link once and was re-dialled — through the Retry the failed-connection
+surface offers — read as `dropped` for the rest of its life, whatever it
+went on to do."""
+notes = ["""
+THE TWO PATHS CANNOT DISAGREE, WHICH IS WHY DECIDING HERE IS SAFE RATHER
+THAN A SECOND OPINION. `leafDidClose` asks the same question when the
+surface DOES call close, and closing a leaf that has already gone is a
+no-op — `closeLeaf` guards on finding the workspace that contains it. So
+whether libghostty calls close is now irrelevant, which is the property
+that was wanted and the one the false comment claimed to already have."""]
+
+[[content.acceptance_criteria]]
+text = "the workbench closes the leaf itself when the state says the pane should go, rather than waiting for a close libghostty may never make"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the exit code is cleared when a pane's dial returns, so a re-dialled pane is not still wearing the last one's death"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the false claim about upstream's control flow is replaced by the branch that disproves it, quoted"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "an ordinary exit closes the pane and a dead link does not, driven through the action handler's own entry point; and a re-dialled pane reads live again"
+status = "done"
+category = "chore"

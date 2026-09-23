@@ -1,0 +1,79 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-30-005"
+title = "Two registries that had fallen behind what they register"
+status = "done"
+created = "2026-08-30"
+started = "2026-08-30"
+completed = "2026-08-30"
+
+[content]
+description = """
+Two hand-written lists, each beside the thing it was supposed to cover, each
+having fallen behind it. Both are derived now, so falling behind fails to
+compile.
+
+THE CLI'S HELP WAS LYING TO AGENTS. Each subcommand's `usage` string was
+typed out beside the enum its parse function maps onto, and three had
+drifted. `synapty hooks --help` told a reader to run `hooks show --harness
+claude`: there is no `show` — the parser answers UnknownSubcommand — and
+there has never been a `--harness` flag anywhere. It also omitted the
+`<tool>` positional the command requires and the `--yes` it accepts.
+`skills`' usage invented the same `--harness`, and worse, the parser
+ACCEPTED it and silently dropped it, so `skills install --harness codex`
+reported success having installed to every harness it detected. `github`
+named only `login` while the parser has taken `logout` and `status` for
+months. The help is the primary interface for an agent that cannot ask a
+human what a command takes, so each of these is an instruction to do
+something that does not work.
+
+The action list now renders from the enum and the parser resolves against
+the same enum, so a word the help offers is a word the parser takes and the
+reverse. `SkillsArgs` becomes an enum rather than a bool for this — a bool
+has no name to render — which also makes its dispatch a switch, so a second
+skills action cannot be added without an arm.
+
+MCP'S TOOL LIST WAS ONE SHORT. `tools/call` resolves an incoming name over
+every field of `IpcAction`, so all nine actions have always been callable;
+`tools/list` was built from an array written out beside it holding eight.
+`notify` was callable and invisible, which leaves an agent driving this
+workbench over MCP with no discoverable way to say it is working, waiting
+or done — the presence signal the whole passive-detection fallback exists
+to avoid needing. The list is generated from the enum now, through a switch
+with no `else`: a tenth action fails to compile until it says what it is."""
+notes = ["""
+gov/rfc/RFC-0002 C-CLI-MCP carries its own table of MCP tools and CLI
+commands, and both predate `notify`. It is stale in the same direction this
+work item fixes in code, and updating it is a governance change that needs
+its own authorisation."""]
+
+[[content.acceptance_criteria]]
+text = "types.actionList and types.actionFrom render and resolve a subcommand's actions from the one enum that defines them"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "hooks, skills and github usage strings are derived; the invented --harness flag is gone and hooks names its positional"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "skills install refuses a trailing flag rather than accepting and dropping it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "SkillsArgs.Action makes the skills dispatch a switch, so an action cannot be added without an arm"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "MCP tools/list is generated from IpcAction through an exhaustive switch, and notify is discoverable"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "every word the help offers parses, an invented flag is refused, and tools/list offers one tool per action"
+status = "done"
+category = "chore"

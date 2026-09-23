@@ -1,0 +1,116 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-002"
+title = "Four guards the project believed it had: a test client on its own code path, a knob nobody ever turned, a dead watcher, and an assertion pinned to a default"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0014:C-VERSION",
+    "ADR-0012",
+]
+
+[content]
+description = '''
+Guards this project believed it had.
+
+A TEST CLIENT ON ITS OWN CODE PATH. `welcomeFrom` exists because "every
+client went through its own copy of 'read a frame, check it is a
+welcome, take payload[1] onward' and not one of them looked at
+payload[0]" ([[WI-2026-08-28-024]]). Its doc closes: "A client cannot now
+take the welcome without the check, because there is one way to take
+it." There were two more ways, in the same file: `TestClient.connectFrom`
+and `TestClient.connectLabelled` both hand-decoded and neither looked at
+`payload[0]`.
+
+That is the client EVERY holder test establishes a session with. A change
+that made the shipping clients answer `error.VersionMismatch` would have
+left the whole suite green, because the one client in the tree that does
+not check the version is the one the tests use. Both now call
+`welcomeFrom`; canaried by deleting the version check, which the existing
+regression test then catches — and now catches on behalf of the whole
+suite rather than one test.
+
+A KNOB NOBODY EVER TURNED. `FAKE_FORWARD_OK` sat in the ssh stub from the
+day it was written and nothing in `scripts/` or the justfile ever set it,
+so `ssh -O forward` succeeded on every run of every case and the refused
+branch was reached by no layer at all. Its own code says why that
+matters: "VERIFY RATHER THAN ASSUME: a PEER_PORT nobody is listening on
+is worse than none." Neither of its two messages was pinned anywhere.
+
+The suite tested "no peer link" only through `FAKE_OPEN_FAILS`, which
+reaches the no-master branch — a different branch with a different
+sentence. Both halves of the refused branch are now covered: refused with
+nothing listening must WARN and advertise no `PEER_PORT`; refused because
+the forward is ALREADY THERE must say so and advertise the port. The two
+are the same exit status from ssh with opposite meanings, and what tells
+them apart is a real connect to loopback — so the ports are probed for
+freedom first, and the live half runs `nc -k -l` because BSD `nc -l`
+serves one connection and the readiness probe would otherwise kill what
+it was probing for.
+
+A DEAD WATCHER. The tmux guard in `test-connect-launch.sh` inspected
+`$log`, which is the FAKE binary's own record — every line of it
+`SYNAPTY: ` followed by argv. A relapse into the shape [[ADR-0012]]
+removed would invoke `tmux` directly, never touch the fake and never
+reach that file. Measured with a launch script in the pre-ADR-0012 shape:
+the assertion passed. I kept this guard a day earlier on the argument
+that it was cheap insurance; the measurement settles it, and it is gone.
+
+AN ASSERTION PINNED TO A DEFAULT. `grep -qF $'\033[24;1H'` was an
+unlinked copy of `holder.zig`'s `rows: u16 = 24`. Make that 25 and a full
+repaint still addresses row 24 on its way down, so the assertion still
+matches while silently demoting from "the last row was painted" to "row
+24 was painted". It now asserts the property instead: the marker is on
+row 10, a description carries only rows with content, so a repaint must
+address something past 10. Canaried by making `repaint` stop at row 10 —
+which the old form would also have caught, and the new one catches
+without depending on a number it does not own.
+
+AND TWO MESSAGES THAT MISDIRECT. `test-holder-e2e.sh` reads field 8 and
+tells the reader "column 6" — which is the OTHER assertion four lines up,
+and will look correct. Its column map named eight fields where the binary
+prints ten; `commands.zig` records the growth ("TWO TRAILING COLUMNS …
+At the end, so a reader of the eight that were here reads them still") in
+the one place an editor of the shell file will not read.
+
+And a failure message in `test-send-answer-e2e.sh` ran the word it was
+about: backticks inside double quotes, so zsh printed "command not
+found: sessions" and the sentence arrived with a hole where its subject
+had been. shellcheck classes it SC2006 at style level, below this repo's
+`-S warning` gate.
+
+Found by the ssot-zig and ssot-shell passes of the 2026-09-10 SSOT/Occam
+round.'''
+
+[[content.acceptance_criteria]]
+text = "TestClient reads a welcome through welcomeFrom, so no client in the tree skips the version check the suite relies on"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the refused peer-forward branch is exercised in both meanings — nothing listening must warn and advertise no PEER_PORT, already-present must advertise it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the dead tmux guard is gone, and a comment records why a guard there could never fire"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the repaint assertion requires a row past the last one with content, rather than a copy of the holder's default height"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the sessions column map names all ten fields, and the failure message names the column it actually read"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a failure message no longer executes the word it names"
+status = "done"
+category = "fixed"

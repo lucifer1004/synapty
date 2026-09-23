@@ -1,0 +1,65 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0007"
+title = "Hub as a relocatable standalone service (local sidecar, remote, headless)"
+status = "superseded"
+date = "2026-08-12"
+superseded_by = "ADR-0008"
+refs = [
+    "ADR-0001",
+    "ADR-0004",
+    "ADR-0006",
+]
+
+[content]
+context = """
+ADR-0006 bound the hub's lifetime to the workbench BY CONSTRUCTION (in-process static library), which structurally eliminated the orphan / silent-version-skew failure class that a live incident had exposed. Two things now require revisiting that decision.
+
+First, the operator's requirement: the local machine may shut down, and the hub must be able to run on a cloud server so that remotely deployed agents — and the messages queued for them — survive the laptop going away. An in-process hub makes that impossible by construction, and ADR-0006 itself named the trigger: "the blast-radius tradeoff should be revisited if the hub ever holds durable state." A hub that outlives the laptop must hold durable state.
+
+Second, ADR-0006's consequence text contained a flawed argument that should not survive into this decision. It read: "a hub crash now crashes the app — accepted because a hub crash already severed every agent connection, so the app surviving bought little." That conflates A2A connectivity with the human's terminal sessions. With a separate hub, a hub crash costs messaging; the human's shells, running builds, and harness sessions continue untouched. With an embedded hub it costs all of them. For an application whose entire job is to hold PTYs safely, that is incidental coupling, not an irreducible one (ghostty crashing takes the panes because it IS the panes; the message router is not).
+
+A favorable finding makes the move cheap: the workbench-hub boundary is ALREADY protocol-mediated and always has been. exec_request is forwarded over the wire to the workbench subscriber, which replies on an anonymous one-shot exec_receipt connection; wake works the same way (wake_candidate event out, wake_report one-shot back); pane wrappers are plain TCP clients (--hub host:port); in-pane CLIs reach their wrapper over SYNAPTY_SOCK and never touch the hub port. Embedding was therefore only a DEPLOYMENT choice — it never collapsed the boundary into function calls. Relocating the hub is deployment and authentication work, not a redesign.
+
+Current state to be changed: hub state (mailbox, durable-identity bindings, generations) is entirely in memory, so any hub restart discards queued mail; and the hub trusts its transport completely — any connection on the port may register as any agent id, which is acceptable for a loopback-only listener and unacceptable for anything reachable from another machine."""
+decision = """
+The hub is a STANDALONE RELOCATABLE SERVICE: one binary, one protocol, three deployment modes. The workbench is purely a client of it in every mode.
+
+1. Local sidecar (DEFAULT, replaces the embed). The workbench spawns `synapty hub` and supervises it: --parent-pid plus a kqueue NOTE_EXIT watchdog (dies with the workbench however the workbench dies), a supervisor lease with a bounded grace window (the hub exits if no supervisor reclaims it, so an orphan is impossible AND a workbench restart does not destroy hub state), and a hub_info handshake before adoption (build id + spawned-by-workbench flag: adopt on match, take over a stale hub we own, loud degraded state for a foreign listener — never silent skew). Loopback only; no authentication needed.
+
+2. Remote / cloud. `synapty hub` runs on a server and keeps running while the laptop is off. AUTHENTICATION IS THE EXISTING SSH MACHINERY, NOT NEW CRYPTOGRAPHY: the hub still binds 127.0.0.1 on the server, the workbench opens an SSH tunnel to it (reusing the host management and tunnel code already shipped), and local pane wrappers connect to the tunnel's local end. Agents co-located on that server connect over its loopback directly, which also removes the reverse-tunnel requirement they have today. Inventing a TLS + token stack is deferred until agents must connect without SSH.
+
+3. Headless. The same binary with no supervisor, for CI, tests, and future unattended deployments.
+
+Retained from ADR-0006 unchanged (these were independent of the process boundary and were net wins): the port is a runtime detail, not configuration — default with sequential backoff, SYNAPTY_HUB_PORT as the only override; and the discovery file (~/.config/synapty/hub.json, pid-checked) is the local out-of-process contract. A REMOTE endpoint is different in kind: it is explicit user configuration, like a host entry, not a port to hand-align.
+
+Newly required by this decision:
+
+- Hub state becomes DURABLE. Mailboxes, durable-identity bindings, and the generation map must survive a hub restart, or a hub that outlives the laptop delivers nothing that an embedded one did not.
+- Impersonation must be solved before remote mode ships. Today any connection may claim any agent id; that is defensible for a loopback listener and indefensible once the listener is shared. The SSH tunnel bounds WHO can reach the hub, not WHICH identity they may claim.
+- MULTI-WORKBENCH SEMANTICS MUST BE SPECIFIED IN AN RFC BEFORE IMPLEMENTATION. A shared hub breaks the one-workbench assumption embedded in four accepted RFCs: exec requests must route to the workbench that OWNS the pane rather than to any subscriber, wake injection must be performed by the workbench HOSTING the pane, durable identities must be unique across machines where the `local-` prefix is currently machine-scoped, and generation semantics assume a single observer. This is specification work, not refactoring, and it precedes code.
+
+Scope honesty recorded as part of the decision: a cloud hub alone does NOT keep locally running agents alive across a shutdown — local panes and their harnesses die with the workbench, and exec panes are workbench-owned. The value is realised only in combination with remotely deployed agents (the V1 one-click deploy deliverable). The hub relocation buys message and identity survival, not process survival."""
+consequences = """
+Gained: the hub can outlive the laptop, which is the requirement that prompted this decision; crash isolation returns, so a fault in the message router costs messaging rather than every pane and running process; headless and remote deployments become possible with the same binary; a workbench restart no longer destroys hub state (the lease grace window), which composes with resume and durable identity so a returning agent finds its queued mail waiting; and the cloud path opens without a redesign because the workbench-hub boundary was already protocol-mediated.
+
+Paid: the supervision machinery ADR-0006 bought out comes back — parent-death watchdog, lease, and version handshake — roughly the complexity that decision was trading away, now justified by a requirement that did not exist then. Durable state introduces a persistence format and the migration discipline that comes with it. The security posture changes qualitatively: a shared listener makes agent-id impersonation a real vulnerability rather than a theoretical one, and it must be closed before remote mode ships rather than after. Multi-workbench semantics touch four accepted RFCs and must be specified first, which is deliberate cost paid to avoid the implementation-drifts-from-specification failure that ADR-0006 itself was written to correct.
+
+Not bought: process survival for locally running agents. Local panes and their harnesses still die with the workbench; only messages and identities survive. Anyone reading this decision as "my agents keep working when I close the laptop" has misread it — that requires the agents to be deployed remotely."""
+
+[[content.alternatives]]
+text = "Standalone relocatable service: one binary, three deployment modes (supervised local sidecar by default, remote over the existing SSH tunnel, headless). Restores crash isolation, opens the cloud path without redesign because the workbench-hub boundary is already protocol-mediated, and keeps ADR-0006's port/discovery wins"
+status = "accepted"
+
+[[content.alternatives]]
+text = "Keep the hub embedded in-process (ADR-0006 as it stands). Rejected: it makes the operator's stated requirement impossible by construction — an in-process hub cannot outlive the machine it runs in — and it retains the incidental blast radius where a message-router fault costs the human every pane and every running process"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Embedded locally PLUS a separate remote-hub code path. Rejected: two hub implementations to keep in step is the worst maintenance position, and local-versus-remote is properly a deployment choice, not a fork in the code; the same binary serving all three modes is what keeps the protocol honest"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Ship remote mode with a purpose-built TLS + bearer-token stack now. Rejected for this decision: it invents a new security surface when SSH — whose keys and host entries the workbench already manages — bounds reachability today; revisit when agents must reach the hub without an SSH path"
+status = "rejected"

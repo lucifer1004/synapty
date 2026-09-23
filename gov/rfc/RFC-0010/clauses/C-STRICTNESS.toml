@@ -1,0 +1,38 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-STRICTNESS"
+title = "Why Adoption and Peering Are Not the Same Check"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A workbench REFUSES to adopt a local hub whose build does not match its
+own, and this RFC has a hub PEER with a remote hub of any compatible
+protocol version regardless of build. Those are different rules
+and the difference is deliberate rather than an inconsistency to be
+resolved.
+
+Rationale, recorded because the asymmetry looks backwards at first glance
+(the stricter check guards the cheaper failure):
+
+- ADOPTING a local hub means running it AS YOUR OWN. It shares the
+  discovery file, the durable state file, and every in-process assumption
+  the workbench holds about what its hub does. A build mismatch there is
+  two versions of one component disagreeing about shared state — which is
+  the version-skew incident that produced the supervised-hub design.
+- PEERING is speaking a protocol to a separate machine that owns its own
+  state. Nothing is shared but the wire. The correct compatibility
+  question is therefore about the wire, which is what C-CAPABILITIES
+  negotiates.
+- Unifying the rules in the direction of strictness would make federation
+  depend on synchronised deploys across every machine a human owns, which
+  is a requirement this system cannot meet and should not pretend to. This
+  clause is INFORMATIVE: it records why two checks that look inconsistent
+  are not, and it binds no implementation. The obligation it might have
+  carried — "do not unify these" — would constrain future specification
+  authors rather than anything a built system does, and a requirement no
+  inspection of a running system can falsify does not belong in a
+  normative clause."""

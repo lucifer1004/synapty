@@ -1,0 +1,92 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-009"
+title = "Host setup moves into the binary, and setup-host.sh goes (ADR-0020, step 5)"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0009:C-BOUNDARIES",
+]
+
+[content]
+description = """
+[[ADR-0020]] applied to the other half of the connection path. `scripts/`
+now holds no script the product runs.
+
+WHAT MOVED. Probing a host in one round trip and reading its answer,
+mapping `uname -sm` to a cross-compile, locating the binary and the
+terminal description on this machine, comparing checksums, sending each
+only when it differs, replacing a hub left running on the old binary,
+ensuring one is up, asking which build is actually running there, and
+adding the peer link to the connection that carried all of it.
+
+WHAT STAYED SHELL. Three strings that run on the FAR side: the probe (it
+runs before anything of ours is known to be there — it is what reports
+whether anything is), the hub replacement, and the build query. They are
+sent on stdin to `sh -s`, whole.
+
+TWO VERBS RATHER THAN ONE, and `host-setup` opens the master itself so the
+workbench makes one call. `host-master` stays because a human debugging a
+host wants to ask that question alone, and `--print` answers it without
+touching anything.
+
+MD5 IS COMPUTED RATHER THAN SHELLED OUT FOR. The script ran `md5 -q` or
+`md5sum` depending on which it found; the far side still does, because
+that is where it must. The two must agree, so the local one is pinned in a
+test against the known digest of a known string rather than against
+another implementation of the same function.
+
+AND `nc -z` BECAME A CONNECT. Whether anything is listening on the peer
+port is what decides whether `PEER_PORT` is advertised at all — a port
+nobody is listening on is worse than none — and asking it directly removes
+a dependency on which netcat a machine happens to have."""
+notes = [
+    "THE ONE THING NOT VERIFIED BY COMPARISON. The far side's launch script in step 4 could be diffed against the shell that used to build it, byte for byte, on every shape. This half cannot be: it is a sequence of side effects on a machine, not a string. What stands in for that is the unit tests on the pieces that are decidable — the platform table, the probe reader, the hub's port, the checksum — plus reading each moved block against the one it replaced. That is weaker, and saying so is more useful than implying otherwise.",
+    "WHAT IS NOT COVERED BY ANY TEST HERE: the upload itself, the terminfo copy, the hub replacement and the peer forward. They were not covered before either — the script had no test at all beyond the master's argument shape — so this is not a regression, but it is the part a first real connection to a fresh host is the only check on.",
+    "MD5 AND `nc` WERE DEPENDENCIES NOBODY DECLARED. The local side ran whichever of `md5 -q` and `md5sum` it found, and `nc -z` to see whether a port was listening; a machine with neither would have failed in the middle of a setup with a shell error. Both are now the binary's own work. The far side still uses `md5sum` or `md5`, because that is where it has to.",
+    "`scripts/` HELD NO PRODUCT CODE AFTER THIS, and was still being copied into the app bundle as a resources folder — so a shipped build carried this repository's e2e tests. That entry is gone from project.yml.",
+]
+
+[[content.acceptance_criteria]]
+text = "synapty host-setup probes, deploys, ensures the hub and adds the peer link; scripts/setup-host.sh is deleted"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "synapty host-master opens or reuses a host's shared connection, and --print answers what it would do without doing it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The workbench calls the binary with named options rather than bash with a fixed positional layout"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "MD5 is computed here rather than shelled out to md5/md5sum; whether a port is listening is a connect rather than nc"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "scripts/ is no longer bundled into the app — nothing the product runs lives there"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The master socket reaches ssh as one argument, asserted through the binary that builds it rather than a line range eval'd out of a file"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A platform this project has no binary for is refused by name; the probe's answer is read by whole key; the hub's port is absent rather than zero when it did not answer"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The local md5 matches the digest the far side would compute, and a file that is not there has none"
+status = "done"
+category = "chore"

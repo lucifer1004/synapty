@@ -1,0 +1,21 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RELEASE"
+title = "Releasing a Connection"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A connection is released when nothing needs it, and the rule has two failure modes that this clause exists to keep apart.
+
+- A connection MUST NOT be released while any live leaf references it. Closing one of two panes on a host MUST leave the other's link intact. This is the error that would be immediately visible and is the reason reference counting exists rather than closing on the human's last close gesture.
+- WHEN THE LAST REFERENCE GOES, RELEASE MUST BE DEFERRED BY A BOUNDED IDLE PERIOD rather than performed immediately. The grace period MUST be at least ten seconds and SHOULD NOT exceed two minutes, and its value MUST be stated where an operator can read it.
+
+  The floor is set by measurement rather than preference: re-establishing a connection costs a setup phase measured at roughly three and a half seconds after the connect path was optimised, and around eight seconds to a painted pane. Closing a pane and opening another on the same host — retrying a command, replacing a shell — is a common act, and an immediate release makes the human pay that cost for a gesture that changed nothing.
+- If a leaf on that host is created before the grace period expires, the connection MUST be reused and the pending release cancelled.
+- Release MUST close what it holds: the control socket and any tunnels opened for it. A released connection that leaves transport resources behind is the leak this model exists to fix, and it is invisible until an operator looks at the host.
+- AN EXPLICIT ACT MUST NOT WAIT FOR THE GRACE PERIOD. Archiving a workspace ([[RFC-0015:C-ARCHIVE]]) and quitting the workbench MUST release connections that qualify under the counting rules above, at once. The grace period exists to absorb accidental churn, not to delay a decision the human has stated.
+- Releasing a connection MUST NOT end what runs on the far side. Under [[RFC-0014]] the pty holder keeps the child alive across the client's departure; release is the client departing. Ending a remote agent remains a separate, explicit act."""

@@ -1,0 +1,68 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0015"
+title = "One keymap for a workbench that is also a terminal"
+status = "accepted"
+date = "2026-08-19"
+refs = [
+    "RFC-0016",
+    "RFC-0015",
+]
+
+[content]
+context = """
+[[RFC-0016]] requires one binding table. Two questions had to be answered before it could be written, and both are the human's rather than the specification's.
+
+WHAT MADE THEM URGENT was a defect in this workbench. ⌘K opens the quick-connect palette everywhere EXCEPT inside a focused terminal, where it was left to the terminal engine so that its own `clear_screen` binding could keep the chord. That arrangement held for as long as something else in the window competed for first responder; when the sidebar stopped competing, the terminal became the permanent first responder, and the palette's own shortcut stopped working in the one place the human spends their time. Nothing about the arrangement had changed — only which view held focus, which is a fact with no pixel on screen.
+
+The chord was reassigned (⌘K to the palette everywhere, clear to ⌘⇧K) and that fixed the symptom for one key. It cannot fix the class. A chord another application has registered system-wide never reaches this process at all, so no default is safe from being taken, and no amount of choosing better defaults is a remedy. Only rebinding is.
+
+WHICH RAISED THE FIRST QUESTION. The terminal engine embedded here has a keybinding system of its own, with a configuration file the human may edit and a shipped default set. A rebinding facility in the workbench therefore has to say what its table means relative to that one — and there is no neutral answer, because a chord this workbench does not claim is not unbound, it is the engine's.
+
+AND THE SECOND. Where does the human change a binding: in a panel, by pressing the chord they want, or in a text configuration file of the kind this engine and its neighbours already use?
+
+Both were put to the human with the alternatives below."""
+decision = """
+ONE TABLE COVERS BOTH DOMAINS, AND THE ENGINE HOLDS NO BINDINGS AT ALL.
+
+Commands whose effect belongs to the terminal — clear, copy, paste, find in scrollback, font size — sit in the workbench's table beside its own, marked with a `terminal` domain, and are dispatched as engine ACTIONS rather than by letting a keystroke through to an engine binding. The engine's own binding set is emptied ([[RFC-0016]] C-TERMINAL), so a chord the table does not name is key input and nothing else.
+
+Emptying it is the decision, and a weaker form was available and rejected: leaving the engine's bindings in place and merely overriding the chords the table names. That reads as sufficient and is not. The table's chords are the EFFECTIVE ones, so the moment a human rebinds copy from ⌘C to something else, ⌘C is no longer named — and falls through to the engine's own ⌘C, which still copies. The human's rebind visibly does nothing, and the two-authority defect the whole table exists to end is reproduced by an implementation that satisfies every other rule. A set relationship stated over defaults fails the same way; only "the engine holds none" survives a rebind and a clear.
+
+AND THE HUMAN RECORDS A CHORD BY PRESSING IT, in a panel that lists every command. Not a text configuration file."""
+consequences = """
+- THE ENGINE'S CONFIGURATION FILE STILL EXISTS AND NOW DOES NOTHING for keys. A human who writes `keybind = ...` into it sees no effect and gets no message, because nothing in this workbench reads that file to know they tried. [[RFC-0016]] C-TERMINAL therefore obliges the workbench's own documentation to say so; that obligation is the entire mitigation, and it is weaker than an error message would be.
+- EVERY TERMINAL COMMAND THE WORKBENCH DOES NOT PUT IN ITS TABLE BECOMES UNREACHABLE BY KEYBOARD. With the engine bound to nothing, a shipped engine binding that nobody transcribed is simply gone. The table's completeness is now load-bearing in a way it would not be if the engine kept its defaults as a floor.
+- UPSTREAM CHANGES NO LONGER ARRIVE BY THEMSELVES. A binding the engine adds in a later version reaches this workbench only when someone adds a row.
+- A PANEL COSTS MORE THAN A FILE, and buys discoverability. Recording a chord means a surface that suppresses dispatch while it listens ([[RFC-0016]] C-DISPATCH's first row), conflict resolution at the moment of the write, and a stored representation the panel writes and reads. A configuration file would have been a parser and a reload.
+- THE STORE IS STILL A FILE, and a human may still edit it. [[RFC-0016]] C-REBIND therefore requires an override read from storage to face every VALIDITY rule a recorded one does, rather than trusting what the panel is assumed to have written.
+- CHORDS ARE NOW A PUBLISHED SURFACE OF THIS APPLICATION. Defaults become something humans build muscle memory on and something a release note has to mention when it moves."""
+
+[[content.alternatives]]
+text = "Two authorities split by domain: the workbench's table holds its own commands, and the terminal's keys stay in the engine's configuration file. Clean boundary on paper, and it is the arrangement that produced the ⌘K defect — the human has two places to look, two syntaxes to learn, and no single answer to 'what does this key do'. Rejected by the human, who chose one table."
+status = "rejected"
+
+[[content.alternatives]]
+text = "The engine's configuration IS the table: transcribe the workbench's own commands into it as custom actions and let it resolve everything. Rejected: the engine's action set is its own and cannot name acts of the workbench (open a workspace, focus a pane, connect a host), so the table could hold only half the commands — and the half it could not hold is the half this work exists for."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Keep the engine's bindings and override only the chords the table names. Rejected in the decision above: it fails the moment a human rebinds or clears one, which is the only situation the facility exists for."
+status = "rejected"
+
+[[content.alternatives]]
+text = "A text configuration file, in the manner of the engine's own. Cheaper to build, friendly to version-controlled dotfiles, and the losing side of a discoverability trade: a human hunting for why a chord does nothing will not find a file they have never opened, and conflicts could only be reported after the fact. Rejected by the human, who chose a recording panel."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Choose safer defaults and defer rebinding. Rejected on the facts: a chord another application registers system-wide never reaches this process, so no default can be verified safe and no inspection will explain the silence."
+status = "rejected"
+
+[[content.alternatives]]
+text = "ONE TABLE COVERING BOTH DOMAINS, with the engine's binding set emptied. One place to look, one place to change, and the only form of supersession that survives a rebind or a clear. Costs the engine's defaults as a floor and its future additions as a gift. CHOSEN."
+status = "accepted"
+
+[[content.alternatives]]
+text = "A RECORDING PANEL, where the human presses the chord they want and sees at once which command lost it. More to build than a parser; discoverable by someone who has never read a manual. CHOSEN."
+status = "accepted"

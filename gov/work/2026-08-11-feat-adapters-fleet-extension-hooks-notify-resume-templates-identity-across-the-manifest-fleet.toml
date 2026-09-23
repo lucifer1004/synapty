@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-011"
+title = "feat(adapters): fleet extension — hooks/notify + resume templates + identity across the manifest fleet"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "RFC-0006",
+    "RFC-0008",
+]
+
+[content]
+description = "Extend the harness adapter pack beyond claude across the 19-tool detection fleet, column by column. Research baseline (2026-08-11 web sweep): RESUME entry points exist broadly — claude ('claude --resume <uuid>' / --continue; UUID session ids), codex ('codex resume <session-id>' / --last; UUID in rollout-<ts>-<uuid>.jsonl under ~/.codex/sessions/YYYY/MM/DD/), gemini ('gemini --resume <uuid>' since the Jan-2026 session-management release, upstream resume bugs reported early 2026 — template must tolerate failure per RFC-0006's one-attempt rule), cursor ('cursor-agent --resume <chatId>'; upstream notes chat-id persistence gaps), opencode (session resume via ACP resumeSession; plugin/event system as a possible hook channel), amp (thread continuation). cmux restores sessions for Claude/OpenCode/Codex/Gemini/Antigravity/Grok/Amp/Cursor and the Agent Sessions browser reads Codex/Cursor/Hermes/Claude/OpenCode/Antigravity/Copilot/Pi stores — proof the surfaces exist fleet-wide; exact incantations researched per tool inside this WI. HOOK/NOTIFY channels: claude hooks done (WI-2026-08-11-009 hook-event), codex notify script done (WI-2026-08-11-007) — upgrade it to route through hook-event codex and extract session identity from the notify payload if present; gemini/others: per-tool research, most will be passive-only (that is fine — detection manifests already cover them; hooks are an upgrade, not a requirement). IDENTITY: verify session id shape per tool before deriving durable ids (RFC-0008 C-IDENTITY validation covers non-conforming values by falling back to pane identity, so unknown tools degrade safely). Deliverables are DATA-first per the adapter-pack registry philosophy: resume templates (RFC-0006 per-tool data files) for every tool with a CLI resume entry point, hook-event mappings where a channel exists, and a support matrix recorded in the repo so coverage is auditable. Depends on RFC-0006/RFC-0008 settling for the resume/identity columns; the hooks column can proceed independently."
+notes = ["Verified resume entry points (2026-08-11, tools' own docs): cursor-agent --resume <chatId> (UUID; upstream chat-id persistence gaps noted), opencode --session <ses_...>, amp threads continue <threadId> — lifecycle data files shipped for all six verified tools (claude/codex/gemini from WI-014 + cursor/opencode/amp). KEY FIND: codex's notify payload carries thread-id (UUID session identity) — the adapter upgrade makes one agent-turn-complete event yield BOTH the durable-identity claim and the done edge (register_notify plan; register lands first so the status hits the fresh binding). opencode hook channel: plugin/event system exists, DEFERRED (invasive install; passive suffices). gemini: no hook mechanism found, passive-only. 13 fleet tools remain unknown across hooks/resume columns — recorded honestly in lifecycle/SUPPORT.md. NOTE for user: re-run 'synapty hooks install codex' to refresh the adapter script (it now routes through hook-event codex)."]
+
+[[content.acceptance_criteria]]
+text = "per-tool support matrix (hooks channel / resume entry point / session id shape) recorded in-repo for the full manifest fleet, unknowns explicitly marked"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "resume templates as per-tool data files for every tool with a verified CLI resume entry point (claude, codex, gemini, cursor, opencode, amp at minimum)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "codex notify adapter routes through hook-event codex (payload-parsed), gaining session identity if the payload carries it; gemini/opencode hook channels researched with adopt-or-defer recorded"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "hook-event mappings unit-tested per added tool; template data files validated by loader tests; suites green"
+status = "done"
+category = "chore"

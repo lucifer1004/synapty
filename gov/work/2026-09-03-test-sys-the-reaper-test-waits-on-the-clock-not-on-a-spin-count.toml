@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-006"
+title = "test(sys): the reaper test waits on the clock, not on a spin count"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+CI run 33699006905 failed the ThreadReaper test in sys.zig on the macOS
+runner: "expected 0, found 1" live threads after the reap loop. The test
+bounded its wait by spin iterations (200 then 400 spinLoopHints), which
+is a bound in nanoseconds; a probe thread that has run its body is still
+a scheduler's whim away from storing `done`, and on the loaded runner the
+last of eight had not stored it yet. The wait is now a five-second
+wall-clock deadline, reaping every millisecond via nanosleep (sys.zig has
+no io, so no std.Io sleep). Both the earlier holder race (WI-005) and
+this one passed on run 33692322607 and failed on a later one — the shape
+of a race, not of a regression."""
+
+[[content.acceptance_criteria]]
+text = "the ThreadReaper test reaps until live() is 0 or a 5 s wall-clock deadline passes, sleeping 1 ms between reaps instead of counting spins; zig build test exits 0"
+status = "done"
+category = "chore"

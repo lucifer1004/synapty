@@ -1,0 +1,107 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/grok.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "grok",
+  "rules": [
+    {
+      "id": "title_blocked",
+      "state": "waiting",
+      "region": "title",
+      "contains": "Action Required"
+    },
+    {
+      "id": "option_dialog",
+      "state": "waiting",
+      "lineRegex": "^\\s*┃\\s+[0-9a-z]+\\s+\\([●○]\\)\\s"
+    },
+    {
+      "id": "permission_hints",
+      "state": "waiting",
+      "region": "bottom(2)",
+      "all": [
+        ":select",
+        "ctrl+o:yolo",
+        "ctrl+c:cancel"
+      ]
+    },
+    {
+      "id": "question_dialog_hints",
+      "state": "waiting",
+      "region": "bottom(2)",
+      "all": [
+        "tab:scrollback",
+        "shift+x:dismiss"
+      ]
+    },
+    {
+      "id": "permission_scope_selector",
+      "state": "waiting",
+      "all": [
+        "yes, proceed",
+        "no, reject"
+      ],
+      "any": [
+        "use ← → to choose permission whitelist scope",
+        "←/→:scope"
+      ]
+    },
+    {
+      "id": "background_chip_working",
+      "state": "working",
+      "region": "top(1)",
+      "lineRegex": "[⋅:⸬⁙.·]\\s+[1-9][0-9]*\\s+│"
+    },
+    {
+      "id": "title_idle",
+      "state": "done",
+      "region": "title",
+      "regex": "(?:^| - )grok$",
+      "notRegex": [
+        "[\\u2800-\\u28FF]"
+      ]
+    },
+    {
+      "id": "title_working",
+      "state": "working",
+      "region": "title",
+      "regex": "\\S"
+    },
+    {
+      "id": "spinner_status_working",
+      "state": "working",
+      "lineRegex": "^\\s*[\\u2801-\\u28FF]\\s.*\\[stop\\]\\s*$"
+    },
+    {
+      "id": "esc_cancel_hints_working",
+      "state": "working",
+      "region": "bottom(2)",
+      "all": [
+        "esc:cancel",
+        "ctrl+.:shortcuts"
+      ]
+    },
+    {
+      "id": "waiting_tool_working_hints",
+      "state": "working",
+      "all": [
+        "ctrl+c:cancel",
+        "ctrl+enter:interject",
+        "waiting"
+      ]
+    },
+    {
+      "id": "waiting_tool_working_spinner",
+      "state": "working",
+      "lineRegex": "^\\s*[\\u2801-\\u28FF]\\s+(Run|Read|Search|List)\\b"
+    },
+    {
+      "id": "prompt_hints_idle",
+      "state": "done",
+      "region": "bottom(2)",
+      "contains": "ctrl+.:shortcuts",
+      "not": [
+        "esc:cancel",
+        "ctrl+c:cancel"
+      ]
+    }
+  ]
+}

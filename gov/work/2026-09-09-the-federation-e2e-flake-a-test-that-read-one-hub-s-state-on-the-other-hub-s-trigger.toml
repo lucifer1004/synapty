@@ -1,0 +1,59 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-011"
+title = "The federation e2e flake: a test that read one hub's state on the other hub's trigger"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = ["RFC-0009:C-DELIVERY"]
+
+[content]
+description = """
+`zig build test` failed about one run in twenty-seven, always in the same
+place and always the same way:
+
+    e2e RFC-0009: two hubs federate — ... failed:
+    expected 0, found 1
+
+THE ASSERTION AND ITS TRIGGER WERE ABOUT DIFFERENT HUBS. After the link
+comes back, the test waits for B's mailbox to reach four and then asserts
+that A's spool is empty. Those are two different events with two hops
+between them: A writes the held copies, B enqueues them, B acknowledges,
+and only then does A release. `flushSpoolToLocked` keeps its copy on
+purpose — [[RFC-0009]] C-DELIVERY, and the function's own header spells
+out why a flush that released on write lost messages — so the wait
+returned after the second hop and the assertion read the fourth.
+
+MEASURED, NOT INFERRED. The first hypothesis was this one and seven runs
+did not show it, which is not evidence of anything at one-in-twenty-seven.
+Replacing the assertion with a probe and running six copies of the module
+at once gave, over thirty-six runs: thirty-two zero, one ONE — the exact
+reported symptom — and three TWO. All four non-zero samples had drained
+within a single five-millisecond poll, which is the acknowledgement round
+trip and nothing else.
+
+A TEST DEFECT, NOT A PRODUCT ONE. The behaviour the flake reported is the
+behaviour the clause requires.
+
+THE WAIT DOES NOT WEAKEN THE CHECK. What it means to assert is that the
+copies are released rather than leaked; a bounded wait followed by the
+same equality still fails if they never are. Verified by disabling
+`releaseSpooled` on the acknowledgement path: the test fails with
+"expected 0, found 2"."""
+notes = [
+    'THE FIRST HYPOTHESIS WAS RIGHT AND THE FIRST EXPERIMENT WAS TOO SMALL. Seven runs against a one-in-twenty-seven failure is not a test of anything, and reporting "not reproduced" after it would have sent the search somewhere else. What made it decidable was running six copies of the module at once and recording the sampled value rather than asserting on it — a probe that cannot fail collects the distribution a pass/fail run throws away.',
+    "TWO INTERMEDIATE THEORIES WERE KILLED BY READING, WHICH WAS FASTER THAN MEASURING THEM. A duplicate arriving in B's mailbox would also produce a count of four with one message still held — but the receiving side admits by forward id and answers a repeat with another acknowledgement rather than a second enqueue. And two concurrent flushes minting different ids for one message cannot happen: the mint and the stamp are inside the same `presence_mutex` the flush holds.",
+    "THE OTHER FIFTY-SIX `waitFor` CALLS IN THAT FILE WERE CHECKED for the same shape — waiting on one hub and asserting about the other. Only one other place comes close, and there the wait and the assertion are the same hub and the call is synchronous.",
+]
+
+[[content.acceptance_criteria]]
+text = "The federation e2e waits for the acknowledgements that release the held copies, instead of reading A's spool on B's mailbox filling"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The same assertion, unweakened — disabling the release on the acknowledgement path still fails it"
+status = "done"
+category = "chore"

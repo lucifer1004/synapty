@@ -1,0 +1,97 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-29-005"
+title = "A listing row is drawn as what it is, and a link says so"
+status = "done"
+created = "2026-08-29"
+started = "2026-08-29"
+completed = "2026-08-29"
+
+[content]
+description = """
+The file browser drew two icons: a folder and everything else. Forty names
+in a directory looked like forty copies of one glyph, and a symlink — which
+the SFTP layer had just learned to resolve ([[WI-2026-08-29-002]]) — was
+drawn as whatever it pointed at with nothing saying it was a name for
+something kept elsewhere. A broken link, newly kept in the listing rather
+than hidden by it, was drawn as an ordinary file: a claim about a thing
+that is not there.
+
+This adds a closed set of kinds — folder, code, text, data, archive, image,
+media, file — mapped from the suffix by ONE table, with `file` as an honest
+answer rather than a gap. A link is BADGED, not substituted: a link to a
+folder is a folder icon with a badge, matching what the listing already
+decided about whether the row can be entered. A broken link is the one case
+where the target's kind is unknowable, so it is drawn as a question in the
+warning colour rather than as a file.
+
+The per-extension table is deliberately small and deliberately data. A
+mapping that grows a glyph per suffix is the drifting-second-owner shape
+this week's work has been removing."""
+notes = [
+    """
+A first draft excluded a leading dot from the suffix, on the reasoning that
+`.zshrc` is hidden rather than shell source. Mutating the guard away left
+every test green: `zshrc` and `gitignore` are in no category, so they reach
+`.file` by the ordinary route regardless. The guard's only observable effect
+was on names that ARE a known suffix — `.env` — where the match is the right
+answer. It was removed rather than kept as a rule with no consequence.""",
+    """
+Asked why SwiftUI/AppKit has no general mechanism for this, and it does:
+`UTType` types a name without touching the file, so it works for a remote
+listing too. Two probes settled how far to trust it.
+
+WHAT IT KNOWS DEPENDS ON THE MACHINE. `.zig`, `.rs`, `.go` and `.mkv` all
+come back as unregistered `dyn.…` placeholders on a stock install, and
+`.md` resolves to `com.unknown.md`; `.json`'s identifier is whatever
+application claimed it. A remote directory typed by `UTType` alone would be
+drawn differently for two people looking at the same host. So the table
+answers first and the system answers only the tail: machine variance can
+turn a `file` into something better and can never move an answer this
+project has fixed. `.pdf`, `.cfg` and `.ini` are where the two genuinely
+disagree here, which makes them the only names that can catch the order
+being reversed — the test uses them for exactly that.
+
+`NSWorkspace.shared.icon(for:)` was rendered and looked at rather than
+argued about. At the 16pt a row gives it, eleven document types came back
+as the same white rectangle differing in a five-pixel corner badge, the
+icons do not follow the appearance so they glare as bright blocks in dark
+mode, and they are per-machine for the same reason as above. A silhouette
+is what reads at that size, which is what the symbols give.""",
+]
+
+[[content.acceptance_criteria]]
+text = "FileKind — one closed set of categories, one extension table, honest default"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "BrowsedFile carries isSymlink and isBrokenLink, populated from both the remote and the local listing"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "FileRowIcon — kind glyph, link badge overlay, distinct broken-link look, with help/accessibility text"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the local listing no longer lstats each entry twice"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "FileKindTests covers suffix mapping, case, directory precedence, last-suffix-wins, unknown default, and link typing"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a UI test asserts the pane draws a file, a link to a folder, and a broken link as such"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the system's type database answers the suffixes the table does not name, and only those"
+status = "done"
+category = "added"

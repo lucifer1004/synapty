@@ -1,0 +1,79 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-15-010"
+title = "feat(cli): file verbs on the presentation plane — agents move artifacts through the broker"
+status = "done"
+created = "2026-08-15"
+started = "2026-08-15"
+completed = "2026-08-15"
+refs = [
+    "RFC-0013",
+    "ADR-0010",
+]
+
+[content]
+description = """
+Stage two. Agents gain file verbs on the same transfer service the human's drag already uses, addressed BY HOST. Addressing by agent identity is stage four; this stage proves the service has two callers, not that it has the final address form.
+
+`synapty put` and `synapty fetch` enter the resident service built in stage one. If this stage requires touching transfer logic that lives in the panel, stage one was built wrong and that is the finding.
+
+THE CONTROL-PLANE LIMIT LANDS HERE, because this is the first stage where a caller can ask for an arbitrary amount of data without a human's hand on it. A refusal must read as a refusal, not as a failure, and the limit must be documented rather than discovered."""
+notes = [
+    """
+LIVE VERIFIED, and one criterion FAILED on measurement.
+
+WHAT WORKS END TO END, against a real host: `synapty put <file> --to <host> --into /tmp` from an agent id the workbench can place in a pane returns `{"ok":true,"state":"queued"}` and the file arrives with the right contents. The full path is exercised — CLI, hub forward, workbench, resident transfer service, scp over the existing ControlMaster. Refusals were exercised too: no SYNAPTY_AGENT_ID exits 2, an unknown host is named, and a usage error exits 1.
+
+A BUG ONLY A LIVE HOST COULD FIND. The remote path was shell-quoted, on the reasoning that a path the human named reaches a remote shell. It does not: modern scp defaults to SFTP mode, where the path is passed as bytes, so the quotes became part of the filename — `dest open "'/tmp/probe.txt'": No such file or directory`. The offline test asserted the quoted form and was green; it pinned the wrong behaviour faithfully. Fixed by passing the path literally and forcing `-s` so the rule cannot change with the peer's OpenSSH version. Verified unquoted with a filename containing spaces.
+
+CRITERION FAILED — a transfer starves interactive input on the same connection. Measured against a live host, round trips on the shared master: 0.36-0.39s idle, and 8.06 to 17.90s during a 60 MB transfer. The decisive follow-up: the same transfer on a SEPARATE connection left the master at 0.36-0.38s. So the cause is the SSH multiplexer, not the link — one TCP window shared across channels with no fairness, and a bulk channel starves an interactive one.
+
+THIS PUTS TWO NORMATIVE CLAUSES IN CONFLICT. [[RFC-0013]] C-BROKER requires transfers to reuse the existing multiplexed connection; C-CONTROL-PLANE requires that a transfer not starve interactive traffic. The measurement shows reuse is what causes the starvation. C-BROKER's requirement was written from a latency measurement (2.97s cold versus 1.07s reused) that is real but smaller than the cost now measured. Resolving this is a decision, not an implementation detail: a dedicated transfer master keeps most of the reuse benefit but leaves the first connection to a password-only host without an authentication path.""",
+    """
+THE DUAL-MASTER FIX IS IN AND MEASURED THROUGH THE REAL PATH.
+
+[[RFC-0013]] C-BROKER was revised rather than patched around: it required transfers to reuse the interactive connection, and that requirement was what produced the starvation the same RFC forbids elsewhere. The clause now requires two ControlMasters per host, split by traffic class, established in the same connection event and torn down together.
+
+Measured, with the transfer travelling the full production path — CLI, hub forward, workbench, resident transfer service, bulk master — while interactive round trips were sampled on the interactive master:
+
+- before, sharing one master: 0.36-0.39s idle, 8.06 to 17.90s during a 60 MB transfer
+- after, two masters: 0.36-0.38s idle, and 0.36-0.74s during the same transfer
+
+The worst case fell from 17.90s to 0.74s and the distribution is now indistinguishable from idle — the baseline's own first samples were 1.09 and 0.54. The 62,914,560-byte file arrived intact.
+
+PLACEMENT DETAIL THAT MATTERS: the bulk master is established OUTSIDE the "is the interactive master already up" branch in setup-host.sh. Verified against a host whose interactive master predated this change — it was reported already active, and the bulk master was still created. Inside that branch, every host connected before the change would have gone without a bulk lane until its next full reconnect, which for a ControlPersist=yes master could be never.
+
+The bulk master carries no forwards. The peer link and the human's port forwards stay on the interactive master, which is the connection whose lifetime they follow.""",
+    """
+CLOSED. All five criteria met, the fifth only after the fix it forced.
+
+The starvation criterion failed on first measurement and is what produced the dual-master change and the [[RFC-0013]] C-BROKER revision. Measured through the full production path afterwards: 0.36-0.74s during a 60 MB transfer, against 8.06-17.90s before, with idle at 0.36-0.39s.
+
+Stage one's bet paid: this stage added parsing, routing and refusal rules, and not one line of transfer logic outside the resident service.""",
+]
+
+[[content.acceptance_criteria]]
+text = "synapty put and synapty fetch move files between hosts through the resident transfer service, with no transfer logic added outside it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an agent-initiated transfer appears in the same activity stream as a human's, attributed to the agent rather than to a gesture"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "agent-initiated transfers are subject to a documented size limit, and exceeding it reports a refusal that names the limit rather than an error"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "no host acquires a credential for another host as a result of any transfer"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a transfer running while a terminal is in use does not starve interactive input on the same connection"
+status = "done"
+category = "chore"

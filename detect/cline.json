@@ -1,0 +1,48 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/cline.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "cline",
+  "rules": [
+    {
+      "id": "tool_permission_use",
+      "state": "waiting",
+      "contains": "let cline use this tool"
+    },
+    {
+      "id": "tool_permission_act_exec",
+      "state": "waiting",
+      "all": [
+        "[act mode]",
+        "execute command?",
+        "yes"
+      ]
+    },
+    {
+      "id": "tool_permission_act_tool",
+      "state": "waiting",
+      "all": [
+        "[act mode]",
+        "use this tool?",
+        "yes"
+      ]
+    },
+    {
+      "id": "tool_permission_plan_exec",
+      "state": "waiting",
+      "all": [
+        "[plan mode]",
+        "execute command?",
+        "yes"
+      ]
+    },
+    {
+      "id": "tool_permission_plan_tool",
+      "state": "waiting",
+      "all": [
+        "[plan mode]",
+        "use this tool?",
+        "yes"
+      ]
+    }
+  ],
+  "_dropped_default_working": "herdr's cline.toml ends with a catch-all `regex: '(?s).+'` scoped to region 'whole_recent'. This engine has no recency-scoped region — every region it offers says WHERE to look, none says WHEN — so the rule would match any non-empty terminal and assert `working` unconditionally. Dropped rather than approximated: restoring it needs a recency region in the engine and calibration against a live cline. See WI-2026-08-14-005."
+}

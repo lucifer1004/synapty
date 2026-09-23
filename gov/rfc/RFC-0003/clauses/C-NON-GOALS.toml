@@ -1,0 +1,24 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "V1 Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Explicitly out of scope for V1 of the GitHub-centered model:
+
+- Multi-platform support (GitLab, JIRA, self-hosted) — GitHub only.
+- Multiple hub repos / federation — exactly one private repo.
+- Webhook push delivery — polling only. The cadence is the implementation's and is deliberately not fixed here; this clause once named 15s, which was never the interval any code used.
+- Direct agent-to-agent messaging as a supported workflow — demoted to an
+  optional debug facility per C-A2A-REDUCTION.
+- Workflow engines / automation rules beyond the minimal label state machine
+  (no auto-assignment, no due dates, no cross-issue dependencies).
+- PR/branch lifecycle management (review automation) — issues only; PRs are
+  referenced in comments but not modeled.
+- OSC-to-GitHub bridging — deferred to V1.5 (C-HUB-ROLE); V1 ships the MCP
+  tool surface only."""

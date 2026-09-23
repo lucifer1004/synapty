@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "Non-Goals"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- No typing into human panes or agent harness panes, ever — the
+  invariant [[RFC-0005]]'s non-goals own, referenced here, not
+  duplicated. The wake template remains the only text machinery may
+  place into a non-exec pane, and this RFC does not amend it.
+- No interactive TUI driving: primitives submit command lines to a
+  shell, they do not navigate menus, answer prompts, or send control
+  sequences. A command that goes interactive is the human's to handle.
+- No credential mediation, no elevation (C-EXEC-AUTHORITY).
+- No hidden execution: every exec pane is a visible pane. A headless
+  runner (execution without a terminal the human can watch) is a
+  different product decision and out of scope.
+- No layout authority: agents get exec panes placed by the workbench's
+  layout policy; pane geometry, splits, and arrangement remain
+  human/workbench territory ([[RFC-0001]] L2 cockpit scope, not this
+  RFC).
+- No peer sharing: exec panes are single-owner. Cross-agent handoff of
+  an exec pane needs a future design round if ever wanted."""

@@ -1,0 +1,116 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-31-002"
+title = "Data detectors: recognise a path in agent output and offer to open where it lives"
+status = "done"
+created = "2026-08-31"
+started = "2026-08-31"
+completed = "2026-09-01"
+refs = [
+    "RFC-0015",
+    "RFC-0014",
+    "RFC-0004",
+    "RFC-0016",
+    "RFC-0012",
+]
+
+[content]
+description = """
+An agent prints `Sources/Features/Panel/FileKind.swift:42` or `zig-out/bin/synapty`
+and the human reads a path they then have to find by hand. This makes the text
+actionable: recognise it, show what it resolves to, and on the human's act open a
+file leaf on the directory that holds it — on the machine the pane is bound to.
+
+WHAT BOUNDS THIS IS [[RFC-0015:C-DERIVED]], which was written for it and is
+narrower than the feature sketch that prompted it. Two capabilities the sketch
+assumed are NOT in scope, and the reasons are load-bearing rather than cautious:
+
+A URL IS RECOGNISED AND SHOWN, NEVER OPENED. Opening one means the workbench
+issues a request to a host that untrusted text chose, carrying whatever that text
+put in the path and query — and a target displayed in full is no defence against a
+string written not to be read. The human copying it is their own act and is
+unaffected. A browser leaf is separately unavailable here: its connection is
+stipulated local, so a remote pane printing `http://localhost:3000` would open on
+the human's own machine.
+
+A RELATIVE PATH RESOLVES AGAINST THE HOLDER-REPORTED WORKING DIRECTORY, NOT OSC 7.
+The sketch said OSC 7. But a directory the child ANNOUNCED is a string the child
+chose, and [[RFC-0014:C-PWD]] requires an answer that does not depend on the child
+having announced anything. Since a file leaf persists the directory it is showing,
+an OSC 7 path would put a value the child composed into the workspace snapshot.
+Where no holder exists or it answers unknown, a relative name gets no offer at all;
+an absolute one is unaffected.
+
+The recognition itself must be inert. It may not contact what it names — no fetch,
+no probe, no existence check — because a resolution that touches the target lets an
+agent cause a request by printing a string, with the human never having acted."""
+notes = [
+    """AMBIGUITY HAS NO INSTANCE HERE, which is why that criterion is cancelled rather than left open. Resolution is syntactic against a single base, so a name yields exactly one target — the clause's "does not resolve to exactly one target" case cannot arise until something admits a second base (a search path, or a probe that finds the name in more than one place). The rule stays in [[RFC-0015:C-DERIVED]] for whatever admits one.""",
+    "VERIFIED BY CONSTRUCTION RATHER THAN BY A TEST, said out loud so a later reader does not go hunting for the test. Recognition cannot contact what it names: OutputDetector.detect is a pure function of a string with nothing to stat, fetch or probe with, and the observable half — a path that cannot exist resolving like one that does — is tested. An OSC 8 target is never used: the row is read with ghostty_surface_read_text, which returns the characters in the cells, and the URI is out-of-band. Classification is unaffected: AgentDetector reads the ACTIVE screen and OutputAffordance reads the VIEWPORT, through separate calls sharing no state.",
+    "THE HOVER AND THE CLICK CANNOT BE DRIVEN FROM HERE. Moving a pointer and holding a modifier need an accessibility grant this machine does not have, so everything below the view is tested with the surface taken out of the way and the drawing and the gesture are a human residual.",
+    "RESIDUAL — GHOSTTY STILL MARKS AN OSC 8 HYPERLINK. link-url = false stops ghostty's URL matcher, but OSC 8 handling is gated on the modifier and not on that setting (Surface.zig: mouseModsWithCapture then ._open_osc8). An OSC 8 span still gets libghostty's own hover highlight, and the click reaches an action this app now explicitly refuses. The dangerous half does not happen — nothing opens. What remains is an underline that invites a gesture and does nothing, which is the same defect link-url = false was set to remove, in the one place a config cannot reach. Closing it needs a submodule patch (the repository already keeps patches/*.patch for exactly this) and an xcframework rebuild, so it is scoped as its own change.",
+    "THE REFUSAL IS KEYED TO THE KIND, because openUrl has three callers and only two are links. A matched url and an OSC 8 hyperlink pass kind unknown; write_screen_file — which writes the screen to a file the workbench itself produced and hands it to the opener — passes text or html. Claiming all three would have refused a human's own act on content they chose, which is not what this clause is about. Nothing in Synapty binds write_screen_file today, so the narrowing changes no behaviour; it stops the rule foreclosing a feature it has no quarrel with.",
+    "VERIFIED BY THE HUMAN, which is the half no test here can reach: a path, a compiler-style path:line:column, a plain URL and an OSC 8 link whose text reads as one host while it points at another. One underline, one preview, and the confirmation on the fourth. The pointer gestures need an accessibility grant this machine does not have, so everything below the view is tested and the pixels are a person's job.",
+    "THE DOUBLE UNDERLINE THAT FOUND THE REAL DEFECT. ghostty's default matcher is a URL/PATH regex, not a url matcher — its own header says so, and it has a branch each for scheme urls, rooted and dot-relative paths, and bare relative paths. The detector written here duplicated it, because 'TODO: This can't currently be set!' on the configurable link list was read as the default matcher being absent. What ghostty must still not own is the answer: resolvePathForOpening resolves against terminal.getPwd(), which is OSC 7.",
+]
+
+[[content.acceptance_criteria]]
+text = "an absolute path printed in a terminal pane carries an affordance; taking it opens a file leaf on the directory that holds it, bound to the source pane's connection, so a path from a remote pane opens on that machine"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a relative path resolves against the directory the holder reports; where there is no holder or it answers unknown, no affordance is offered while an absolute path in the same output still is"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a path the child announced via OSC 7 is never used as the resolution base"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "an ambiguous path offers the candidates rather than picking one, and nothing is taken until the human picks"
+status = "cancelled"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an affordance is re-resolved when taken, and withdrawn once its characters leave the pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a failed open reports the failure and names the machine; the log line may carry the resolved target but never the output it was found in"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "pane status classification is unchanged by all of this — same manifest inputs, same verdict, whatever the human scrolled to or the workbench drew"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a URL is marked and opens in the system browser; a scheme outside the browser leaf's allow-list is refused with a sentence saying which are followed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "an OSC 8 hyperlink follows its declared target where the displayed characters claim no destination or the same one, and raises a confirmation naming both where they contradict"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "resolution never reaches another machine — no fetch, no probe, no preview that contacts a host the text named"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "ghostty owns matching and marking; the target is recomputed here from the characters under the pointer, so a relative path never resolves against the OSC 7 pwd ghostty would use"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a file leaf opened by a taken action names the pane and the agent whose output the path came from, and still names a source pane the human has since closed"
+status = "done"
+category = "added"

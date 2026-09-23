@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-005"
+title = "Move the connection script's account layer into the binary (ADR-0020, step 1)"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = ["ADR-0020"]
+
+[content]
+description = """
+The first step of [[ADR-0020]], chosen because it removes two of that
+decision's four cited costs while touching nothing about how ssh is
+invoked.
+
+`connect.sh` and `setup-host.sh` each carry a copy of `now_ms()`, which
+shells out to PERL for milliseconds — macOS ships bash 3.2 with no
+`EPOCHREALTIME`, and BSD `date` has no `%N`. Each also carries `signal()`,
+which formats a line of the connection account: the FOURTH implementation
+of a format whose other three writers are all the same binary and could
+simply share a function.
+
+Replace both, in both scripts, with a call to the binary. The scripts keep
+their `say`/`signal` names and their fallback for the case where no channel
+was named; what changes is who formats and stamps the line.
+
+OUT OF SCOPE: flags, forwards, ControlMaster probing, the socket-file and
+pid-file records, and the reading of ssh's exit status. Those are later
+steps of the same decision, and mixing them in would make this one
+impossible to verify by itself."""
+notes = [
+    "A NEW VERB RATHER THAN A SHARED FILE. `synapty account <kind> [text]` is what the scripts call. It refuses a kind that is not one of `progress.Kind` instead of writing it, because a reader shows an unknown kind as free text — so `pain` for `paint` would arrive as narration and the pane would wait out its silence deadline rather than being given back. With no channel named it writes nothing and succeeds, which is what a connection run by hand looks like.",
+    "THE TWO SCRIPTS NEEDED DIFFERENT BINARIES. `connect.sh` already had `SYNAPTY_BIN` in its environment, but resolved it two hundred lines below `say` and `signal` — after every caller by luck rather than by construction. It is resolved at the top now. `setup-host.sh` had no native binary at all: its own `LOCAL_BIN` is the one being UPLOADED, cross-compiled for the remote platform and unrunnable here, so `runSetup` names the native copy in the environment the way `connectCommand` already did.",
+    "THE TEST SEAM BROKE THE MOMENT THE BINARY MOVED, which is the argument [[ADR-0020]] makes rather than a surprise. `test-connect-launch.sh` extracted a range from `^LOCAL_BIN=` to the first `^fi$` — a shape, not a boundary — so hoisting that assignment moved the range onto an unrelated block and the file died on an unbound variable with no message at all. That range now runs between markers the script carries on purpose, like the launch block's.",
+    "AND THREE MORE RANGES WENT AWAY ENTIRELY. A section of that file eval'd `now_ms`, `say` and `signal` out of the script and called them directly; two of the three no longer exist. What they were asserting — a millisecond stamp, nothing said at the human when a channel is named, the words still reaching a human when none is — is asserted on a REAL run of the script now, through the stubbed-ssh harness that was already there.",
+    'BOTH NEW ASSERTIONS WERE CHECKED AGAINST THE OLD BEHAVIOUR before being trusted. Restoring the shell `printf` made the perl-stub case fail ("the account still reaches for perl to tell the time"); replacing the stamp with `date +%s` made the shape case fail with the truncated line in the message. Neither passes vacuously.',
+    "AND ONE SELF-INFLICTED DETOUR: `git checkout scripts/connect.sh` during that verification reverted the file past the day's uncommitted work. This project uses jj; `jj restore --from @-` recovered the committed half and the rest was re-applied from the patch text.",
+]
+
+[[content.acceptance_criteria]]
+text = "connect.sh and setup-host.sh write account lines through the binary rather than formatting them in shell"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Neither script depends on perl for a millisecond stamp"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "An account line written by a script is the same shape as one written by the binary, asserted against the binary's own reader rather than against a second copy of the format"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A script with no channel named still says its words to the human, as it did"
+status = "done"
+category = "chore"

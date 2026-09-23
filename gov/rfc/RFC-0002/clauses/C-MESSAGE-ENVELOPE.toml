@@ -1,0 +1,48 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-MESSAGE-ENVELOPE"
+title = "Message Envelope"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = '''
+All communication between agents and the Hub uses JSON envelopes sent as newline-delimited messages over TCP.
+
+### Envelope Structure
+
+```json
+{
+  "type": "<message-type>",
+  "id": "<request-id>",
+  "source": "<sender-agent-id>",
+  "target": "<recipient>",
+  "payload": { ... }
+}
+```
+
+| Field    | Type   | Required | Description |
+|----------|--------|----------|-------------|
+| `type`   | string | YES      | Message type (see [[RFC-0002:C-MESSAGE-TYPES]]) |
+| `id`     | string | YES      | Unique request ID for correlation |
+| `source` | string | YES      | Sender's agent ID |
+| `target` | string | YES      | Recipient: agent ID for DM, `channel:<name>` for group, `hub` for Hub commands |
+| `payload`| object | NO       | Type-specific data |
+
+### Wire Format
+
+Envelopes are serialized as compact JSON (no pretty-printing) terminated by a single `\n` character. One TCP read MAY contain multiple envelopes. Implementations MUST split by `\n` and process each line independently.
+
+### Request ID Generation
+
+The `id` field SHOULD use a collision-resistant format such as UUIDv4 or `<prefix>-<monotonic-counter>`. Agents generate IDs for their requests; the Hub generates IDs for unsolicited messages (e.g., `channel_event`).
+
+### Request-Response Correlation
+
+When the Hub responds to a request, it MUST set the response `id` to match the request `id` and swap `source`/`target`. This allows agents to correlate responses with outstanding requests.
+
+**Rationale:** Newline-delimited JSON is the simplest wire format that supports streaming and multiplexing. It avoids the complexity of length-prefixed framing or WebSocket upgrade (deferred to V2). The envelope structure is intentionally flat — no nested routing headers — because V1 has a single Hub with direct agent connections.
+
+*Since: v0.1.0*'''

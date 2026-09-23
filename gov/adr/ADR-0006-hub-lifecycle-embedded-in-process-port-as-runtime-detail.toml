@@ -1,0 +1,35 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0006"
+title = "Hub lifecycle: embedded in-process, port as runtime detail"
+status = "superseded"
+date = "2026-08-11"
+superseded_by = "ADR-0007"
+refs = [
+    "ADR-0001",
+    "ADR-0004",
+]
+
+[content]
+context = """ADR-0001's V1 deliverable list reads "Embedded Hub — A2A message router in-process. No separate Hub binary to manage." The implementation drifted: when ADR-0004 unified the binary, the GUI began SPAWNING `synapty hub` as a subprocess and adopting any process already answering on port 9000 as an "external hub" — with no version or ownership checks, a best-effort terminate on quit, and a hand-configured port setting that every consumer (tunnels, monitors, wrappers, CLI) had to align with. A live incident (2026-08-11, during the wake protocol's first live smoke) showed the full failure class at once: the old app's hub survived its quit as an orphan, the freshly rebuilt app silently adopted the version-skewed orphan, and the new GUI ran wake/identity features against a hub that did not know the envelopes — with nothing surfaced to the human. Compounding: pane wrappers had no steady-state reconnect, so even remediation (replacing the hub) stranded live panes. Every element of the incident — orphan, skew, silent adoption, owned/external state machine, restart choreography — exists only because the hub had a life separate from the app, and "hub outlives app" has NO V1 use case: panes and tunnels die with the app, so a surviving hub serves nobody."""
+decision = """
+Bind the hub's lifetime to the app BY CONSTRUCTION, and demote the port from configured identity to runtime detail.
+
+1. The hub is embedded in-process: `src/hub_api.zig` exposes a minimal C ABI (start/stop/bound_port/log-callback) built as `libsynapty_hub.a` and linked into the GUI exactly like GhosttyKit. HubManager never spawns, adopts, terminates, or health-checks a hub process — there is none. Orphans and GUI-hub version skew become impossible, not merely handled. `synapty hub` remains a subcommand for zig e2e tests and future remote hubs (RFC-0001 L5); the GUI never uses it.
+2. Port policy: default 9000, sequential backoff through +9, then an OS-assigned ephemeral port; the SYNAPTY_HUB_PORT environment variable is the ONLY manual override (strict: bind exactly or fail). The hubPort entry left the Settings UI and storage. In-process consumers read the bound port from HubManager; wrappers receive it via spawn args; in-pane CLIs ride SYNAPTY_SOCK.
+3. The discovery file `~/.config/synapty/hub.json` ({port, pid, build id}, 0600, written on bind, removed on exit only by its writer pid) is the ONLY out-of-process contract: bare CLI invocations resolve the hub through it (with a pid liveness check), falling back to 9000. Multi-instance is now coherent — each workbench binds its own port and owns its own agent island.
+4. Pane wrappers reconnect to their original hub address with capped backoff across in-app hub restarts, re-registering and replaying their identity claim (RFC-0008 resume_ref, fresh RFC-0004 generation) — an in-app hub restart no longer strands panes."""
+consequences = "Gained: the entire orphan/skew/adoption failure class is structurally eliminated; hub restart is a synchronous in-process call (no port race, no wait choreography); one less Settings knob; multi-instance workbenches become well-defined; the CLI finds the hub without configuration. Paid: a hub crash now crashes the app — accepted for V1 because hub state is entirely in-memory and a hub crash already severed every agent connection, so the app surviving bought little; the blast-radius tradeoff should be revisited if the hub ever holds durable state. Hub traffic logs now ride a C callback into the app's log console instead of subprocess stdout piping. The external-hub development workflow (pointing the GUI at a hand-run `synapty hub`) is deliberately gone; SYNAPTY_HUB_PORT plus the subcommand still covers CLI-only development. Deploy targets and remote daemons are unaffected (they never ran a local hub)."
+
+[[content.alternatives]]
+text = "Embed the hub in-process behind a minimal C ABI (zig staticlib linked like GhosttyKit): hub lifetime equals app lifetime by construction; port ladder + SYNAPTY_HUB_PORT escape hatch + discovery file; synapty hub subcommand retained for tests and future remote hubs only"
+status = "accepted"
+
+[[content.alternatives]]
+text = "Slaved subprocess: --parent-pid with a kqueue NOTE_EXIT watchdog so the hub dies with the app, plus a hub_info version/ownership handshake before adopting a responding port. Kills most of the failure class, but the foreign-process-on-the-port branch never disappears (cannot take over a process we do not own), the watchdog is one more edge-case machine, and two cooperating processes remain a permanent tax on reasoning"
+status = "rejected"
+
+[[content.alternatives]]
+text = "Status quo hardened: terminate-on-quit made more reliable plus a version check before adoption. Leaves crash/force-quit orphans reachable (best-effort teardown cannot cover SIGKILL), keeps the owned/external state machine and the restart choreography, and keeps the hand-aligned port setting"
+status = "rejected"

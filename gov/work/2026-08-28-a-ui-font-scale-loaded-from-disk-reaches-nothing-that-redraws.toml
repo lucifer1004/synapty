@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-28-010"
+title = "A UI font scale loaded from disk reaches nothing that redraws"
+status = "done"
+created = "2026-08-28"
+started = "2026-08-28"
+completed = "2026-08-28"
+
+[content]
+description = """
+`DS.uiFontScale` is a second copy of `SynaptySettings.uiFontScale` and has two writers. The `didSet` writer assigns it AND posts `.synaptyUiScaleChanged`; `reloadFromDisk()` assigns it and posts nothing.
+
+`DS.uiFontScale` is a plain static that SwiftUI cannot observe, which is why ContentView carries a tick bumped only by that notification. So a scale arriving from disk — a sync from another Mac, a launch that reloads — changes the value every later view reads and redraws nothing that is already on screen.
+
+The durable repair is one writer, not two that agree by inspection."""
+
+[[content.acceptance_criteria]]
+text = "A UI scale that arrives from disk redraws what is on screen, with a test that fails if a writer sets the value without announcing it"
+status = "done"
+category = "fixed"

@@ -1,0 +1,100 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-007"
+title = "canDeploy had no reader, so the workbench found out at the far end what it could have known before it tried"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "ADR-0009",
+    "ADR-0008",
+]
+
+[content]
+description = """
+[[HostReadiness]] opens with "asked before anything is attempted rather
+than discovered when it fails", and argues its two-consumer split at
+length: the human's terminal is interactive, so a missing key is an
+inconvenience; the workbench's own machinery "scps a binary, starts a
+hub and holds a ControlMaster ... all non-interactive, where the same
+prompt is fatal".
+
+Only the terminal half was ever asked. `canDeploy` had no production
+reader anywhere.
+
+So the workbench did exactly what the header says it must not: it
+attempted, and discovered. `TunnelManager.runSetup` spawned `host-setup`
+with a sixty-second timeout and then read a password prompt back out of
+ssh's own output — `wantsPassword` exists for precisely this, and answers
+"this host asks for a password, and Synapty can only use SSH keys". The
+same answer was available before the attempt, from a host row and the
+filesystem.
+
+`HostBlockView.readiness` even records where the missing half belonged:
+the deploy warning was taken off the host grid because "it matters when
+someone deploys an agent to that host, and that is where it should be
+said." It was not said there either.
+
+WIRED, NOT DELETED — AND NOT WIRED STRAIGHT THROUGH. Refusing on
+`!canDeploy` alone would have been worse than leaving it unread.
+`Gap.noKeyConfigured` is raised for any host that names no key, and
+`ssh-agent` and an `IdentityFile` in `~/.ssh/config` both answer
+non-interactively; neither is visible from here. That is the third
+outcome the header did not weigh when it named "block a terminal that
+would have worked, or promise a deploy that cannot": block a DEPLOY that
+would have worked.
+
+So `Gap` now says whether it is SETTLED — a key the configuration names
+that this Mac does not have, where ssh will not substitute another — and
+`deployRefusal` is non-nil only then. The unsettled case stays a warning
+and is still discovered where it always was. `canDeploy` is what
+`deployRefusal` is built on, so it ships.
+
+AND THE REFUSAL IS REPORTED AS A FAILURE IS. `failSetup` now holds the
+three things every setup failure has to do — the `.failed` state, the
+pending callbacks, the notification — because a refusal that skipped any
+of them would be a worse defect than the one it prevents: a pane left
+spinning on a callback nothing will fire.
+
+Canaried by widening the refusal to every gap: the test fails saying
+refusing there would block every host an agent answers for.
+
+Raised by the occam-swift pass of the 2026-09-10 SSOT/Occam round as
+"wire it or drop it, and say which". Wired, at the user's direction.
+
+SEPARATELY, a test written earlier in this round asserted that a pane
+command with no hub contained no "9000" anywhere — which a `--parent-pid`
+of 90002 satisfies by accident. It passed on one run and failed on the
+next. It now names the address rather than the digits."""
+
+[[content.acceptance_criteria]]
+text = "HostReadiness.deployRefusal answers why the workbench must not try, built on canDeploy so that predicate finally ships"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "Gap.isSettled distinguishes a named key that is absent from no key named at all, so a refusal cannot block a host ssh-agent answers for"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "runSetup consults it before spawning host-setup, instead of reading a password prompt out of ssh's output sixty seconds later"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "failSetup holds the three things every setup failure must do, so a refusal cannot leave a pane spinning on a callback nothing will fire"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "what may refuse and what must not is pinned for all three shapes, and canaried by widening the refusal"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "an assertion from earlier in this round named the digits 9000 rather than the hub address, and a --parent-pid matched it by accident"
+status = "done"
+category = "fixed"

@@ -1,0 +1,74 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-19-005"
+title = "A dialling host has no pane, so the workspace wears the connection's state"
+status = "done"
+created = "2026-08-19"
+started = "2026-08-19"
+completed = "2026-08-24"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+]
+
+[content]
+description = """
+Connecting to a remote host today creates a WORKSPACE, hangs a pending connection on it, shows a container-wide spinner named after the workspace, and materialises the pane only once the tunnel is up. That is the old model, in which a session WAS a connection, and it survived the move to leaf binding because nothing forced it out.
+
+RFC-0015 C-DIAL requires the opposite: "A leaf MUST be created and displayed before its connection is `connected`", and "A leaf whose dial fails MUST remain in place with its binding intact and the failure reported on it."
+
+SIX AUDIT FINDINGS ARE THIS ONE THING, which is why they are one work item rather than six:
+
+- the leaf is not created before the connection is up (C-DIAL);
+- a failed dial has no leaf to remain in place, because none exists yet (C-DIAL);
+- the state is presented as a property of the workspace and named after it, which C-FAILURE forbids in as many words;
+- a workspace with two hosts dialling at once cannot show both, because one container has one state;
+- a workspace holding a connected local pane and one dialling remote pane hides BOTH behind a full-frame placeholder;
+- `pendingHost(forWorkspace:)` is precisely the container-level accessor returning a host that C-LEAF-BINDING says MUST NOT remain available — and it exists only to serve this model.
+
+Two bugs already fixed under WI-2026-08-17-028 were symptoms of the same thing: an emptied workspace reporting `connecting`, and a second copy of that decision in the view layer. Fixing the model is what stops a third copy appearing.
+
+WHAT THE HUMAN WILL NOTICE, stated because it is a taste change and not only a correctness one: a pane being dialled will occupy its place in the layout while it dials, rather than the layout being replaced by a card. That is what C-DIAL asks for — "a pane that appears only after a multi-second dial gives the human nothing to look at and nowhere to see progress" — and it is a different feel from what ships today.
+
+THE TAB BAR HAS NOWHERE TO PUT THIS YET. Nothing in PaneTabBar renders a connection state, so a per-leaf surface for dialling and failure has to be built rather than moved."""
+notes = [
+    "THE DIAL GATE HAD A SECOND ROUTE INTO [[WI-2026-03-31-003]], found in use and fixed here. `surface(of:)` gated the terminal on the CONNECTION alone, on the reasoning that a leaf whose link is not up cannot have a command yet. That holds only for the first pane on a host: `acquire` REUSES the connection of a host already reached, so a second pane is `connected` from the instant it exists, while the dial that mints its command has not returned. The gate opened on a leaf with nothing to run, and ghostty answers a nil command with its DEFAULT shell — a LOCAL one. The human picked a machine from the palette and got a shell on their Mac. `updateNSView` never applies a command, so a command arriving later could not correct it. The gate now asks the PANE whether it has anything to run as well as asking the connection whether it is up: reading the first fact off the second is what let the bug back in.",
+    """⌘K NOW BELONGS TO THE PALETTE EVERYWHERE, decided by the human when the old arrangement surfaced. Removing the sidebar's `.focusable()` — which had been swallowing Return for the whole page — left the terminal as the permanent first responder, and the ⌘K monitor yielded to a focused terminal by design so that ghostty's `clear_screen` kept the chord. The effect was that the palette's own shortcut did nothing in the one place the human spends their time, reachable only from the menu. One key doing two things according to which view holds first responder is a distinction with no pixel on screen. The monitor now claims ⌘K unconditionally and ghostty's clear moves to ⌘⇧K, which the monitor's equality test on modifiers does not match. `GhosttyNSView.performKeyEquivalent` swallows every unlisted ⌘ combination, so ⌘⇧K had to be added there explicitly — "unbound" in that view means "does nothing", not "falls through".""",
+    "Delivered with the leaf-first dial itself: addRemoteWorkspace(label:hostEntry:) places the pane before the tunnel, paneDidConnect/paneDidFail report on the leaf, and surface(of:) asks the pane whether it has anything to run as well as asking the connection whether it is up. The one criterion without a test of its own — two hosts dialling in one workspace — has one now (testTwoHostsDiallingInOneWorkspaceAreReportedSeparately); the model needed no change to pass it.",
+]
+
+[[content.acceptance_criteria]]
+text = "A pane on a remote host appears in the layout when the human asks for it, and shows its own dial progress there"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A pane whose dial fails stays where it is, keeps its binding, and reports the failure on itself"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A workspace with two hosts dialling shows both, independently"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A connected pane is never hidden because a sibling on another machine is still dialling"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "pendingHost(forWorkspace:) is gone, not merely unused — a container-level accessor returning a host is the shape that delivered two transfers to the wrong machine"
+status = "done"
+category = "security"
+
+[[content.acceptance_criteria]]
+text = "A leaf carries a surface for its connection state, since the tab bar had none"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The workspace-wide placeholder is removed, and what remains of it — the account and the retry — belongs to the leaf"
+status = "done"
+category = "chore"

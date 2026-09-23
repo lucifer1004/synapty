@@ -1,0 +1,39 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-005"
+title = "An older listing of the same directory can settle the file pane after a newer one"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0015:C-CONTENT"]
+
+[content]
+description = """
+The remote file pane lists a directory with an ssh round trip and drops a reply that arrives too late. It judged "too late" by comparing the path it had asked for with the path it was now after.
+
+A PATH CANNOT SAY WHICH REQUEST A REPLY ANSWERS. That comparison tells a reply for somewhere else from a reply for here, and cannot tell two replies for HERE apart. A refresh after a write is exactly that: delete a file, and the pane asks for the same directory again while an earlier listing of it may still be in flight. Whichever lands last settles the pane — and if it is the earlier one, the deleted file is back on screen, clickable onto nothing.
+
+AND `load` MADE IT WORSE THAN ONE REFRESH. A load that finds the pane already in flight does not depart again, so two loads inside one journey share the same destination and, under any per-journey scheme, the same identity."""
+notes = ["""
+`FileBrowsing` holds `outstanding: UUID?`. `request()` mints and records one per listing request; `navigate` clears it; `arrive(at:files:answering:)` and `fail(answering:)` settle the pane only for the outstanding ticket and return whether they did. `Whereabouts.arrive` and `fail` became `fileprivate`, so the view cannot settle the pane without a ticket — and the existing tests had to go through the ticketed API, which is the point.
+
+CANARIED:
+- the old path-equality rule in place of the ticket -> "a listing from before the delete settled the pane after the one that followed it" and "the deleted file came back". Two further failures in the same run are an artefact of approximating the old guard with the host's canonical path rather than the requested one, and are not the defect.
+- `navigate` not retiring the request -> "a reply for where the human was moved them back there"."""]
+
+[[content.acceptance_criteria]]
+text = "each listing request supersedes every earlier one, and only the reply to the request still outstanding may settle the pane"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "leaving a directory retires the outstanding request, so a reply for the place being left cannot move the human back before the next request goes out"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "settling the pane without the ticket is not expressible outside the model — the untagged arrive and fail are file-private"
+status = "done"
+category = "changed"

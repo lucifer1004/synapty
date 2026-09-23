@@ -1,0 +1,62 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-013"
+title = "feat(wake): RFC-0005 — wake candidates, state-gated injection, receipts"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0005",
+    "RFC-0008",
+]
+depends_on = ["WI-2026-08-11-012"]
+
+[content]
+description = "RFC-0005 implementation over the WI-2026-08-11-012 substrate. Hub: wake candidates on the identity-keyed mailbox's empty->non-empty edge (including the registration/re-home-with-mail fresh-edge rule), cancellation on self-read/unregister/generation-change, wake receipt events (delivered/stalled/cancelled, generation-carrying) under the C-EVENT-LOG extensibility rule. GUI: per-pane arming (default OFF, visible affordance, persists with session snapshot per C-AUTHORITY as finalized), state gate (idle/done only, fresh re-sample, foreground-process check, ~3s human-typing backoff, waiting ABSOLUTELY prohibited), injection via ghostty_surface_text + separately-sent Enter after ~300ms (bracketed-paste aware, no focus theft), fixed template zero interpolation, closed-loop ack (working edge within 5s else wake-stalled, one retry after gate reopens, then badge the human). Depends on WI-2026-08-11-012 (mailbox location + identity)."
+notes = [
+    "Scope decisions: (1) tools WITHOUT a detection manifest cannot be woken in V1 — the gate requires a fresh manifest-backed classification and closes on nil (C-STATE-GATE cannot-see-clearly); covered tools = the 19 shipped manifests. (2) cli-tmp targets never mint candidates (C-MAILBOX carve-out keeps them on the push path; they host no panes). (3) C-INJECTION-MECHANICS bracketed-paste wrap is a SHOULD and is not implemented: ghostty_surface_text submits through the surface's live input encoding, satisfying the MUST; the template is single-line plain ASCII. (4) Armed-bit snapshot persistence rides WI-014's session snapshot — no snapshot exists yet, the bit lives in pane state. (5) Ack accepts ANY observed status change inside the window (RFC: working edge or any lifecycle change). (6) Hub keeps a stalled candidate outstanding — retry/badge discipline is workbench-side; mailbox drain or generation end cleans up.",
+    "Live-smoke finding #1 (2026-08-11): SPEC-LEVEL CONFLICT between RFC-0004 C-PRECEDENCE and RFC-0005 C-STATE-GATE as originally finalized. A freshly registered at-rest claude never leaves merged=unknown (passive done rejected — rule 4 requires working/waiting prior; passive idle always inert), so the original gate (merged must be idle|done) could NEVER open for the fresh-edge scenario — wake exists to create the first turn but demanded evidence only a previous turn could produce. Event-trail proof: identity upgrade + wake_candidate all correct, zero agent_status_changed (every passive done silently rejected), 30s+ of unknown while claude sat at rest with title '✳ Claude Code'. Fix: C-STATE-GATE amended (folded into the 0.1.0 spec-phase candidate) — merged demoted to veto channel (working/waiting), fresh sample stays the mandatory positive evidence. C-PRECEDENCE untouched (attention semantics intact — the status bar honestly shows unknown until the first turn).",
+    "Live smoke PASSED (2026-08-11 ~18:40): claude-0017af01 (SessionStart hook, durable identity) at rest in an armed pane; dm queued {queued,hosted} -> wake_candidate(gen=3) -> amended gate opened (fresh sample done, merged unknown passes veto) -> template injected + Enter -> working edge on BOTH channels within 3s (explicit UserPromptSubmit hook + passive title spinner) -> wake_delivered(gen=3) on the event log -> woken claude drained the mailbox via synapty recv and acknowledged in-pane. Disarmed-silent proven in the earlier phase (candidate stayed pending, zero receipts). Screenshot + full event trail in session records. RESIDUAL FINDING (filed separately): seq-10 shows the UserPromptSubmit explicit working landed on the STALE pane id local-e4bd — the wrapper daemon stamps forwarded agent_status with its startup registration id, not the bound identity; harmless here (passive channel carried the durable id) but it resurrects phantom registry entries.",
+]
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-WAKE-TRIGGER hub side — exactly ONE wake_candidate event per mailbox empty->non-empty transition (further mail into a non-empty box emits nothing); registration/re-home/bind with waiting mail counts as a fresh edge; candidates cancelled (wake_cancelled) on self-read-to-empty, unregister, and generation change; registry tests prove every path"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-WAKE-ACK receipts — wake_delivered/wake_stalled recorded on the hub event log via a new workbench wake_report envelope; ALL wake events carry the recipient registration generation; kinds extend RFC-0004 C-EVENT-LOG under its extensibility rule"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-STATE-GATE (as amended 2026-08-11) — fresh manifest-backed re-sample in {idle,done} is the mandatory POSITIVE evidence; merged status is a VETO channel (working/waiting block, waiting absolute on both channels); merged unknown alone does not block (C-PRECEDENCE parks fresh at-rest agents at unknown — the original both-channels-rest gate made fresh-edge wake undeliverable, found in the first live delivery attempt); child-process liveness verified; ~3s human-typing backoff; pure gate function unit-tested per prohibition"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-TEMPLATE + C-INJECTION-MECHANICS — fixed single-line template with ZERO interpolation ('[synapty] You have unread A2A messages. Run: synapty recv'); ghostty_surface_text then a separately-encoded Enter key event after ~300ms; no focus theft; at most one injection in flight per pane"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-WAKE-ACK closed loop — working edge within 5s => wake_delivered; else wake_stalled; at most ONE retry after the gate re-opens; a second stall badges the human and stops; ack state machine unit-tested"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "RFC-0005:C-AUTHORITY — wake armed per pane, default OFF, armed pane visibly marked in the GUI, disarm takes effect immediately and cancels pending candidates; armed bit lives in pane state so it rides the WI-014 session snapshot when that lands"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "zig + Swift suites green; jj commit per slice"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "live dogfood smoke — an ARMED pane wakes on a real dm (candidate -> gate -> typed template -> Enter -> working edge -> wake_delivered on the event log), and a disarmed pane stays silent; requires the user-approved rebuild+relaunch (running app is the pre-WI-012 binary)"
+status = "done"
+category = "chore"

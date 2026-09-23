@@ -1,0 +1,33 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRIOR-ART"
+title = "Prior Art — herdr's agent prompt"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+herdr (terminal agent runtime, Rust, Apache-2.0; studied 2026-08-11 from a
+local checkout) ships the closest production implementation of typed
+injection and supplied this RFC's empirical constants:
+
+- `agent prompt` submits text and a separately-encoded Enter while honoring
+  the pane's live bracketed-paste mode; Enter trails by 300ms
+  (`AGENT_PROMPT_SUBMIT_DELAY`). Adopted in C-INJECTION-MECHANICS.
+- A prompt sent from a non-working state must produce an observed lifecycle
+  change within 5 seconds or the API returns `agent_prompt_stalled` —
+  injection with a receipt. Adopted as C-WAKE-ACK.
+- Before typing, the server validates the target is a recognized agent AND
+  still the pane's foreground process. Adopted in C-STATE-GATE.
+- herdr does NOT gate on target state (it types into working/blocked panes
+  too). It can afford permissiveness because its callers are LLMs that can
+  read the target screen before deciding to type; the skill instructs them
+  to do exactly that. Synapty's wake initiator is the workbench itself —
+  machinery with no judgment at injection time — hence the strict gate in
+  C-STATE-GATE. Same mechanism, different trust geometry.
+- herdr has no mailbox: messaging IS injection. Synapty deliberately keeps
+  [[RFC-0003]]'s out-of-band mailbox and reduces injection to a content-free
+  doorbell (C-TEMPLATE) — the layering the two dogfooding agents converged
+  on in issue #2."""

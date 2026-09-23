@@ -1,0 +1,96 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-003"
+title = "The five-platform deploy list existed as nine literals, and the quiet direction had the CLI deploying where the workbench offered nothing"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["ADR-0008"]
+
+[content]
+description = '''
+The same five platforms were written out in nine independent places:
+`build.zig`'s cross-compile tuple; `just deploy-all`; the packaging loop
+in the justfile; the same loop again in `project.yml`; `host.zig`'s
+uname→directory table; `host.zig`'s "Supported:" prose;
+`HostBinary.swift`'s uname→directory map in Swift; and two tests that
+each asserted a fixed five.
+
+NEITHER TEST COULD NOTICE A SIXTH. That is what made the drift silent.
+
+AND THE QUIET DIRECTION IS THE DANGEROUS ONE. Add a target to
+`build.zig`, the justfile, `project.yml` and `host.zig` and miss
+`HostBinary.swift`, and `synapty host-setup` deploys to that machine from
+the terminal while the workbench offers it nothing:
+`WorkspaceManager` takes the nil branch, `ok` stays false, `HostBinary`
+never uploads, and nothing anywhere says why. Both suites stay green.
+
+TWO OF THE NINE HAD ALREADY DRIFTED IN FORM. The "Supported:" sentence
+said `Linux/aarch64` where `uname -sm` — and the table that actually
+decides, two hundred lines above it — say `Linux aarch64`. A human
+comparing what their machine reports against what the tool claims to
+support was reading two different notations.
+
+WHAT REPLACED THEM. `src/deploy_targets.zig` holds the list once, as
+`{name, uname, arch, os, abi}`. `build.zig` creates the steps from it;
+`cli/host.zig` maps and derives its sentence from it; a new `zig build
+deploy` step depends on every target so `just deploy-all` names none; and
+the build writes `zig-out/deploy-targets.txt` as `<directory>\t<uname>`
+so the two packaging shells iterate it instead of repeating it.
+
+THE SWIFT SIDE IS HELD TO IT THROUGH THE ARTIFACT, because that is what
+the two languages share. `testEveryTargetTheBuildProducedIsMapped` reads
+the manifest and requires `deployTarget` to send each produced uname to
+the directory the build made for it — so it keeps no list of its own, and
+a target the build produces that the map cannot reach fails with the
+machine named. Canaried by dropping one platform from the Swift map: it
+fails saying "the build produced linux-riscv64 for a machine reporting
+Linux riscv64, and this map does not send it there".
+
+AND THE ROW THAT REFUSES IS EXERCISED NOW. `FAKE_PLATFORM` sat in the
+host-setup stub with nothing ever setting it, so every case answered
+`Linux x86_64`: one row of five, and the `null` return — the branch that
+decides a host gets no binary at all — was reached by nothing. A case
+answers `SunOS sun4v` and requires the refusal to name the platform, to
+list the supported ones in the notation `uname` uses, to send no binary,
+and not to report `SETUP_OK`.
+
+Found by the ssot-gov and ssot-shell passes of the 2026-09-10 SSOT/Occam
+round.'''
+
+[[content.acceptance_criteria]]
+text = "src/deploy_targets.zig holds the platform list once, with the uname each target answers to"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "build.zig, cli/host.zig and the Supported: sentence all derive from that list rather than repeating it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a zig build deploy step that depends on every target, so just deploy-all and project.yml name none"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the build writes zig-out/deploy-targets.txt so the two packaging shells iterate the list instead of repeating it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the Swift map is checked against the artifact the build produced, so it keeps no list and a missed target fails with the machine named"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the Zig test walks every target rather than three of them"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the unsupported-platform branch is exercised — it must name the platform, list the supported ones as uname reports them, send nothing, and not claim SETUP_OK"
+status = "done"
+category = "chore"

@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-001"
+title = "feat(workspaces): one grammar at both levels — closing a pane ends it, archiving a pane puts it away"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-03"
+completed = "2026-09-03"
+
+[content]
+description = """
+The two levels spoke opposite languages. A workspace's close ended what
+ran in it (after the question that counts machines) and its archive put
+it away with everything still running; a pane's close SET IT ASIDE — a
+detach under another name — and ending lived only on a row in the
+sidebar's Still running list. So every durable pane cost two gestures in
+two places to be done with, and the same ✕ meant "end" one level up and
+"keep" one level down. The user named it: a session should not need
+closing twice.
+
+[[ADR-0019]] reverses the pane-level answer and unifies the vocabulary:
+archive is one concept at two granularities. Closing a pane ends it —
+asking first, as terminals do, only when a foreground process is running,
+and offering Archive as the default button of that question; a pane with
+only its shell in the foreground closes without a word. Archiving a pane
+is what set-aside was: leaves the layout, keeps running, stays listed
+under the workspace it belongs to, returns on unarchive. Connection
+release follows the meaning — an archive is a stated decision and
+releases at once, a close is everyday churn and keeps [[RFC-0015]]
+C-RELEASE's grace. [[RFC-0015]] C-PANE-ARCHIVE supersedes C-SET-ASIDE;
+C-ARCHIVE now speaks of a pane or a workspace. The holder's two acts,
+detach and end ([[RFC-0014]] C-DETACH), are unchanged and now both sit
+on the pane itself. Unreleased: the snapshot field is renamed, not
+migrated."""
+
+[[content.acceptance_criteria]]
+text = "WorkspaceManager.closePane ends the pane's session (remote through the holder's end, local through synapty end) and removes it; archivePane does what set-aside did; closePaneAsking asks only when the pane's foreground has a process and offers Archive (default) / Close / Cancel; a terminal whose shell is the foreground closes without asking; one answer for local and remote panes"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "feat: the tab offers both acts — ✕ closes, ⌥-click ✕ and the context menu archive, the hover text names both — and the keymap carries workspace.archive-pane (⌥⌘W) beside workspace.close-pane. The model and the decision are unit-tested; the gestures themselves were not driven live in this session (the terminal is not allowed to send keystrokes) and are the one thing left for a hand check"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "archiving a pane releases the connection nothing open still references at once, as archiving a workspace does; closing keeps the grace period; archived panes and archived workspaces share one vocabulary in the sidebar (Archive / Unarchive / End) and the snapshot field is archivedPanes"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[ADR-0019]] records the reversal and its alternatives; [[RFC-0015]] C-PANE-ARCHIVE supersedes C-SET-ASIDE and C-ARCHIVE covers both granularities; every reference in code, tests and docs follows"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the closing decision (ask / close / archive) is a pure function with tests; SetAsideTests become PaneArchiveTests and cover close-ends, archive-keeps, the release timing of each, and the round trip; both suites green"
+status = "done"
+category = "chore"

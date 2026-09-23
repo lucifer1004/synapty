@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-23-007"
+title = "A tool request from a peer this side cannot reach is answered to the local hub"
+status = "done"
+created = "2026-09-23"
+started = "2026-09-23"
+completed = "2026-09-23"
+refs = ["RFC-0009:C-WAKE-LOCALITY"]
+
+[content]
+description = """
+`AgentMonitor` passes every tool request on with the port of the hub that sent it, and its own note says why: "the answer has to go back to the hub that is holding the request parked. Replying to the local hub instead drops the receipt ('requester gone') and leaves the agent blocked forever."
+
+THE CODE BELOW THAT NOTE DID EXACTLY THAT, SILENTLY. `peerPorts[machine] ?? port` fell back to the local hub's port whenever the sending peer's was not known. It is reachable: events are dispatched to the main thread asynchronously, so one already queued can be delivered after `forgetPeer` has dropped that machine's port.
+
+AND THE LOCAL PORT DEFAULTED TO 9000 before `startMonitoring` set it — the number WI-2026-09-10-008 took out of seven places because it must never stand in for "no hub". Nothing is meant to read it before then, which is the argument that stops being true one edit later.
+
+THE TESTS COULD NOT SEE ANY OF IT. The two tool-request tests delivered events for a peer they had never attached, and passed only because the fallback handed the reply to the local hub. Nothing asserted which port an answer went to."""
+notes = ["""
+`port` is `Int?`; `connect()` guards it. A request whose holding hub has no known port is dropped with an `AppLog.agentMonitor.error` naming the machine. The two existing tests now `attachPeer` first; `attachPeer` only records the port while monitoring is off, so no socket is opened.
+
+CANARIED: the fallback restored -> "a request from a hub this side cannot reach was answered to another one".
+
+ALSO NOTED: `-only-testing:SynaptyTests/AgentMonitorTests` ran zero tests and reported success — the file's classes are named otherwise. The run that counts named `AgentMonitorParserTests`."""]
+
+[[content.acceptance_criteria]]
+text = "a reply goes to the hub holding the request, or is not sent — never to a different hub"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the local hub's port is absent until it is known, rather than 9000"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "which port an answer goes to is asserted, and the existing tests attach the peer they receive from instead of relying on the fallback"
+status = "done"
+category = "chore"

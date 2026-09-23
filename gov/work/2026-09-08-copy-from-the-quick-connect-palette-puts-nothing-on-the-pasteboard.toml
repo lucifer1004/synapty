@@ -1,0 +1,132 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-010"
+title = "Copy from the quick-connect palette puts nothing on the pasteboard"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-15"
+refs = ["RFC-0016:C-DISPATCH"]
+
+[content]
+description = """
+REPRODUCED, NOT FIXED, AND NOT MINE FROM TODAY — but mine, like the rest of
+this tree.
+
+`testCopyAndPasteWorkInAWorkbenchTextField` fails consistently, alone and
+in the suite. The file's own header says what it is for: "If the chord is
+being taken before the field sees it, the taker is not in either view."
+
+WHAT WAS RULED OUT, WITH EVIDENCE:
+
+- NOT the typing. A screenshot at the moment of failure shows `copyme` in
+  the palette's field with the cursor after it, the menu bar reading ABC,
+  and no permission dialog anywhere. The text arrived.
+- NOT a pasteboard the test may not READ. A probe printed
+  `changeCount 5161 -> 5162` and `types: []`. The single increment is the
+  test's own `clearContents()`; the pasteboard is EMPTY, not unreadable. So
+  nothing was copied, rather than something being copied and hidden.
+- NOT the input method. Ruled out by the same screenshot: ABC was active.
+- NOT the environment being busy. It fails alone on a quiet machine.
+
+WHERE IT IS NOT. `Keymap.resolve` looks correct on inspection.
+`terminal.copy` is `domain: .terminal, yieldsToTextEntry: true`; the
+palette's field is neither a terminal leaf's text entry nor a
+`GhosttyNSView`, so `focusedSurface()` answers `.other`, and the `.other`
+branch of the `.terminal` case returns `.toResponderChain`. The dispatcher
+yields. So the chord is lost further along than the table — in what the
+responder chain does with it, or in whether the Edit menu's key equivalent
+reaches the field at all. `KeyCommandTable`'s own comment says that key
+equivalent IS the mechanism by which ⌘C reaches a text field on macOS.
+
+IT WAS INVISIBLE BECAUSE THE SUITE COULD NOT RUN. Like
+[[WI-2026-09-08-007]], this surfaced the first time the UI tests were run
+against an unlocked screen. Four of that batch were the tests being wrong;
+this one is the app being wrong, and the two were indistinguishable while
+neither could run."""
+notes = [
+    """
+LEFT OPEN DELIBERATELY, AND THE STATE OF THE INVESTIGATION IS ABOVE SO THE
+NEXT PASS DOES NOT REPEAT IT. Four causes are eliminated with evidence and
+the dispatcher is cleared on inspection; what is not yet known is what
+happens to ⌘C after `.toResponderChain`.
+
+IT IS ITS OWN PIECE OF WORK. This is the keyboard-dispatch area, it is
+governed by [[RFC-0016]] C-DISPATCH, and it is not a loose end of anything
+done today — reaching for it at the end of a long session is how the next
+defect gets made. The test is left failing rather than weakened, because a
+red test reporting a real defect is worth more than a green one that
+stopped asking.""",
+    """
+SECOND PASS, 2026-09-14: NOT ADVANCED, AND TWO THINGS RULED OUT SO THE THIRD DOES NOT REPEAT THEM.
+
+THE TEST NO LONGER REACHES THE DEFECT ON THIS MACHINE. It now fails at line 18, `field.click()`, with "is not hittable" — the element exists with a sane frame ({{3599, 218}, {465.5, 18}}) inside a 5120-point desktop, so it is not off-screen. Nothing was typed and the pasteboard assertion was never reached, which means a run that ends red here says nothing about copy. Two 5120x2880 displays are attached; the previous pass's evidence was gathered without that.
+
+THE IGNORED `sendAction` RESULT IS NOT THE BUG, and it looks like one. `KeyDispatcher` does `NSApp.sendAction(copy:, to: nil, from: nil)`, discards the Bool, marks the keystroke answered and returns nil — so a chord that finds no responder is swallowed with nothing done. Returning the event instead would let Terminal ▸ Copy fire, which copies the TERMINAL's selection while the human is in a non-terminal surface: exactly the defect the branch's own comment records fixing. Swallowing is correct; the discarded Bool is not a lead.""",
+    """
+THIRD PASS, 2026-09-15: STILL NOT REPRODUCED, AND THE MECHANISM IS NOW MEASURED RATHER THAN INSPECTED.
+
+WHAT WAS MEASURED, IN THE RUNNING APP with the palette open (`--quick-connect --quick-connect-query copyme`), written to a file by a temporary probe since `log show` did not carry os_log from it:
+
+- `active=true key=true fr=SwiftUI._SystemTextFieldFieldEditor sel={0, 6} text=6`.
+
+So THREE of the remaining hypotheses die at once. The field editor IS the key window's first responder, which is what `NSApp.sendAction(copy:, to: nil, from: nil)` resolves from. The text is ALREADY fully selected when the palette opens — SwiftUI selects a prefilled query on focus — so the previous pass's reading of the failure screenshot ("the cursor after it", i.e. no selection) does not describe this build. And the menu bar carries Edit ▸ Select All (⌘A) and Edit ▸ Copy (⌘C), so neither chord is homeless.
+
+FOUR ROUTES TO A REAL KEYSTROKE, ALL BLOCKED HERE, each for a different environmental reason:
+1. The UI suite fails one line earlier at `field.click()` with "is not hittable".
+2. An in-process XCTest cannot become the front application, so `NSApp.keyWindow` is nil and `sendAction(to: nil)` has no chain to walk — measured, `key=nil main=nil target=nil`.
+3. `window.makeMain()` does not help: `NSApp.mainWindow` stays nil in the test host, so the documented fallback is unreachable too.
+4. `osascript` is refused: "osascript is not allowed to send keystrokes" (-1002), which needs an Accessibility grant only a human at the machine can give.
+
+AND POSTING SYNTHETIC EVENTS INTO THE APP'S OWN QUEUE reached the same wall: the trace shows `active=true` before the first post and `active=false key=false fr=nil` after it, so every failure the probe produced is explained by the app losing front, not by the code.
+
+WHAT WOULD UNBLOCK IT: an Accessibility grant for the automation driving the keys, or a UI-test environment where the palette is hittable. Nothing in the app's own reasoning is left unchecked — the dispatcher, the responder chain, the selection and the menu have each been measured and each is what it should be.""",
+    """
+FOURTH PASS, 2026-09-15: REPRODUCED, AND THE QUESTION HAS MOVED.
+
+THE UI SUITE RUNS AGAIN, AND THE BLOCKER WAS WINDOW PLACEMENT. The third pass reported the field as "not hittable" at x=3599. Measured this time: two 2560x1440-point displays side by side, so x=3599 is the SECOND one — the window had been restored onto it. With the window at (0, 30, 2560, 1410) the field reports hittable=true and the suite reaches the assertion it exists for. Nothing about the app changed; what was read as an environment that could not run the test was a window remembering where it had been.
+
+THE DEFECT IS CURRENT AND INTERMITTENT: seven passes and two failures over nine runs here.
+
+AND ON A FAILING RUN THE DISPATCHER DOES EXACTLY THE RIGHT THING. Instrumented, the trace for the copy chord reads identically on a passing and a failing run: surface=other, outcome=toResponderChain, first responder = SwiftUI._SystemTextFieldFieldEditor, and the platform verb is performed and reports success against that same responder. The only way that leaves the pasteboard empty is an EMPTY SELECTION — which moves the question from "where does the copy chord go" to "why is there no selection when it runs".
+
+WHAT MAKES THE SELECTION, AND WHY IT IS NOT ORDERED WITH THE COPY. Select-all is not in the table, so the dispatcher returns the event and the selection is made by Edit ▸ Select All, a MENU key equivalent. Copy IS in the table and yields, so the dispatcher performs the platform verb ITSELF, synchronously, inside the monitor. Two chords pressed back to back are executed by two different mechanisms, and the test gives them no interval. On a passing run the Edit menu's Cut and Copy items read enabled=true by the time the copy chord is dispatched — a selection exists. That enablement is the discriminating probe for the next pass.
+
+AND THE PLATFORM-VERB WORKAROUND IS LOAD-BEARING, not vestigial. Measured from the live menu bar: Edit ▸ Copy and Edit ▸ Paste carry NO key equivalent, while Terminal ▸ Copy and ▸ Paste carry the table's chords. So without the dispatcher performing the platform verb, copy in a text field would reach Terminal ▸ Copy — the defect its comment records fixing.
+
+INSTRUMENTATION MAY BE MASKING IT. Each probe writes a file between events, and the three runs immediately after the probe went in all passed. A next pass should confirm the failure rate WITHOUT file writes — accumulate in memory and dump once at the end.
+
+NOT YET KNOWN: whether a human can hit this. If the two mechanisms really are unordered, holding the modifier and pressing the two keys quickly would reproduce it outside the test; if it is XCUITest's synthetic event delivery, then it is the suite's and the product is sound. That is the one question left, and it decides whether this work item is about the app or about its test.""",
+    """
+FIFTH PASS, 2026-09-15: EXPLAINED. THE COPY WORKS; THE TEST WAS NOT ISOLATED FROM THE MACHINE'S KEYBOARD.
+
+THE FAILING RUN'S TRACE, with the probe finally off the event path — appending to an array on the keystroke and writing from a queue of its own on a timer, because every earlier version wrote a file between the two chords and every run with one in place passed:
+
+  chord=character("a") mods=1  surface=other outcome=toResponderChain
+  chord=character("x") mods=0  surface=other outcome=toResponderChain
+  chord=character("i") mods=0  surface=other outcome=toResponderChain
+  chord=character("a") mods=0  surface=other outcome=toResponderChain
+  chord=character("c") mods=1  surface=other outcome=toResponderChain
+    sendAction(copy:)=true
+
+Three plain characters arrived BETWEEN the select-all and the copy, and this test sent none of them. Typing replaces a selection, so by the time the copy chord arrived the field held "xia" with a caret after it and nothing selected — and the platform verb correctly copied nothing. A UI suite drives the REAL keyboard, so anything typed anywhere on the machine while it runs lands in the application under test.
+
+THAT ACCOUNTS FOR EVERY OBSERVATION: the intermittency, a failure rate that moved between 0 of 20 and most of a batch, the quiet run with no failures at all, and XCUITest's own "Failed to synthesize event: Timed out while synthesizing event" — contention for the same event system.
+
+AND THE PRODUCT IS EXONERATED BY THE SAME TRACE. On the failing run the dispatcher resolved the chord to the responder chain, found the SwiftUI field editor, and performed the platform verb, which reported success — identical, line for line, to a passing run. Nothing it did was different; what differed was what it was asked to copy.
+
+WHAT CHANGED IN THE TEST, AND WHY IT IS NOT A WEAKENING. The assertion now carries what the field holds at the moment it fails. A contaminated run says so — "the field now reads 'xia'" — instead of reporting that copy went somewhere else. The field is read AFTER the copy and not before it, deliberately: a read between the two chords inserts a delay, and a delay is the one thing that would hide a real race if one exists. The happy path is untouched and the test can still report a real copy defect.
+
+WHAT IS NOT PROVEN: that no race exists at all. The two mechanisms remain asymmetric — select-all is performed by a menu key equivalent and copy by the monitor itself — and this pass found no evidence either way, because every failure it captured is explained by input from outside. A future pass with a genuinely quiet machine would settle it; the discriminating probe is the Edit menu's Cut item reading enabled at the moment the copy chord is dispatched.""",
+]
+
+[[content.acceptance_criteria]]
+text = "copy from a workbench text field puts what was selected on the pasteboard"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the existing UI test passes without being weakened — it is reporting a real defect and must go on being able to"
+status = "done"
+category = "chore"

@@ -1,0 +1,23 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-UNRELEASED"
+title = "No Compatibility Until There Is Something To Be Compatible With"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Synapty is unreleased. The only arrangements on disk are the ones its own development wrote, and no human has work in it that a launch may not discard.
+
+So this document requires NO conversion path, and none should be written. A store the current version does not recognise is discarded and the workbench opens fresh. The persisted shape carries a version so that the first shipped release has something to migrate FROM; until then, bumping it IS the migration.
+
+THIS IS A STANDING RULE RATHER THAN AN OBSERVATION ABOUT ONE FILE. A converter is not free: it is code, its tests, the fixtures those tests need, and a second shape every later change has to keep working. Paid before anybody can benefit, it buys nothing and slows every subsequent change to the thing it protects.
+
+Two things are NOT covered by this and must not be deleted under it:
+
+- A DECODER WRITTEN OUT BECAUSE DEFAULTS AND ABSENT OPTIONALS ARE ORDINARY. Swift's synthesised decoder ignores a property's default and throws on a missing key, while its encoder omits nil optionals — so a hand-written `init(from:)` is often load-bearing for records the CURRENT version wrote. The host records on this machine are the case in point: two fields appear in none of them.
+- ANYTHING PROTECTING DATA THE HUMAN CANNOT RECREATE. Host definitions, credentials and identities are typed in by hand and are not development's leavings. Layout is; a workspace arrangement can be rebuilt in seconds.
+
+The rule reverses on the first release, and this clause is where a reader should expect to find that said."""

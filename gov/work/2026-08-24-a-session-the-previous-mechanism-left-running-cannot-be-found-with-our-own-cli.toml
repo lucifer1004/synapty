@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-24-003"
+title = "A session the previous mechanism left running cannot be found with our own CLI"
+status = "done"
+created = "2026-08-24"
+started = "2026-08-24"
+completed = "2026-08-24"
+refs = ["RFC-0014"]
+
+[content]
+description = """
+RFC-0014 C-CUTOVER requires both halves: a session created by the mechanism the current client cannot speak to 'MUST remain enumerable AND endable on its host by this project's command-line interface.'
+
+ENDABLE IS DONE. RemoteAgentSession.kill issues the tmux teardown beside the holder one, so closing a workspace ends a session of either kind — the fix that stopped stranding them.
+
+ENUMERABLE IS NOT. 'synapty sessions' walks the holder records in <config>/machine/sessions and nothing else. A tmux session named synapty-<agent-id>, left by the previous release, has no record and therefore does not appear — so the human whose host is holding one has no way to find it with our CLI, which is the whole point of the clause. The previous mechanism's own failure mode was 'sessions nobody could address, found later in their dozens' — thirty-five of them on remotehost, the oldest four days old — and enumeration is what makes that discoverable rather than archaeological.
+
+The clause is written in general terms deliberately: it outlives this particular migration, so the answer is a listing that can report a session of a kind we do not speak, marked as such and not offered as attachable."""
+notes = ["""
+Ending from the CLI turned out to be missing too, so it is here: 'synapty end --id <name>' falls through to the tmux teardown when there is no record and no socket. What was done before was the WORKBENCH's close path issuing it over ssh — which meant these could be destroyed and not found, the exact inversion of the clause. Enumerable and endable now hold from the same tool.
+
+Two more things the work surfaced: the listing returned early when the state directory was absent — a machine that has never run a holder, which is precisely the machine most likely to be holding a session of the previous kind — and tmux has to be looked up through a shell, since spawn takes a program rather than a name to find and tmux lives wherever the host put it.
+
+Covered in the holder e2e: a real tmux session under this project's name is listed and marked, a session the human named themselves is NOT listed, and end reaches it. Mutating the name filter away, or marking the row attachable, each turns the script red. A host without tmux skips."""]
+
+[[content.acceptance_criteria]]
+text = "'synapty sessions' lists a session left by the previous mechanism alongside the holders, marked as a kind this client cannot attach to"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "nothing offers such a session as attachable — listing it is not offering it"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "covered by a test that puts a legacy-named session to the listing without one running"
+status = "done"
+category = "chore"

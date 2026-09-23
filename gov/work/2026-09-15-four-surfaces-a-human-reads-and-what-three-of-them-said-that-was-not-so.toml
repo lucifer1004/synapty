@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-15-002"
+title = "Four surfaces a human reads, and what three of them said that was not so"
+status = "done"
+created = "2026-09-15"
+started = "2026-09-15"
+completed = "2026-09-15"
+refs = [
+    "RFC-0003:C-CLI-TOOLS",
+    "RFC-0015:C-FAILURE",
+    "RFC-0013:C-PRIMITIVES",
+]
+
+[content]
+description = """
+The half of the human-surface axis that was never run. That agent delivered three batches and died to an API timeout naming four areas it had not reached: sidebar rows, host grid readiness, notifications and the approval sheet, and the CLI's help text. Those were EMPTY rather than clean. Done directly, and measured.
+
+THREE FLAGS THAT WORK AND NOTHING TELLS A HUMAN ABOUT. `task list` takes `--project` and `--state`, `task create` takes `--body`, `channel create` takes `--description` — and `synapty task --help` named six verbs and zero options, while `synapty task list --help` answered with the same banner. The cause is the shape this round keeps finding: a second list. Every other subcommand's flags come from `types.paramsFor`, which the parser parses and `--help` prints, so they cannot disagree; these three were inline strings inside `parseArgs`, where nothing could print them. The table carries verbs now, and the coupling is structural — removing a flag from it is a compile error at the parser, which is the canary.
+
+WHAT IS NOT PINNED, SAID PLAINLY: that the renderer still prints the verbs. A future edit could delete that loop and the parser would not care. The test covers the table and the parser; the printing is covered by nothing, because `printSubcommand` writes to stdout and there is no help e2e to put it in.
+
+A DEFAULT ARM OVER A VALUE EVERY OTHER SWITCH TREATS AS EXHAUSTIVE. `LinkState` has nine states; `needsSidebarMark` and `sentence` name all nine, and the view that decides which BUTTON to offer said `default: return nil`. That is how `dropped` came to be the one state with no way back, refused silently on an argument nobody had to make. Each nil is now a decision the compiler makes somebody take.
+
+AN AGENT THAT HAD LEFT, REPORTED AS WAITING. `synapty ask` polls once a second until its `--timeout` and then gives up with exit 3 — and the question stayed in the service forever. The approval sheet went on saying "<who> is waiting on this", a human answering it unblocked nobody, and the badge stayed lit. That consequence is written down three hundred lines from the fix, for a DIFFERENT cause: a question with no options "the agent times out, and the badge stays lit for the life of the process", refused at the door. The same sentence, the other cause, unfixed.
+
+NO DEADLINE ON THE WIRE, because the asker already says it is waiting — once a second, by polling for the answer. A second copy of the fact in the payload could only disagree with the polling. An agent that re-asks after giving up gets the same question id back and its next poll brings the card with it.
+
+HOST GRID READINESS CAME BACK CLEAN, and the claim was checked rather than taken. `HostFailureMarks.readiness` marks only a terminal gap and says the deploy gap is spoken by `describe` instead — that holds: `accessibilityPhrase` reads `summary`, which falls through to the deploy gap when there is no terminal one.
+
+LOOKED AT AND LEFT: `TransferService.announce` renders a failure as "<name> — <why ?? "">", so a call with no reason would read as a dangling dash. The only failing caller passes a non-optional reason, so the empty state is reachable only by misusing the signature; recorded rather than restructured."""
+
+[[content.acceptance_criteria]]
+text = "a verb's flags are declared in the table --help prints from, so task list, task create and channel create stop having options nothing tells a human about"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the link strip's retry decision is exhaustive over LinkState, like every other switch over that value, so a tenth state cannot inherit 'no way back' in silence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a question whose asker stopped polling leaves the queue, so the approval sheet no longer says an agent that has left is waiting and the badge no longer stays lit for the life of the process"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the parser accepts each verb flag AND the table the help prints from names it — either alone is satisfiable by a lie"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a question comes back when its asker re-asks and polls again, and an answered one still reaches the agent that asked for it after the waiter goes quiet"
+status = "done"
+category = "chore"

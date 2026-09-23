@@ -1,0 +1,87 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-03-015"
+title = "Double-clicking the title bar does nothing again"
+status = "done"
+created = "2026-09-03"
+started = "2026-09-04"
+completed = "2026-09-04"
+refs = ["WI-2026-08-15-007"]
+
+[content]
+description = """
+Double-clicking the title-bar strip did nothing, and had never worked — the
+human's own answer when asked was that it has never once done anything, while
+every other application zooms.
+
+THREE CAUSES, AND ONLY THE THIRD EXPLAINS WHY IT KEEPS COMING BACK.
+
+1. GEOMETRY. The catcher was never in the strip it is named for. Measured
+   from the running app: its band sat at y 1350..1378 in a window whose top
+   edge was 1410 — thirty-two points below. A background is clipped to the
+   view it decorates, and the content it decorates is inset by the window
+   safe area, which is exactly the band `fullSizeContentView` puts the hidden
+   title bar in.
+
+2. LAYERING IN THE SAME TREE. With the geometry corrected the strip still did
+   nothing over the content column, because `ContentView`'s
+   `.background(DS.background)` is a Color, Colors take clicks, and it covers
+   that column. Confirmed by experiment: with that layer passing clicks
+   through, the middle of the strip started working.
+
+3. A DIFFERENT TREE ENTIRELY, which is the one that matters.
+   `NavigationSplitView` builds its own `NSHostingView` inside an
+   `NSSplitView`, and a click there never reaches anything behind it. The
+   probe named it: `NSHostingView<…NavigationPaneModifier…> <
+   _NSSplitViewItemViewWrapper < NSSplitView`. No amount of
+   `.allowsHitTesting(false)` reaches a layer that is not in the same
+   hierarchy.
+
+So the catcher is no longer a view behind the content. It is a local event
+monitor: asked about every mouse-down in this process, whichever subtree the
+point lands in. Single clicks pass through, so the strip stays draggable, and
+the three standard window buttons are checked and left alone — a monitor that
+swallowed a double click on the close button would trade one missing
+behaviour for a worse one.
+
+WHAT THE FIRST DESCRIPTION CLAIMED IS WITHDRAWN. It named HostContextPanel
+from reading. A UI test disproved it: if only that column were covered the
+middle of the strip would work, and it did not.
+
+The exploratory fixes for (1) and (2) are NOT in this change. With the
+monitor in place they were reverted one at a time and the tests stayed green,
+so they had no evidence behind them."""
+notes = [
+    "THE SHAPE IS WHAT KEEPS FAILING, not any one layer. A catcher installed as the backmost background is correct only while every surface in front of it opts out of hit-testing, and that is a rule nobody is reminded of when adding a view. It has now been broken twice by ordinary work. An NSWindow-level handler — or a catcher installed as an overlay that forwards everything it does not want — would not depend on each new layer's manners. Worth weighing before adding a third `.allowsHitTesting(false)`.",
+    "NOT YET REPRODUCED HERE. The finding above comes from reading the view tree; nobody has double-clicked the strip on a running build to see which regions are dead. The screen on this machine was locked for most of the session, which blocks the UI test suite; it is unlocked now, so a UI test that double-clicks the strip and asserts the window zoomed is reachable and would both confirm the culprit and keep the third regression from being silent.",
+    "FOUR PROBES, FOUR DEAD ENDS, and which ones work is the finding worth keeping. xcodebuild does not capture the app's stderr under a UI test — zero app lines in the run log. `log show` does not surface the app's NSLog either, with or without `--info --debug`. Launching the app directly with stderr redirected DOES work, and is how the geometry above was measured. Synthesised CGEvent clicks are dropped silently: `AXIsProcessTrusted` is false here, and a control click over the app's own window left a different application frontmost. So the channel that can read the app cannot deliver a click, and the channel that can deliver one (XCUITest) cannot read the app. Breaking that deadlock — a diagnostic the app writes to a file of its own, say — is the first thing to do next, before touching any more product code.",
+    "THE TESTS SHIP RED, DELIBERATELY. Both are wrapped in XCTExpectFailure, so the suite stays green while recording that the feature does not work; when the second cause is fixed they will report an unexpected pass, which is the reminder to unwrap them. The assertion went through two useless forms before this one: zooming was not observable because the window restores a saved frame that already fills the screen, and shrinking it first did not work because the drag never caught the resize corner. Minimise is binary — the window is on screen or it is not — and that is what makes the red mean something.",
+    """THE COMMENT THAT SAID IT WAS FIXED WAS NEVER TRUE. `TitlebarDoubleClick.swift` recorded an earlier round as "complete, correct, wired, and unreachable", fixed by re-ordering a background. The human says the feature has never worked, so that round shipped a change nobody could have verified — there was no test, and the observable it would have needed (does the window move) is not observable when the window already fills the screen. That is why this work item's guard is a UI test with a binary assertion rather than another careful comment.""",
+    """TWO CRITERIA ARE CANCELLED RATHER THAN MET, and the distinction is the point. "A layer that only paints does not take clicks" and "the catcher's band covers the strip" were both written when the fix was expected to be a view sitting in the strip. The monitor never consults the view hierarchy, so neither is required — and the changes that would have satisfied them were reverted, one at a time, with the tests staying green each time. Ticking them because related code was touched at some point today would have recorded work that is not in the commit.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a double-click on the strip performs the human's AppleActionOnDoubleClick, over the context panel's column and over every other surface that reaches the window top"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a layer that only PAINTS the title-bar strip does not take clicks in it"
+status = "cancelled"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "reaching the catcher stops depending on every layer above it remembering to pass clicks through — the regression has happened twice and the second time nothing caught it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the catcher's band covers the title-bar strip rather than sitting below it — measured, not assumed"
+status = "cancelled"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a UI test double-clicks the strip and asserts on a binary observable, so the defect is reproduced rather than reasoned about"
+status = "done"
+category = "chore"

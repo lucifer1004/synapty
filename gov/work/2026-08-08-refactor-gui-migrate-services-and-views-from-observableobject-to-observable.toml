@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-048"
+title = "refactor(gui): migrate services and views from ObservableObject to @Observable"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit item #1: the service layer still uses the ObservableObject/@Published pattern (33 @Published across 6 services) although macOS 14 fully supports @Observable — per-property tracking avoids whole-object invalidation re-renders and removes the @Published/ObservableObject boilerplate; views bind via @Bindable. Migrate the six services (SynaptySettings, HostStore, TunnelManager, HubManager, AgentMonitor, TaskMonitor, TerminalPaneManager) and every observing view. Keep @MainActor, keep didSet hooks (WI-049 owns persistence). Behavior must be unchanged."
+
+[[content.acceptance_criteria]]
+text = "fix: all six services are @Observable (no ObservableObject/@Published)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: views use plain let for observation and @Bindable for bindings (no @ObservedObject/@StateObject)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 128 Swift tests still green"
+status = "done"
+category = "chore"

@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-004"
+title = "refactor(hosts): one record per host, so a concurrent edit can be merged instead of lost"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+Hosts are stored as one JSON array in ~/.synapty/hosts.json. That shape decides the ceiling on what any sync layer can do, before a sync layer is chosen.
+
+With one blob, two machines that edit anything concurrently produce two whole-file versions and one of them wins. That loses an unrelated host someone added on the other machine. With one record per host, concurrent additions of DIFFERENT hosts both survive as a set union, and a concurrent edit of the SAME host becomes a per-record conflict that carries enough information to merge field-wise — CloudKit hands back the original, the server copy and the client copy, and none of that helps if the record is the whole file.
+
+The likely editing pattern is exactly the bad case: a human adjusts a host on whichever Mac they happen to be at.
+
+Not a sync change. This is the storage shape that makes a sane sync possible, and it stands alone: even single-machine, per-record storage removes the whole-file rewrite on every edit and the corruption window that comes with it (the repo already carries a hosts.json.bak and a hosts-restore-source.json, which is what that window looks like from the outside)."""
+
+[[content.acceptance_criteria]]
+text = "hosts, groups and identities are stored per entity rather than as one document; editing one does not rewrite the others"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "existing hosts.json migrates without loss, and the migration is reversible or backed up before it runs"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a test covering concurrent edits to two different hosts, which is the case a whole-file store cannot survive and the per-record store must"
+status = "done"
+category = "chore"

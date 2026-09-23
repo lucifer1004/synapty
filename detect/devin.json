@@ -1,0 +1,90 @@
+{
+  "_attribution": "Rule content ported from the herdr project's battle-tested detection manifests (src/detect/manifests/devin.toml, Apache-2.0), remapped to RFC-0004 vocabulary: blocked->waiting, idle->done. Nested any/all conjunctions flattened into rule multiplication or regex alternations; osc_progress rules dropped (no channel); loosenings noted inline where exact fidelity was impossible.",
+  "tool": "devin",
+  "rules": [
+    {
+      "id": "workspace_trust",
+      "state": "waiting",
+      "region": "bottom(8)",
+      "all": [
+        "do you trust the authors of this directory?",
+        "with untrusted content.",
+        "yes, trust "
+      ]
+    },
+    {
+      "id": "permission_prompt",
+      "state": "waiting",
+      "region": "bottom(8)",
+      "all": [
+        "approve once",
+        "select",
+        "confirm",
+        "esc cancel"
+      ]
+    },
+    {
+      "id": "running_tools_working",
+      "state": "working",
+      "region": "bottom(8)",
+      "all": [
+        "running tools",
+        "esc to interrupt"
+      ],
+      "not": [
+        "approve once"
+      ]
+    },
+    {
+      "id": "guide_working",
+      "state": "working",
+      "region": "bottom(6)",
+      "contains": "guide devin while it works",
+      "not": [
+        "approve once"
+      ]
+    },
+    {
+      "id": "tool_reading_working",
+      "state": "working",
+      "region": "bottom(8)",
+      "all": [
+        "reading shell ",
+        "timeout:"
+      ],
+      "not": [
+        "approve once"
+      ]
+    },
+    {
+      "id": "welcome_prompt_idle",
+      "state": "done",
+      "region": "bottom(8)",
+      "all": [
+        "ask devin to build",
+        "features, fix bugs",
+        "your code"
+      ],
+      "lineRegex": "^\\s*❭ Ask Devin to build",
+      "not": [
+        "approve once",
+        "running tools",
+        "guide devin while it works"
+      ]
+    },
+    {
+      "id": "live_prompt_idle",
+      "state": "done",
+      "region": "bottom(6)",
+      "all": [
+        "context:"
+      ],
+      "lineRegex": "^\\s*❭",
+      "not": [
+        "approve once",
+        "running tools",
+        "guide devin while it works"
+      ]
+    }
+  ]
+}

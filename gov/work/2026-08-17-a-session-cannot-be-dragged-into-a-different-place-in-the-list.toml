@@ -1,0 +1,33 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-023"
+title = "A session cannot be dragged into a different place in the list"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+
+[content]
+description = """
+Tabs can be dragged into a different order. Sessions cannot, although the sidebar has carried the code for it since [[WI-2026-08-09-018]]: the rows sit in a `List` with `.onMove`, which is the documented way and does nothing here.
+
+THE SAME APP ALREADY KNOWS A WAY THAT WORKS. The tab bar does not use `.onMove` — it makes each tab an explicit drag source with `.draggable` and each tab a drop target with `.dropDestination`, plus one more target past the last tab so a tab can be dropped at the end. That is the mechanism the human can actually use, in this application, on this platform, today.
+
+So the sessions get the same treatment rather than a diagnosis of why the list's own affordance does not appear. The two lists then reorder by the same mechanism, which is also one fewer way for this to break differently in two places.
+
+NOT VERIFIED BY THE PARTY THAT WROTE IT. Dragging is a gesture, and the checks available here cannot make one — no accessibility permission, and a drag is not a state that can be poked into place. The unit tests cover what the drop does to the order; that the drag STARTS is the human's to confirm, and it is the half that was broken."""
+notes = [
+    "2026-08-17: The first criterion is the human's to confirm — a drag cannot be made from here (no accessibility permission, and it is a gesture rather than a state). What is verified: the drop's effect on the order, and that the app builds with the exported type declared.",
+    "2026-08-17: Three things were wrong and only the last one was where it looked. (1) The list's own .onMove adds drag recognisers to rows and loses to the row's .onTapGesture, so it never produced a drag — .onDrag does. (2) A row's .onDrop is never asked inside a List; the List's drop interface is ForEach.onInsert, which is why the drag started and nothing accepted it. (3) With onInsert in place the insertion line appeared and the drop still did nothing: probes recorded 'dropped at 2, providers 1', so the drop WAS reached and reading the identifier back out of the item provider was what never delivered. The id is remembered from .onDrag instead; the provider exists to give the platform something to carry. Confirmed by the human.",
+]
+
+[[content.acceptance_criteria]]
+text = "A session can be dragged to a different position in the sidebar, including past the last one"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "The reordering a drop performs is covered by tests, in the same shape as the tab reordering it mirrors"
+status = "done"
+category = "chore"

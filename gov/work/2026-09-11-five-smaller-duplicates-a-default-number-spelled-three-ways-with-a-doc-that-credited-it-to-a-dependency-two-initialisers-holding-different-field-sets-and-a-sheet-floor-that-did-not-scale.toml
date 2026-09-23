@@ -1,0 +1,88 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-012"
+title = "Five smaller duplicates: a default number spelled three ways with a doc that credited it to a dependency, two initialisers holding different field sets, and a sheet floor that did not scale"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+
+[content]
+description = """
+The tail of the round — five duplicates, none of which could produce a
+wrong answer today, all of which could produce one after the next edit.
+
+A DEFAULT SPELLED THREE WAYS, AND ITS DOC CREDITED IT TO A DEPENDENCY.
+10,000 scrollback lines appeared as the fragment's literal, as the
+dropdown's label "Default (10,000)", and as the property doc "nil =
+ghostty default (10000)". The doc was already wrong, and contradicted
+420 lines below by the comment that writes the line: "ghostty's default
+line limit is unbounded (only byte-capped) … 10k lines is plenty for
+agent work." It is SYNAPTY'S number, and attributing it to ghostty is the
+reading that would let someone delete the line that makes it true.
+
+One constant now, which the fragment writes, the dropdown label
+interpolates and the test asks for. The fragment also emits the key twice
+whenever a limit is set — ghostty takes the last, so the human's setting
+wins and there is no bug — and that is now said where a reader deleting
+one of the two will see it.
+
+TWO INITIALISERS HOLDING DIFFERENT FIELD SETS. `SessionEntry`'s decoder
+reads `zoomedSlotIndex`; its memberwise initialiser neither took nor
+assigned it. It works only because the one production builder assigns it
+on a separate line afterwards, so a SECOND builder would silently drop a
+human's zoomed slot. The doc above says "The next defaulted field added
+to this struct needs the same line"; the memberwise initialiser is the
+half that rule did not cover.
+
+ONE MESSAGE, TWO OWNERS. Both keymap recorders answered `.notAChord`
+with their own copy of "A shortcut needs ⌘, ⌃ or ⌥. Try again." Their
+`.refused` siblings have already drifted — one names the chord, one does
+not — and that difference is defensible, because one recorder answers for
+a whole FAMILY and a family has no single chord to name. Nothing recorded
+that, so it was indistinguishable from a pair that simply had not drifted
+yet. The shared sentence is one constant; the divergent one now says why
+it diverges.
+
+A SHEET FLOOR THAT DID NOT SCALE. Three sheets carried a raw
+`minWidth: 320` while every comparable panel used `DS.scaled(...)` and so
+does the window floor, so at Extra Large those three alone did not widen
+with their content. `DS.Layout` gains the token — into the enum that
+already exists, which the compiler caught me creating a second of.
+
+AND ONE EXPRESSION COMPUTED TWICE. `slotCount` in
+`WorkspaceControlsAccessory` was character-for-character
+`WorkspaceManager.slotCount`, which ships.
+
+Found by the ssot-swift pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "SynaptySettings.defaultScrollbackLines is the one number, read by the fragment, the dropdown label and the test"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the scrollback doc no longer credits Synapty's choice to ghostty, and the second emission of the key is stated where a reader would delete one of them"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "SessionEntry's memberwise initialiser takes every field its decoder reads, so a second builder cannot silently drop a zoomed slot"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the shared not-a-chord message is one constant, and the sibling that legitimately differs records why"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "DS.Layout.sheetMinWidth, so the three sheets that carried a raw 320 widen with their content like every comparable panel"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "WorkspaceControlsAccessory reads the manager's slotCount rather than recomputing it"
+status = "done"
+category = "changed"

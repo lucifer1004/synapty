@@ -1,0 +1,89 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-009"
+title = "Three RFCs recorded as unbuilt while being the most heavily implemented specs in the tree, and nothing related the phase field to anything"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0015",
+    "RFC-0014",
+    "RFC-0008",
+]
+
+[content]
+description = """
+`CLAUDE.md` states the rule this project answers scope questions with: "A
+normative clause at `impl` is a commitment this project has made and
+implemented. Where no clause speaks, the question is OPEN — not
+deferred."
+
+Three RFCs made that sentence false, and they were not marginal ones:
+
+    [[RFC-0015]]  Workspaces and connections     311 citations, 84 files
+    [[RFC-0014]]  Remote session durability      197 citations, 38 files
+    [[RFC-0008]]  Durable agent identity          26 citations, 25 files
+
+[[RFC-0015]] and [[RFC-0014]] outrank every RFC that WAS at `impl`. [[RFC-0014]] has
+a 21KB dedicated e2e suite wired into `just test`.
+
+`phase` is a hand-set field with no relationship to the source scan, so
+`govctl check` could not see this and nothing else looked.
+
+VERIFIED BEFORE MOVING, because a phase is a claim. Every clause of all
+three was screened for whether the implementation cites it. 51 of 58 are
+cited. Of the 7 that are not:
+
+    C-SUMMARY ×3                      summary clauses, not obligations
+    [[RFC-0008]] C-ADDRESS-CONFLATION     marked Informative — motivation
+    [[RFC-0008]] C-COORDINATION           an INDEX of four amendments that
+                                      landed in other RFCs, and says so:
+                                      "All four landings are in place …
+                                      this is the index, not the
+                                      authority". One of them —
+                                      C-WAKE-TRIGGER's rule that
+                                      registering an identity with mail
+                                      waiting counts as a fresh edge — is
+                                      `registerAgentTracked`'s
+                                      `if (self.mailbox.count(agent_id) > 0)`,
+                                      read in the hub this week.
+    [[RFC-0014]] C-CUTOVER                status: deprecated
+    [[RFC-0015]] C-SET-ASIDE              status: superseded by C-PANE-ARCHIVE
+
+So every live normative clause in all three is cited by the
+implementation, and `impl` is accurate rather than merely plausible.
+
+AND THE FIELD NOW HAS A READER. `gov-lint` reports an RFC recorded at
+`spec` whose live clauses the code already cites.
+
+ADVICE, NEVER DAMAGE, and the asymmetry is deliberate. A citation in a
+comment is not proof of implementation, so this must not assert that a
+phase is wrong; what it can say is that an RFC the code talks about
+constantly is still recorded as unbuilt. The REVERSE — an `impl` RFC
+nobody cites — is not reported at all, because a clause can be honoured
+by code that never names it and that check would fire on every one of
+them. Deprecated, superseded, summary and non-goal clauses are skipped:
+they are history or scaffolding, and neither is evidence about a phase.
+
+Canaried in a scratch tree: an RFC at `spec` with one cited clause is
+reported by name; the corrected corpus is silent.
+
+Found by the ssot-gov pass of the 2026-09-10 SSOT/Occam round; moved at
+the user's direction."""
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0008]], [[RFC-0014]] and [[RFC-0015]] are recorded at impl, after screening all 58 of their clauses for whether the implementation cites them"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "gov-lint reports an RFC at phase spec whose live clauses the code already cites, as advice rather than damage"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the advisory is canaried in a scratch tree and is silent against the corrected corpus"
+status = "done"
+category = "chore"

@@ -1,0 +1,63 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-21-001"
+title = "Modifier hint badges stay up after the app is left with the modifier still down"
+status = "done"
+created = "2026-09-21"
+started = "2026-09-21"
+completed = "2026-09-21"
+
+[content]
+description = """
+Holding a modifier puts number badges on workspace rows, tabs or split panes after 350ms, and releasing it takes them off. Sometimes they do not come off: the numbers stay on every workspace row until the human presses and releases the modifier again inside the app.
+
+ONE INPUT, AND IT ONLY HEARS WHAT THIS APP IS SENT. [[ModifierHintState]] is driven entirely by `NSEvent.addLocalMonitorForEvents(matching: .flagsChanged)`, and a LOCAL monitor sees only events destined for this application. Every way of leaving the workbench with the modifier already down hands the key-up to whatever took over: the app switcher for the chord that starts with command and Tab, Spotlight for command and Space, and the same for the hide, minimise and cycle-windows chords. The monitor never hears the modifier come up, so nothing writes the state back to nothing.
+
+WHICH IS EXACTLY THE REPORTED SHAPE. The badges clear on the NEXT press and release of the modifier, because that press is the first input since the loss that the monitor can hear — not because anything recovered.
+
+AND THE DELAY HAS ITS OWN HALF OF THIS. Appearance is a work item scheduled 350ms out. Nothing cancels it when the app is left, so a hold interrupted part-way lands its badges on a window nobody is looking at, in a state where no release will ever be heard to take them off again.
+
+NOT REPRODUCED UNDER INSTRUMENTATION, AND NOT CLAIMED TO BE. The reasoning is from the event routing rather than from a captured trace: the state has exactly one writer, it is reachable only from a local monitor, and a local monitor is documented to receive only this application's events. The tests below fail without the fix and pass with it, which is the part that is measured.
+
+THE ASYNCHRONOUS HOP IS A SEPARATE SMALL DEFECT found in the same file. The monitor callback already runs on the main thread and wrapped its work in an unstructured `Task { @MainActor in … }`, which puts the state a runloop turn behind the keyboard and leaves a press and its release as two tasks in flight with no ordering the language guarantees."""
+notes = ["""
+LEAVING THE APP IS ITSELF AN EVENT, which is the whole fix. `applicationResignedActive()` cancels anything pending and clears the level: losing active status means the keyboard is somebody else's, so nothing this object believes about the modifiers can still be true. `applicationBecameActive(holding:)` re-asks `NSEvent.modifierFlags` rather than assuming, because arriving with the modifier still down is what finishing a switch looks like and no flagsChanged describes it — the press was heard by another app.
+
+THROUGH THE DELAY ON THE WAY BACK IN, not around it. The modifier comes up within a few dozen milliseconds at the end of a switch, so showing instantly would flash the badges the delay exists to prevent. Re-entering the normal path gets the cancellation for free.
+
+`--hint-level` BECAME A PIN RATHER THAN A ONE-OFF WRITE. It used to set `level` once at install, which the first stray modifier undid; with a second way to clear it now existing, a pinned screenshot would usually have lost its badges by the time the shutter opened. Every entry point returns early while it is set.
+
+THE MAPPING CAME OUT AS A VALUE. `ModifierHintState.level(for:)` is static and pure, so the three tiers can be asked directly instead of through a monitor no test can post to — and the exact-set rule is now visible: a badge shown for command-shift would promise that command-shift-1 goes somewhere.
+
+CANARIED, EACH PART ON ITS OWN:
+- `applicationResignedActive` made a no-op (the original defect) -> three failures, including "the badges survived leaving the app, and nothing that could take them off will be heard again until the human presses the modifier in here".
+- the deactivation observer not registered -> only the wiring test fails, "the app said it lost the keyboard and nothing was listening". That separation is the point of having it: every other test drives the methods directly and would stay green.
+- the re-derive on activation removed -> returning still holding the modifier shows nothing.
+
+NOT REPRODUCED LIVE. The diagnosis is from event routing, and the tests are what is measured. If the badges are still seen to stick after this, the next thing to suspect is a route that leaves the app WITHOUT posting a deactivation — a window-level loss of key while the app stays active — which this deliberately does not cover, because the app-level notification is the one that matches the reported symptom."""]
+
+[[content.acceptance_criteria]]
+text = "leaving the app takes the badges off, because the release that would have is delivered somewhere this app cannot hear"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a hold interrupted before its delay never lands its badges"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "returning to the app asks the keyboard what is held rather than assuming, and does it through the delay so finishing a switch does not flash badges on the way in"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the rule and the wiring are covered separately, so registering no observer fails a test rather than leaving every test green"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the modifier monitor stops hopping through an unstructured task to a thread it is already on"
+status = "done"
+category = "changed"

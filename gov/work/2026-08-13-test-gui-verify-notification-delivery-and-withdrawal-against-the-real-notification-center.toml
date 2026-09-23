@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-013"
+title = "test(gui): verify notification delivery and withdrawal against the real Notification Center"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+refs = ["WI-2026-08-13-012"]
+
+[content]
+description = """
+[[WI-2026-08-13-012]] shipped with its delivery path unverified, and said so. The unit tests there cover the state machine and the copy; nothing touched UNUserNotificationCenter, so the one question they could not answer was whether the notification exists at all.
+
+That gap mattered more than usual because the whole design rests on WITHDRAWAL. A notice that cannot be taken back becomes a lie the moment the peer returns, and nothing in the state machine would notice — the state would correctly say "recovered" while Notification Center still said "lost contact".
+
+WHY THIS DID NOT NEED A SECOND APP INSTANCE. The first plan was a dev launch argument and a debug build, which would have been expensive and risky: the app starts a hub on launch, and a second hub writes the machine-scoped discovery file, so it would have redirected every `synapty` CLI in the operator's live panes to the wrong hub. It also saves the session snapshot, which could have replaced a real window layout with an empty one. The tests, however, run HOSTED IN THE APP — the test process is `com.synapty.app` — so UNUserNotificationCenter works there with no second instance and no risk to live state.
+
+WHAT IS NOW ESTABLISHED, each falsified before being believed:
+- A posted failure reaches Notification Center. Disabling the `add` call turns the test red.
+- A recovery removes it. Disabling `removeDeliveredNotifications` turns the test red on a separate assertion.
+- Three failures for one peer are ONE notification, not three, which is what the subject-derived identifier buys and a random UUID would not.
+
+COSTS, stated rather than hidden: the suite now posts a real notification titled "Synapty self-test" and removes it in the same test, and run time went from ~2.5s to ~4.6s. Authorization is provisional, so delivery is quiet and no prompt appears; when a human has turned Synapty's notifications off the test SKIPS with an honest message rather than failing as though the code were broken.
+
+STILL UNVERIFIED, and separate: that a real peer's redial chain reaches exhaustion end to end. That needs an up-then-down link and 61 seconds of backoff, and it touches a running system."""
+
+[[content.acceptance_criteria]]
+text = "a posted failure is present in Notification Center, and the assertion fails when the post is disabled"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a recovery withdraws it, and the assertion fails when withdrawal is disabled"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "repeated failures for one peer collapse to a single notification"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the test skips with an honest message when notifications are turned off, rather than failing"
+status = "done"
+category = "chore"

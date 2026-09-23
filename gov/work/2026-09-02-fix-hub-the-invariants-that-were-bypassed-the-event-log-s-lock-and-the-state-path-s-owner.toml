@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-014"
+title = "fix(hub): the invariants that were bypassed — the event log's lock and the state path's owner"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 01 #1 #2 #10 #11 #19. One theme: a documented invariant with one call site
+that does not go through it. EventLog.append is contractually caller-locked
+and recordRefusal calls it bare from the relay reader thread — a data race
+with UAF on the hub's hottest shared structure. runHub resolves the default
+state path into a block-scoped stack buffer and hands it to restoreFromDisk,
+which stores the slice; every production service hub (--state-path default)
+then persists through a dangling pointer. The smaller ones are OOM-only but
+durable: a freed forward id written into the spool, duped strings leaked on
+container-append failure. The fix each time is the project's own habit —
+the callee owns what it keeps, and every mutation goes through the locked
+function.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "restoreFromDisk owns its path (duped into the state allocator, freed in deinit), so runHub's stack buffer (cli.zig:432) can die and persistence still writes where it should"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the forward-id OOM fallback (handlers.zig:386) and the missing errdefers (registry.zig:496/556, federation.zig:658) no longer touch or leak freed memory; peer_id is read through peerIdDupe where it was borrowed unlocked"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "recordRefusal appends to the event log under presence_mutex like every other append (handlers.zig:1499); the two callers are shown not to hold the lock, and the existing federation refusal e2e still passes"
+status = "done"
+category = "fixed"

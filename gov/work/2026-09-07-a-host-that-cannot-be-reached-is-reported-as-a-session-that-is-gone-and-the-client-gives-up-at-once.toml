@@ -1,0 +1,102 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-006"
+title = "A host that cannot be reached is reported as a session that is gone, and the client gives up at once"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = ["RFC-0014:C-EXIT-SIGNAL"]
+
+[content]
+description = """
+FOUND BY REPRODUCING THE FAULT RATHER THAN BY READING. A client was run
+against a transport that exits immediately — `/usr/bin/false`, which is
+what an unreachable host looks like from here. It wrote `end no_session`
+and exited, on the first attempt, having never retried.
+
+Both halves of that are wrong.
+
+    const welcome = holder.readWelcome(from_relay, &wbuf, &theirs) catch |err| {
+        if (err == error.VersionMismatch) { ...; return .version_mismatch; }
+        return .no_session;
+    };
+
+EVERY failure to read the welcome is called `no_session`: a transport that
+died, a link that dropped mid-handshake, an ssh that could not resolve the
+host, a VPN that is off. None of those is a statement about whether a
+session exists, and one of them — the drop — is the ordinary case this
+whole mechanism is built for.
+
+IT IS TERMINAL, SO THE CLIENT STOPS. `no_session` breaks the retry loop
+([[RFC-0014]] C-EXIT-SIGNAL: a client MUST NOT treat the loss of its
+connection as evidence the child has exited). A link that dropped during
+the handshake — a window of milliseconds, but one every reconnect passes
+through — ends the pane instead of being retried. A host that is simply
+down ends it immediately.
+
+AND [[WI-2026-09-07-004]] MADE IT WORSE BY MAKING IT VISIBLE. Before that
+work the account's `end` was discarded once the pane had painted, so this
+misclassification was silent. It now reaches the human as a sentence, and
+the sentence is "The session is gone — <host> came back without it": a
+confident, specific, wrong account of a host that is merely unreachable.
+A wrong answer said clearly is worse than no answer, and this change is
+what turned one into the other.
+
+THE FACT IS AVAILABLE AND WAS NOT ASKED FOR. The relay says "no session
+named X" and exits 2; ssh propagates a remote command's exit status, so
+that 2 arrives here intact, and ssh's own failures arrive as 255. The
+transport's exit status therefore tells the two apart end to end, over a
+channel that already exists. `attachOnce` discards it — `defer _ =
+Child.wait(...)` — and infers from a read failure instead."""
+notes = [
+    """
+HOW IT WAS FOUND, because the method is the point. The human asked whether
+these faults could be reproduced. They can, and none of it needs a network
+or a second machine: a killed transport IS a dropped link, because from the
+client's side the two are the same event — the process carrying the frames
+went away. Running that against a real holder in an isolated config root
+produced `lost`, a one-second wait, `attach`, and `live returned to the
+session where it was left`, which is the whole reconnect path working.
+
+Killing the holder as well produced `end no_session`, which is the case the
+human had originally reported as "process exited".
+
+And then a transport of `/usr/bin/false` — an unreachable host — produced
+`end no_session` on the first attempt with no retry at all. That is this
+defect, and it was three commands away the whole time.""",
+    """
+VERIFIED BY RE-RUNNING THE THING THAT EXPOSED IT. Against the fixed binary
+the same unreachable transport produces `lost` at +0s, +1.0s, +2.0s, +4.0s
+and no `end` at all — which also puts the backoff from
+[[WI-2026-09-07-004]] on a clock for the first time, rather than only in a
+unit test of the arithmetic. A relay that genuinely says there is no such
+session still exits 2 and is still believed on the first attempt.
+
+`scripts/test-reconnect-e2e.sh` is the reproduction, in `just test`. Its
+`await` helper had a defect of exactly the kind this project keeps meeting:
+it matched " $kind " with a trailing space, and `end no_session` has none,
+so it reported the fact as absent while the fact was on the line above.
+Matching by FIELD rather than by substring is what fixed it.""",
+]
+
+[[content.acceptance_criteria]]
+text = "a welcome that could not be read is a lost transport unless the far side SAID there is no session — the default is the one that retries, not the one that gives up"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the transport's exit status is read rather than discarded, and 2 (the relay's word for `no session`) is what distinguishes them; ssh carries a remote status through unchanged and answers 255 for its own failures"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "an unreachable host retries and does not report a missing session; a relay that says there is none is believed"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the reproduction is written down as a script, so the next person meets the fault instead of the reasoning about it"
+status = "done"
+category = "chore"

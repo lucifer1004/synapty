@@ -1,0 +1,69 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-22-001"
+title = "An archived pane keeps its Still Running row after the session it names has gone"
+status = "done"
+created = "2026-09-22"
+started = "2026-09-22"
+completed = "2026-09-22"
+refs = [
+    "RFC-0014:C-END",
+    "RFC-0015:C-PANE-ARCHIVE",
+]
+
+[content]
+description = """
+Still Running merges three sources. WI-2026-09-21-002 fixed the host-reported one. This is the second, read after it on the same question: does anything take a row away when the thing it names stops existing.
+
+AN ARCHIVED PANE IS THE ONLY ROW MADE OF PURELY LOCAL STATE. It is appended when the human puts a pane away, written into the workspace file, and read back on restore. It is removed by exactly two acts, both the human's: returning to it, and ending it. Nothing ever compared it with what the machine it names actually holds.
+
+SO A SESSION THAT ENDED ANYWHERE ELSE LEAVES THE ROW STANDING. The holder was reaped, the box rebooted, the child exited and took the holder with it, somebody ended it from another Mac or from a shell on the host — in every case the row goes on offering to return to work that is not there. For the life of the app, and past it, because the row is persisted.
+
+THE EVIDENCE WAS ALREADY ARRIVING AND BEING DISCARDED. The host's listing is polled once a minute for the section's other rows. It answers this question too and nobody asked it.
+
+AND THE SAME IS TRUE OF THIS MACHINE, where the answer needs no network at all: a local holder's claim on its lock says whether the session is still held, and that is what the CLI's own sweep asks.
+
+A LISTING CAN ONLY SPEAK ABOUT WHAT EXISTED WHEN IT WAS TAKEN. Acting on what an answer does NOT name needs the same guard the sibling work item needed pointing the other way: a pane put away while a poll was in flight is absent from that poll because it did not exist yet, not because it is gone.
+
+THE THIRD SOURCE WAS READ AND IS SOUND, recorded here so it is not re-read every round. Agent rows come from the hub event stream rather than a poll: `agent_unregistered` and `directory_identity_removed` prune the list, a reconnect replaces a machine's entries wholesale from the snapshot, and `HubEventClient` dispatches snapshot and events through one serial queue onto the main one, so they cannot arrive out of order. A link that drops deliberately KEEPS the agents listed and marks them unreachable with status unknown, on the stated ground that not being able to see something is not the same as it being gone; removing the host is what forgets them."""
+notes = ["""
+ONE RULE, TWO MACHINES. `reconcileArchivedPanes(against:onHost:asOf:)` is the only place that removes a row on the strength of a listing, and both callers hand it the same three things: what the machine named, which machine answered, and when the question was asked.
+
+THREE THINGS IT REFUSES TO DO, each with a test. A row that names no agent is never touched, because a listing cannot be said to omit a name nobody has. A row on another machine is never touched, because a host answered only for itself. And a row archived AFTER the listing was taken is never touched — the guard the sibling work item needed pointing the other way.
+
+THE LOCAL SIDE ASKS THE CLAIM, NOT THE DIRECTORY. `SessionRecord.live()` would answer in one read and SWEEPS what it finds dead on the way; that is the CLI's job, and a sidebar tick must not delete records behind the human. Asking `claim` for each name this list actually holds is a few syscalls a minute and removes nothing. `free` and `absent` are the tombstones; `unknown` is this process being unable to look, and leaves the row — a stale row is litter, a row removed on a failed read is work the human is told they no longer have.
+
+THE THIRD SOURCE NEEDED NO CHANGE, and the reading is in the description so the next round does not repeat it. Agent rows are pushed rather than polled, pruned by `agent_unregistered` and `directory_identity_removed`, replaced wholesale by the snapshot on every reconnect, and delivered through one serial queue onto the main one so a snapshot cannot overtake an event. Keeping an unreachable peer's agents listed and ghosted is a decision with its reason written down, not an oversight.
+
+CANARIED, EACH GUARD ON ITS OWN:
+- nothing reconciles (the defect) -> the remote row and the local row both stay, "the host answered and did not name it, and the row stayed".
+- the listing's age ignored -> "a poll issued before the pane was put away removed its row".
+- an unnamed row treated as omitted -> "a row with no name was removed by a listing that could not possibly have named it".
+
+WHAT IS STILL NOT CHECKED, and is the honest edge of this: `endArchivedPane` removes the row before its end is confirmed, where the host row's End waits for the answer. A failed end therefore takes the row away and the session reappears under the host's own listing instead — information changes shape rather than being lost, so it is not the reported symptom, but the two End buttons in one list do keep different discipline."""]
+
+[[content.acceptance_criteria]]
+text = "an archived row goes when the machine it names answers a listing that does not name its session"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "this Mac answers the same question about its own archived rows, without a network round trip and without sweeping anything from disk"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a listing taken before a pane was put away does not remove its row, and neither does another machine's listing"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a row that names no agent survives every listing, because nothing could have named it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the agent-row source is recorded as read and sound, with what makes it so, rather than left to be re-derived"
+status = "done"
+category = "chore"

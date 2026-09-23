@@ -1,0 +1,72 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-21-002"
+title = "An ended remote session comes back from a poll that left before the end"
+status = "done"
+created = "2026-09-21"
+started = "2026-09-21"
+completed = "2026-09-21"
+refs = [
+    "RFC-0014:C-END",
+    "RFC-0008:C-IDENTITY",
+]
+
+[content]
+description = """
+A remote session ended from the sidebar, or by closing the pane that held it, sometimes stays in Still Running long after it is gone. Not every time.
+
+TWO ASYNCHRONOUS ROUND TRIPS OVER ONE STORE. `refreshRemoteSessions` asks each connected host what it holds and assigns the answer WHOLESALE — `reportedSessions[host.id] = rows`. `settleEnding` waited for the far side to confirm an end and then reached into that same store to remove the row. A poll issued before the end returns after it, carrying the listing from before, and the assignment puts the row straight back. Both legs are ssh; the poll's own bound is ten seconds. An overlap is ordinary rather than rare, which is why it is not every time.
+
+AND THEN NOTHING CORRECTS IT. The row survives only until a later poll disagrees — except that `refreshRemoteSessions` iterates the CONNECTED hosts, and ending the last thing on a machine is exactly what makes its connection unreferenced. After the grace period the sweep releases it, the host is never asked again, and nothing else ever writes that key. The stale row then stays for the life of the process, which is the "long after" in the report. The poll's own cadence is sixty seconds, so even the recoverable case is a minute.
+
+A SECOND DEFECT IN THE SAME TWO SETS, found while reading them. The dedupe that stops a close cascade spending a second ssh keyed on the session name ALONE. Names come from a four-hex namespace, so two machines hold namesakes — and `shown` has been machine-scoped from the start for exactly that reason. So ending a name on one host marked the namesake on another as ended, and pressing End on that one returned success having asked nobody anything.
+
+NOT REPRODUCED UNDER INSTRUMENTATION. The window is between two ssh calls whose ordering is the whole defect, and forcing it would mean driving both legs from a test that does not have them. What is measured is the store: the tests drive a confirmation and a late listing in the order that happens, and fail without the fix."""
+notes = ["""
+THE STORE IS A HOST'S LAST ANSWER, AND NOTHING THIS SIDE EDITS INTO IT SURVIVES THE NEXT ONE. That is the shape of the fix: `settleEnding` stops reaching into `reportedSessions` and records the confirmation instead, and `remoteSessions` subtracts it on READ — which is where the same question about open and archived panes is already asked, and for the reason that property's own note gives: computing it there "needs no trigger, no extra state and no round trip".
+
+Subtracting on read is also what makes it survive the case with no later poll. `refreshRemoteSessions` iterates the connected hosts; a host released after its last pane closed is never asked again, so a row put back by the race had nothing left that could remove it.
+
+MACHINE-SCOPED, BOTH SETS. `endedAgents` and `endingAgents` became `Set<AgentOnMachine>`. The unscoped key was not only a display bug: `startEnding` refused to start for a namesake on another host and `endAgentAwaiting` then answered `true` from `endedAgents.contains`, so End reported success having asked nobody anything.
+
+THE MARK IS A BRIDGE, NOT A GRAVESTONE. It exists to outlast a listing that was in flight; `noteRemoteSessions` retires any mark for that host the new listing no longer names, because host and workbench now agree. Kept forever it would hide a NEW session that minted the same name — four hex digits is not many.
+
+AND THE ROW DOES NOT CHANGE SHAPE INSTEAD OF GOING. `runningAgents` subtracts what a session row already names, so removing the session row uncovers any directory entry the hub has not yet dropped. The sidebar now also subtracts what this workbench ended, by peer, since the hub's entry expires on the hub's clock and this fact is already here.
+
+CANARIED, EACH DEFECT ON ITS OWN:
+- the old shape, subtracting into the store with no read filter -> "a listing from before the end put the ended session back in front of the human".
+- the ended mark keyed on the name alone -> "ending a session on one machine hid its namesake on another".
+- the mark never retired -> "a new session was hidden by the mark left by an old namesake".
+
+NOT REPRODUCED LIVE, and the description says why. If a row is still seen to linger after this, the remaining sources are the other two the section merges: an archived pane's row, which is local state and not a poll, and a `RemoteAgentRow` from the hub directory, which expires on the hub's tombstone clock rather than on anything this side records."""]
+
+[[content.acceptance_criteria]]
+text = "a listing that predates an end does not put the ended session back in front of the human"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an ended session stays gone without another poll, because the host whose connection was released is never asked again"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "ending a session on one machine leaves its namesake on another alone, in the dedupe as well as in the list"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the subtraction happens on read, where the same question about open and archived panes is already asked, rather than being edited into a store that the next answer overwrites"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a name the far side stops reporting is forgotten, so a later session that mints it again is not hidden by the old one's mark"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "taking the session row away does not uncover an agent row for the same thing"
+status = "done"
+category = "fixed"

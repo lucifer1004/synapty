@@ -1,0 +1,58 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-PRIMITIVES"
+title = "Four Primitives, And The Burden On A Fifth"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+
+The presentation surface an agent may address is bounded to FOUR primitives, distinguished by what the human is expected to do with the result.
+
+- `expose` — A LIVE SURFACE. Something the agent is running that the human should be able to look at while it runs, reached by a port forward the workbench opens on an existing connection where one is needed — on the local connection nothing is unreachable and no forward is opened, and the offer is the naming and the attribution rather than the reach. Rendered in a services leaf — the pane that shows what is exposed on a machine ([[RFC-0015:C-CONTENT]]).
+- `present` — AN ARTIFACT. Something the agent finished producing: a file, an image, a report. Rendered in a file leaf ([[RFC-0015:C-CONTENT]]).
+- `ask` — A DECISION. The agent is blocked and needs a human answer. It MUST NOT be rendered in a pane, because a pane can be closed and a blocked agent would then wait on something the human cannot see. It belongs to a queue with a persistent badge.
+- `notify` — AN EVENT. Already implemented. Something happened; nothing is required of the human.
+
+Read as: LIVE / DONE / ANSWER ME / FYI.
+
+A DESTINATION THAT MAY NOT EXIST IS NOT A DESTINATION, and naming a pane kind rather than a fixed panel created that case. A panel was one container that was always there; a leaf is optional, may exist several times over, and is bound to exactly one connection ([[RFC-0015:C-LEAF-BINDING]]).
+
+THE QUEUE IS UNCONDITIONAL. [[RFC-0013:C-REQUEST-NOT-SEIZE]] requires every request to land in a queue the human consults, and nothing below weakens that: a request enters the queue whether or not anything renders, and rendering is what may or may not happen in addition. An earlier draft made the queue the answer for the no-destination case alone, which read as an exemption for the case where a destination existed — the one case in which seizing is possible at all.
+
+Rendering is then bounded by three rules, and the boundary between them is which leaf is ELIGIBLE. A leaf is eligible for a request when its kind is the destination in [[RFC-0015:C-CONTENT]]'s table, its connection is the one the request names AND that connection is not failed or released — a leaf keeps its binding across a failure ([[RFC-0015:C-LEAF-BINDING]]), so naming the right machine is not the same as being able to show anything — its workspace is not archived, and — for `present` — it is showing the directory the artifact landed in ([[RFC-0013:C-AUTHORIZATION]]). A leaf that is open on the right machine and showing somewhere else is not eligible, and neither is one in a workspace the human has put away.
+
+- WHERE NO ELIGIBLE LEAF EXISTS, nothing renders and the request waits in the queue. The workbench MUST NOT open a pane to receive it: opening one is seizing the layout, which C-REQUEST-NOT-SEIZE forbids.
+- WHERE ONE EXISTS, the request MAY render there.
+- WHERE SEVERAL EXIST, the workbench MUST prefer one in the workspace the human is looking at, and MUST NOT render into a workspace they are not looking at while an eligible leaf in that workspace exists. Rendering MUST NOT raise, focus or reorder the leaf it renders into; a request that arrived may be waiting behind a tab, and the badge the queue carries is what says so.
+
+A FIFTH PRIMITIVE MUST FIRST FAIL TO BE ONE OF THE FOUR, and the record of that failure MUST be written down before it is built. This is the bound that keeps the plane from accreting one verb per idea — `show-diff`, `show-chart`, `show-table` — until it is a junk drawer with a permission model nobody can reason about.
+
+NO PRIMITIVE MAY TARGET A BROWSER LEAF ([[RFC-0015:C-CONTENT]]). That kind shows a page the human addressed; it carries no agent's name, and therefore cannot carry the frame that attributes agent content without lying about who asked for it. An agent able to put a page there would have obtained precisely what [[RFC-0013:C-REQUEST-NOT-SEIZE]] forbids: presentation, unattributed, in chrome the human reads as their own. A page an agent wants a human to see is an `expose`, which lands in a services leaf wearing that agent's name.
+
+This prohibition names a KIND rather than a manner of use, deliberately. "A surface the human drives" would have reached a terminal, which agents address by design ([[RFC-0007]]), and a file leaf, which a human navigates and which MUST still show `present`ed artifacts in their frame.
+
+The four primitives are the ONLY presentation surface. A capability that cannot state which primitive it is does not belong here, whatever its merit.
+
+WHAT THE BOUND DOES NOT COVER, stated because it was first worked out in a
+code comment where the next person adding a verb would not look. The bound
+is on PRESENTING — putting something in front of a human. A verb that
+presents nothing is not a fifth primitive and does not have to argue its
+way past this clause:
+
+- ASKING WHERE THE CALLER ALREADY IS. A shell sees its own environment and
+  nothing about the window it is drawn in, so the workbench is the only
+  party that can say which machine, session and pane a caller occupies.
+  Reporting that grants nothing and shows the human nothing.
+- READING BACK WHAT THIS CALLER ITSELF PRESENTED. Exposing was write-only:
+  an agent could put a page in front of a human and had no way to learn
+  whether it loaded, what it said, or that the service behind it had died.
+  That is the other half of a primitive, not a new one — and it is bounded
+  the same way withdrawal is, to the caller's OWN views, because reading
+  back another agent's is reading something IT put in front of a human.
+
+Both remain subject to everything else here: attributable to a pane,
+refused when they are not, and never a path to another agent's content."""

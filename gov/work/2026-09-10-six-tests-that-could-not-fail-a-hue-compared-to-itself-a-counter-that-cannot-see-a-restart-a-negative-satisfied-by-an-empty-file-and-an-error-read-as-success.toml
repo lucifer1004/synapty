@@ -1,0 +1,93 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-004"
+title = "Six tests that could not fail: a hue compared to itself, a counter that cannot see a restart, a negative satisfied by an empty file, and an error read as success"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0014:C-EXIT-SIGNAL",
+    "RFC-0015:C-FAILURE",
+]
+
+[content]
+description = """
+Six assertions that agreed with the failure they were written to catch.
+
+A HUE COMPARED TO ITSELF. `testTheSameNameIsTheSameHue` asserted
+`HostTint.hue(for: "remotehost") == HostTint.hue(for: "remotehost")` —
+a pure function against itself, in one process. `HostTint`'s own comment
+says the hash is "stable across launches and machines", which is the
+property that lets a host be recognised by colour rather than looked up,
+and the obvious way to break it is `String.hashValue`, which Swift seeds
+PER PROCESS. That substitution passes this test every time and changes
+every host's colour on the next launch. Now pinned against four hues
+computed outside the program: `remotehost` is 0.8194444444444444.
+
+A COUNTER THAT CANNOT SEE A RESTART. `test-holder-e2e.sh` asserted
+`last_tick > first_tick` under a comment naming the failure as "the
+stream restarted instead of continuing". A replayed stream reads
+TICK1..9 then TICK1..20, and its last is still greater than its first.
+The assertion now also requires the sequence never to decrease, which is
+the only unambiguous evidence.
+
+A NEGATIVE SATISFIED BY AN EMPTY FILE. `run_connect 255 1` asserted that
+no ` end ` line reached the account. An account with nothing in it
+satisfies that perfectly, and an empty account is what every way of the
+dial failing to run produces. This script's own header names that
+hazard — "a fake that swallowed it would leave every assertion about the
+account reading an empty file and passing for the wrong reason" — and
+this was the one case with no positive companion. It has one now.
+
+AN ERROR READ AS SUCCESS. `waitForUnregistered` did
+`registeredAgents(alloc) catch return true`, so a routing table that
+could not be read was reported as an agent that is gone.
+`waitForRegistered`, ten lines above, answers the identical failure with
+`false`. The question is what can be shown, and an error shows neither.
+
+TWO MEASUREMENTS THAT WERE ONE. `LOSSES` and `FOURTH` in
+`test-reconnect-e2e.sh` were the same `grep -c " lost "` under comments
+describing different things. The bounds are both wanted; they are now one
+count asserted from both sides.
+
+AND A VOCABULARY PINNED ON ONLY ONE SIDE. `end displaced`, `stopped` and
+`version_mismatch` travel from `@tagName` in `commands.zig` to string
+matching in Swift's `AccountEnd`. `LinkStateTests` pinned the reading
+end; nothing pinned the writing end, so renaming a Zig enum case was a
+protocol change no compiler could see and no test would catch. Both ends
+now hold the same written-out list, and `link_severed` — the word no
+client writes — is pinned on the Swift side too.
+
+Found by the vacuous-hunter pass of the 2026-09-10 debt sweep."""
+
+[[content.acceptance_criteria]]
+text = "HostTint hues are pinned against values computed outside the program, so a per-process hash cannot pass"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the holder's tick stream must never decrease, which is what distinguishes a continuation from a replay"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the durable dial's account is asserted non-empty before it is asserted to carry no end line"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "waitForUnregistered answers an unreadable routing table with false, matching waitForRegistered"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the retry count is measured once and bounded from both sides rather than computed twice"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the end vocabulary commands.zig writes is pinned against a written-out list, and link_severed is pinned on the Swift side"
+status = "done"
+category = "chore"

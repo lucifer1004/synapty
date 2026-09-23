@@ -1,0 +1,111 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-019"
+title = "A row that outlived the memory it borrowed, a guard that refused the repair it was built beside, and a stale fact served as a live one"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = [
+    "RFC-0004:C-SUBSCRIPTION",
+    "RFC-0011:C-DEFAULT",
+    "ADR-0009",
+]
+
+[content]
+description = """
+Three findings from the second audit round. Two are regressions this
+project's own SSOT/Occam round introduced hours earlier; the third
+predates it and is the worst of the three.
+
+A ROW THAT OUTLIVED THE MEMORY IT BORROWED. `buildAgentsArray` dupes
+every LOCAL row's strings into the request arena —
+`routing_table.agentIds(arena)`, `agent_registry.get(id, arena)` — and
+borrowed two fields on every RELAYED row straight from directory
+storage: the map key for `id`, and `entry.peer` for `hosting_peer`. Both
+are owned by the hub's long-lived allocator and freed by
+`Directory.withdraw`, `expire` and `forgetPeer`.
+
+That was only safe while the caller still held `presence_mutex`.
+`handleSubscribe`'s `defer unlock` spans its send, so it is. `handleListAgents`
+builds the array inside a block that RELEASES the lock and then
+serialises, so it is not: a peer withdrawing an identity, a directory
+sweep expiring one, or a `peerLinkUp` endpoint change calling
+`forgetPeer` — any of them in that window leaves `synapty agents`
+walking freed bytes, on a federated machine, once in a blue moon, as a
+crash nobody can reproduce. On a single-hub machine `directory.map` is
+empty and it is unreachable, which is why it survived.
+
+FIXED AT THE BUILDER, NOT AT THE CALLER. A lifetime that depends on
+which caller you are is a rule every future caller has to be told; an
+array whose strings it owns has no rule. Pinned by a test that builds
+the array, withdraws the identity, and then reads the strings — under
+the testing allocator, which poisons what it frees. Canaried by
+restoring the borrow: it fails.
+
+A GUARD THAT REFUSED THE REPAIR IT WAS BUILT BESIDE.
+[[WI-2026-09-11-007]] wired `HostReadiness`'s deploy half into
+`runSetup`, refusing on a named key that is not on this Mac. Twenty
+lines below the guard, `TunnelManager.effectiveKeyPath` substitutes this
+machine's ENROLLED key for exactly that case, and says so: "the case
+[[ADR-0009]] enrolment answers, and the only one where substituting our
+own key is right."
+
+So a host row synced from another Mac, naming a path that exists there,
+on a host this Mac was enrolled with — the scenario `HostReadiness`'s
+own header cites as its reason for existing — connected before that
+change and was refused after it, with no override.
+
+AND THE REASONING WAS WRONG TWICE OVER. `isSettled`'s doc asserted "ssh
+will not substitute another", which is not true of `ssh -i` on a path
+that does not exist: it warns and falls through to the agent and to
+`~/.ssh/config`. The substitution that matters here is the WORKBENCH's,
+and the workbench is the only party that knows whether it has one — so
+`deployRefusal` takes the resolved key and answers nil when there is one
+that exists. `.identityMissing` had the same shape: `effectiveKeyPath`
+falls through to a group identity that `HostReadiness.evaluate` never
+consults.
+
+A STALE FACT SERVED AS A LIVE ONE. [[WI-2026-09-10-007]]'s relayed
+`pending_wake` asked for the stored value BEFORE reachability, so a peer
+that had gone away kept answering about its agents' mail with whatever
+was true when the link dropped. The `status` field three lines above
+refuses exactly that, and the entry says why: "While the peer is
+unreachable this value is NOT served: a stale status is indistinguishable
+from a fresh one." Reachability is asked first now, and a test requires
+an unreachable peer to answer `peer_unreachable` for `pending_wake` on
+the same row where it already answered `unknown` for `status`.
+
+Found by the concurrency and round-adversary passes of the 2026-09-11
+second audit round."""
+
+[[content.acceptance_criteria]]
+text = "buildAgentsArray copies the two relayed-row strings into the request arena, so a built row cannot outlive the directory entry it came from"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a row is built, its directory entry withdrawn, and its strings read — under the allocator that poisons what it frees"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "deployRefusal asks for the key the workbench will actually pass, so a host this Mac is enrolled with is no longer refused the connection it had"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "isSettled no longer rests on a claim about ssh that is not true; the substitution that matters is the workbench's"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a relayed pending_wake is not served for an unreachable peer, which is the rule the status beside it already followed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an unreachable peer answers peer_unreachable for pending_wake on the same row where it answers unknown for status"
+status = "done"
+category = "chore"

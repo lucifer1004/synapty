@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-034"
+title = "test(gov): response matching tests, e2e strengthen, records cleanup, tooling drift"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 findings (tests + governance): responseIdMatches has no regression test despite being the F12 fix; the e2e line-buffering test issues four writes not one and asserts only that some line parses (the DM could be dropped and the test still passes); [[ADR-0002]] consequences is still template boilerplate although WI-019 claims complete content; two done WIs still carry literal 'TBD' descriptions; WI-018's criterion says schema v3 while the config is v5; [[RFC-0002]] changelog lacks a deprecation entry; AgentMonitor still references the deprecated [[RFC-0002]]; justfile hub/daemon recipes are dead after [[ADR-0004]]; [[RFC-0003]] version field (0.1.0) is stale vs its 6-entry changelog."
+notes = ["responseIdMatches unit tests (req-5/req-50 collision, missing/non-string id, malformed JSON, prefix); accept-loop fatal-path test (closed listener -> error.Unexpected) — the hub test module's missing github import was ALSO fixed (it had been silently broken behind the zig cache); e2e line-buffering test now issues ONE write and asserts the dm-buf-1 envelope id was processed; ADR-0002 consequences filled; two TBD descriptions cleaned; WI-018 criterion corrected to v5; RFC-0002 changelog records the deprecation; AgentMonitor comment repointed; justfile dead hub/daemon recipes removed; RFC-0003 version-field mismatch documented in WI-019 (lifecycle-owned)."]
+
+[[content.acceptance_criteria]]
+text = "test: responseIdMatches unit tests (req-5 vs req-50, missing/non-string id, malformed JSON)"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "test: line-buffering e2e writes both frames in ONE write and asserts the DM's envelope id was processed"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "[[ADR-0002]] consequences filled; TBD description lines removed; WI-018 criterion corrected to v5"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0002]] changelog records the deprecation; AgentMonitor comment repointed; justfile dead recipes removed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "[[RFC-0003]] version/changelog mismatch documented in the record (lifecycle-owned field)"
+status = "done"
+category = "fixed"

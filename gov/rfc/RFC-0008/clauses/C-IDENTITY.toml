@@ -1,0 +1,66 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-IDENTITY"
+title = "Durable Identity — Derivation and Fallback"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Requirements:
+
+- The HUB is the sole deriver of durable ids. A registration carrying a
+  harness session identity (wire field: `resume_ref`, the same field
+  [[RFC-0006]] C-RESUME-PLAN defines — distinct from the existing
+  free-text `session` description metadata) binds the agent to
+  `<tool>-<fragment>` where the fragment is the FIRST 8 CHARACTERS of
+  the validated resume_ref. Derivation is deterministic: the same
+  (tool, resume_ref) always yields the same id, independent of hub
+  state or registration order — these ids land in persistent artifacts
+  (task center), so order-dependent derivation would re-create the
+  dangling-claim problem this RFC exists to end.
+- On a TRUE fragment collision (different resume_ref, same first 8
+  characters, same tool) the hub MUST reject the later registration to
+  its pane-identity fallback with an event-log trace under the kind `identity_rejected` — named
+  because a MUST-be-evented with no kind is a MUST two implementers spell
+  differently, and because the consequence outlives the record by orders
+  of magnitude: an agent runs its whole life under a fallback id while
+  the ring entry explaining why is evicted in minutes — never silently
+  mint a differently-shaped id.
+- Both components are agent-influenced bytes: the tool string AND the
+  resume_ref MUST pass the [[RFC-0006]] C-RESUME-PLAN validation
+  discipline (printable, no whitespace, no control characters,
+  bounded). The fallback namespace prefix (`local-`) is RESERVED: a
+  derivation that would collide with it is rejected to fallback.
+- The register response MUST return the bound id — that is how an agent
+  learns who it is; nothing else in the protocol tells it.
+- A registration WITHOUT a resume_ref keeps today's behavior: the pane
+  wrapper id (`local-XXXX`) is the agent id. Bare shells, humans, and
+  tools that never supply a session stay exactly as they are.
+- The pane wrapper id remains, in all cases, the TRANSPORT address: the
+  hub maps durable identity -> currently-hosting connection, and an
+  envelope's effective source is resolved from its CONNECTION binding
+  (a stale self-stamped source is overridden, evented once per
+  binding). Tasks, DMs, waits, and wake targeting address the durable
+  id; a DM addressed to a pane id resolves to whatever identity that
+  connection currently hosts (addresses resolve to identities).
+
+FEDERATION QUALIFIER ([[RFC-0009]] C-BOUNDARIES): the connection-binding
+rule above is SUBMISSION-SCOPED. A relay link carries many identities and
+has no binding to resolve from, so on one the peer's STAMPED source is
+authoritative — bounded by the two rules that make that safe enough to
+say: a peer speaks only for identities it hosts, and a hub refuses a
+relayed frame claiming an identity it hosts locally or another peer has
+advertised. Without this, a hub built from this clause alone rewrites the
+source of every relayed frame from a binding that does not exist.
+
+FEDERATION QUALIFIER ([[RFC-0009]] C-IDENTITY-SCOPE): `@` is RESERVED as
+the peer qualifier's separator, so a derivation that WOULD contain one is
+rejected to fallback and evented, exactly as a derivation colliding with
+the `local-` prefix already is. The validation above admits `@` —
+printable, no whitespace, bounded — and a derived id is advertised
+UNQUALIFIED, so one containing `@` makes a peer split it in the wrong
+place. Sanitizing is not available: this clause requires derivation to be
+deterministic and independent of hub state, and a rewrite is neither."""

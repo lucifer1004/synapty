@@ -1,0 +1,46 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-005"
+title = "fix(settings): the ghostty fragment follows settings that arrive by sync"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+Measured 2026-09-02 on a fresh SYNAPTY_CONFIG_ROOT with the Release build:
+CloudKit delivered shared/settings.json (appearance light, themes GitHub /
+GitHub Dark Dimmed) within seconds, but shared/ghostty.conf — the file
+ghostty actually reads — stayed at the default that
+ensureGhosttyFragmentExists() wrote at init, with no `theme =` line. The
+terminal rendered ghostty's built-in dark theme under light chrome while
+ChromeTint, reading the settings, believed the theme was GitHub light.
+
+SynaptySettings.reloadFromDisk() (called from SyncEngine) reloads the
+settings and posts the appearance-changed notification that makes
+GhosttyApp reload its config, but never regenerates the fragment the
+config is loaded from. The fragment is itself a sync entry
+(ConfigPaths.Entry.ghosttyConfig); the init-time default write goes
+through writeFragment, which announces a local change — so the fresh
+machine's empty default may also be beating the remote copy. Both halves
+need looking at; the fix is whichever the measurement supports.
+
+Found while verifying [[WI-2026-09-02-003]], where the theme-keyed wash
+color exposed the mismatch."""
+
+[[content.acceptance_criteria]]
+text = "after settings arrive by sync (reloadFromDisk), the ghostty fragment is regenerated from them before ghostty is asked to reload, so a fresh machine's terminal shows the synced theme, font and options without a local edit"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the default fragment written at first launch is not announced as a local edit that outranks the remote copy — or the race is shown not to exist, with the measurement recorded"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a settings reload that changes the theme pair produces a fragment with the new theme line"
+status = "done"
+category = "chore"

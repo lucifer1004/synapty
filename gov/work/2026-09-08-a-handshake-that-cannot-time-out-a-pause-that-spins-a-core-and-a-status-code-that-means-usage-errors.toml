@@ -1,0 +1,97 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-001"
+title = "A handshake that cannot time out, a pause that spins a core, and a status code that means usage errors"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+refs = ["RFC-0014:C-EXIT-SIGNAL"]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL ZIG REVIEW, which reproduced its worst finding on
+the built binary rather than arguing about it. All of these are in
+[[WI-2026-09-07-004]] and [[WI-2026-09-07-006]], shipped the same day.
+
+A HANDSHAKE THAT CANNOT TIME OUT. `transportVerdict`'s comment argued that
+`wait` is only reached because the read failed, "which for a pipe means the
+writer is gone". `holder.readWelcome` disproves it: it answers
+`error.Closed` for ANY frame that is not a welcome, and `readFrame` answers
+`error.TooLarge` whenever the length it reads exceeds the buffer. Neither
+says anything about the writer. So a transport that writes non-protocol
+bytes and goes on living — an ssh whose far side prints a MOTD, or echoes
+from a `.bashrc` on a non-interactive shell, the misconfiguration that
+classically breaks `scp` — reached `Child.wait` and blocked until that
+process exited, which is never.
+
+AND VERIFYING THE FIX FOUND THE SAME HANG BY A SHORTER ROUTE. Writing
+FEWER bytes than a frame header does not error at all: `readExactly` blocks
+in the read, before the verdict is ever reached. Three bytes and a `sleep`
+reproduced it after the first fix. Both are bounded now — the handshake has
+a deadline, and a transport still alive when it fails is killed rather than
+waited on.
+
+THE HANG WAS TOTAL. The input-forwarding thread is not spawned until after
+the handshake, so the detach key did not work either; the only way out was
+closing the pane, which is the outcome `waitToBeTold` exists to avoid.
+Before this change the same input returned `no_session` immediately —
+wrong, but not a hang. It was a liveness regression.
+
+A PAUSE THAT SPINS A CORE, two ways. `if (is_tty and (waitReadable(...)))`
+short-circuits, so with no terminal the loop body was a marker check and
+nothing else — a pure spin, forever, which is how the e2e script and any
+piped or wrapped invocation runs the client. The comment above it claimed
+the `is_tty` guard PREVENTED spinning; making it the guard on the loop's
+only blocking call guaranteed it. The second way is a hung-up terminal:
+poll returns ready forever, read returns zero, and `continue` spins.
+
+A STATUS CODE THAT ALREADY MEANT SOMETHING ELSE. `relay_no_session_status`
+was 2, which is this CLI's universal usage-error code
+([[WI-2026-09-02-021]]) — a missing argument, an unparseable flag, the
+attach chooser without a tty. A relay invoked wrongly would have been read
+as a relay reporting the session gone, which is the terminal answer that
+ends a pane."""
+notes = ["""
+REPRODUCED BEFORE AND AFTER, both hangs. Thirty bytes then a live process:
+twelve seconds with no `lost` and no retry before, four retries with the
+backoff visible after. Three bytes then a live process: no retries in
+sixteen seconds after the FIRST fix — which is how the second route was
+found — and one retry in forty seconds once the deadline existed, that
+deadline being deliberately far longer than a handshake over a working
+link.
+
+THE FLAKE WAS THE TEST'S OWN ISOLATION, and the diagnosis took two wrong
+turns worth recording. The script's config root was unique per run; its
+SESSION NAME was not, and the cleanup is a `pkill -f` on that name — so two
+concurrent runs, a reviewer's and the suite's, killed each other's holder.
+The first guess was a race between killing the holder and killing the
+transport; removing that race did not fix it, and the nine consecutive
+passes that followed looked like a fix and were a quiet machine. Three
+concurrent runs pass now."""]
+
+[[content.acceptance_criteria]]
+text = "the handshake read has a deadline, so a far side that says something that is not a frame and keeps living cannot freeze the pane"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a transport still alive when the handshake fails is killed rather than waited on — this attempt is over either way, and nobody will read from it again"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the pause waits whether or not there is a terminal, and treats end of input as the human being gone rather than as nothing yet"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the relay's word for `no session` is no longer the code this CLI uses for every usage error"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the e2e script's session name is unique per run — a fixed one made its own cleanup `pkill` match concurrent runs of itself, which is what made its third case fail about one run in three"
+status = "done"
+category = "chore"

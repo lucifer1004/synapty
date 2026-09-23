@@ -1,0 +1,141 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-001"
+title = "A claim whose file can be unlinked, a name the hub spells differently, and an exit code that is always zero"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "RFC-0014:C-START",
+    "RFC-0014:C-EXIT-SIGNAL",
+    "RFC-0014:C-OPT-OUT",
+    "RFC-0008:C-IDENTITY",
+]
+
+[content]
+description = """
+The second round of the adversarial review of [[WI-2026-09-07-004]]'s
+series, plus what measuring one of its claims turned up.
+
+A SWEEP COULD HAND ONE NAME TO TWO HOLDERS. A claim is an flock, and an
+flock lives on an INODE. `releaseClaim` and `Record.remove` both unlinked
+the lock file, so a start that had opened it but not yet locked it, crossed
+by either unlink, took its claim on an orphan — and a LATER start then
+found no file, created one, locked that, and both processes believed they
+held the name. The second one's `Holder.init` unlinks the first's live
+socket. That is exactly the loss the claim exists to prevent, re-entered
+through the cleanup path added to fix an orphan-file leak
+([[WI-2026-09-08-013]]).
+
+The reason to unlink had also evaporated: `ownerGone` and `startWouldJoin`
+each read `.free` and `.absent` as one answer, so a lock file left behind
+decides nothing. What it DID decide was which inode a concurrent start
+would lock. It stays now — one empty file per name ever used, which is what
+a lock file is.
+
+ONE STRING WAS TWO IDENTIFIERS. Session paths are folded
+([[holder.canonical]]) because the filesystem under them is
+case-insensitive, so `--id Foo` and `--id foo` are one session. But the
+fold lived in the three path builders, and the name ALSO becomes the id the
+process registers with — and the hub's registry is a plain hash on the raw
+string. So a session started as `Mixed` registered as `Mixed` while its
+socket, lock, record and `sessions` row all said `mixed`. Folded once now,
+at the boundary, before anything sees it.
+
+AND THE EXIT CODE IS ALWAYS ZERO. `LinkState.dropped(code:)` keyed off
+`childExit != 0` and printed the number to the human. libghostty spawns
+every pane through `/usr/bin/login -flp` (upstream's own darwin tests
+assert that shape for both a shell and a direct command), and `login`
+reports 0 whatever happens underneath it. Measured on macOS 26.5:
+
+    login -flp $USER /bin/sh -c 'exit 42'        -> 0
+    login -flp $USER /bin/sh -c 'exit 255'       -> 0
+    login -flp $USER /bin/sh -c 'kill -TERM $$'  -> 0
+    login -flp $USER /no/such/binary             -> 0
+    /bin/sh -c 'exit 42'                         -> 42
+
+`Surface.zig` carries upstream's own note about it. So `.dropped` was
+unreachable: every remote pane whose client died without writing an `end`
+read as `live` and was closed — the outcome [[RFC-0014]] C-EXIT-SIGNAL
+names. The evidence is the DEATH, not a number, and the sentence names no
+code because there is none.
+
+THE C-OPT-OUT GAP IS NOW NAMED RATHER THAN PAPERED OVER. `.dropped` was
+built for a host that keeps no session, where the transport IS the pane's
+child. There a dropped link and a human typing `exit` arrive identically,
+and the exit code was the only thing that was supposed to separate them.
+It cannot. So such a host is left as it was — the pane closes — and
+`.dropped` now speaks only for a DURABLE host, where a death with no
+account is the client itself dying and is unambiguous."""
+notes = [
+    "THE MEASUREMENT IS THE FINDING. The reviewer flagged the exit code as SUSPICIOUS, citing upstream's own note; what settled it was running `login` five ways and watching 42, 255, a SIGTERM and a missing binary all come back as 0. A comment that had been read three times as reassuring turned out to describe a number that carries nothing, and the state built on it had never once been entered.",
+    "A CLEANUP PATH PUT BACK THE DAMAGE IT WAS ADDED BESIDE. `releaseClaim` was written to stop an orphan-lock leak and copied `Record.remove`'s shape, which is where the unlink came from. Neither review of that change noticed, because both asked whether the leak was fixed. The three-party ordering it opens is now a test with no timing in it: open the file, sweep, lock the orphan, and watch a second claim succeed.",
+    "THE C-OPT-OUT GAP IS LEFT OPEN ON PURPOSE. A host that keeps no session has no channel that separates a dropped link from a human typing `exit` — both arrive as the pane's child dying, with nothing written down. Rather than guess and leave a dead pane open every time somebody leaves a shell, that host behaves as it did. Closing the gap needs a signal that does not exist yet.",
+]
+
+[[content.acceptance_criteria]]
+text = "Neither releaseClaim nor the record sweep unlinks the lock file, so a claim's identity is its path and two starts cannot hold one name"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A session name is folded once at the boundary, so the hub registers the same string the session's files use"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "An unexplained child death keeps a durable host's pane; the classification no longer reads an exit code that is always zero"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "LinkState.dropped carries no exit code, and its sentence names none"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A host that keeps no session is left as it was — its pane closes, because nothing there can tell a drop from an exit"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "close_surface_cb and the child-exit action are scheduled the same way, so their order is not a question"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A start that opened the lock file before a sweep unlinked it cannot be joined by a second start"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A claim handed back leaves its file, and the name still reads free"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A session started under a mixed-case name is registered, recorded and addressable under one spelling"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A remote client that died saying nothing keeps its pane; one whose account says its child finished does not"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "A pane on a host that keeps no session closes when its transport goes"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The retry budget reads garbage as the default and zero as zero"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "canonical says its result borrows the caller's buffer"
+status = "done"
+category = "chore"

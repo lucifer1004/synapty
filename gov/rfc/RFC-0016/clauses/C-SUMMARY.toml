@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "The subject"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+A keystroke the workbench answers to is a binding, and this specifies where bindings live, who may change them, and what happens when one is asked for twice.
+
+Two facts make this a subject rather than a detail.
+
+THE WORKBENCH IS A TERMINAL, so the keyboard is contended in a way it is not in an ordinary application. The surface a human types into consumes command-modified events wholesale — a chord the workbench does not deliberately claim is not "unbound", it is the TERMINAL'S. There is no neutral state, which is why [[RFC-0016:C-DISPATCH]] is written as a total function rather than a set of cases.
+
+AND THE HUMAN CANNOT SEE THEIR COMPETITION. A chord another application has registered system-wide never arrives here at all, and nothing available to this process will say so. That is not a defect to be engineered away; it is why the human must be able to choose a different chord, and why [[RFC-0016:C-HONESTY]] forbids the workbench from pretending otherwise."""

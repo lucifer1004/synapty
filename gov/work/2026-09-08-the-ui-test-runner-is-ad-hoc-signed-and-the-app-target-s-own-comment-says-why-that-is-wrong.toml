@@ -1,0 +1,50 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-009"
+title = "The UI test runner is ad-hoc signed, and the app target's own comment says why that is wrong"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+`project.yml` gives the Synapty target an Apple Development identity in
+Debug, with a comment saying exactly why:
+
+    "so macOS treated each rebuild as a different application and asked
+     again for the Downloads folder its terminal's login shell touches.
+     The operator was answering that prompt after every compile, and UI
+     tests failed at random when it landed over the window mid-run."
+
+`SynaptyUITests` had no signing settings at all, so its runner was ad-hoc:
+`Signature=adhoc`, `TeamIdentifier=not set`. An ad-hoc signature's cdhash
+changes with every build, so the same reasoning applies to it in full — and
+the runner is a real application that macOS asks for consent.
+
+The fix that was applied to one target and not the other is applied to the
+other.
+
+THIS IS NOT THE CAUSE OF THE PROMPT THE OPERATOR IS ACTUALLY SEEING, and
+saying so matters more than the fix does. That prompt names
+`testmanagerd` — Apple's own daemon, whose identity is stable and which
+this change cannot affect. Two diagnoses were offered before that one and
+both were wrong: the first misread the semantics of two HIToolbox
+preference keys, the second applied a sound mechanism to the wrong process.
+What is known about the real one is recorded in [[WI-2026-09-08-010]]."""
+notes = ["""
+VERIFIED ONLY THAT THE SIGNATURE CHANGED — `Authority=Apple Development`,
+`TeamIdentifier=HSEZTB9EQB`, where it was `adhoc` with no team. Whether it
+stops any prompt is unmeasured, and the one prompt available to measure
+against is not one it could stop."""]
+
+[[content.acceptance_criteria]]
+text = "the UI test target carries the same Debug signing identity as the app, for the reason the app's own comment gives"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the comment says plainly that this does not explain the prompt the operator sees, and names the process that one is about"
+status = "done"
+category = "chore"

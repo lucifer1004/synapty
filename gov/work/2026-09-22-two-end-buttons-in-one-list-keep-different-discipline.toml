@@ -1,0 +1,58 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-22-002"
+title = "Two End buttons in one list keep different discipline"
+status = "done"
+created = "2026-09-22"
+started = "2026-09-22"
+completed = "2026-09-22"
+refs = [
+    "RFC-0014:C-DETACH",
+    "RFC-0015:C-PANE-ARCHIVE",
+]
+
+[content]
+description = """
+Still Running draws two End buttons and they kept different discipline. The host row's awaits the far side and keeps its row when the answer is no, with its own note saying why: "AWAITED, because this one has a human watching it. The sidebar's End is a press with an outcome; the close cascades are not." The archived row's did neither — it fired and forgot, and removed the row whether or not anything had been ended.
+
+SO A FAILED END READ AS A SUCCESSFUL ONE. The session was still running on its machine, and the row that knew its title and which workspace it came from was gone. The work was not lost — the host's own listing still names it — but the human was left the barer row and no account of why the richer one vanished.
+
+AND A REFUSAL IS TWO DIFFERENT FACTS, which is what makes this more than a copied await. `synapty end` answers 2 for a name it does not hold, and 2 is this CLI's universal usage-error code as well, so the exit status cannot say which happened. Keeping the row on every refusal would make End the one press that does nothing on exactly the row a human most wants rid of: the one whose session died while nobody was watching.
+
+THE ANSWER IS ALREADY IN HAND, on both kinds of machine. A host's last listing is held here for the section's other rows, and a local holder's claim on its lock is one syscall away. Neither needs a second round trip."""
+notes = ["""
+`endArchivedPane` is now `async` and returns whether it ended anything, which is what the sidebar's press already wanted — the call site matches the host row's beside it.
+
+A REFUSAL ASKS THE MACHINE RATHER THAN THE EXIT CODE. `sessionStillThere` reads the host's last listing for a remote row and `SessionRecord.claim` for a local one. Both answers were already here; neither costs a round trip. Ignorance keeps the row in both directions: a host nothing has ever listed is not a host holding nothing (the distinction WI-2026-09-03-012 exists for), and a claim this process could not read is `unknown`, which leaves the row for the reason `SessionRecord` already gives — a stale row is litter, a row removed on a failed read is work the human is told they no longer have.
+
+THE INDEX IS RE-FOUND AFTER THE AWAIT. Workspaces can be added, archived or removed while the far side is being asked, so the index found before it describes a list that may no longer have that shape.
+
+A ROW THAT NAMES NO AGENT IS REMOVED WITHOUT ASKING ANYBODY, and a test fails the far-side ender if it is called for one: a pane archived before its session registered has no session to end, and requiring a confirmation nobody can give would make it the only row End cannot remove.
+
+CANARIED, EACH RULE ON ITS OWN:
+- fire and forget, remove either way (the original) -> "the end failed, the session is still running, and the row that knew its title went anyway", plus the no-listing case.
+- a refusal always keeps the row -> the already-gone session keeps its row, and the local case regresses too.
+- no listing read as nothing held -> "an end refused with no listing at all" removes the row.
+
+THE ROW STILL HAS A SECOND WAY OUT, deliberately: `reconcileArchivedPanes` ([[WI-2026-09-22-001]]) removes it on the next listing that does not name it. So a genuine failure to end leaves the row for as long as the session really is there, and no longer."""]
+
+[[content.acceptance_criteria]]
+text = "ending an archived row waits for the answer, as the host row beside it already does"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a refusal keeps the row when the session is still on its machine, and takes it when the machine says the session has gone"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a machine that has never been listed, and a claim this process could not read, both keep the row — ignorance is not evidence of absence"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a row that names no agent is still removable, because there is nothing for anyone to confirm"
+status = "done"
+category = "fixed"

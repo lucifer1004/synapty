@@ -1,0 +1,82 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-024"
+title = "A session is a connection wearing the name of a workspace"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-18"
+refs = [
+    "RFC-0015",
+    "ADR-0013",
+    "RFC-0013",
+    "RFC-0008",
+    "RFC-0006",
+]
+
+[content]
+description = """
+`Session` is a connection, a layout container and a lifetime at once. The three cannot be reconciled, and the reason it has held until now is that a session could only ever contain leaves from one machine — so asking a leaf's container which host it was on happened to give the right answer.
+
+`session(ofLeaf:)?.hostEntry` is that lookup, and four shipped capabilities read it: the destination a cross-host file drop delivers into, the origin stamped on a presentation-plane primitive, the host recorded in an agent's lifecycle, and the remote working-directory query. Every one of them returns the machine of whatever container the leaf happens to be sitting in.
+
+The lifetime is the other half. `closeLeaf` removes a pane when its last leaf closes and removes the session when its last pane goes — so the container for the human's work is destroyed by the act of finishing what was in it. Nothing can be pinned, archived or returned to while that is true.
+
+This splits the type per [[RFC-0015]]: a resident `Workspace` that holds layout and survives being empty, a `Connection` per host that holds the link and its state and is shared by every leaf on that host, and a leaf that stores its own connection id so the machine question is answered DOWNWARD.
+
+REMOVING THE UPWARD ACCESSOR IS PART OF THE WORK, not a tidy-up after it. A container-level call that returns a host is correct-looking and wrong for any leaf that has been moved, and this project has already delivered two files to the wrong machine from a subtler version of that mistake. [[RFC-0015:C-LEAF-BINDING]] requires it gone rather than merely unused.
+
+The persisted store changes shape in the same breath, because `snapshot`/`restore` are written in terms of sessions and the app must still start. A store the new shape does not recognise is discarded rather than converted ([[RFC-0015:C-UNRELEASED]]).
+
+Scope stops at the model and the code that reads it. The sidebar keeps its current shape, hosts stay where they are, and nothing new is drawn; those are [[WI-2026-08-17-026]]'s. Pin and archive are [[WI-2026-08-17-027]]'s. What this delivers is a workbench that behaves as it does today, on a model in which a cross-machine tab is expressible."""
+notes = [
+    "2026-08-17: Two clauses were wrong before any code was written and would have specified a known bug back into existence. C-CONNECTION had the connection holding 'the agent id'; every connectCommand/localCommand call mints a fresh one, so agent ids are per-LEAF, and a container holding one is exactly what left the other leaves' agents unaddressable in [[WI-2026-08-17-001]]. Corrected, and C-IDENTIFY added: agent.identify handed out the container's dial-time agent id as session_id, which for any leaf but the first names a different agent — it becomes the workspace's name plus its durable id. Confirmed with the human before implementing.",
+    "2026-08-18: The release path was built and never plugged in — sweep() was called only from tests and onRelease was wired to nothing, so fifteen passing registry tests sat over a mechanism the app could not reach. Reported as met before it was; corrected. Two tests now hold the WIRING, which is where the gap was: no registry test could have caught it, because the registry was right.",
+    "2026-08-18: The v1 conversion, its tests and its clause were all written and then all removed. Synapty is unreleased and the store held two throwaway panes from a screenshot — I had that fact recorded and built the converter anyway. [[RFC-0015:C-UNRELEASED]] now states the rule so the next shape change does not repeat it.",
+]
+
+[[content.acceptance_criteria]]
+text = "A workspace survives closing its last terminal — it remains with its name and position"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Two leaves on the same host share one connection — opening a second pane on an already-connected host performs no second dial"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A leaf reports its own host after being moved between tabs and between workspaces, verified for the file-drop destination, the presentation-plane origin, the agent lifecycle record and the remote pwd query"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "No accessor remains that answers a host question from a tab or workspace — the compiler is the check, not a convention"
+status = "done"
+category = "removed"
+
+[[content.acceptance_criteria]]
+text = "Local is modelled as a connection, so no consumer branches on the absence of a host to ask which machine a leaf is on"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "A connection is released only after its last leaf goes and a stated grace period elapses — closing one of two panes on a host leaves the other's link up"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "changed: A store the current shape does not recognise is discarded and the workbench opens fresh — no conversion path exists to carry"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The split tree, the connection reference count, the release timer and the store conversion are covered by tests that fail when the behaviour is mutated"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "An agent asking where it is gets its own agent id, its machine, and the workspace it is in by name AND durable id — never another leaf's agent id — and the agent skills documenting those fields are updated in the same change"
+status = "done"
+category = "changed"

@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-026"
+title = "fix(ui): state written in body, I/O in body, and arrows consumed app-wide"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 04 #3 #6 #7 and the lows. The @State write in body is the one I
+widened today (cachedLayout gained zoom); it terminates only because the
+second pass hits the cache. The arrow monitor is bounded today by living in
+transient popovers only, and would steal shell history the day it is
+reused elsewhere.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "SplitContentView's layout cache is not @State written during body (a layout store fed by onChange, or storage outside SwiftUI state)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "KeysSettingsView loads the keymap once, not on every body; DSListKeyNavigation consumes arrows only when its own window's field editor is first responder"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "chore: the low-level leftovers go — DSIconButton's duplicated accessibility label (the spoken label now omits the chord), TaskListView's dead if-true and @Published comment, PanelModel's duplicated doc and the persistOccupant comment that contradicted init (closing now removes the key, since never-chosen and closed are one state), runSearch's stacked comment, GhosttyApp's unread runtime.userdata"
+status = "done"
+category = "chore"

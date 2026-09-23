@@ -1,0 +1,30 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-086"
+title = "fix(gui): cold start leaves terminal light while UI is dark — push color scheme at GhosttyApp init"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Bug report: quitting in dark mode, the next launch shows the UI chrome dark but the terminal light. Cause: on startup nobody calls applyColorScheme — the appearance KVO observer registers after NSApp.appearance was already set (settings init runs before GhosttyApp under macOS 26 window restoration), and the appearance-changed notification fires before GhosttyApp exists, so it is lost; appliedScheme stays nil and ghostty keeps its default light scheme.
+
+Fix: GhosttyApp.init calls applyColorScheme() once at the end (the app handle exists by then), pushing the persisted/effective appearance to ghostty; the existing KVO + notification paths keep runtime switches in sync."""
+
+[[content.acceptance_criteria]]
+text = "cold start in dark mode shows the terminal dark (scheme pushed at GhosttyApp init)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "runtime switches still work (KVO + notification unchanged)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: Swift test suite still green"
+status = "done"
+category = "chore"

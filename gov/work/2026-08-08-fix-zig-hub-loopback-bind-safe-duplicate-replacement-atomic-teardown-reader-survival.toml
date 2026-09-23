@@ -1,0 +1,48 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-029"
+title = "fix(zig): hub loopback bind, safe duplicate replacement, atomic teardown, reader survival"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Audit-2 critical+warnings (Zig): (1) CRITICAL F3 — the standalone/GUI hub binds 0.0.0.0 with zero auth while holding the GitHub PAT; any reachable host can impersonate/kick agents (the duplicate-registration fix amplifies it) and mutate the remote repo. (2) duplicate replacement closes the old fd under its live writer thread — fd-reuse cross-connection corruption; (3) ownership-guarded teardown is non-atomic (old connection can still delete the new one's metadata in a narrow window); (4) hubReaderThread dies permanently on a >=64KiB hub line; (5) capabilities payload is emitted but never parsed (false contract); (6) github.zig errdefer kill leaves a zombie; (7) daemon.zig is fully dead production code."
+notes = ["hub now binds 127.0.0.1 (agents reach it via the reverse tunnel); duplicate replacement interrupts the old stream (EOF, fd NOT closed — closes after writer join, no fd-reuse race); teardown is atomic under the routing lock (HubState.teardownAgent — no TOCTOU on metadata/channels); hub reader survives oversized lines (drop-through-newline resync); capabilities payload emission removed (hub never parsed it — false contract gone, unique reg-N ids kept); github.zig kill path reaps; daemon.zig deleted with its build.zig test module."]
+
+[[content.acceptance_criteria]]
+text = "fix: 'synapty hub' binds 127.0.0.1 (loopback) — agents reach it via the reverse tunnel; no unauthenticated network exposure"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: duplicate registration replaces WITHOUT closing the old fd under its writer — shutdown+drain, fd closed after writer join"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: old-connection teardown cannot delete the new connection's metadata (atomic or re-verified ownership)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: hub reader survives an oversized line (drain/trim + continue instead of permanent break)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: capabilities contract is honest — payload emission removed or hub-side parsing implemented"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fix: dead daemon.zig module removed; github.zig kill path reaps the child"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: 129+ Zig tests still green"
+status = "done"
+category = "chore"

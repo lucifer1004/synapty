@@ -1,0 +1,98 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-007"
+title = "The dot's precedence rests on a second channel that a later change removed for a whole class of failure"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = ["RFC-0015:C-FAILURE"]
+
+[content]
+description = """
+FOUND BY AN ADVERSARIAL REVIEW OF THE SAME DAY'S WORK, and the shape of
+the mistake is the one this session spent all day warning about: a premise
+that was true when it was written, and that a later change by the same
+author falsified without either of them being revisited.
+
+[[WI-2026-09-07-003]] made the workspace row's dot say state instead of
+identity, and put ATTENTION ahead of FAILURE. The justification was
+explicit and, at the time, correct:
+
+    "a failure ALSO puts its reason on the right of the row in red, and
+     attention has nothing else once the second dot is gone"
+
+The red reason comes from `firstFailure`, which walks CONNECTIONS for a
+`.failed` state. While `failed:` was fed only by `hasFailedConnection`,
+every failure that could mark the row had a reason beside it and the
+argument held.
+
+THEN [[WI-2026-09-07-004]] PHASE 3 WIDENED THE INPUT AND NOT THE ARGUMENT.
+The mark now also fires on `workspaceLinkNeedsMark` — a per-PANE
+`LinkState`, which `firstFailure` knows nothing about. So for a workspace
+whose only trouble is a lost, gone, paused, dropped or mismatched pane
+link:
+
+- with nothing wanting the human: a red dot and NO REASON ANYWHERE.
+  [[RFC-0015]] C-FAILURE — "A failure MUST carry the reason it failed" —
+  unmet.
+- with something wanting the human: an AMBER dot, no reason text, and
+  `WorkspaceStatus.spoken` is nil for `failed`, so the row's accessibility
+  string omits it too. The row is indistinguishable from an ordinary
+  attention row. C-FAILURE — "A workspace containing a failed connection
+  MUST be distinguishable in the sidebar" — unmet.
+
+AND THE PRECEDENCE GAVE A WI-LEVEL CONCERN PRIORITY OVER AN RFC MUST.
+Attention has no RFC authority at all; its authority is
+[[WI-2026-08-09-021]]. C-FAILURE says nothing about precedence — it states
+an unconditional obligation that the chosen ordering defeated in exactly
+the case where both facts are true.
+
+THE FIX IS THE PREMISE, NOT THE PRECEDENCE. The ordering was never the
+defect and the reasoning for it is still sound where its premise holds:
+the scarce channel goes to the fact with no other. What was missing is the
+other channel for half the failures, so the reason source now answers for
+a pane's link as well as a connection's dial."""
+notes = ["""
+VERIFIED RED BEFORE GREEN, which for this one matters more than usual: the
+whole finding is that a test suite full of green did not notice an
+obligation going unmet for a whole class of failure. `failureReason` was
+temporarily reverted to `firstFailure` — the connection-only source it had
+been — and both new cases failed. Restored, they pass and `just verify` is
+clean.
+
+THE TESTS DRIVE PRODUCTION PATHS AND NOT A SEAM. `leafChildExited` is what
+the libghostty action calls, and a non-zero code with nothing else said is
+a link that died taking its transport with it. An earlier draft of these
+tests invented a `noteLostForTest` mutator on `ConnectProgress`; a test
+that needs new API to reach a state is a test of the API it needed.
+
+AND THEY ASK BOTH SOURCES IN ONE CASE, deliberately. Widening one and not
+the other is exactly what happened here, and a test that only ever
+exercises one of them cannot see it."""]
+
+[[content.acceptance_criteria]]
+text = "a workspace marked because a PANE's link failed shows the reason, in the same place a failed connection's reason has always been shown"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the same reason reaches a screen reader, which had nothing at all for this class — the row's description read the connection-only source too"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the connection's reason still leads where there is one; a host that could not be dialled explains every pane on it, and naming a pane instead would name a symptom over its cause"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the premise the dot's precedence depends on is stated where it can be checked, because it is the thing that broke and it broke silently"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a workspace whose only failure is a pane's link has a reason to show, and a screen reader is told; and the two sources are exercised together so widening one without the other fails"
+status = "done"
+category = "chore"

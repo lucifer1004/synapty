@@ -1,0 +1,45 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-057"
+title = "feat(gui): host blocks with drag-and-drop organization (Termius-style)"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius comparison round (groups design): Termius moves hosts to groups via multi-select drag-and-drop; we only have the Edit-Host picker. Per product direction, the host list switches from dense rows to draggable card BLOCKS (grid) — blocks are both the drag source and, via the group tree, the drop targets.
+
+Fix: host list renders as a card-block grid; blocks are draggable (multi-select via Cmd-click drags the whole selection); the group tree rows and the Ungrouped pseudo-row are drop targets with hover highlight; dropping assigns/reassigns group membership (nil for Ungrouped); group rows are not yet draggable (reparenting stays in a later WI)."""
+
+[[content.acceptance_criteria]]
+text = "the host list renders as card blocks in a responsive grid (not rows)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "blocks are draggable; Cmd-multi-select drags all selected blocks together"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dropping blocks on a group row moves them there (groupID set, persisted)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dropping blocks on Ungrouped clears group membership"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "group rows highlight while a drag hovers over them"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: HostStore.moveHosts unit tests + Swift suite green"
+status = "done"
+category = "chore"

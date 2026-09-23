@@ -1,0 +1,52 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-14-015"
+title = "review(gui): four defects in the day's own changes — install site, startup ordering, a main-thread spawn, and silence read as zero"
+status = "done"
+created = "2026-08-14"
+started = "2026-08-14"
+completed = "2026-08-14"
+refs = [
+    "WI-2026-08-14-008",
+    "WI-2026-08-14-009",
+    "WI-2026-08-14-001",
+]
+
+[content]
+description = """
+A review pass over the code written today, which is the least-reviewed code in the tree. Four defects, all in changes made in the last few hours, and two of them contradicted comments written alongside them.
+
+ONE — THE TITLEBAR TOGGLE WAS INSTALLED WHERE WINDOWS OFTEN DO NOT EXIST. `SidebarToggleAccessory.install` ran in `applicationDidFinishLaunching`, over `NSApplication.shared.windows`. One file away, the codebase already says why that is wrong: "The SwiftUI WindowGroup window often does not exist yet at applicationDidFinishLaunching" ([[WI-2026-08-08-033]], [[WI-2026-08-08-090]]) — which is why the min size and the hidden-titlebar chrome are re-applied from the window's own `onAppear`. The toggle appeared in every screenshot by luck. It now installs from the same place, and is idempotent so a window that already has one is left alone.
+
+TWO — THE KEY WAS PUBLISHED BEFORE THE HUB COULD MINT ITS NAME. `MachineKey.publishLocal()` sat at line 336 and `hubManager.start()` at 407, while the comment above the call read "AFTER the hub, whose minted peer id names the key". It worked on this machine only because an identity file was already there from earlier runs. On a machine whose hub has never started — a NEW MAC, which is the entire case enrolment exists for — the first launch would publish nothing and the Mac would not be offerable until the second.
+
+THREE — A SUBPROCESS SPAWN ON THE MAIN THREAD DURING LAUNCH. `HubManager.expectedBuild` is a lazy `static let` that runs `synapty version` and waits; its first reader is `start()`, on the MainActor, on the launch path. Measured at 15ms average and 24ms worst on an idle machine, and a synchronous spawn is the kind of cost that becomes far worse on a loaded one. It is now warmed on a background queue at launch: whichever side gets there first computes it, so the main thread never pays more than before and usually pays nothing.
+
+FOUR — SILENCE WAS READ AS ZERO, in the guard added hours earlier to stop a second workbench terminating a live one. `hub_info`'s supervisor count was parsed as `(d["supervisors"] as? Int) ?? 0`, and a hub built before that field existed reports nothing — which became zero, which means "nobody is using it", which means take it over. The protection therefore did not apply during exactly the upgrade window it was written for, and this operator has a remote hub still running an older binary. The count is now optional and an absent one is a refusal: absence of evidence is not evidence of absence, which is [[RFC-0004]] C-PRECEDENCE rule 5 and was already the rule everywhere else in this codebase."""
+notes = ["""
+WHAT THE SWEEP ALSO CHECKED AND FOUND CLEAN, recorded so the next pass does not repeat it: no force unwraps or `try!` in any file added today; every socket in the Zig tree is created through `sys.socket`, so the close-on-exec change covers all of them with no bypass; the pane watchdog thread takes its parent pid BY VALUE, so the detached thread holds no pointer into a `RunServer` that may be deinitialised.
+
+Considered and deliberately not changed: `TunnelManager.effectiveKeyPath` now does a `fileExists` per call. Seven call sites, all constructing an ssh command line — none of them per-frame or per-poll — so a stat is not worth a cache that could go stale against the very question it answers.
+
+402 Swift tests pass; the fourth defect has a test that fails without the fix."""]
+
+[[content.acceptance_criteria]]
+text = "the titlebar toggle installs from the window's own lifecycle, not from app launch"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "this machine publishes its key after the hub has minted the name it is stored under"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the build identity is resolved off the main thread"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a hub that cannot report its supervisor count is not taken over"
+status = "done"
+category = "fixed"

@@ -1,0 +1,75 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-07-011"
+title = "The close decision reads a poll that has not run, so a session that is gone loses its pane to a race"
+status = "done"
+created = "2026-09-07"
+started = "2026-09-07"
+completed = "2026-09-07"
+refs = ["RFC-0014:C-EXIT-SIGNAL"]
+
+[content]
+description = """
+INTRODUCED BY THE FIX FOR [[WI-2026-09-07-009]], HOURS OLD, AND FOUND BY AN
+AUDIT PROBE LEFT IN THE WORKING TREE. The probe's own comment named it:
+"the close decision moved onto `leafChildExited`, which fires before the
+account poll has read the line that says why".
+
+`leafChildExited` is called from libghostty's action at the instant the
+child exits. `ConnectProgress` is fed by a reader that polls the account
+file every quarter second. So at the moment the decision is taken,
+`account.ended` is very often still `nil`.
+
+AND THE CLIENT EXITS ZERO WHEN THE SESSION IS GONE. `runAttachThrough`
+breaks out of its retry loop on `no_session` and returns normally, so the
+process exits 0. The workbench therefore saw `ended == nil` and
+`childExit == 0`, which `LinkState.from` reads as `.live`, whose
+`keepsPane` is false — and closed the pane. On the one outcome the whole of
+[[WI-2026-09-07-004]] was built to report.
+
+THE CODEBASE ALREADY KNEW THIS SHAPE AND SAID SO. `accountEndsDisplaced`
+reads the FILE rather than the polled object, with a comment giving exactly
+this reasoning: "The caller is the pane's close, which IS the client's exit
+arriving… the reader that follows this file polls every quarter second, and
+a poll cannot be relied upon to have run — a decision that waited for it
+would close the pane first and learn why afterwards." That was written for
+ONE ending. The fix generalises it to every ending rather than adding a
+second way of asking.
+
+DRAWING AND DECIDING NOW ASK DIFFERENTLY, ON PURPOSE. Drawing is reached
+from view bodies several times a frame for every pane and must not touch
+the disk; deciding happens once, at an instant where the poll is not
+available and the file is."""
+notes = ["""
+VERIFIED RED: with the decision reading the polled snapshot again, both new
+cases fail. The `no_session` one is the defect; the `displaced` one is there
+so the two endings cannot drift apart a second time.
+
+THE PROBE WAS AN AGENT'S SCRATCH FILE AND IS NOT DELETED SO MUCH AS
+PROMOTED. It demonstrated the race in three cases, including a control that
+waited a second for the poll and showed the pane surviving — which is what
+established that the difference was timing and not policy. Two of its cases
+are now in `PaneArchiveTests`; the control is not, because a test that
+sleeps a second to prove a race exists is a slow way to say what the
+precondition assertion says instantly."""]
+
+[[content.acceptance_criteria]]
+text = "the close decision reads the account's ending from the file, not from the quarter-second poll that may not have run"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "`endsDisplaced` becomes `endReason`, so the one ending that was already read correctly and all the others are asked the same way and cannot drift apart"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "drawing keeps reading the polled snapshot — it is reached from view bodies several times a frame per pane and must not touch the disk"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "a pane whose account says the session is gone survives its child exiting BEFORE the poll has run, and the test asserts the poll has not run as a precondition"
+status = "done"
+category = "chore"

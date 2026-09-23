@@ -1,0 +1,25 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-RESUME"
+title = "Continuing From A Position, Or Being Told It Is Gone"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder MUST make its output addressable: every client MUST be able to determine, from what it has received, a POSITION it can later present to resume from.
+
+An INCARNATION is one holder's lifetime under a given name. A holder that has ended and a later holder of the same name are different incarnations.
+
+- A position MUST identify both a point in the session's output and the incarnation that produced it.
+- A client attaching MAY present a position. The holder MUST answer in one of exactly two ways.
+  - If the position is from this incarnation and the output following it is still retained, the holder MUST deliver all of that output, in order, before any output produced after the attach, and MUST NOT deliver output the client already had.
+  - Otherwise the holder MUST say so explicitly, and MUST NOT deliver a partial or repositioned stream in its place. A client so answered obtains the screen instead ([[RFC-0014:C-RESTORE]]).
+- A holder MUST reject a position from an earlier incarnation rather than resolve it against its own output.
+- Resumed output MUST be delivered in the dimensions it was produced in. An attach that both presents a position and sets new dimensions MUST deliver the resumed output first and apply the dimensions afterwards, as a single resize ([[RFC-0014:C-SIZE]]).
+
+The ordering rule exists because resumed bytes were written for the geometry that was in force when the child emitted them. Delivered into a differently shaped grid they wrap and address the wrong cells, which is the seam this clause otherwise forbids.
+
+Silent gaps are forbidden in both directions: the holder MUST NOT skip output without saying it did, and MUST NOT repeat output the client has already rendered."""

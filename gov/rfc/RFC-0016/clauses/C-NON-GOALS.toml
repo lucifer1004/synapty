@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "What this does not promise"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+- SYSTEM-WIDE HOTKEYS ARE NOT IN SCOPE. Every binding here applies while the workbench is frontmost, and resolves against the window the human is acting in. [[RFC-0016:C-TERMINAL]] empties the engine's binding set, which is also what stops the engine from holding a global binding of its own behind this exclusion.
+- ANOTHER APPLICATION'S GLOBAL HOTKEY IS INVISIBLE, AND IT WINS. What the workbench may and may not say about that is [[RFC-0016:C-HONESTY]]'s, which is normative; this bullet only records that the situation is out of reach rather than unhandled.
+- CHORD SEQUENCES are not in scope: one chord, one command.
+- PER-WORKSPACE OR PER-HOST KEYMAPS are not in scope. One table serves the application.
+- WHAT A PROGRAM INSIDE A PANE BINDS is not in scope and is not knowable. A chord this table does not claim is delivered to the terminal as key input, and what the shell, editor or multiplexer running there does with it is theirs."""

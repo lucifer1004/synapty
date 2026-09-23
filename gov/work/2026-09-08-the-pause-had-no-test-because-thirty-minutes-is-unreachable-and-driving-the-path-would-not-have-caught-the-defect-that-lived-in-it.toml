@@ -1,0 +1,73 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-015"
+title = "The pause had no test because thirty minutes is unreachable, and driving the path would not have caught the defect that lived in it"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+FROM AN ADVERSARIAL TEST AUDIT, whose argument was exact: "a function
+nothing calls in anger is a function whose first real caller finds the
+bug".
+
+THE WHOLE PAUSE PATH HAD NO TEST. `waitToBeTold`, `say(.paused)`,
+`say(.resumed)`, the retry marker and every word they write. The reason was
+structural rather than negligent: `Retry.budget_ms` was a `const` thirty
+minutes with no override, so no script could reach a pause. And the defect
+that lived there — a pause that burned a core because `is_tty and …`
+short-circuited the loop's only blocking call — was found by READING, in
+exactly the function an end-to-end test would have driven
+([[WI-2026-09-08-001]]).
+
+The budget is now overridable by `SYNAPTY_RETRY_BUDGET_MS`, a test seam
+named as one, on the model of `SYNAPTY_CONFIG_ROOT`. The e2e drives
+pause → marker → resumed in a few seconds.
+
+AND DRIVING THE PATH WAS NOT ENOUGH, WHICH IS THE PART WORTH KEEPING. With
+the busy-spin restored, the new case PASSED — a spinning client still
+answers the marker; it just burns a core until it does. A test that
+exercises a path is not a test of what could be wrong with it.
+
+So the case measures processor time consumed across a window of wall
+clock: two seconds of one core is 200 centiseconds, a pause that rests uses
+single digits, and the restored spin used 201. Verified in both directions.
+
+`RetrySignal.requested()` is gone. Nothing but its own test called it —
+`waitToBeTold` uses `take()` — and the project's rule for that shape is
+wire it or drop it, and say which."""
+notes = ["""
+I NEARLY WROTE THE WRONG CLAIM INTO THIS. The first draft of the case
+drove the pause and I was about to record that it would have caught the
+busy-spin. It would not have: restoring the spin left it green. Checking
+in the direction that could falsify the claim is what turned a test of the
+PATH into a test of the DEFECT, and it is the same check that today has
+already rescued four other assertions from being decoration."""]
+
+[[content.acceptance_criteria]]
+text = "the retry budget is overridable by a named, documented test seam, so a pause is reachable in seconds instead of half an hour"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the e2e drives pause, the marker, and resume — through the non-interactive caller whose guard was what turned the wait into a spin"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the paused client's CPU is measured, because driving the path passed with the spin restored and only this fails on it"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "`RetrySignal.requested()` is dropped — nothing but its own test called it"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the e2e's waiter follows the channel the client is writing instead of a fixed path, which made it wait on a log nobody was writing"
+status = "done"
+category = "fixed"

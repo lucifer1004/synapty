@@ -1,0 +1,90 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-MESSAGE-TYPES"
+title = "Message Types"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The following message types are defined for the A2A messaging protocol:
+
+### Session Lifecycle
+
+| Type              | Direction     | Description |
+|-------------------|---------------|-------------|
+| `register`        | agent → Hub   | Register session with Hub (sent by `synapty run` on connect) |
+| `agent_update`    | agent → Hub   | Update agent metadata (tool, project, session) |
+
+### Direct Messages
+
+| Type              | Direction     | Description |
+|-------------------|---------------|-------------|
+| `dm`              | agent → Hub   | Send a direct message to another agent |
+| `dm`              | Hub → agent   | Deliver a direct message (forwarded; `source` is original sender) |
+
+### Group Chat
+
+| Type              | Direction     | Description |
+|-------------------|---------------|-------------|
+| `channel_create`  | agent → Hub   | Create a new group chat channel |
+| `channel_invite`  | agent → Hub   | Invite an agent to a channel |
+| `channel_leave`   | agent → Hub   | Leave a channel |
+| `channel_msg`     | agent → Hub   | Send a message to a channel |
+| `channel_msg`     | Hub → agent   | Deliver a channel message (fan-out; `source` is original sender) |
+| `channel_event`   | Hub → agent   | Channel lifecycle notification (see below) |
+
+### Queries
+
+| Type              | Direction     | Description |
+|-------------------|---------------|-------------|
+| `list_agents`     | agent → Hub   | List all registered agents with metadata |
+| `list_channels`   | agent → Hub   | List channels the agent is a member of |
+
+### Responses
+
+| Type              | Direction     | Description |
+|-------------------|---------------|-------------|
+| `response`        | Hub → agent   | Success/error response to any request |
+
+### `response` Payload
+
+Every Hub command (`register`, `agent_update`, `channel_create`, `channel_invite`, `channel_leave`, `list_agents`, `list_channels`) receives a `response` envelope:
+
+```json
+{"type": "response", "id": "<matching-request-id>", "source": "hub", "target": "<requester>",
+ "payload": {"ok": true, "data": { ... }}}
+```
+
+On failure:
+```json
+{"payload": {"ok": false, "error": "reason string"}}
+```
+
+The `data` field is action-specific. For `dm` and `channel_msg`, successful delivery is silent (no response). Delivery failures (agent not connected, unknown agent, not a channel member) are reported via `response` with `ok: false`.
+
+### `channel_event` Types
+
+| Event     | Payload fields          | Description |
+|-----------|-------------------------|-------------|
+| `invited` | `channel`, `by`         | You were invited to a channel |
+| `joined`  | `channel`, `agent_id`   | An agent joined the channel |
+| `left`    | `channel`, `agent_id`   | An agent left or disconnected |
+
+### Message Delivery Model
+
+Messages are **pushed** by the Hub to connected agents via the persistent TCP stream. There is no Hub-level "fetch" or "recv" message type. The `recv` operation is a local IPC call between the agent and its daemon, draining the daemon's in-memory message queue (see [[RFC-0002:C-HUB-STATE]]).
+
+The Hub is a **stateless router** — it delivers messages to connected daemons or returns an error if the target is not connected. The Hub does NOT queue messages for offline agents. Message buffering is the daemon's responsibility.
+
+All messages (delivered or not) are appended to the Hub's global message log for observability.
+
+### Addressing Rules
+
+Envelopes that carry **content** to a channel MUST set `target` to `channel:<name>`. Envelopes that are **commands about** a channel (create, invite, leave, list) MUST set `target` to `hub` with the channel name in the payload.
+
+**Rationale:** The push-based model mirrors how production IM systems (Telegram, WhatsApp) deliver messages — the server pushes to connected clients, and the client manages its own buffer. Keeping the Hub stateless (aside from routing table, agent registry, channel registry, and the append-only log) simplifies the implementation and avoids the complexity of persistent identity and inbox management for V1.
+
+*Since: v0.1.0*"""

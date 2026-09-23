@@ -1,0 +1,79 @@
+#:schema ../schema/adr.schema.json
+
+[govctl]
+id = "ADR-0010"
+title = "The workbench as the agent presentation plane — brokered capability, requested never seized"
+status = "accepted"
+date = "2026-08-15"
+refs = [
+    "ADR-0001",
+    "ADR-0009",
+    "RFC-0001",
+    "RFC-0007",
+    "RFC-0013",
+]
+
+[content]
+context = """
+A design round on remote file transfer surfaced a structural fact that changes what this project competes on, and it is not a feature.
+
+THE WORKBENCH IS THE ONLY PARTY AUTHENTICATED TO EVERY HOST AT ONCE. Termius holds the same set of connections and has no reason to stand between them; Warp is oriented at the local shell; cmux has no network layer at all. That position is not something a competitor lacks by oversight — it is a consequence of Synapty already holding a ControlMaster per host in order to route A2A traffic, and nothing else in this category is built that way.
+
+SEPARATELY, AGENTS HAVE NO FACE. An agent — local or remote, from any provider — is compressed to a single text pipe. It cannot show a diff, a chart, a live page, or a decision with options. Not because it cannot produce one, but because it has no renderer. The human's Mac has one, sitting idle, already connected to the machine the agent runs on.
+
+THESE TWO FACTS COMPOSE, and the pieces are half-built already: RFC-0007 gives agents pane execution, RFC-0005 injects on message arrival, OSC 99 is reserved as a private human-in-the-loop notification namespace, `synapty notify` exists, and the agent status bar is a V1 deliverable. Scattered capabilities pointing the same direction with no statement of what they are.
+
+THE IMMEDIATE TRIGGER was concrete: dragging a file from one host's browser into another host's terminal. Done directly it requires host A to hold a credential for host B — standing, account-wide access created as the side effect of a drag gesture, which is precisely the trade ADR-0009 refused for enrolment. Done through the workbench it requires nothing new between the hosts at all.
+
+WHAT MAKES THIS NEED A DECISION rather than an implementation: it is not among ADR-0001's seven V1 deliverables, it changes the project's competitive claim, and it hands agents influence over what a human sees — a security boundary that cannot be added afterwards."""
+decision = """
+Recognize the workbench as the AGENT PRESENTATION PLANE, and make it the project's mainline rather than a late addition to ADR-0001's seven deliverables. Three positions follow, and they are load-bearing together.
+
+1. BROKER, NOT BRIDGE. Cross-host operations relay through the workbench. Hosts never acquire credentials for one another, and no agent request may cause them to.
+
+This is NOT a claim that brokering avoids trust — it plainly creates the capability to move data from B to A. The claim is that brokered trust is GOVERNABLE where direct trust is not. A key in authorized_keys is account-wide, permanent, and revocable only by remembering to go back and delete it. The same capability through the broker can be scoped to a directory, gated on an explicit per-host-pair human authorization, recorded per transfer with its initiator, and — decisively — IT CEASES TO EXIST WHEN THE WORKBENCH IS NOT RUNNING. A key sitting on a server has no equivalent property.
+
+2. ONE PLANE, TWO INITIATORS. A human's drag and an agent's CLI call enter the SAME service. The GUI is a view onto that service and never its owner.
+
+This is the part that cannot be matched by adding a feature. Termius's file transfer is terminal: nothing else in that application can call it. Here the transfer path, the port forward and the artifact view are substrate, and the human's gesture is one caller among several.
+
+3. AGENTS REQUEST PRESENTATION; THEY NEVER SEIZE IT. Four rules, binding on every present and future primitive:
+
+   a. Requests land in a queue, not in front of what the human is doing.
+   b. Every presented thing is attributed to the agent that asked for it. There is no anonymous content.
+   c. No request may take keyboard focus from a pane the human is typing in.
+   d. Agent-presented content is VISUALLY QUARANTINED — always inside a container that marks it as an agent's content, never rendered in chrome that could be mistaken for Synapty's own.
+
+Rule (d) is the one with a deadline. It costs almost nothing before the first agent-presented pixel exists, and becomes impossible afterwards, because by then content will already appear to belong where it sits.
+
+The presentation surface is BOUNDED TO FOUR PRIMITIVES — a live surface, an artifact, a decision, an event — corresponding to `expose`, `present`, `ask`, and the existing `notify`. A fifth primitive must first fail to be any of the four. That bound, rather than an enumerated list of permitted features, is what keeps the surface from becoming a junk drawer."""
+consequences = """
+GAINED. A differentiator that is structural rather than featural: it follows from the workbench already holding every host's connection, which is a position a competitor would have to be rebuilt to occupy. Headless agents acquire a renderer, and because the CLI is the contract, that holds for agents from any provider — which is what RFC-0001 claimed and has not until now had a mechanism for. Cross-host capability becomes governable and, uniquely, MORTAL: it dies with the process.
+
+PAID, and none of it hypothetical.
+
+THE WORKBENCH BECOMES A BOTTLENECK. Every byte crosses the human's Mac twice. For files a human drags this is irrelevant; for an agent that decides to move a large artifact it is not. This is a CONTROL PLANE, not a data plane, and the documentation must say so rather than let the limit be discovered.
+
+SCOPE. This is past ADR-0001's seven V1 deliverables and is now the mainline. That is a deliberate widening, not a drift, and the four-stage delivery below exists so that the widening does not become a half-built everything.
+
+AN AGENT-CONTROLLED SURFACE IS AN ATTACK SURFACE. Prompt injection against coding agents is live, not theoretical. Today the worst case is an agent running a wrong command, which is visible in a pane. After this decision the worst case is a poisoned agent drawing convincing content in the human's most trusted window. The four rules are what make the trade acceptable, and they are obligations taken on here rather than recommendations.
+
+BUILT-TO-LAST FROM STAGE ONE. The transfer service must be a resident service with the GUI as its view from its first commit. Writing transfer logic into the panel would be cheaper now and would have to be torn out at stage two. This is the single place in the plan where saving effort now guarantees rework.
+
+NEW OBLIGATION. Every new presentation capability must be checked against the four rules AND against the four-primitive bound before it is built, and a fifth primitive must first be shown not to be one of the four. Anything that cannot state which primitive it is does not belong on this plane."""
+
+[[content.alternatives]]
+text = "Stay at feature parity: build an SFTP browser like Termius's and stop there. Rejected because it is permanent catch-up against a mature implementation, and because the result would be a dead end by construction — a transfer path nothing else in the application can call, in an application whose distinguishing inhabitant is the agent."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Let hosts talk directly: agent forwarding, or a key on A authorized by B, so transfers do not relay. Rejected because it creates standing, account-wide, indefinitely-lived trust between the human's hosts as the side effect of a drag gesture. ADR-0009 refused exactly this trade for enrolment, where the act was at least explicit and behind a sheet; a drag is not."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Give agents full presentation control — open, focus, replace views at will — on the grounds that an agent asked to do work should be able to show its work. Rejected on the threat model: agents are subject to prompt injection from the material they read, so full control makes a poisoned README into a way to draw a convincing credential prompt inside the human's own trusted chrome. It also has no answer for several agents contending for one screen."
+status = "rejected"
+
+[[content.alternatives]]
+text = "Broker the capability, keep one service behind both the human's gesture and the agent's call, and bound presentation to four primitives that agents may REQUEST but never seize. ACCEPTED. It buys a structural differentiator rather than a featural one, gives headless agents a renderer for any provider that can run the CLI, and makes cross-host capability governable and mortal. It costs a relay bottleneck, a scope expansion past ADR-0001, and a permanent obligation to quarantine agent content visually."
+status = "accepted"

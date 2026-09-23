@@ -1,0 +1,29 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-032"
+title = "fix(lifecycle): scenePhase is measured, and the teardown keys on the window, not on focus"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+WindowLifecycle calls onStop() — every SSH connection released, the hub
+shut down — on scenePhase .inactive as well as .background. The
+2026-09-02 audit flagged it as a hypothesis; the measurement taken for
+[[WI-2026-09-02-022]] (session.json mtime unchanged on deactivate) was
+indirect and the re-audit rightly asks for instrumentation. The
+transitions are logged, Cmd-Tab and window-close are exercised on the
+real app, and the trigger is re-keyed only if the measurement says so."""
+
+[[content.acceptance_criteria]]
+text = "chore: every scenePhase transition is logged under Lifecycle with the decision taken. Measured on the real app 2026-09-02 (log stream): Cmd-Tab away and back — no transition at all, onStop never reached; Cmd-H (hide) — active→background, and onStop FIRED (connections released, hub shut down), then background→active restarted everything on unhide; quit — no transition, the process ends; relaunch — background→active. Window close could not be scripted (osascript may not send keystrokes) and is covered by the decision function's test"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "fixed: focus loss never fired onStop, but hiding did — so .background is read with the windows: hidden or minimised keeps the services (measured after the fix: hide → none, unhide → none), only a window that is gone stops them; start and stop are each taken once via a running flag; WindowLifecycle.decide is pure and tested; the scene-driven design of [[WI-2026-08-08-050]] stands with that reading"
+status = "done"
+category = "fixed"

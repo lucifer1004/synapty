@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-015"
+title = "fix(hub,daemon): threads and connections that are never reclaimed"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 01 #3 #6 #7 #8. The GUI's own health probe opens a connection every few
+seconds; each leaves a joinable exited thread until hub deinit — an
+unbounded, self-inflicted leak on a long-lived service hub, and the daemon
+has the same shape. A wedged subscriber grows the outbound queue without
+limit and the writer never notices (the holder side has exactly this
+protection; [[RFC-0014]] C-STALLED-CLIENT). A one-shot client that never closes
+keeps thread, fd and a 64 KiB buffer forever. Detached dial threads outlive
+the HubState they touch. One WI because one rule fixes all of it: every
+thread and every connection has an owner that ends it.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "finished client reader threads are reaped (joined or detached) in the hub (server.zig:99) and the daemon (run.zig:809); a soak of N probe connections leaves no growing thread list, pinned by a test"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dial threads are tracked and joined in HubServer.deinit (registry.zig:2137) so a dial in flight cannot wake against freed state"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "a one-shot connection is closed when its parked tool expires and its hold-open read has a deadline (session.zig:241, :51); accepted sockets carry a send timeout or a bounded outbound queue with poisoning past it (connection.zig:129)"
+status = "done"
+category = "fixed"

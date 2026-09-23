@@ -1,0 +1,52 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-016"
+title = "Three names spelled at their call sites, and a test setting up a condition the binary cannot see"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+refs = ["RFC-0007:C-PRIMITIVES"]
+
+[content]
+description = """
+The last of the crossing audit — none divergent today, each a literal
+where a name belongs.
+
+`protocol.temp_agent_prefix` is `"cli-tmp-"`, and both doc comments say
+the two sides hold it. The Swift side spelled it at the call site and the
+test spelled it three more times, so the Swift half was pinned only to
+itself. If it drifts, the activity view stops filtering its own polling
+noise and the human reads their own tool calls back as agent activity.
+Named once on this side now, and the test asks for the name.
+
+The exec request defaults — 30 seconds and 40 rows — were independent
+literals in `src/cli/types.zig` and `ExecController`. The CLI always
+sends both explicitly, so a drift reaches only an agent talking to the
+hub directly; that is a supported caller, which is the reason to name
+them rather than leave two bare numbers.
+
+AND A TEST SETTING UP A CONDITION THE BINARY CANNOT SEE.
+`test-connect-launch.sh` exported `SYNAPTY_FRESH_ID` at three call sites.
+Nothing under `src/` reads that variable — `--fresh-id` rides alongside
+as a flag — and `TunnelManagerTests` already asserts it is no longer
+built. Harmless, and exactly the kind of scaffolding that reads as a
+precondition to whoever edits the file next.
+
+Found by the ssot-crossing pass of the 2026-09-10 SSOT/Occam round."""
+
+[[content.acceptance_criteria]]
+text = "TaskMonitor names the temp-agent prefix once, and its test asks for the name rather than spelling it three times"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the exec request defaults are named on both sides rather than left as two pairs of bare numbers"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the launch suite stops exporting SYNAPTY_FRESH_ID, which nothing under src reads"
+status = "done"
+category = "changed"

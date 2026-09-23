@@ -1,0 +1,97 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-08-012"
+title = "A premise asserted in three comments and verified in none, and a rule no test went through the row to see"
+status = "done"
+created = "2026-09-08"
+started = "2026-09-08"
+completed = "2026-09-08"
+
+[content]
+description = """
+FROM AN ADVERSARIAL TEST AUDIT, and its sharpest sentence is the one worth
+keeping:
+
+    "Three comments agreeing is not verification; it is the same claim
+     written down three times, which is how the PREVIOUS wrong premise
+     survived — that one was also stated in two places and checked in
+     neither."
+
+THE PREMISE THE SWEEP RESTS ON. `Record.ownerGone` treats a record beside
+an absent lock as a tombstone and `SessionRecord.live()` sweeps on that
+answer. Both are safe only because a record cannot exist where a lock did
+not — `Holder.init` claims before anything else, `describe` runs later,
+once the child is on the terminal. Three comments said so and nothing
+checked it. Reverse those two and the sweep starts deleting sessions being
+born, with every test green.
+
+WRITING THAT TEST TOOK THREE ATTEMPTS AND EACH FAILURE IS THE POINT:
+
+- The first called `claim` and `describe` directly, in the right order. It
+  pinned its own call and not the holder's, and reversing `Holder.init`
+  left it green.
+- The second went through `Holder.init` and STILL passed reversed, because
+  `describe` fails silently when the sessions directory does not exist yet
+  — and in that test it did not. On any machine that has ever run a
+  session it does, so the test was green against a defect the real world
+  would have had.
+- The third creates the directory first. Reversing `Holder.init` now fails
+  it.
+
+A test that has not been run against the defect is a comment with a
+function signature.
+
+AND A RULE NO TEST WENT THROUGH THE ROW TO SEE. `WorkspaceStatus` was
+referenced by no test but its own, so restoring `HostTint.color(for:)` on
+the sidebar dot left all nine of them green — and the defect that actually
+happened was of that shape ([[WI-2026-09-07-007]]). The reviewer's
+prescription was an INVARIANCE test in pixels: render the row for two
+hosts whose labels hash far apart, assert the PNGs are identical. Not "the
+dot is grey", which pins a choice — "two rows differing only in their
+machine render alike", which pins the rule.
+
+AND NOT AN ACCESSIBILITY TEST, for a reason worth recording:
+`WorkspaceStatus.spoken` is nil for both `failed` and `quiet`, so a
+description test cannot tell a red dot from a grey one. It would cover the
+`spoken` and `failureReason` wiring and be blind to the thing that went
+wrong."""
+notes = [
+    """
+BOTH NEW TESTS VERIFIED AGAINST THE DEFECT THEY ARE FOR, not merely run.
+Reversing the claim and the description inside `Holder.init` fails the
+ordering test. Restoring `HostTint.color(for: host.label)` on the dot fails
+the rendering test — the exact edit [[WI-2026-09-07-003]] removed, put back
+to see the test notice.""",
+    """
+STILL OPEN, NAMED RATHER THAN LEFT: the pause and resume path has no test
+at all. `Retry.budget_ms` is a const thirty minutes with no override, so no
+script can reach a pause; the one Zig test covers only the no-channel case;
+and `RetrySignal.requested()` is called by nothing but that test — dead in
+production, since `waitToBeTold` uses `take()`. The reviewer's point is
+sharp: a function nothing calls in anger is one whose first real caller
+finds the bug, and the busy-spin fixed today ([[WI-2026-09-08-001]]) was
+found by reading, in the very function the e2e would have exercised. Making
+the budget env-overridable would let the e2e drive pause → retry → resumed
+in about five seconds.""",
+]
+
+[[content.acceptance_criteria]]
+text = "the claim-before-record ordering is asserted through `Holder.init`, the object that decides it, with the sessions directory present as it is on any machine that has run a session"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a row rendered for two different machines is byte-identical, so nothing on it may encode which machine — with a rig-sanity case, and a precondition that the two labels do not hash alike"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "`claimState` answers `unknown` for a path it cannot build, the arm whose own comment says one unresolvable path made every session read as gone"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "`offersClose` is asked about all eight states, including `dropped` — the case the state exists for and the one it did not ask about"
+status = "done"
+category = "chore"

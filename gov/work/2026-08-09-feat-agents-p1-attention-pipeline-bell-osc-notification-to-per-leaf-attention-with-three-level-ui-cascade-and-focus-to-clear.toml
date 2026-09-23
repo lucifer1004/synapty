@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-09-021"
+title = "feat(agents): P1 attention pipeline — bell/OSC-notification to per-leaf attention with three-level UI cascade and focus-to-clear"
+status = "done"
+created = "2026-08-09"
+started = "2026-08-09"
+completed = "2026-08-09"
+
+[content]
+description = "The attention UI shell (AgentMonitor.needsAttention + sidebar warning) had ZERO signal sources. P1 wires the zero-config terminal signals: GHOSTTY_ACTION_RING_BELL and GHOSTTY_ACTION_DESKTOP_NOTIFICATION route surface->leaf (the SET_TITLE registry path, WI-2026-08-09-017) into TerminalPaneManager.attentionLeaves. Cascade: pane warning ring (focus-ring mechanism, DS.warning), tab chip pulsing warning dot, session row (existing agentNeedsAttention path ORed with leaf attention), sidebar Terminal badge count, Dock badge. Clearing: focusing the leaf (leafDidFocus fires when a pane becomes visible+focused) removes attention. Claude Code rings the bell when it needs input — this works today with zero agent-side config."
+
+[[content.acceptance_criteria]]
+text = "RING_BELL + DESKTOP_NOTIFICATION actions -> leaf attention; TerminalPaneManager.attentionLeaves with focus-to-clear; pane ring / tab dot / session row / sidebar Terminal badge / Dock badge cascade"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "manager tests — mark, clear-on-focus, pane/session aggregation, count; suite green; screenshot of cascade with simulated attention (dev arg)"
+status = "done"
+category = "chore"

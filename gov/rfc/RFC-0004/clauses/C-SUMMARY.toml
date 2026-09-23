@@ -1,0 +1,28 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This RFC defines Synapty's agent presence protocol: how the workbench knows
+what every hosted agent is doing and when a human is needed.
+
+It specifies (1) a five-state status vocabulary — working / waiting / done /
+idle / unknown — shared verbatim by the hub protocol, the CLI, the agent
+skills, and the GUI; (2) an ownership rule for who may assert each state;
+(3) a dual-source model that merges explicit self-reports (`synapty notify`)
+with passive detection read from the terminal screen; (4) an append-only hub
+event log as the single source of truth for presence, with a push
+subscription face that replaces GUI presence polling; and (5) a `wait`
+primitive that lets one agent block until another reaches a target state.
+
+This RFC amends [[RFC-0003]] C-EVENTS (presence moves from 5s polling to
+event subscription; the GitHub bridge is unaffected) and pulls one narrow,
+bounded slice of [[RFC-0001]]'s deferred L3 introspection into scope:
+reading the final screen rows of a pane for status classification. Full 2D
+DOM export remains deferred."""

@@ -1,0 +1,92 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-26-002"
+title = "The corpus's own warnings: a deprecated citation, a promised contract with no clause, and a draft the normative documents lean on"
+status = "done"
+created = "2026-08-26"
+started = "2026-08-26"
+completed = "2026-08-26"
+refs = [
+    "RFC-0013",
+    "RFC-0006",
+    "RFC-0010",
+]
+
+[content]
+description = """
+A sweep of the documents that had only ever been read through citations left warnings unfixed. The list itself was not written down anywhere — it lived in a conversation — so this re-derives it rather than working from memory, and the first thing that produced was a correction.
+
+ONE OF THE FOUR I NAMED FROM MEMORY IS FALSE. I had recorded that [[RFC-0012]] C-LEVEL-CONTROL rests a MUST on a workbench-to-remote-hub connection that nothing establishes. It does exist and is used: the peer forward gives the workbench a loopback port onto each peer's hub, and `HubLogLevel.operatedPorts()` sends the level to this machine's hub plus every linked peer's. Recorded so the claim is not repeated.
+
+WHAT IS REAL, each verified against the corpus or the code before being called a defect:
+
+- [[RFC-0013]] C-ADDRESSING cites the DEPRECATED [[RFC-0002]] in the present tense, as the current authority for the hub routing by agent identity. RFC-0003's three citations of the same document are historical and correct; this one points an implementer at a superseded contract.
+- [[RFC-0006]]'s title and summary both promise managed start, and no clause specifies it. The behaviour ships. An implemented contract with no clause is the shape this corpus exists to prevent.
+- [[RFC-0010]] C-DIAGNOSABILITY cites RFC-0009 C-DIRECTORY for the name `contested`, which appears nowhere in RFC-0009. The CONDITION is there — "two live claims" — but the name is this RFC's own, and the same condition is called `conflicted` on the delivery surface with nothing tying the two together.
+- [[RFC-0014]] is a DRAFT that three normative RFCs lean on. Its phase is a lifecycle decision and is not settled here.
+- Nine mechanical warnings from `just gov-lint` that are not in deprecated clauses: five clauses announcing an amendment elsewhere in the future tense, three referring to neighbours by position, and the citation above."""
+notes = [
+    """
+RFC-0006 PROMISED A CAPABILITY THAT HAD BEEN DELIBERATELY REMOVED, and the promise was on the two surfaces a reader meets first.
+
+The title read "Workbench-Owned Start and Resume". C-SUMMARY said the RFC gives the workbench ownership of "STARTING an agent into a pane (managed start)" and described "per-tool launch and resume argument templates". C-NON-GOALS counted "one managed start, one resume attempt, then the human".
+
+None of it was true. C-MANAGED-START was deleted — not deferred, not deprecated — because starting an agent is typing its name in a terminal, usually with options this particular run needs, and a fixed recipe can only carry the option-less case that was already free. `ToolLifecycleSpec` carries `resumeArgv` and nothing else; `lifecycle/claude.json` says so in a comment and cites the deleted clause by name. The withdrawal reached the code, the data files and C-PRIOR-ART ("NOT adopted: Synapty built it and took it out"), and stopped there.
+
+What made this survive is worth naming: the withdrawal was recorded in the places a maintainer edits and not in the places a reader opens. A title is not documentation of a document, it is the first sentence of it.
+
+Fixed: the title drops Start; C-SUMMARY records the withdrawal and its reason, so the next reader who finds the deleted clause cited in a data file has somewhere to land; C-NON-GOALS no longer counts a start that cannot happen; and the changelog carries the correction.""",
+    """
+LEFT OPEN, DELIBERATELY: [[RFC-0014]] is a DRAFT that three normative RFCs lean on — RFC-0001 C-L1-SESSION, RFC-0006 C-RESUME-PLAN and C-RESUME-RESTORE, and RFC-0015 in five clauses. Its subject is implemented and load-bearing: `src/holder.zig` is the durability the workbench's every remote pane runs on, and RFC-0015 C-UNARCHIVE already reports a holder measured surviving the process that started it.
+
+A draft is a document whose obligations are not yet binding. Normative documents resting on one are either citing something that cannot be relied on, or the phase is wrong. It is the second, but moving an RFC's phase is lifecycle-owned and is the human's call, not a clean-up.
+
+The same question sits beside the version one: sixteen-plus rounds of clause amendments have landed in `spec`-phase RFCs with no version moves, and RFC-0013 took three more in this session's earlier work.""",
+    """
+RFC-0014 IS FINALIZED, draft to normative, at 0.1.0 in phase `spec`. The phase question was the right one: the document was not unfinished, it was unsealed.
+
+WHAT WAS CHECKED BEFORE MOVING IT, since a finalize is not a formality:
+
+- No open question of its own. The single hit for that vocabulary is [[RFC-0011]] C-HEADLESS-GATE's open question about relocating detection, which C-NON-GOALS correctly bounds — this document "neither performs the move nor authorises it".
+- Every normative clause has a mechanism in `src/holder.zig`: one-client displacement, bounded retention, the stalled-client path, size, pwd, exit signalling, terminal type, the version announcement, the end policy, restoration, detach and the live-child distinction. Twelve checked by name, none absent.
+- `scripts/test-holder-e2e.sh` passes, including the clauses that are easiest to get wrong from a unit test: nothing ends a session but the human, the policy is DECLARED rather than discovered by waiting, and a session whose socket is gone is still enumerable and endable by the process its record names — which is C-END and the general obligation the deprecated C-CUTOVER left behind.
+- Independently confirmed on a real host earlier today: a holder repainted a returning client's screen from where it stopped reading (C-RESTORE), and refused to be ended by anything but its human (C-END).
+
+C-CUTOVER stays deprecated. It carried the tmux-to-holder migration and its general form — a session of a previous mechanism must not be silently orphaned — survives in C-END.""",
+]
+
+[[content.acceptance_criteria]]
+text = "No live clause cites a deprecated RFC as current authority; RFC-0013 C-ADDRESSING points at the reduction that kept the behaviour, and says why the reduction rather than the thing reduced"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "RFC-0010 C-DIAGNOSABILITY no longer attributes a name to a clause that does not carry it, and `contested` and `conflicted` are tied together where a reader meets either"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Every clause announcing an amendment elsewhere has had that amendment verified at the receiving clause, and reads as a record rather than a promise"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = 'No live clause justifies a rule by the retired "V1 happy path" posture; each carries the reason that holds instead'
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "RFC-0006's title, summary and non-goals no longer promise managed start, which was deliberately removed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "`just gov-lint` reports zero, and reports it because there is nothing left rather than because the checks were loosened — the one check that lost a case lost it to a real distinction (a past-tense record is not a promise), and deprecated clauses are skipped because they are history and are not edited"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "The one warning I had recorded from memory and could not reproduce is written down as false, with the evidence that refutes it"
+status = "done"
+category = "chore"

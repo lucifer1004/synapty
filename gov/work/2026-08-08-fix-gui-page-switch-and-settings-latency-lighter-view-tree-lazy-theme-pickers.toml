@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-001"
+title = "fix(gui): page-switch and settings latency — lighter view tree, lazy theme pickers"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = "Hosts/Settings page switches blocked the main thread ~1s, and the Settings page was sluggish. Root causes: (1) NavigationSplitView adds ~10 levels of internal hosting/NSView nesting, making every layout/CA commit expensive (startup blocked 2.4s); (2) the Settings page rendered two 592-item theme menus (eager NSMenu construction) plus re-read the themes directory on every body evaluation. Fix: replace NavigationSplitView with a plain HStack; replace the theme menus with searchable lazy popover pickers; cache the theme names once; round split-view frames to integral points so layouts converge."
+
+[[content.acceptance_criteria]]
+text = "hosts/settings page switches no longer block the main thread ~1s"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Settings page renders fast and theme menus open instantly (searchable lazy picker)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "startup main-thread block cut from ~2.4s to ~150ms"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "split frames rounded to integral points (layout convergence)"
+status = "done"
+category = "fixed"

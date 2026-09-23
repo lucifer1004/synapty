@@ -1,0 +1,16 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-HONESTY"
+title = "What the workbench may claim about a chord"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The workbench MUST NOT claim what it cannot check about a chord.
+
+- A CHORD MUST NOT BE DESCRIBED AS AVAILABLE, FREE, WORKING, VERIFIED OR UNUSED. A hotkey another process registered system-wide is consumed before this application is offered it, and no inspection available here distinguishes that from a key nobody pressed. A claim the workbench cannot check is worse than none, because the human will believe it and look for the fault elsewhere.
+- WHAT IT MAY STATE IS WHAT IT KNOWS: which command holds a chord in this table, that a chord is on the refused list ([[RFC-0016:C-CHORD]]), and that a binding differs from its default.
+- A CHORD THAT NEVER ARRIVES MUST NOT BE REPORTED AS AN ERROR OR A CONFLICT, because it is indistinguishable from one that was never pressed. The remedy the workbench offers for a chord that appears not to work is the ability to choose another, which is the whole reason [[RFC-0016:C-REBIND]] exists."""

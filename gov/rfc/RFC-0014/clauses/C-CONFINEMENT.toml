@@ -1,0 +1,18 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-CONFINEMENT"
+title = "What The Holder May Do With What It Sees"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder interprets the session's output and therefore sees its contents. What the HOLDER may do with them is confined here; what an attached client may do with what it lawfully receives is governed by the artifacts that authorise the client, not by this clause.
+
+- The holder MUST NOT write session contents — output, screen state, or input — to persistent storage.
+- The holder MUST NOT disclose session contents to any party other than a client attached to that session, except where another normative clause of this project expressly authorises a named recipient.
+- The holder MUST NOT itself disclose one session's contents to another session or to an agent, and MUST NOT offer an interface that does.
+
+This is a one-hop rule and says so, because pretending otherwise would put it in conflict with capabilities that already exist: an exec pane's owner reads that pane's output through its client by [[RFC-0007]] C-PRIMITIVES, and that is a decision made there. What this clause guarantees is that the holder adds no second path around it."""

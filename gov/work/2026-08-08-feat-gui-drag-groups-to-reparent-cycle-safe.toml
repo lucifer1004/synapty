@@ -1,0 +1,40 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-08-062"
+title = "feat(gui): drag groups to reparent (cycle-safe)"
+status = "done"
+created = "2026-08-08"
+started = "2026-08-08"
+completed = "2026-08-08"
+
+[content]
+description = """
+Termius parity (groups round): group rows are drop targets for hosts but not draggable themselves — reorganizing the tree needs delete+recreate.
+
+Fix: group rows become draggable (GroupDragPayload); dropping a group on another group reparents it there; dropping on All Hosts / the sidebar root moves it to the top level; drops that would create a cycle (self or descendant) are rejected without state change; target rows highlight on hover."""
+
+[[content.acceptance_criteria]]
+text = "group rows are draggable"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dropping a group on another group reparents it (cycle-safe via canReparent)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "dropping a group on All Hosts moves it to the top level"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "target rows highlight during group drags (distinct from host drops)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "test: HostStore.canReparent/moveGroup unit tests + suite green"
+status = "done"
+category = "chore"

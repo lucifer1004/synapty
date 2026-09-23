@@ -1,0 +1,45 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-AGENT-IDENTITY"
+title = "Agent Identity and Registration"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Every participant in the Synapty messaging network MUST register with the Hub before sending or receiving messages. Registration establishes the agent's identity and metadata.
+
+### Registration Fields
+
+| Field     | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `id`      | string | YES      | Unique agent ID assigned by `synapty run` (e.g., `local-abc1`, `dev-server-ghi3`) |
+| `tool`    | string | NO       | Agent platform: `claude`, `codex`, `gemini`, `human`, or custom identifier |
+| `project` | string | NO       | Absolute path to the project/workspace the agent is operating in |
+| `session` | string | NO       | Short human-readable summary of the current session (e.g., "refactoring auth module") |
+
+### Registration Protocol
+
+1. **Session registration** — When `synapty run` starts, it MUST send a `register` envelope to the Hub with the agent `id`. This creates a routing table entry. The `tool`, `project`, and `session` fields MAY be omitted at this stage.
+
+2. **Agent registration** — When an agent program (Claude Code, Codex, Gemini, or human operator) is ready to participate, it SHOULD call `synapty register` (CLI) or `synapty_register` (MCP tool) with its metadata. The daemon forwards an `agent_update` envelope to the Hub, which enriches the existing routing table entry with the provided fields.
+
+3. **Identity updates** — An agent MAY call `synapty register` multiple times to update its metadata (e.g., changing `session` when resuming a different task). Each call overwrites the previous values for supplied fields.
+
+### Agent ID Format
+
+Agent IDs MUST be unique within a single Hub instance. The `synapty run` command generates IDs using the pattern `<host-label>-<random-suffix>`. The Hub MUST reject registration if an agent with the same ID is already connected.
+
+### Deregistration
+
+V1 uses TCP connection close as the sole deregistration signal. When the Hub detects a closed connection, it MUST remove the agent from the routing table, remove it from all channels (notifying remaining members), and retain the agent's offline inbox until the entry is garbage-collected. There is no explicit `deregister` message type.
+
+### Human Operators
+
+A human operator using the synapty CLI within a synapty session is treated as an agent with `tool` set to `human`. The human's `id` is the session's agent ID. Registration is optional but RECOMMENDED for visibility in the agent status bar.
+
+**Rationale:** Agent self-registration (vs. process introspection) follows the principle that agents know best what they are. Rich metadata (tool, project, session) enables the GUI to display meaningful information — not just PIDs or process names. The two-phase registration (session first, then agent metadata) supports the common case where `synapty run` starts before the agent program is ready.
+
+*Since: v0.1.0*"""

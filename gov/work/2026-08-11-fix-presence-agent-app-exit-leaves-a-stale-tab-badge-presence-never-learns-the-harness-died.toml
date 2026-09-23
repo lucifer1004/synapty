@@ -1,0 +1,32 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-11-016"
+title = "fix(presence): agent-app exit leaves a stale tab badge — presence never learns the harness died"
+status = "done"
+created = "2026-08-11"
+started = "2026-08-11"
+completed = "2026-08-11"
+refs = [
+    "RFC-0004",
+    "RFC-0008",
+]
+
+[content]
+description = """User-reported (2026-08-11): when the agent application (claude/codex/...) exits back to the shell, the tab still wears the agent badge with a stale status — indefinitely. Root cause is a presence gap, not a GUI bug: (a) the pane wrapper's hub connection stays alive, so the registration (and durable identity) persists — correct per RFC-0008, identity survival is the point; (b) ghostty_surface_process_exited stays false (the surface's child is the SHELL, which is alive — only the grandchild harness died), so the lifecycle-unknown path never fires; (c) the passive detector's no-match-is-inert rule (deliberate: an agent-spawned fullscreen subprocess must not flip state) means the shell prompt classifies as nil and the last state sticks. Nothing ever tells the hub the harness is gone. Proposed fix, two independent parts: (1) hook channel — extend `synapty hook-event claude` with SessionEnd mapped to a STATUS-ONLY lifecycle signal (state=unknown); this respects the standing decision that SessionEnd must NOT unregister (workbench teardown could fire it and drop resume plans — the objection was to unregistering, not to an honest status signal). SessionStart on the next session re-registers, so /clear round-trips cleanly. (2) GUI presentation — an agent whose merged status is `unknown` should read as "not visibly present": ghost/gray the tab badge (and status-bar row) instead of showing the last tool color. Residual gap to state honestly: unhooked harnesses (codex/gemini until WI-2026-08-11-011 hook adapters exist, and any tool without hooks) still have NO exit signal — sustained-no-match promotion was considered and rejected (false positives on agent-spawned fullscreen subprocesses). Refs RFC-0004 (vocabulary/lifecycle class), RFC-0008 (identity persistence)."""
+notes = ["Ghosting live-verified 2026-08-11 ~20:53 (screenshot): resumed claude at merged=unknown renders the tab badge in tertiary gray 0.55 opacity instead of the orange accent; status bar row matches. Presentation note: a freshly registered at-rest agent ALSO ghosts until its first turn (C-PRECEDENCE parks merged at unknown) — accepted as honest ('no live evidence'), tooltip carries the status word. RESIDUAL (as designed): live SessionEnd flow needs the user to re-run 'synapty hooks install claude' to pick up the new entry — their standing config, their explicit act; noted to them. Unhooked harnesses (codex/gemini until WI-011) still emit no exit signal."]
+
+[[content.acceptance_criteria]]
+text = "synapty hook-event claude handles SessionEnd -> agent_status {state: unknown, class: lifecycle} (status only, NO unregister — resume plans and identity survive); hooks install plan includes the SessionEnd entry; unit tests cover the dispatch"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "GUI renders merged status unknown as not-present (ghosted tab badge + status bar row) instead of stale last-known tool colors"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "residual gap recorded — harnesses without hook adapters emit no exit signal in V1; revisit with WI-2026-08-11-011 fleet adapters"
+status = "done"
+category = "chore"

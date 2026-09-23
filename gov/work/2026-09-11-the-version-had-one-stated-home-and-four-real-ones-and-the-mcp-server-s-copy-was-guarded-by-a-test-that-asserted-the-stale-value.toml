@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-11-004"
+title = "The version had one stated home and four real ones, and the MCP server's copy was guarded by a test that asserted the stale value"
+status = "done"
+created = "2026-09-11"
+started = "2026-09-11"
+completed = "2026-09-11"
+
+[content]
+description = '''
+The justfile states the rule in capitals: "ONE PLACE: build.zig.zon. It
+was hand-synced across three files and the three could disagree without
+anything noticing ([[WI-2026-09-02-028]])."
+
+That is true of the app, the DMG, the zip and the cask — `VERSION` is
+read out of the manifest and `just package` refuses a tag that disagrees.
+It was false of the binary. `src/mcp.zig` announced
+`"serverInfo":{"name":"synapty","version":"0.1.0"}` to every MCP client
+from a literal of its own, and `build.zig` stamped no version at all —
+only `build_id`.
+
+AND THE TEST BESIDE IT ASSERTED THE SAME LITERAL:
+
+    try std.testing.expect(mem.indexOf(u8, r, "\"version\":\"0.1.0\"") != null);
+
+So bumping `build.zig.zon` to 0.2.0 gave the DMG, the cask and the app
+0.2.0, left the MCP server telling every client 0.1.0, and kept the suite
+GREEN — because the assertion pinned the stale value rather than the
+build's. `just package`'s skew check compares `SYNAPTY_VERSION` against
+the manifest and never asks the binary what it claims, so no gate saw it.
+
+WHAT CHANGED. `build.zig` reads `@import("build.zig.zon").version` into a
+`version` module that the mcp module — and the mcp TEST module — both
+import, so the wire string and the assertion come from the same place the
+packaging does. No source file carries the number.
+
+Measured: with the manifest temporarily at 0.9.9, `mcp-serve` answered
+`"version":"0.9.9"` with no source edit, and the test stayed green
+because it follows the manifest now rather than a copy of it. The test
+also requires the string to be non-empty, so an options wiring that
+resolved to `""` is a failure rather than a vacuous pass.
+
+Found by the ssot-gov pass of the 2026-09-10 SSOT/Occam round.'''
+
+[[content.acceptance_criteria]]
+text = "the MCP server reports the version from build.zig.zon rather than a literal of its own"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "build.zig exposes the manifest version as a module the binary and the test both import"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "the initialize assertion is built from the manifest, and requires a non-empty string so an empty option cannot pass vacuously"
+status = "done"
+category = "chore"

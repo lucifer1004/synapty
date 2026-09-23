@@ -1,0 +1,35 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-021"
+title = "The connection everything else rides is opened last"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+
+[content]
+description = """
+Setting a host up opens its multiplexed connection at the END, after the probe, after `hub --ensure`, and after the query for which build is running. Each of those three therefore pays a full SSH authentication — measured at ~2.2s against ~0.36s over a master — so the setup spends about six seconds proving who it is, three times, to a host it is about to hold a connection to anyway.
+
+WHY IT WAS LAST, and it is a real reason: the master carries the peer link as an `-L` forward, and which port to forward to is only known once the remote hub has answered. The connection could not be built before the thing it carries was known.
+
+BUT IT DOES NOT HAVE TO CARRY IT FROM BIRTH. `ssh -O forward` adds a forward to a LIVE master, and this script already does exactly that on the path where a master was found already running. The peer link can be added at the end, to a connection that has been carrying everything else since the beginning.
+
+THE BULK MASTER IS A SECOND HANDSHAKE, paid in series at the end for a connection nothing needs until a transfer starts. Begun alongside the first one, its cost overlaps the work rather than following it."""
+notes = ["2026-08-17: Measured through the connection account, no master alive at launch, two hosts at once. Setup phase (first line to 'this host is ready'): 17.7s originally, 11.5s after the probe merge, 3.5s with the connection opened first. Every step that used to cost ~2.2s now costs 0.3-0.7s; what is left of the setup is the one handshake that opens the master (~1.6s). First paint went 28.4s to 7.7s. The remaining 3.5s is workbench-side, between the setup finishing and the pane's process speaking, and is not in this work item."]
+
+[[content.acceptance_criteria]]
+text = "The multiplexed connection is opened before the steps that use it, and the peer link is added to it once the remote hub has answered"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The transfer connection is opened alongside the first rather than after everything else"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The measured before and after are recorded, taken through the workbench's own connection account"
+status = "done"
+category = "chore"

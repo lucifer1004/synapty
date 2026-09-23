@@ -1,0 +1,11 @@
+{
+  "_comment": "RFC-0006 lifecycle spec: the resume template. Data, not code — user overrides at ~/.config/synapty/lifecycle/. {resume_ref} is substituted AFTER allowlist validation.",
+  "_verified": "2026-08-21, kimi-code 0.36.1. `kimi --session session_<uuid>` resumed a session and recalled its earlier contents. THE `session_` PREFIX IS PART OF THE REF: the bare UUID is rejected with 'Session not found'. `-r` is an undocumented alias of --session; the documented spelling is used here. kimi itself prints `To resume this session: kimi -r session_<uuid>` when it exits.",
+  "_no_ref_source": "NO WAY TO OBTAIN THE REF YET, so this template composes nothing today: kimi has no hook or notify mechanism, sets no session-id environment variable for the tools it runs, and cannot report its own id when asked — so neither a hooks channel nor the skill-teaches-the-agent route of RFC-0006 C-RESUME-PLAN is available. The plan degrades to launch-fresh, which is the honest outcome. This file is here so that the day a ref can be supplied, the template it is substituted into is one that has been verified rather than guessed.",
+  "tool": "kimi",
+  "resumeArgv": [
+    "kimi",
+    "--session",
+    "{resume_ref}"
+  ]
+}

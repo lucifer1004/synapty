@@ -1,0 +1,52 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-13-011"
+title = "feat(gui): apply the failure-state vocabulary beyond tunnels — three observable failures with no way to see them"
+status = "done"
+created = "2026-08-13"
+started = "2026-08-13"
+completed = "2026-08-13"
+
+[content]
+description = """
+The app already renders one failure category correctly and only one. HostSidebar shows a failed tunnel as a danger chip, with the reason inline and an accessibility label carrying it. That is the right vocabulary. Three other failures are already OBSERVABLE — the state exists, published, on @Observable objects — and nothing renders them, so the human's only channel is Console.app.
+
+This is wiring, not design. The pattern is settled; it is applied once.
+
+WHAT IS MISSING, and where each already lives:
+
+1. A host, group or identity that did not reach disk. HostStore.unpersistedRecordIDs (WI-2026-08-13-008) names the records that failed to persist. Today the human edits a host, sees the list update, and finds their change gone after a relaunch with nothing anywhere saying why — the one failure they cannot detect by looking, because the in-memory list still shows exactly what they typed.
+
+2. A peer link that gave up. TunnelManager.peerLinkFailed holds peers the redial chain abandoned after six attempts. That set exists precisely so a silent stop is distinguishable from a working link, and then nothing reads it.
+
+3. A remote hub that could not be started or has died. `hub --ensure` already answers this, and HubManager already models a .failed status for the LOCAL hub — the remote case has no equivalent.
+
+THE RULE THIS FOLLOWS ([[RFC-0004]]-adjacent, stated in src/diag.zig and AppLog): the log answers WHY — cause, identifiers, error code — for whoever is debugging, possibly hours later on a machine with no GUI. The UI answers WHAT — consequence and next step, on the object it happened to. The same failure produces both and the two strings MUST DIFFER; one string in both places yields either a dialog reading `NSCocoaErrorDomain Code=513` or a log line reading "something went wrong", each being the other audience's answer handed to the wrong reader.
+
+NOT IN SCOPE, deliberately: no alert dialogs (every `.alert` in this app is a confirmation, and these failures are "you will want to know", not "stop what you are doing"), and no in-app error console or log viewer — that is Console.app rebuilt inside the app, with the same property that nobody opens it."""
+
+[[content.acceptance_criteria]]
+text = "a record that failed to persist is marked on its own row, with what to do about it"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a peer whose redial chain gave up is marked on that host, reusing the existing danger-chip vocabulary"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "a remote hub that could not start or has died is distinguishable from a healthy one on the host"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "each of the three carries an accessibility label, as the tunnel case already does"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "a test that the UI string and the log string are not the same text"
+status = "done"
+category = "chore"

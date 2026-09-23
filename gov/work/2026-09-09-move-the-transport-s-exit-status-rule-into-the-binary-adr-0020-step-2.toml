@@ -1,0 +1,53 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-006"
+title = "Move the transport's exit-status rule into the binary (ADR-0020, step 2)"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0014:C-OPT-OUT",
+]
+
+[content]
+description = """
+The second step of [[ADR-0020]].
+
+`connect.sh` decided what a transport's exit status meant: `if [ "$rc" -eq
+255 ]` chose between `end link_severed` and `end child_exited`. That is a
+fact about ssh — ssh(1): "ssh exits with the exit status of the remote
+command or with 255 if an error occurred" — sitting in a file that has to
+get `set -e` right before it can even reach the test, which the first
+version of it did not.
+
+`transportEnd` in the binary owns the rule now, as a pure function of the
+wait status with a unit test beside it, and `synapty account
+--transport-status <n>` is how the script asks. The script still runs the
+transport and captures the number; taking that over is the next step, and
+it removes the `|| rc=$?` idiom with it.
+
+A SIGNAL NOW SAYS NOTHING, which the shell version could not express. It
+mapped every non-255 status to `child_exited`, so a killed transport — a
+pane being closed, almost always — was reported as the human's own child
+finishing. Neither answer is true of it: the link was not severed and
+nothing of theirs finished. Silence leaves the pane behaving as a terminal
+does, which is what closing one should do."""
+notes = ["THE FLAG IS A BRIDGE AND IS MEANT TO GO. `--transport-status` exists because the script still runs the transport; when step 3 moves that too, the caller is inside the binary and the flag has no user left. Named here so its removal is a completion rather than a change of mind."]
+
+[[content.acceptance_criteria]]
+text = "Which exit status means what is decided by the binary, from a pure function of the wait status"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A transport killed by a signal is reported as nothing rather than as a child that exited"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "255 is a severed link, other codes are the shell the transport was carrying, and a signal says nothing"
+status = "done"
+category = "chore"

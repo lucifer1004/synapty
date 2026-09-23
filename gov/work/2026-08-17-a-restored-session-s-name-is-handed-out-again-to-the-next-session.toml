@@ -1,0 +1,27 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-17-019"
+title = "A restored session's name is handed out again to the next session"
+status = "done"
+created = "2026-08-17"
+started = "2026-08-17"
+completed = "2026-08-17"
+
+[content]
+description = """
+The sidebar shows `remotehost`, `remotehost`, `remotehost 2`. A restored session and the first one opened after it carry the SAME name, and only the second one opened gets a number.
+
+THE NAMES ARE COUNTED, NOT LOOKED AT. `nextLabel` keeps a per-prefix counter in memory and returns the bare prefix while that counter is one. Sessions brought back by a restore never pass through it — their names come from the snapshot — so the counter is zero when the workbench starts with three of them on screen. The first `remotehost` opened by hand is therefore the counter's number one, and takes the name of the session already sitting above it.
+
+A NAME IS A THING THE HUMAN USES TO TELL TWO PANES APART, so it is not something to keep a private count of. What makes a name free is that nothing else is called it, and that is a question about the sessions themselves."""
+
+[[content.acceptance_criteria]]
+text = "A new session never takes the name of a session already open, including sessions a restore brought back"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A test opens a session beside a restored one and asserts the two are told apart"
+status = "done"
+category = "chore"

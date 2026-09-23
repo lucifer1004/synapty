@@ -1,0 +1,57 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-10-006"
+title = "A dropped pane is the severed one without a witness, and only one of them was offered the way back"
+status = "done"
+created = "2026-09-10"
+started = "2026-09-10"
+completed = "2026-09-10"
+refs = [
+    "RFC-0015:C-FAILURE",
+    "RFC-0014:C-EXIT-SIGNAL",
+]
+
+[content]
+description = """
+`LinkState.dropped` and `LinkState.severed` are the same situation with
+different witnesses. `severed` is ssh having said the failure was its own
+on a host that keeps no session; `dropped` is libghostty reporting the
+pane's child gone with no account line to explain it — "The connection to
+<machine> ended — nothing said why". In both, nothing local is alive, and
+in both the act that helps is identical: dial the host and put a session
+back in this pane. `retryLeaf` does exactly that, and it does not care
+which of the two states asked.
+
+Only `severed` was offered it. `dropped` got a notice and a Close button.
+The reason it was excluded belonged to the OTHER half of that change: the
+argument that a retry marker would be "written to a path nothing polls"
+is about the PAUSE nudge, and it does not reach a state whose retry
+dials. So a human whose pane died without explanation — the case with the
+least information and the most reason to want a second attempt — was the
+one given no way to make one.
+
+AND THE HELP TEXT PROMISED THE WRONG ACT. One sentence covered both
+retries: "Dials <machine> again now." A paused client is not dialled — it
+is woken, back onto the screen and scrollback the pause exists to
+preserve — so the tooltip described the one act that would have destroyed
+what the state was protecting. It is now chosen by what the press will
+actually do, from the same function that decides it.
+
+Raised by the reach-hunter pass of the 2026-09-10 debt sweep as an open
+question."""
+
+[[content.acceptance_criteria]]
+text = "a dropped pane offers Try again, and it means dialAgain — the same act severed already had"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "the retry tooltip is chosen by what the press will do, so a paused session is no longer promised a dial"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "retryMeans is pinned for all three states that offer a retry, and retryHelp for both acts"
+status = "done"
+category = "chore"

@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-NON-GOALS"
+title = "What This Does Not Decide"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This document specifies a model and its lifetimes. Several neighbouring things are deliberately left to others.
+
+- NO DOCKING GESTURE. What the human grabs, where the drop regions are, and what the preview looks like are interaction design. This document makes a docked cross-machine layout REPRESENTABLE and says nothing about how it is performed.
+- NO SIDEBAR VISUAL DESIGN. That the sidebar lists workspaces is settled elsewhere and appears here only where it constrains behaviour ([[RFC-0015:C-FAILURE]], [[RFC-0015:C-EMPTY]]). Layout, ordering affordances and typography are not specified.
+- NO CHANGE TO AGENT IDENTITY ITSELF. An agent's durable id under [[RFC-0008]] is unchanged, and every identity, re-homing and mailbox rule applies exactly as before. What DOES change is what an agent is told about its placement: the container it is in is now a workspace and is named by a workspace identifier ([[RFC-0015:C-IDENTIFY]]). That is a contract change, stated rather than smuggled.
+- NO CHANGE TO WHAT MAY BE TYPED. [[RFC-0006]] C-RESUME-RESTORE governs resume incantations, and its authority is untouched: re-establishing a link remains restoration, submitting a prompt remains gated. What changes here is the UNIT being restored, not the rules for typing into it.
+- NO NEW TRANSPORT. Connections are established the way they already are. Nothing here defines ssh options, tunnelling, or authentication.
+- NO MULTI-WINDOW MODEL. Whether a workspace can be torn off into its own window is a separate question this document neither answers nor forecloses."""

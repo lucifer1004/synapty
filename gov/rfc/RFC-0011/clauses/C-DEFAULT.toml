@@ -1,0 +1,58 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-DEFAULT"
+title = "Not Supported By Default"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+Headless wake is OFF, and a hub with no workbench keeps candidates pending,
+which is [[RFC-0005]] C-WAKE-TRIGGER's gate-closed behaviour and needs no
+federation rule of its own — [[RFC-0009]] defers cross-machine delegation
+entirely (C-NON-GOALS). Nothing here changes
+the default. This clause fixes what the default owes a human.
+
+Requirements:
+
+- A hub MUST NOT inject a wake on its own initiative. Absent a delegation
+  (C-DELEGATION) AND the evidence model C-HEADLESS-GATE requires, a wake
+  candidate on a workbench-less hub stays pending, and the agent processes
+  its mail when someone next attaches.
+- THAT OUTCOME IS ACCEPTABLE AND MUST NOT BE TREATED AS A DEFECT. "A
+  detached agent reads its mail when a human next looks" is coherent, and
+  it is strictly better than an unattended process typing into terminals
+  under an authority nobody granted in the moment. It is also weaker than
+  it sounds and this clause says so: it makes cross-machine coordination
+  human-paced, which is a real cost and the reason this RFC exists.
+- DEPLOYING AN AGENT TO A MACHINE MUST NOT BE READ AS ARMING IT. Stated as
+  its own requirement because it is the tempting shortcut, and because the
+  reasoning that would justify it — "they deployed the agent, so they
+  meant this" — is how a per-pane act becomes an ambient permission. The
+  act it would stand in for was performed for a different agent on a
+  different machine.
+- A PENDING CANDIDATE MUST BE VISIBLE ON A NAMED CARRIER, not merely
+  "observable". [[RFC-0005]] C-WAKE-TRIGGER records wake ATTEMPTS as hub
+  events, and a candidate that is never attempted produces none — so the
+  fact that an agent has mail it has not been told about would otherwise
+  reach nobody. It rides the row [[RFC-0004]] C-SUBSCRIPTION owns and enumerates: the `list_agents` response and that snapshot carry `pending_wake` beside `status` and `peer_reachable`. NAMED HERE, in the spelling the wire uses, rather
+  than left to implementation, for the
+  reason [[RFC-0010]] C-DIAGNOSABILITY gives — a requirement whose
+  compliance cannot be tested is how a version number sat on the wire
+  with nothing reading it.
+- THE PENDING-WAKE FLAG IS A DECLARED CAPABILITY, AND ITS ABSENCE MUST NOT
+  BE DECODED AS `false`. It crosses a peer boundary, so [[RFC-0010]]
+  C-CAPABILITIES governs it: the providing side declares it, absence is
+  the default, and no version bump is needed because a peer that never
+  sends the flag reproduces exactly the behaviour that existed before this
+  RFC. That reasoning holds ONLY under the condition stated here. A
+  consumer that renders a missing field as "no pending wake" has not
+  declined the capability, it has MISREAD it — the same shape
+  C-CAPABILITIES' meaning test rejects, and the concrete failure is that
+  an agent with unread mail on an older peer looks identical to one with
+  none. Implementations MUST distinguish absent from false and MUST
+  attribute the absence under C-DIAGNOSABILITY
+  (`peer_lacks_capability`): the peer's build does not report this,
+  which is not the same sentence as "this agent has nothing waiting"."""

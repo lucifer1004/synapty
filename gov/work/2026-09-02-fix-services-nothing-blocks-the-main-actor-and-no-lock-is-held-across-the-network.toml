@@ -1,0 +1,38 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-02-022"
+title = "fix(services): nothing blocks the main actor, and no lock is held across the network"
+status = "done"
+created = "2026-09-02"
+started = "2026-09-02"
+completed = "2026-09-02"
+
+[content]
+description = """
+External audit .claude/audits/2026-09-02-code-quality, 03 #1 #2 #3 #5 #6; 04 #1 #4 #8. One asymmetry: half the codebase learnt
+to poll and to set deadlines on both reads and writes, the other half still
+blocks bare. A network black hole holds RemoteFS's global lock forever;
+an agent's view.expose runs a full SSH authentication on the main actor
+(~30 s worst case); MasterPool authenticates under the lock the main
+thread's existing() needs; launch can freeze the main thread for the hub
+handshake and ssh-keygen. The scenePhase finding is a hypothesis the
+review itself flags for measurement: [[WI-2026-08-08-050]] chose scene-driven
+stop/start for a reason, so measure first, then decide.
+
+The audit transcript under .claude/audits is a session artefact and is not in the tree; the findings this WI acts on are the ones written here."""
+
+[[content.acceptance_criteria]]
+text = "RemoteFS uses per-session locking (or an actor) and Session.receive has a read deadline, so one silent host cannot wedge the file browser for every host (RemoteFS.swift:297)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "PortForwardService.expose/withdraw, MasterPool.grow's spawnMaster, HubManager.start/spawn's polling and MachineKey.ensureLocalKey all run off the main actor, with state published back on it; MasterPool authenticates outside the pool lock"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "fixed: the scenePhase stop/start cycle was measured on app deactivation (session.json mtime unchanged, onStop does not fire on focus loss) so the design of [[WI-2026-08-08-050]] stands; GhosttyNSView.destroySurface hands off asynchronously instead of DispatchQueue.main.sync; closePaneAsking uses a sheet like askBeforeDisplacing"
+status = "done"
+category = "fixed"

@@ -1,0 +1,34 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-14-001"
+title = "A lint finding that could never be cleared, on the file that warns about exactly that"
+status = "done"
+created = "2026-09-14"
+started = "2026-09-14"
+completed = "2026-09-14"
+refs = ["RFC-0014:C-SESSION-NAME"]
+
+[content]
+description = """
+`just verify` has printed the same `review` finding on every run for as long as RFC-0014 C-SESSION-NAME has existed, and it is a false positive.
+
+The rule catches a reference by POSITION, because an insertion moves it — "the last one" after a frame was appended to a list, "four sentences earlier" after a sentence was added. Both of those are real and both were caught here. But "the last one" has a second sense that is not a pointer at all: C-SESSION-NAME says "renaming replaces the name; the last one given wins", which is an ordering among INPUTS. Nothing inserted into the document can move it.
+
+THE FILE ALREADY KNEW THIS FAILURE MODE AND WAS SUFFERING IT. Twenty lines above, the amendment check records why its first version was thrown away: "the first version of this check reported four such records and one real one, which is the ratio at which a check starts being ignored." A `review` finding that can never be cleared is that, in its permanent form — and review findings do not fail the build, so nothing ever forced the question.
+
+THE TELL IS THE PARTICIPLE. The positional sense names a thing; the temporal one says who did it — given, sent, said, offered, written, received, made, to arrive. The rule skips those and reports the rest.
+
+NOT AN ALLOWLIST, and the difference matters. A suppression entry would have cleared this finding and every future one of its shape, including the real ones. The rule is fixable, so it was fixed.
+
+AND IT CARRIES ITS OWN CASES NOW. `gov-lint.py --selftest` asserts the two real catches still fire and the false one does not, and `just gov-lint` runs it before it reads the corpus — because a lint whose rules nobody can change without re-deriving their intent is one that gets loosened by whoever it inconveniences next. Canaried in three directions: widen the exclusion and the real catch fails; remove the rule and the real catch fails; remove the exclusion and the false one comes back."""
+
+[[content.acceptance_criteria]]
+text = "gov-lint's positional-reference rule no longer reports an ordering among inputs — the corpus goes from one permanent review finding to none, with nothing suppressed"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "the rule carries its own cases, both the two real catches this corpus produced and the false one, and just gov-lint runs them before the corpus"
+status = "done"
+category = "chore"

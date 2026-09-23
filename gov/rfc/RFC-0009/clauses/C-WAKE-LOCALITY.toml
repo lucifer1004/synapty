@@ -1,0 +1,66 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-WAKE-LOCALITY"
+title = "Wake Belongs to the Hosting Machine"
+kind = "normative"
+status = "deprecated"
+since = "0.1.0"
+
+[content]
+text = """
+[[RFC-0005]] wake turns a mailbox edge into a new turn by typing into the
+recipient's pane. Under federation both halves must stay on the
+recipient's machine.
+
+Requirements:
+
+- QUALIFIED BY [[RFC-0011]], and the qualification is NARROW. "A hub with
+  no workbench keeps candidates pending" remains the DEFAULT and the only
+  behaviour any implementation may ship today. [[RFC-0011]] describes one path
+  by which a human, in a workbench, could delegate injection authority to
+  such a hub for a named agent — bounded, expiring and revocable — and
+  that path is NOT AUTHORISED until TWO things change, and naming only one
+  of them would leave an amendment that authorises nothing. [[RFC-0011]]
+  C-HEADLESS-GATE MUST be amended to authorise it; AND C-BOUNDARIES'
+  prohibition — a peer MUST NOT grant a relayed identity any capability
+  it withholds from a local one — MUST be scoped to admit it, since
+  arming is withheld from every local process on the hosting machine,
+  which makes granting it to a relayed party exactly the widening that
+  rule names. Both conditions are on DOCUMENTS and not on the world: "until
+  its evidence requirements are met" is something a
+  team can believe it has satisfied and ship against, while
+  C-HEADLESS-GATE says a hub MUST NOT inject until an amendment to that
+  clause names a resolved evidence model — and the two readings differ
+  exactly where it matters, which is the moment somebody is confident. Until
+  then the bullets below stand without exception, including
+  "A HUB WITH NO WORKBENCH CANNOT WAKE" and the ban on inventing a
+  substitute path. The minting rule and the ban on cross-machine wake
+  routing are untouched in every case: only the hub hosting the agent may
+  ever inject, and only a human's delegation may let it.
+
+- The wake candidate is minted by the hub that HOSTS the mailbox, which
+  after C-DELIVERY is always the recipient's own hub. A forwarding hub
+  MUST NOT mint a candidate for a message it forwarded: it never held
+  the mailbox, so it never saw the empty-to-non-empty edge that
+  [[RFC-0005]] C-WAKE-TRIGGER defines.
+- The injection is performed by the workbench attached to that same hub
+  (or, once both conditions above are met, by that hub itself under a
+  delegation — never by any other party),
+  under the unchanged [[RFC-0005]] C-STATE-GATE evidence rules. A workbench
+  MUST NOT
+  inject into a pane it does not own, and cannot: the gate requires a
+  FRESH manifest-backed sample of that pane's screen, which only the
+  workbench holding the surface can take.
+- A HUB WITH NO WORKBENCH CANNOT WAKE, absent a delegation, which is not
+  authorised on either of the two counts above. Its candidates stay pending —
+  correctly, since [[RFC-0005]] C-WAKE-TRIGGER already keeps a candidate pending
+  while the gate is closed, and "no workbench attached" is simply the
+  gate never opening. The mail waits; the agent finds it on its next
+  read or when a workbench attaches. Implementations MUST NOT invent a
+  substitute path (a peer's workbench, a synthesized signal) to make a
+  wake happen anyway.
+- Wake receipts are events on the hosting hub's log only
+  (C-EVENT-LOCALITY). A sender MUST NOT be told whether its message
+  woke anyone: wake is a doorbell on the recipient's machine, not a
+  delivery confirmation the sender is owed."""

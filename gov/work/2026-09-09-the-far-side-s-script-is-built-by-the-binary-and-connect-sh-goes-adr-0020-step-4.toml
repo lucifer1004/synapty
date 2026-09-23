@@ -1,0 +1,83 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-09-008"
+title = "The far side's script is built by the binary, and connect.sh goes (ADR-0020, step 4)"
+status = "done"
+created = "2026-09-09"
+started = "2026-09-09"
+completed = "2026-09-09"
+refs = [
+    "ADR-0020",
+    "RFC-0015:C-PERSIST",
+]
+
+[content]
+description = """
+The last step of [[ADR-0020]]. `scripts/connect.sh` is deleted; a remote
+pane's command is `synapty connect`.
+
+THE FAR SIDE'S SCRIPT IS STILL SHELL AND IS NOW BUILT IN ZIG. That is what
+the decision asks for and the distinction is worth keeping straight: the
+TEXT has to be shell, because it runs before that machine's synapty binary
+has been located and is the bootstrap that locates it. What moved is the
+ASSEMBLING of it — out of a file where every `$` had to be escaped twice,
+once for the shell doing the assigning and once for the shell receiving it,
+and into multiline literals that take no escapes at all.
+
+VERIFIED BY COMPARISON, NOT BY READING. The two builders were run against
+each other on all six shapes — durable and not, crossed with no starting
+directory, a plain one, and one containing a quote — and the output was
+byte-identical before the shell version was deleted. Two backslash counts
+differed at first; both would have behaved the same on the far side, and
+both were changed to match anyway, because "equivalent by my reasoning" is
+not the standard a move like this should meet.
+
+AND NINE POSITIONALS BECAME NAMED OPTIONS. Two of them — the tunnel port
+and the hub port — were never read at all, and had been carried for months
+because a fixed positional layout cannot drop a slot in the middle. The
+forwardings are one argument each, which is what makes room for the rest:
+a variadic run at the end of an argument list is why the name to start
+under and the directory to open in had to ride in the environment. Both are
+flags now."""
+notes = [
+    "A VACUOUS ASSERTION WAS REMOVED RATHER THAN LEFT GREEN. The perl stub added in step 1 watched for a call that the binary cannot make once the script is gone; it would have passed forever. What it was really guarding — a stamp truncated to the second, which reads as a step happening BEFORE the dial that started it — is the thirteen-digit shape assertion beside it, and that one can still fail.",
+    "A COMMENT HAD BEEN WRONG FOR MONTHS WITHOUT ITS TEST NOTICING. `testConnectCommandCarriesAnExplicitAgentID` explained itself by saying the script names a tmux session `synapty-<agent-id>` — tmux was replaced by the holder in [[ADR-0012]]. The assertion below it was right the whole time, which is exactly why nobody read the sentence above it.",
+    "WHAT setup-host.sh STILL HAS. It writes its account through the binary (step 1) but is otherwise untouched, and its own test still reaches its subject by `sed`-ing a line range and `eval`-ing it. [[ADR-0020]]'s rule applies to it unchanged — it has the same two halves — and it is out of scope here only for sequencing, exactly as the decision says.",
+    "THE SHAPE OF WHAT IS LEFT. `synapty connect` is one file of about five hundred lines: the far side's script, the ssh assembly, the master probe, the two modes, and their tests. It replaces two hundred and seventy lines of shell whose test file was three hundred and thirty, most of which existed to reach code that could not otherwise be called.",
+]
+
+[[content.acceptance_criteria]]
+text = "The far side's launch script is built by the binary; scripts/connect.sh is deleted"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "A remote pane's command is synapty connect with named options rather than bash and nine positionals"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "The name to start under and the directory to open in are options, not environment variables"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "shellQuote, the one POSIX single-quoting function on this path, used by both the cd it builds and by --print"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "--print-remote prints only the far side's script, which is what let the two builders be compared byte for byte"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "The remote launch is asserted through the binary that builds it, with no line range sed'd out of a file"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "connectCommand names its options, omits what a host does not have, and passes each forwarding as one argument"
+status = "done"
+category = "chore"

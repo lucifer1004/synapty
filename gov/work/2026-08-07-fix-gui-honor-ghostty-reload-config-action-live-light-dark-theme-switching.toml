@@ -1,0 +1,22 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-07-001"
+title = "fix(gui): honor ghostty reload_config action — live light/dark theme switching"
+status = "done"
+created = "2026-08-07"
+started = "2026-08-07"
+completed = "2026-08-07"
+
+[content]
+description = "The color scheme change path is broken: ghostty's colorSchemeEvent updates the conditional state and requests a soft config reload, but the embedded apprt delegates reload to the embedder's action callback, which returns false for GHOSTTY_ACTION_RELOAD_CONFIG. The light/dark theme pair therefore never re-derives on existing surfaces — switching Appearance leaves terminal colors unchanged. Handle the action: soft → re-apply the current config via ghostty_app_update_config (surfaces re-derive with the new conditional state); hard → rebuild the config from the fragment."
+
+[[content.acceptance_criteria]]
+text = "terminal theme switches live when Appearance changes (light/dark pair re-resolves)"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "action callback handles reload_config — soft re-applies current config, hard rebuilds from fragment"
+status = "done"
+category = "added"

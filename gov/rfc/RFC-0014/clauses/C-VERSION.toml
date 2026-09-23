@@ -1,0 +1,19 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-VERSION"
+title = "Skew Is Visible, Never Silent"
+kind = "normative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+The holder and the client are deployed on separate schedules and MUST be able to disagree safely.
+
+- Both sides MUST announce the protocol version they speak before any session data is exchanged.
+- A side that does not implement the other's announced version MUST refuse the session, MUST surface the refusal as a version mismatch naming both versions, and MUST NOT proceed on a best-effort interpretation.
+- The version identifier MUST change when the protocol changes in a way that would make one side misread the other, and MUST NOT change otherwise. A holder rendered unreachable by a build stamp is a fault, not a compatibility measure.
+- Enumerating and ending holders ([[RFC-0014:C-END]]) MUST remain possible across a version mismatch. Whatever surface provides them is therefore not part of the versioned session protocol, and MUST NOT be refused on the grounds of version.
+
+A mismatch that fails loudly costs a reconnect; one that half-works costs a corrupted screen nobody can attribute, and one that leaves a running session unreachable AND unclearable costs the human a machine they have to go and clean by hand."""

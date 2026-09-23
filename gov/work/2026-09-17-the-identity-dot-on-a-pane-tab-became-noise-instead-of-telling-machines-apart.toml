@@ -1,0 +1,60 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-09-17-001"
+title = "The identity dot on a pane tab became noise instead of telling machines apart"
+status = "done"
+created = "2026-09-17"
+started = "2026-09-17"
+completed = "2026-09-17"
+refs = ["RFC-0015:C-LEAF-BINDING"]
+
+[content]
+description = """
+A pane tab drew the host's identity colour as a 6pt dot immediately left of the attention pulse, which is also a 6pt dot. Two adjacent marks the same size, one meaning "this pane wants you" and one meaning nothing but "which machine", teach the eye to discount both.
+
+THIS IS THE WORKSPACE ROW'S OWN DISEASE, REACHING THE ONE PLACE IT WAS ALLOWED TO STAY. [[WI-2026-09-07-003]] took the identity colour off the sidebar row and wrote down why: "`DS.danger` and `DS.warning` are the only saturated colours with a meaning and they were competing with three hundred and sixty arbitrary hues — a red dot among a rainbow is just another colour", and "three unlabelled dots is not three channels, it is one channel used badly". It exempted the pane tab on the argument that a tab "has no room for a name and is on exactly one machine". That argument is about how many MACHINES a tab has; the defect is about how many DOTS it has.
+
+AND THE COLOUR DID NOT TELL MACHINES APART EITHER, which is the other half and the arithmetic half. [[HostTint]] hashed with djb2 — `h*33 + c`, so a name's last characters dominate the low bits — and `33^4 mod 360` is 81, whose gcd with 360 is 9. Every set of names sharing a four-character suffix had its prefixes folded into forty of the three hundred and sixty slots. Machines are named with shared suffixes. Measured on the old hash: `remotehost` 295° against `otherhost` 301°, `build-01` 147° against `build-02` 148° against `cache.internal` 148°, `gpu-a` 351° against `gpu-b` 352°. Three pairs claiming to be a distinction and not being one.
+
+A CONTINUOUS HUE SPACE PROMISES A DISTINCTION IT CANNOT KEEP even with a good hash: N hues on a circle have an expected smallest gap that shrinks as N squared, so two of five hosts will routinely land within a few degrees."""
+notes = ['''
+A DIFFERENT CHANNEL, NOT A QUIETER DOT. Dimming it would have left the eye the same discrimination to make in the same place. The colour moved to [[HostSpine]] — a 3pt capsule the full height of the tab, flush with its leading edge — so the dot channel now carries only the two things that mean something: the amber pulse (this pane wants you) and the accent dot after the label (something is running here).
+
+SHORT AND INSET FIRST, WHICH LOOKED WRONG AND SAID WHY. Rendered, a 12pt bar three points inside the tab floated: most tabs draw no background at all, so there was no edge for it to be the margin OF, and it read as a stray tick beside the title — a mark to inspect, which is the thing being fixed. Full height against the boundary is the shape every gutter marker on this platform has.
+
+NOT THE BOTTOM EDGE, the other candidate. `ProgressHairline` already draws a 2pt horizontal bar under the label; a second horizontal bar two points tall, differing only in where it sits, is this work item's own defect in a new place.
+
+AND A STACK OF SPINES READS AS A GROUP, which repeated dots did not. Four tabs on one machine look like four tabs on one machine, instead of four marks each inviting inspection.
+
+THE HASH. `HostTint` now uses FNV-1a over 12 bands 30° apart. The arithmetic behind the old one is in the description; the consequence is that two machines are either a band apart or exactly the same colour, and a shared band is honest — it says the colour cannot tell these two apart. FNV-1a is what `AgentMonitor` already reaches for when it needs a stable distinguishable colour for an unknown tool.
+
+WHAT THE TESTS PIN, AND WHY PIXELS. `Tests/PaneTabRenderingTests` renders the tab, because the defect is WHERE a colour is drawn and no description, accessibility label or geometry constant can tell a hue in the label row from the same hue at the edge — both arrangements satisfy every non-pixel assertion. The assertion is an invariance: two tabs differing only in their machine differ only at columns below `HostSpine.occupiedWidth`.
+
+CANARIED:
+- identity dot put back in the label row -> "the machine is encoded at columns [42, 43, 44, 45, 46, 47, 48, 49] as well as in the margin (< 7)", plus the local-vs-remote case.
+- spine deleted -> "two tabs on different machines rendered identically — the tab no longer says which machine it is on at all".
+
+ACCESSIBILITY WAS BROKEN AND THE MOVE IS WHAT EXPOSED IT. The dot carried `.accessibilityLabel("On \(hostLabel)")` that nothing ever spoke: the tab declares `accessibilityElement(children: .ignore)`, so a remote pane and a local one read identically. The machine is now in the tab's own label and in `tabTooltip`, where it is also readable by hover rather than only by hitting a 3pt target — which matters more than before, because a hue has no name.
+
+`HostTintTests` lost "different names are different hues". That is not what a twelve-colour palette promises, and asserting it would be asserting a bug. What replaced it pins the defect directly: names sharing a suffix are either identical or at least one band apart.''']
+
+[[content.acceptance_criteria]]
+text = "which machine a tab is on is said somewhere that is not the row of marks beside its title, so the dot channel carries only things that mean something"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "two machines whose names share a suffix are either visibly different colours or exactly the same one, never a few degrees apart"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "an invariance rather than a layout — two tabs differing only in their machine differ only where identity is allowed to be, and it fails whatever shape identity comes back as"
+status = "done"
+category = "chore"
+
+[[content.acceptance_criteria]]
+text = "the machine reaches assistive technology, which the dot's accessibility label never did"
+status = "done"
+category = "fixed"

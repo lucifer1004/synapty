@@ -1,0 +1,8 @@
+{
+  "tool": "codex",
+  "resumeArgv": [
+    "codex",
+    "resume",
+    "{resume_ref}"
+  ]
+}

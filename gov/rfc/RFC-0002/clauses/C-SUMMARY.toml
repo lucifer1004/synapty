@@ -1,0 +1,24 @@
+#:schema ../../../schema/clause.schema.json
+
+[govctl]
+id = "C-SUMMARY"
+title = "Summary"
+kind = "informative"
+status = "active"
+since = "0.1.0"
+
+[content]
+text = """
+This RFC specifies the A2A messaging protocol for Synapty, redesigning the L4 control plane as an IM-style system supporting direct messages (DM) between agents and group chats with multiple participants.
+
+Key design principles:
+- **Agents are first-class identities** with rich metadata (tool, project, session summary).
+- **DM** is implicit: any registered agent can message any other.
+- **Group chats** are explicit: agents create channels, invite others, and fan-out delivery.
+- **Hub stores message history** as an append-only log; agents receive only unread messages on recv.
+- **Human operators** participate via the synapty CLI within a synapty session.
+- **V1 scope**: happy-path only. No encryption, no delivery guarantees, no persistence across Hub restarts.
+
+This RFC supersedes the ad-hoc envelope routing in the V1 prototype and establishes the normative protocol for all agent-to-agent and human-to-agent communication.
+
+*Since: v0.1.0*"""

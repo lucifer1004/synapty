@@ -1,0 +1,47 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-18-003"
+title = "A record with no fields is replicated to every Mac"
+status = "done"
+created = "2026-08-18"
+started = "2026-08-18"
+completed = "2026-08-18"
+refs = ["RFC-0010"]
+
+[content]
+description = """
+`SyncDomain.files()` enumerates the shared directory and offers anything shaped like a file. A record containing `{}` therefore syncs: it is uploaded, and on another machine `SyncEngine.apply` takes it as-is, because an absent local file is read as licence to write whatever the wire offered.
+
+FOUND ON THE OPERATOR'S OWN MACHINE, not reasoned about. 64 host records containing `{}`, all written on one day by a test suite that was still using the real config root — and every one of them present in `sync-base`, so all 64 had already been offered to CloudKit.
+
+WHY FOUR DAYS PASSED. The store reads records with `try?` inside a `compactMap`, so an undecodable one loses a single entity rather than the file. That tolerance is deliberate and is most of what a per-record store buys. Its cost is that junk is invisible: the app steps over it and says nothing.
+
+The sync layer had no such rule. Its own comment calls `files()` "the single place a sync engine asks 'may I send this'", which is exactly where the judgement belongs and exactly what was missing from it.
+
+BOTH DIRECTIONS, because an outbound guard alone leaves the hole at the end that matters. It would stop offering new junk while still accepting junk from the wire — which is how a record reaches a second Mac, and how one deleted locally comes back on the next sync.
+
+THE RULE IS ABOUT RECORDS, NOT FILES. `ghostty.conf` and `config.toml` are not JSON and must keep replicating, so the `.json` suffix is what marks a file as claiming to be a record. Phrased as "must parse", this would have quietly stopped syncing the human's terminal configuration.
+
+The 64 already on this machine are not addressed here: they are in CloudKit, and removing them needs the deletion path rather than a guard. This stops the mechanism."""
+notes = ["2026-08-18: The 64 empty records date to 2026-08-14, the same day as [[WI-2026-08-14-010]] and [[WI-2026-08-14-006]] — test runs writing into the real config root. That cause is fixed: ~20 suite runs on 08-18 produced none. What remained was the sync layer replicating them."]
+
+[[content.acceptance_criteria]]
+text = "A record with no fields is not offered to sync, and is refused on arrival rather than written"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "A malformed or half-written record is refused in both directions — a sync that caught one mid-write would replicate the truncation"
+status = "done"
+category = "fixed"
+
+[[content.acceptance_criteria]]
+text = "Files that are not records — ghostty.conf, config.toml — are unaffected and keep replicating"
+status = "done"
+category = "changed"
+
+[[content.acceptance_criteria]]
+text = "Both directions are covered by tests that fail when either guard is opened"
+status = "done"
+category = "chore"

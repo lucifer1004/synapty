@@ -1,0 +1,41 @@
+#:schema ../schema/work.schema.json
+
+[govctl]
+id = "WI-2026-08-12-006"
+title = "feat(hub): hub peering — directory exchange, cross-hub routing, spool with TTL"
+status = "done"
+created = "2026-08-12"
+started = "2026-08-12"
+completed = "2026-08-12"
+refs = ["ADR-0008"]
+depends_on = [
+    "WI-2026-08-12-003",
+    "WI-2026-08-12-002",
+]
+
+[content]
+description = "[[ADR-0008]] STAGE 4: implement the peer protocol specified by WI-2026-08-12-003. Hubs learn each other's local identities, forward cross-machine traffic over authenticated peer links, and spool with a TTL when a peer is unreachable. The submission boundary (agent to its own hub, one connection one identity) is unchanged by this work — that is the point of the split, and any change to it here is a signal the design drifted."
+notes = [
+    'REVIEW FINDING (RFC-0009 implementability pass, 2026-08-12) — the exact code site where this WI will silently produce the failure the RFC forbids. src/hub/registry.zig mailboxDeliver computes `known` as (hosted_conn != null or generations.contains or durable_ids.contains or mailbox.count > 0) and returns error.UnknownTarget when false. Adding peer-directory entries to that boolean is the obvious move and is WRONG: it collapses five distinct outcomes onto two. C-DELIVERY now names all five (delivered / forwarded / spooled / unknown / indeterminate) and the dm response shape changes from {queued, hosted} to {status, reason?}. Implement mailboxDeliver as returning that enum, NOT a bool — a bool cannot express "some peer is unreachable so I cannot tell", which is precisely the answer C-DELIVERY requires and the one a naive port turns into a permanent-looking typo error. Second site: applyStatusSignal rejects signals for identities the hub does not host, which is every relayed presence conclusion; C-PRESENCE requires a separate write-through path rather than reuse. Third: directory and relayed-presence changes MUST append LOCAL events (C-EVENT-LOCALITY) or `synapty wait` on a remote identity blocks forever and the workbench never sees a remote agent.',
+    "IMPLEMENTED 2026-08-12. src/hub/federation.zig (Directory with tombstones, Spool with TTL + FIFO, DeliveryOutcome, peer-id discipline, qualify/strip), src/hub/peer.zig (dialing half of a relay link), relay branch in session.zig + relay handlers in handlers.zig, federation ops on HubState. NOT YET DONE and deliberately out of scope here: presence relay is minted on the receiving side but no hub SENDS relay_presence on a local status change (the write-through path and event kind exist, the emitter does not); the relay link is dialed on demand rather than supervised with reconnect/backoff; there is no UI for configuring peers. zig 214/214, Swift 257/257.",
+]
+
+[[content.acceptance_criteria]]
+text = "peer links established over the existing SSH tunnel machinery, authenticated as peers; a peer link carries many identities while agent submission connections remain one-identity (the connection-scoped invariants for generation, ownership, re-home and displacement survive untouched)"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "directory exchange — a hub advertises its local identities on peer connect and on change; a bounded table, with the bound enforced rather than assumed"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "cross-hub delivery — mail for an identity hosted by a peer is forwarded; when the peer is unreachable it spools with a TTL and flushes on reconnect with spooled traffic ordered before new traffic; TTL expiry and everywhere-unknown targets report honestly to the sender"
+status = "done"
+category = "added"
+
+[[content.acceptance_criteria]]
+text = "two-hub e2e — agents on separate hubs exchange messages; a peer link drop spools and the reconnect flushes in order; local A2A on each hub continues working THROUGHOUT the outage (the property that motivated the whole architecture)"
+status = "done"
+category = "chore"
